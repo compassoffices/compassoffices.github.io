@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Company List</title>
   <style>
     html, body {
@@ -14,16 +14,20 @@
       padding-bottom: 7.5vh;
       width: 100%;
       max-width: 880px;
-      min-height: 100vh;
+      height: 100vh;
       box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
       overflow: hidden;
+    }
+
+    #companyList {
+      margin-bottom: 60px; /* Ensure space for footer */
+      transition: opacity 0.5s ease-in-out;
     }
 
     .row {
       display: block;
       padding: 0.45vw;
+      margin-bottom: 0.75vw;
       border-bottom: 1px solid #444;
       font-size: 3.64vw;
       line-height: 4.09vw;
@@ -45,11 +49,6 @@
       font-size: 1.7vw;
       font-weight: bold;
       box-sizing: border-box;
-    }
-
-    #companyList {
-      flex: 1;
-      transition: opacity 0.5s ease-in-out;
     }
 
     .fade-out {
@@ -90,51 +89,50 @@
   <div class="footer" id="footer">Loading... | Page 1 of 1</div>
 
   <script>
-    const dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSHIT3SeyUDvm1vUXuo5xdZJwrFlYkBPR-P4ebecZ1KgJy0LGhHU2QRoHz0pSN2L238rd2IH2_zA0PD/pubhtml?gid=0&single=true";
+    var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSHIT3SeyUDvm1vUXuo5xdZJwrFlYkBPR-P4ebecZ1KgJy0LGhHU2QRoHz0pSN2L238rd2IH2_zA0PD/pubhtml?gid=0&single=true";
 
-    let companies = [];
-    let currentPage = 0;
-    const targetCompaniesPerPage = 10;
-    let totalPages = 1;
-    let sheetTitle = "Company List";
-    let pageBreaks = [0];
+    var companies = [];
+    var currentPage = 0;
+    var targetCompaniesPerPage = 10;
+    var totalPages = 1;
+    var sheetTitle = "Company List";
+    var pageBreaks = [0];
 
-    const xhr = new XMLHttpRequest();
+    var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
       if (xhr.readyState === 4) {
         if (xhr.status === 200) {
-          const temp = document.createElement("div");
+          var temp = document.createElement("div");
           temp.innerHTML = xhr.responseText;
 
-          const titleElement = temp.getElementsByTagName("title")[0];
+          var titleElement = temp.getElementsByTagName("title")[0];
           if (titleElement && titleElement.innerText) {
-            sheetTitle = titleElement.innerText.replace(/ - Google .*$/, "").trim();
+            sheetTitle = titleElement.innerText.replace(/ - Google .*$/, "").replace(/^\s+|\s+$/g, "");
             document.title = sheetTitle;
           }
 
-          const table = temp.getElementsByTagName("table")[0];
+          var table = temp.getElementsByTagName("table")[0];
           if (!table) {
             document.getElementById("companyList").innerText = "Error: No table found.";
             document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
             return;
           }
 
-          const rows = table.rows;
+          var rows = table.rows;
           companies = [];
-          for (let i = 1; i < rows.length; i++) {
-            const cells = rows[i].cells;
+          for (var i = 1; i < rows.length; i++) {
+            var cells = rows[i].cells;
             if (cells.length < 2) {
-              console.warn(`Warning: Row ${i} has fewer than 2 cells, skipping`);
               continue;
             }
-            const listNumber = cells[0]?.innerText.trim() || i.toString();
-            const companyName = cells[1]?.innerText.trim() || "Unnamed";
-            companies.push({ listNumber, companyName });
+            var listNumber = cells[0] ? cells[0].innerText.replace(/^\s+|\s+$/g, "") : (i + 1).toString();
+            var companyName = cells[1] ? cells[1].innerText.replace(/^\s+|\s+$/g, "") : "Unnamed";
+            companies.push({ listNumber: listNumber, companyName: companyName });
           }
 
           pageBreaks = [0];
-          for (let i = 0; i < companies.length; i += targetCompaniesPerPage) {
-            pageBreaks.push(Math.min(i + targetCompaniesPerPage, companies.length));
+          for (var j = 0; j < companies.length; j += targetCompaniesPerPage) {
+            pageBreaks.push(Math.min(j + targetCompaniesPerPage, companies.length));
           }
           totalPages = pageBreaks.length - 1;
 
@@ -142,34 +140,33 @@
           updateFooter();
           startAutoTransition();
         } else {
-          document.getElementById("companyList").innerText = `Error: Failed to load data (Status: ${xhr.status})`;
-          document.getElementById("footer").innerText = `${sheetTitle} | Page 1 of 1`;
+          document.getElementById("companyList").innerText = "Error loading data (Status: " + xhr.status + ")";
+          document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
         }
       }
     };
-
     xhr.open("GET", dataUrl, true);
     try {
       xhr.send();
     } catch (e) {
-      document.getElementById("companyList").innerText = "Error: Failed to send request.";
+      document.getElementById("companyList").innerText = "Error: Could not send request.";
       document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
     }
 
     function displayPage(page) {
-      const companyList = document.getElementById("companyList");
+      var companyList = document.getElementById("companyList");
       companyList.className = "fade-out";
 
-      setTimeout(() => {
-        const start = pageBreaks[page];
-        const end = pageBreaks[page + 1] || companies.length;
-        let output = "";
+      setTimeout(function() {
+        var start = pageBreaks[page];
+        var end = pageBreaks[page + 1] || companies.length;
+        var output = "";
 
-        for (let i = start; i < end && i < start + targetCompaniesPerPage; i++) {
-          output += `<div class="row">${companies[i].listNumber}. ${companies[i].companyName}</div>`;
+        for (var i = start; i < end && i < start + targetCompaniesPerPage; i++) {
+          output += '<div class="row">' + companies[i].listNumber + ". " + companies[i].companyName + '</div>';
         }
 
-        for (let i = end - start; i < targetCompaniesPerPage; i++) {
+        for (var k = end - start; k < targetCompaniesPerPage; k++) {
           output += '<div class="row"> </div>';
         }
 
@@ -180,11 +177,11 @@
     }
 
     function updateFooter() {
-      document.getElementById("footer").innerText = `${sheetTitle} | Page ${currentPage + 1} of ${totalPages}`;
+      document.getElementById("footer").innerText = sheetTitle + " | Page " + (currentPage + 1) + " of " + totalPages;
     }
 
     function startAutoTransition() {
-      setInterval(() => {
+      setInterval(function() {
         currentPage = (currentPage + 1) % totalPages;
         displayPage(currentPage);
       }, 15000);
