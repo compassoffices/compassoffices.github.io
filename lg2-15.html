@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Company List</title>
   <style>
     html, body {
@@ -9,37 +10,43 @@
       background-color: #282828;
       color: white;
       margin: 0;
-      padding: 10px;
-      padding-bottom: 60px; /* Space for footer */
-      width: 880px; /* Exact width for digital board */
-      height: 800px; /* Exact height for digital board */
+      padding: 1.14vw; /* 10px at 880px */
+      padding-bottom: 7.5vh; /* 60px at 800px */
+      width: 100%;
+      max-width: 880px; /* Default for digital board */
+      height: 100vh;
+      max-height: 800px; /* Default for digital board */
       box-sizing: border-box;
-      overflow: hidden; /* Prevent overflow */
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .row {
       display: block;
-      padding: 4px; /* Minimized to fit 10 rows */
+      padding: 0.45vw; /* 4px at 880px */
       border-bottom: 1px solid #444;
-      font-size: 32px; /* Kept for visibility */
-      line-height: 36px; /* Adjusted to fit 10 rows in height */
+      font-size: 3.64vw; /* 32px at 880px */
+      line-height: 4.09vw; /* 36px at 880px */
       word-wrap: break-word;
       overflow-wrap: break-word;
-      max-width: 860px; /* Account for 10px padding on each side */
+      max-width: calc(100% - 2.28vw); /* 860px at 880px */
     }
     .footer {
       background-color: #ff6600;
       color: white;
       text-align: center;
-      padding: 10px;
+      padding: 1.14vw; /* 10px at 880px */
       position: fixed;
       bottom: 0;
       left: 0;
-      width: 880px; /* Match board width */
-      font-size: 15px; /* Slightly reduced to fit */
+      right: 0;
+      width: 100%;
+      font-size: 1.7vw; /* 15px at 880px */
       font-weight: bold;
       box-sizing: border-box;
     }
     #companyList {
+      flex: 1;
       -webkit-transition: opacity 0.5s ease-in-out;
       -moz-transition: opacity 0.5s ease-in-out;
       -o-transition: opacity 0.5s ease-in-out;
@@ -50,6 +57,29 @@
     }
     .fade-in {
       opacity: 1;
+    }
+    /* Responsive adjustments */
+    @media screen and (max-width: 600px) {
+      .row {
+        font-size: 5vw;
+        line-height: 6vw;
+        padding: 0.8vw;
+      }
+      .footer {
+        font-size: 2.5vw;
+        padding: 1.5vw;
+      }
+    }
+    @media screen and (min-width: 1200px) {
+      .row {
+        font-size: 2.67vw;
+        line-height: 3vw;
+        padding: 0.33vw;
+      }
+      .footer {
+        font-size: 1.25vw;
+        padding: 0.83vw;
+      }
     }
   </style>
 </head>
@@ -63,17 +93,10 @@
 
     var companies = [];
     var currentPage = 0;
-    var targetRowsPerPage = 10; // Exactly 10 rows per page
+    var targetCompaniesPerPage = 10; // Exactly 10 companies per page
     var totalPages = 1;
     var sheetTitle = "Company List"; // Default title
     var pageBreaks = [0]; // Initialize with first page start
-
-    // Estimate lines for a company name (approximation for wrapping)
-    function estimateLines(text) {
-      var charsPerLine = 30; // Adjusted for 32px font, 860px width
-      var length = text.length;
-      return Math.ceil(length / charsPerLine) || 1; // At least 1 line
-    }
 
     // Fetch company data and sheet name
     var xhr = new XMLHttpRequest();
@@ -118,39 +141,18 @@
           }
           console.log("Total companies loaded:", companies.length);
 
-          // Calculate pages: Ensure exactly 10 rows per page
+          // Calculate pages: Exactly 10 companies per page
           pageBreaks = [0];
-          var i = 0;
-          while (i < companies.length) {
-            var start = i;
-            var rowCount = 0;
-            var end = start;
-
-            // Accumulate companies until exactly 10 rows are reached
-            while (end < companies.length && rowCount < targetRowsPerPage) {
-              var rowText = companies[end].listNumber + ". " + companies[end].companyName;
-              var lines = estimateLines(rowText);
-              if (rowCount + lines <= targetRowsPerPage) {
-                rowCount += lines;
-                end++;
-              } else {
-                break;
-              }
-            }
-
-            // If no companies fit, include at least one
-            if (end === start) {
-              end++;
-              rowCount = estimateLines(companies[start].listNumber + ". " + companies[start].companyName);
-            }
-
-            // Add the page break
-            pageBreaks.push(end);
-            console.log(`Page ${pageBreaks.length - 1}: Companies ${start + 1} to ${end} (${end - start} companies, ${rowCount} rows)`);
-            i = end;
+          for (var i = 0; i < companies.length; i += targetCompaniesPerPage) {
+            pageBreaks.push(Math.min(i + targetCompaniesPerPage, companies.length));
           }
           totalPages = pageBreaks.length - 1;
           console.log("Total pages:", totalPages);
+          pageBreaks.forEach((breakPoint, index) => {
+            if (index > 0) {
+              console.log(`Page ${index}: Companies ${pageBreaks[index-1] + 1} to ${breakPoint}`);
+            }
+          });
 
           displayPage(currentPage);
           updateFooter();
@@ -179,19 +181,16 @@
         var start = pageBreaks[page];
         var end = pageBreaks[page + 1] || companies.length;
         var output = "";
-        var rowCount = 0;
 
-        // Add company rows
-        for (var i = start; i < end; i++) {
+        // Add exactly 10 company rows (or fewer if last page)
+        for (var i = start; i < end && i < start + targetCompaniesPerPage; i++) {
           var rowText = companies[i].listNumber + ". " + companies[i].companyName;
           output += '<div class="row">' + rowText + "</div>";
-          rowCount += estimateLines(rowText);
         }
 
         // Fill remaining rows to reach exactly 10
-        while (rowCount < targetRowsPerPage) {
+        for (var i = end - start; i < targetCompaniesPerPage; i++) {
           output += '<div class="row"> </div>'; // Empty row
-          rowCount++;
         }
 
         companyList.innerHTML = output;
