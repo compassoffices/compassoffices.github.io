@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsive Banner Slideshow</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* Prevent scrollbars in iframe */
+    }
+
+    .banner-container {
+      width: 100%;
+      height: 150px; /* Thin height, adjustable */
+      margin: 0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .banner-slide {
+      width: 100%;
+      height: 100%;
+      display: none; /* Hidden by default */
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .banner-slide.active {
+      display: block;
+    }
+
+    .banner-slide img,
+    .banner-slide video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* Ensures media fills the banner without distortion */
+      display: block;
+    }
+
+    /* Fade transition effect */
+    .banner-slide {
+      transition: opacity 0.5s ease-in-out;
+      opacity: 0;
+    }
+
+    .banner-slide.active {
+      opacity: 1;
+    }
+
+    /* Responsive adjustments */
+    @media screen and (max-width: 600px) {
+      .banner-container {
+        height: 100px; /* Smaller height for mobile */
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="banner-container" id="bannerContainer"></div>
+
+  <script>
+    // Function to fetch and parse CSV data
+    async function fetchAdsData() {
+      const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRzNmTcV3ulz0lRk2ffZm9Kiiuorl8RKyC9UjQAUWu3o42SUivjbXwop1mtqaELGZ6xBgFkw5aqzOfs/pub?output=csv';
+      try {
+        const response = await fetch(csvUrl);
+        const text = await response.text();
+        const rows = text.trim().split('\n').slice(1); // Skip header row
+        return rows.map(row => {
+          const firstComma = row.indexOf(',');
+          const type = row.slice(0, firstComma).trim();
+          const url = row.slice(firstComma + 1).trim();
+          return { type, url };
+        }).filter(row => row.type && row.url && ['image', 'video'].includes(row.type.toLowerCase()));
+      } catch (error) {
+        console.error('Error fetching CSV:', error);
+        return [
+          // Fallback to original URLs if CSV fetch fails
+          { type: 'image', url: 'https://cdn.glitch.global/d3825f09-16b9-42c5-aed8-ef674a7a82c1/CO-signage-2.jpg?v=1747672567902' },
+          { type: 'video', url: 'https://www.w3schools.com/html/mov_bbb.mp4' }
+        ];
+      }
+    }
+
+    // Function to create slides from ads data
+    function createSlides(ads) {
+      const container = document.getElementById('bannerContainer');
+      container.innerHTML = ''; // Clear existing slides
+      ads.forEach(ad => {
+        const slide = document.createElement('div');
+        slide.classList.add('banner-slide');
+        if (ad.type.toLowerCase() === 'image') {
+          const img = document.createElement('img');
+          img.src = ad.url;
+          img.alt = 'Ad Image';
+          slide.appendChild(img);
+        } else if (ad.type.toLowerCase() === 'video') {
+          const video = document.createElement('video');
+          video.muted = true;
+          video.playsInline = true;
+          const source = document.createElement('source');
+          source.src = ad.url;
+          source.type = 'video/mp4';
+          video.appendChild(source);
+          video.innerHTML += 'Your browser does not support the video tag.';
+          slide.appendChild(video);
+        }
+        container.appendChild(slide);
+      });
+    }
+
+    // Initialize slideshow
+    async function initSlideshow() {
+      const ads = await fetchAdsData();
+      createSlides(ads);
+      const slides = document.querySelectorAll('.banner-slide');
+      let currentSlide = 0;
+
+      function showSlide(index) {
+        slides.forEach((slide, i) => {
+          slide.classList.toggle('active', i === index);
+          // Pause any video that is not active
+          const video = slide.querySelector('video');
+          if (video && i !== index) {
+            video.pause();
+            video.currentTime = 0; // Reset non-active video
+          }
+        });
+      }
+
+      function nextSlide() {
+        currentSlide = (currentSlide + 1) % slides.length;
+        showSlide(currentSlide);
+        scheduleNextSlide();
+      }
+
+      function scheduleNextSlide() {
+        const currentElement = slides[currentSlide].querySelector('img, video');
+        if (currentElement.tagName.toLowerCase() === 'video') {
+          currentElement.currentTime = 0; // Reset video to start
+          currentElement.play().catch(error => {
+            console.error('Video playback error:', error);
+            nextSlide(); // Fallback to next slide if video fails
+          });
+          currentElement.onended = () => {
+            nextSlide();
+          };
+        } else {
+          setTimeout(nextSlide, 10000); // 10 seconds for images
+        }
+      }
+
+      // Start slideshow
+      showSlide(currentSlide);
+      scheduleNextSlide();
+
+      // Ensure videos are muted and play inline for mobile compatibility
+      document.querySelectorAll('video').forEach(video => {
+        video.muted = true;
+        video.playsInline = true;
+      });
+    }
+
+    // Start the slideshow
+    initSlideshow();
+  </script>
+</body>
+</html>
