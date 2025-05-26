@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Company List</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #282828;
+      color: white;
+      margin: 0;
+      padding: 10px;
+      padding-bottom: 80px; /* Space for footer */
+      width: 880px; /* Set body width */
+      height: 800px; /* Set body height */
+      box-sizing: border-box; /* Ensure padding is included in dimensions */
+    }
+    .row {
+      display: block;
+      padding: 6px; /* Adjusted for smaller height */
+      border-bottom: 1px solid #444;
+      font-size: 28px; /* Scaled down to fit 880x800 */
+      line-height: 36px; /* Adjusted to fit 10 rows */
+      word-wrap: break-word;
+      overflow-wrap: break-word; /* For older browsers */
+      max-width: 860px; /* Account for 10px padding on each side */
+    }
+    .footer {
+      background-color: #ff6600;
+      color: white;
+      text-align: center;
+      padding: 15px; /* Slightly reduced for smaller height */
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      font-size: 16px; /* Scaled down slightly */
+      font-weight: bold;
+    }
+    #companyList {
+      -webkit-transition: opacity 0.5s ease-in-out;
+      -moz-transition: opacity 0.5s ease-in-out;
+      -o-transition: opacity 0.5s ease-in-out;
+      transition: opacity 0.5s ease-in-out;
+    }
+    .fade-out {
+      opacity: 0;
+    }
+    .fade-in {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="companyList">Loading...</div>
+  <div class="footer" id="footer">Compass Offices | Page 1 of 1</div>
+
+  <script>
+    // Google Sheet published URL
+    var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSHIT3SeyUDvm1vUXuo5xdZJwrFlYkBPR-P4ebecZ1KgJy0LGhHU2QRoHz0pSN2L238rd2IH2_zA0PD/pubhtml?gid=0&single=true";
+
+    var companies = [];
+    var currentPage = 0;
+    var targetRowsPerPage = 10; // Exactly 10 rows per page
+    var totalPages = 1;
+    var sheetTitle = "Company List"; // Default title
+    var pageBreaks = [0]; // Initialize with first page start
+
+    // Estimate lines for a company name (approximation for wrapping)
+    function estimateLines(text) {
+      var charsPerLine = 32; // Adjusted for 28px font, 880px width
+      var length = text.length;
+      return Math.ceil(length / charsPerLine) || 1; // At least 1 line
+    }
+
+    // Fetch company data and sheet name
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          console.log("Raw response length:", xhr.responseText.length);
+          var temp = document.createElement("div");
+          temp.innerHTML = xhr.responseText;
+
+          // Extract sheet name from the HTML title
+          var titleElement = temp.getElementsByTagName("title")[0];
+          if (titleElement && titleElement.innerText) {
+            sheetTitle = titleElement.innerText.replace(/ - Google .*$/, "").replace(/^\s+|\s+$/g, "");
+            document.title = sheetTitle;
+            console.log("Sheet title:", sheetTitle);
+          } else {
+            console.log("Warning: No title element found in response");
+          }
+
+          var table = temp.getElementsByTagName("table")[0];
+          if (!table) {
+            document.getElementById("companyList").innerText = "Error: No table found in the Google Sheet.";
+            document.getElementById("footer").innerText = "Compass Offices | Page 1 of 1";
+            console.log("Error: No table found in the Google Sheet.");
+            return;
+          }
+
+          var rows = table.rows;
+          console.log("Total rows in table:", rows.length);
+          companies = [];
+          for (var i = 1; i < rows.length; i++) { // Skip header
+            var cells = rows[i].cells;
+            if (cells.length < 2) {
+              console.log(`Warning: Row ${i} has fewer than 2 cells, skipping`);
+              continue;
+            }
+            var listNumber = cells[0] ? cells[0].innerText.replace(/^\s+|\s+$/g, "") : i.toString();
+            var companyName = cells[1] ? cells[1].innerText.replace(/^\s+|\s+$/g, "") : "Unnamed";
+            companies.push({ listNumber: listNumber, companyName: companyName });
+            console.log(`Row ${i}: List Number = ${listNumber}, Company = ${companyName}`);
+          }
+          console.log("Total companies loaded:", companies.length);
+
+          // Calculate pages: Ensure exactly 10 rows per page
+          pageBreaks = [0];
+          var i = 0;
+          while (i < companies.length) {
+            var start = i;
+            var rowCount = 0;
+            var end = start;
+
+            // Accumulate companies until exactly 10 rows are reached
+            while (end < companies.length && rowCount < targetRowsPerPage) {
+              var rowText = companies[end].listNumber + ". " + companies[end].companyName;
+              var lines = estimateLines(rowText);
+              if (rowCount + lines <= targetRowsPerPage) {
+                rowCount += lines;
+                end++;
+              } else {
+                break;
+              }
+            }
+
+            // If no companies fit, include at least one
+            if (end === start) {
+              end++;
+              rowCount = estimateLines(companies[start].listNumber + ". " + companies[start].companyName);
+            }
+
+            // Add the page break
+            pageBreaks.push(end);
+            console.log(`Page ${pageBreaks.length - 1}: Companies ${start + 1} to ${end} (${end - start} companies, ${rowCount} rows)`);
+            i = end;
+          }
+          totalPages = pageBreaks.length - 1;
+          console.log("Total pages:", totalPages);
+
+          displayPage(currentPage);
+          updateFooter();
+          startAutoTransition();
+        } else {
+          document.getElementById("companyList").innerText = "Error: Failed to load data (Status: " + xhr.status + ")";
+          document.getElementById("footer").innerText = "Compass Offices | Page 1 of 1";
+          console.log("Error: Failed to load data. Status:", xhr.status, "Response:", xhr.responseText);
+        }
+      }
+    };
+    xhr.open("GET", dataUrl, true);
+    try {
+      xhr.send();
+    } catch (e) {
+      document.getElementById("companyList").innerText = "Error: Failed to send request.";
+      document.getElementById("footer").innerText = "Compass Offices | Page 1 of 1";
+      console.log("Error: Failed to send request.", e.message);
+    }
+
+    function displayPage(page) {
+      var companyList = document.getElementById("companyList");
+      companyList.className = "fade-out";
+
+      setTimeout(function() {
+        var start = pageBreaks[page];
+        var end = pageBreaks[page + 1] || companies.length;
+        var output = "";
+        var rowCount = 0;
+
+        for (var i = start; i < end; i++) {
+          var rowText = companies[i].listNumber + ". " + companies[i].companyName;
+          output += '<div class="row">' + rowText + "</div>";
+          rowCount += estimateLines(rowText);
+        }
+
+        // Ensure exactly 10 rows by adding empty rows if needed
+        while (rowCount < targetRowsPerPage) {
+          output += '<div class="row"> </div>'; // Empty row
+          rowCount++;
+        }
+
+        companyList.innerHTML = output;
+        companyList.className = "fade-in";
+        updateFooter();
+      }, 500); // Match transition duration
+    }
+
+    function updateFooter() {
+      document.getElementById("footer").innerText = "Compass Offices | Page " + (currentPage + 1) + " of " + totalPages;
+    }
+
+    function startAutoTransition() {
+      setInterval(function() {
+        currentPage = (currentPage + 1) % totalPages;
+        displayPage(currentPage);
+      }, 15000); // 15 seconds
+    }
+  </script>
+</body>
+</html>
