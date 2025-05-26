@@ -2,84 +2,64 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Company List</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Custom font with fallback -->
+  <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
   <style>
     html, body {
-      font-family: Arial, sans-serif;
+      font-family: 'Neue Haas Grotesk Display Pro', Arial, sans-serif;
       background-color: #282828;
       color: white;
       margin: 0;
-      padding: 1.14vw; /* 10px at 880px */
-      padding-bottom: 7.5vh; /* 60px at 800px */
-      width: 100%;
-      max-width: 880px; /* Default for digital board */
-      height: 100vh;
-      max-height: 800px; /* Default for digital board */
-      box-sizing: border-box;
+      padding: 10px;
+      width: 880px;
+      height: 800px;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
     }
+
+    #companyList {
+      height: 700px;
+      overflow: hidden;
+    }
+
     .row {
       display: block;
-      padding: 0.45vw; /* 4px at 880px */
+      padding: 4px;
       border-bottom: 1px solid #444;
-      font-size: 3.64vw; /* 32px at 880px */
-      line-height: 4.09vw; /* 36px at 880px */
+      font-size: 32px;
+      line-height: 36px;
       word-wrap: break-word;
       overflow-wrap: break-word;
-      max-width: calc(100% - 2.28vw); /* 860px at 880px */
     }
+
     .footer {
       background-color: #ff6600;
       color: white;
       text-align: center;
-      padding: 1.14vw; /* 10px at 880px */
-      position: fixed;
+      padding: 10px;
+      position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
       width: 100%;
-      font-size: 1.7vw; /* 15px at 880px */
+      font-size: 15px;
       font-weight: bold;
       box-sizing: border-box;
     }
-    #companyList {
-      flex: 1;
-      -webkit-transition: opacity 0.5s ease-in-out;
-      -moz-transition: opacity 0.5s ease-in-out;
-      -o-transition: opacity 0.5s ease-in-out;
-      transition: opacity 0.5s ease-in-out;
+
+    .fade-out { filter: alpha(opacity=0); opacity: 0; }
+    .fade-in  { filter: alpha(opacity=100); opacity: 1; }
+
+    /* IE fallback */
+    img {
+      border: 0;
     }
-    .fade-out {
-      opacity: 0;
-    }
-    .fade-in {
-      opacity: 1;
-    }
-    /* Responsive adjustments */
+
+    /* Simple responsive fallback */
     @media screen and (max-width: 600px) {
-      .row {
-        font-size: 5vw;
-        line-height: 6vw;
-        padding: 0.8vw;
-      }
-      .footer {
-        font-size: 2.5vw;
-        padding: 1.5vw;
-      }
-    }
-    @media screen and (min-width: 1200px) {
-      .row {
-        font-size: 2.67vw;
-        line-height: 3vw;
-        padding: 0.33vw;
-      }
-      .footer {
-        font-size: 1.25vw;
-        padding: 0.83vw;
-      }
+      .row { font-size: 22px; line-height: 28px; }
+      .footer { font-size: 13px; }
     }
   </style>
 </head>
@@ -88,79 +68,55 @@
   <div class="footer" id="footer">Loading... | Page 1 of 1</div>
 
   <script>
-    // Google Sheet published URL
     var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSHIT3SeyUDvm1vUXuo5xdZJwrFlYkBPR-P4ebecZ1KgJy0LGhHU2QRoHz0pSN2L238rd2IH2_zA0PD/pubhtml?gid=0&single=true";
-
     var companies = [];
     var currentPage = 0;
-    var targetCompaniesPerPage = 10; // Exactly 10 companies per page
+    var targetCompaniesPerPage = 10;
     var totalPages = 1;
-    var sheetTitle = "Company List"; // Default title
-    var pageBreaks = [0]; // Initialize with first page start
+    var sheetTitle = "Company List";
+    var pageBreaks = [0];
 
-    // Fetch company data and sheet name
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
       if (xhr.readyState === 4) {
         if (xhr.status === 200) {
-          console.log("Raw response length:", xhr.responseText.length);
           var temp = document.createElement("div");
           temp.innerHTML = xhr.responseText;
 
-          // Extract sheet name from the HTML title
           var titleElement = temp.getElementsByTagName("title")[0];
           if (titleElement && titleElement.innerText) {
             sheetTitle = titleElement.innerText.replace(/ - Google .*$/, "").replace(/^\s+|\s+$/g, "");
             document.title = sheetTitle;
-            console.log("Sheet title:", sheetTitle);
-          } else {
-            console.log("Warning: No title element found in response");
           }
 
           var table = temp.getElementsByTagName("table")[0];
           if (!table) {
             document.getElementById("companyList").innerText = "Error: No table found in the Google Sheet.";
             document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
-            console.log("Error: No table found in the Google Sheet.");
             return;
           }
 
           var rows = table.rows;
-          console.log("Total rows in table:", rows.length);
           companies = [];
-          for (var i = 1; i < rows.length; i++) { // Skip header
+          for (var i = 1; i < rows.length; i++) {
             var cells = rows[i].cells;
-            if (cells.length < 2) {
-              console.log(`Warning: Row ${i} has fewer than 2 cells, skipping`);
-              continue;
-            }
+            if (cells.length < 2) { continue; }
             var listNumber = cells[0] ? cells[0].innerText.replace(/^\s+|\s+$/g, "") : i.toString();
             var companyName = cells[1] ? cells[1].innerText.replace(/^\s+|\s+$/g, "") : "Unnamed";
             companies.push({ listNumber: listNumber, companyName: companyName });
-            console.log(`Row ${i}: List Number = ${listNumber}, Company = ${companyName}`);
           }
-          console.log("Total companies loaded:", companies.length);
 
-          // Calculate pages: Exactly 10 companies per page
           pageBreaks = [0];
-          for (var i = 0; i < companies.length; i += targetCompaniesPerPage) {
-            pageBreaks.push(Math.min(i + targetCompaniesPerPage, companies.length));
+          for (var j = 0; j < companies.length; j += targetCompaniesPerPage) {
+            pageBreaks.push(Math.min(j + targetCompaniesPerPage, companies.length));
           }
           totalPages = pageBreaks.length - 1;
-          console.log("Total pages:", totalPages);
-          pageBreaks.forEach((breakPoint, index) => {
-            if (index > 0) {
-              console.log(`Page ${index}: Companies ${pageBreaks[index-1] + 1} to ${breakPoint}`);
-            }
-          });
 
           displayPage(currentPage);
           updateFooter();
           startAutoTransition();
         } else {
-          document.getElementById("companyList").innerText = "Error: Failed to load data (Status: " + xhr.status + ")";
-          document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
-          console.log("Error: Failed to load data. Status:", xhr.status, "Response:", xhr.responseText);
+          document.getElementById("companyList").innerText = "Error loading data (Status: " + xhr.status + ")";
         }
       }
     };
@@ -168,9 +124,7 @@
     try {
       xhr.send();
     } catch (e) {
-      document.getElementById("companyList").innerText = "Error: Failed to send request.";
-      document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
-      console.log("Error: Failed to send request.", e.message);
+      document.getElementById("companyList").innerText = "Error sending request.";
     }
 
     function displayPage(page) {
@@ -182,21 +136,18 @@
         var end = pageBreaks[page + 1] || companies.length;
         var output = "";
 
-        // Add exactly 10 company rows (or fewer if last page)
-        for (var i = start; i < end && i < start + targetCompaniesPerPage; i++) {
-          var rowText = companies[i].listNumber + ". " + companies[i].companyName;
-          output += '<div class="row">' + rowText + "</div>";
+        for (var k = start; k < end && k < start + targetCompaniesPerPage; k++) {
+          output += '<div class="row">' + companies[k].listNumber + ". " + companies[k].companyName + "</div>";
         }
 
-        // Fill remaining rows to reach exactly 10
-        for (var i = end - start; i < targetCompaniesPerPage; i++) {
-          output += '<div class="row"> </div>'; // Empty row
+        for (var k = end - start; k < targetCompaniesPerPage; k++) {
+          output += '<div class="row"> </div>';
         }
 
         companyList.innerHTML = output;
         companyList.className = "fade-in";
         updateFooter();
-      }, 500); // Match transition duration
+      }, 500);
     }
 
     function updateFooter() {
@@ -207,7 +158,7 @@
       setInterval(function() {
         currentPage = (currentPage + 1) % totalPages;
         displayPage(currentPage);
-      }, 15000); // 15 seconds
+      }, 15000);
     }
   </script>
 </body>
