@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Update Event</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      max-width: 600px;
+      margin: auto;
+    }
+    input, textarea {
+      display: block;
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 0.75rem 1.5rem;
+      background-color: #0070f3;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Update Event Details</h1>
+  <input id="token" placeholder="GitHub Token (scoped for 'repo')" type="password" />
+  <input id="title" placeholder="Event Title" />
+  <input id="image" placeholder="Image URL" />
+  <input id="date" placeholder="Date (e.g. 24<br />May)" />
+  <input id="time" placeholder="Time (e.g. 9:00am - 18:00PM)" />
+  <input id="location" placeholder="Location" />
+  <button onclick="update()">Update</button>
+
+  <pre id="status"></pre>
+
+  <script>
+    async function update() {
+      const token = document.getElementById('token').value;
+      const data = {
+        title: document.getElementById('title').value,
+        image: document.getElementById('image').value,
+        date: document.getElementById('date').value,
+        time: document.getElementById('time').value,
+        location: document.getElementById('location').value
+      };
+
+      const username = 'YOUR_USERNAME';
+      const repo = 'YOUR_REPO_NAME';
+      const path = 'events.json';
+
+      const getRes = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/${path}`, {
+        headers: { Authorization: `token ${token}` }
+      });
+      const file = await getRes.json();
+
+      const updateRes = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/${path}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'Update event content',
+          content: btoa(JSON.stringify(data, null, 2)),
+          sha: file.sha
+        })
+      });
+
+      const result = await updateRes.json();
+      document.getElementById('status').innerText = JSON.stringify(result, null, 2);
+    }
+  </script>
+</body>
+</html>
