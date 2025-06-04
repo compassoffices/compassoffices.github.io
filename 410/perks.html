@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=410, height=800, initial-scale=1.0" />
+  <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 12px;
+    }
+
+    body {
+      width: 410px;
+      height: 800px;
+      background-color: #000;
+      color: #fff;
+      font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
+      display: flex;
+      flex-direction: column;
+      padding: 0 2rem;
+      overflow-y: auto;
+      height: 100vh;
+    }
+
+    .header {
+      margin: 2rem 0 1rem 0;
+      text-align: left;
+      font-size: 4.2rem;
+      line-height: 4.2rem;
+    }
+
+    .header-upcoming {
+      font-weight: 400;
+    }
+
+    .header-events {
+      font-weight: 700;
+    }
+
+    .slideshow-container {
+      position: relative;
+      width: 100%;
+      height: calc(280px * 3 + 2rem);
+      overflow: hidden;
+    }
+
+    .slide-group {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .slide-group.active {
+      opacity: 1;
+      z-index: 1;
+    }
+
+    .event-card {
+      width: 100%;
+      height: 280px;
+      background-color: #f1f1f1;
+      border-radius: 1rem;
+      display: flex;
+      flex-direction: column;
+      color: #000;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .img-container {
+      height: 50%;
+      width: 100%;
+      border-radius: 1rem 1rem 0 0;
+      overflow: hidden;
+    }
+
+    .card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .event-title {
+      font-weight: 700;
+      font-size: 2.3rem;
+      line-height: 2.6rem;
+      padding: 1rem 1.5rem 0.5rem 1.5rem;
+      text-align: left;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      flex-grow: 1;
+    }
+
+    .company-name {
+      font-size: 1.3rem;
+      color: #999;
+      padding: 0 1.5rem 1rem 1.5rem;
+      text-align: left;
+    }
+
+    .bottom-section {
+      margin: 2rem 0;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .qr-follow {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      text-align: right;
+    }
+
+    .follow {
+      font-size: 1.5rem;
+      line-height: 2rem;
+      color: #fff;
+    }
+
+    .qr-code img {
+      width: 100px;
+      height: 100px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <span class="header-upcoming">Client </span>
+    <span class="header-events">Perks</span>
+  </div>
+
+  <!-- Slideshow Container -->
+  <div class="slideshow-container" id="slideshowContainer">
+    <!-- Slides will be dynamically injected here -->
+  </div>
+
+  <!-- QR Code Section -->
+  <div class="bottom-section">
+    <div class="qr-follow">
+      <div class="follow">Scan for<br />more details</div>
+      <div class="qr-code">
+        <img src="https://cdn.glitch.global/d3825f09-16b9-42c5-aed8-ef674a7a82c1/linkedtre-qr.png?v=1747650115477" alt="QR Code" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5DL0QoJRnBdK-omP5H8mELkFoTTZxSPZm3iOtHmGab7DhL6H6vowB2OAV8JMhxu6Dn8b-HaKGcDTI/pubhtml";
+
+    async function fetchSheetData() {
+      const response = await fetch(SHEET_URL);
+      const html = await response.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+
+      const rows = Array.from(doc.querySelectorAll("table tbody tr")).slice(1); // Skip header
+      const data = rows.map(row => {
+        const cells = row.querySelectorAll("td");
+        return {
+          timestamp: cells[0]?.innerText.trim(),
+          score: cells[1]?.innerText.trim(),
+          imgUrl: cells[2]?.innerText.trim(),
+          title: cells[3]?.innerText.trim(),
+          company: cells[4]?.innerText.trim(),
+        };
+      });
+
+      return data.reverse().slice(0, 6); // Get latest 6 entries
+    }
+
+    function createSlideGroup(cards) {
+      const group = document.createElement("div");
+      group.className = "slide-group";
+
+      cards.forEach(card => {
+        const fileIdMatch = card.imgUrl.match(/[-\w]{25,}/);
+        const fileId = fileIdMatch ? fileIdMatch[0] : "";
+        const imgSrc = `https://drive.google.com/thumbnail?id=${fileId}`;
+
+        const cardHTML = `
+          <div class="event-card">
+            <div class="img-container">
+              <img src="${imgSrc}" alt="Perk" class="card-img" />
+            </div>
+            <div class="event-title">${card.title}</div>
+            <div class="company-name">${card.company}</div>
+          </div>
+        `;
+        group.innerHTML += cardHTML;
+      });
+
+      return group;
+    }
+
+    async function initSlides() {
+      const perks = await fetchSheetData();
+      const container = document.getElementById("slideshowContainer");
+
+      const chunkSize = 2;
+      const slides = [];
+
+      for (let i = 0; i < perks.length; i += chunkSize) {
+        const chunk = perks.slice(i, i + chunkSize);
+        const slide = createSlideGroup(chunk);
+        container.appendChild(slide);
+        slides.push(slide);
+      }
+
+      if (slides.length > 0) {
+        slides[0].classList.add("active");
+
+        let current = 0;
+        setInterval(() => {
+          slides[current].classList.remove("active");
+          current = (current + 1) % slides.length;
+          slides[current].classList.add("active");
+        }, 6000);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", initSlides);
+  </script>
+</body>
+</html>
