@@ -42,31 +42,65 @@
       border: none;
       display: block;
     }
+
+    .loader {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .loader.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .loader img {
+      width: 200px;
+      height: 200px;
+    }
   </style>
 </head>
 <body>
-  <div class="banner-container" id="bannerContainer"></div>
+  <div class="banner-container" id="bannerContainer">
+    <div class="loader" id="loader">
+      <img src="https://compassoffices.github.io/img/logo/co-loading_white.gif" alt="Loading" />
+    </div>
+  </div>
 
   <script>
     var urls = [
-      'https://compassoffices.github.io/410/upcoming-event.html'
+      'https://compassoffices.github.io/410/upcoming-event.html',
+      'https://compassoffices.github.io/410/perks.html',
     ];
 
     var currentSlide = 0;
     var defaultInterval = 18000;
-    var perksInterval = 30000;
+    var perksInterval = 50000;
+    var minLoaderTime = 2000; // 1 seconds in milliseconds
 
     function createSlides() {
       var container = document.getElementById('bannerContainer');
-      container.innerHTML = '';
+      container.innerHTML = '<div class="loader" id="loader"><img src="https://compassoffices.github.io/img/logo/co-loading.gif" alt="Loading" /></div>';
 
       for (var i = 0; i < urls.length; i++) {
         var slide = document.createElement('div');
         slide.className = 'banner-slide';
 
         var iframe = document.createElement('iframe');
-        iframe.src = urls[i];
         iframe.setAttribute('data-src', urls[i]);
+        if (urls[i].indexOf('perks.html') === -1) {
+          iframe.src = urls[i];
+        }
 
         slide.appendChild(iframe);
         container.appendChild(slide);
@@ -77,23 +111,65 @@
 
     function initSlideshow() {
       var slides = document.getElementsByClassName('banner-slide');
+      var loader = document.getElementById('loader');
       if (!slides.length) return;
 
-      function showSlide(index) {
+      function showSlide(index, skipLoader = false) {
+        var slide = slides[index];
+        var iframe = slide.getElementsByTagName('iframe')[0];
+        var isPerks = urls[index].indexOf('perks.html') !== -1;
+
+        // Hide all slides first
         for (var i = 0; i < slides.length; i++) {
-          var slide = slides[i];
-          var iframe = slide.getElementsByTagName('iframe')[0];
+          slides[i].className = 'banner-slide';
+        }
 
-          if (i === index) {
-            slide.className = 'banner-slide active';
+        if (isPerks && !skipLoader) {
+          console.log('Showing loader for perks.html');
+          loader.className = 'loader active';
 
-            if (urls[i].indexOf('perks.html') !== -1) {
-              iframe.src = iframe.getAttribute('data-src');
-            }
-          } else {
-            slide.className = 'banner-slide';
+          // Force loader to render before starting preload
+          setTimeout(() => {
+            var startTime = Date.now();
+            preloadIframe(iframe, () => {
+              var elapsedTime = Date.now() - startTime;
+              var remainingTime = minLoaderTime - elapsedTime;
+
+              setTimeout(() => {
+                console.log('Hiding loader for perks.html');
+                loader.className = 'loader';
+                slide.className = 'banner-slide active';
+              }, Math.max(0, remainingTime));
+            });
+          }, 50); // Small delay to ensure loader renders
+        } else {
+          console.log('Showing slide without loader: ' + urls[index]);
+          loader.className = 'loader';
+          slide.className = 'banner-slide active';
+          if (isPerks) {
+            iframe.src = iframe.getAttribute('data-src');
           }
         }
+      }
+
+      function preloadIframe(iframe, callback) {
+        var tempIframe = document.createElement('iframe');
+        tempIframe.style.display = 'none';
+        tempIframe.src = iframe.getAttribute('data-src');
+        document.body.appendChild(tempIframe);
+
+        tempIframe.onload = () => {
+          console.log('Perks iframe loaded');
+          iframe.src = iframe.getAttribute('data-src');
+          document.body.removeChild(tempIframe);
+          callback();
+        };
+
+        tempIframe.onerror = () => {
+          console.error('Error loading perks iframe');
+          document.body.removeChild(tempIframe);
+          callback();
+        };
       }
 
       function nextSlide() {
@@ -106,7 +182,7 @@
         setTimeout(nextSlide, interval);
       }
 
-      showSlide(currentSlide);
+      showSlide(currentSlide, true);
       var initialUrl = urls[currentSlide];
       var initialInterval = initialUrl.indexOf('perks.html') !== -1 ? perksInterval : defaultInterval;
       setTimeout(nextSlide, initialInterval);
