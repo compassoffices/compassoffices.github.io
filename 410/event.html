@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=410, height=800, initial-scale=1.0" />
+
+  <!-- Prevent browser caching -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- Prevent caching when served via HTTP headers -->
+  <meta http-equiv="Cache" content="no-cache" />
+
+  <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
+  <title>Compass Events</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 12px;
+    }
+
+    body {
+      width: 410px;
+      height: 800px;
+      background-color: #000;
+      color: #fff;
+      font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
+      display: flex;
+      flex-direction: column;
+      padding: 0 2rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .header {
+      margin: 2rem 0;
+      text-align: left;
+      font-size: 4.2rem;
+      line-height: 4.2rem;
+    }
+
+    .header-upcoming {
+      font-weight: 400;
+    }
+
+    .header-events {
+      font-weight: 700;
+    }
+
+    .event-container {
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .event-card {
+      width: 100%;
+      height: 460px;
+      background-color: #f1f1f1;
+      border-radius: 1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #000;
+      margin: 2rem 0;
+    }
+
+    .img-container {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 1rem 1rem 0 0;
+      height: 50%;
+    }
+
+    .card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .date {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      font-weight: 600;
+      font-size: 3.2rem;
+      line-height: 3.2rem;
+      color: #fff;
+      background: linear-gradient(to right, rgba(255, 102, 0, 0.6), rgba(255, 140, 0, 0.3));
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(2px);
+      width: 9rem;
+      height: 9rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .event-title {
+      font-weight: 700;
+      font-size: 2.6rem;
+      line-height: 3rem;
+      padding: 1.5rem;
+      text-align: left;
+      display: -webkit-box;
+      -webkit-line-clamp: 5;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-height: 13rem;
+      flex-grow: 1;
+    }
+
+    .event-details {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding-bottom: 1.5rem;
+    }
+
+    .event-time,
+    .event-location {
+      font-size: 1.8rem;
+      line-height: 2.2rem;
+      text-align: left;
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .event-time {
+      margin-bottom: 1rem;
+    }
+
+    .event-location {
+      padding-top: 0.5rem;
+    }
+
+    .time-icon,
+    .location-icon {
+      margin-right: 0.75rem;
+      font-size: 1.8rem;
+    }
+
+    .bottom-section {
+      position: absolute;
+      bottom: 2rem;
+      right: 2rem;
+    }
+
+    .qr-follow {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .follow {
+      font-size: 1.8rem;
+      line-height: 2.1rem;
+      color: #fff;
+      text-align: left;
+    }
+
+    .qr-code img {
+      width: 100px;
+      height: 100px;
+    }
+
+    .loading {
+      color: #aaa;
+      font-size: 1.8rem;
+      margin: 2rem 0;
+      text-align: center;
+    }
+
+    .refresh-link {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      font-size: 1.2rem;
+      color: black;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <span id="header-upcoming" class="header-upcoming">Upcoming </span>
+  <span class="header-events">Event</span>
+</div>
+
+<a class="refresh-link" onclick="window.location.href = window.location.pathname + '?t=' + new Date().getTime();">.</a>
+
+<div id="eventContainer" class="event-container">
+  <div class="loading">Loading events...</div>
+</div>
+
+<div class="bottom-section">
+  <div class="qr-follow">
+    <div class="follow">Follow Us for<br />more updates</div>
+    <div class="qr-code">
+      <img
+        src="https://cdn.glitch.global/d3825f09-16b9-42c5-aed8-ef674a7a82c1/linkedtre-qr.png?v=1747650115477"
+        alt="QR Code"
+      />
+    </div>
+  </div>
+</div>
+
+<script>
+  const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHHIkS2fCZhbgyTTXuNifmRBxOY4RmDGIZnzEePIYQnZm9dlpMnPHpdGjFoiyMHdKWd023G-xmwSS2/pubhtml';
+
+  function parseDateFromString(dateStr) {
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return null;
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    return new Date(year, month, day);
+  }
+
+  function formatDateToDisplay(dateObj) {
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const monthShort = dateObj.toLocaleString('en-GB', { month: 'short' });
+    return `${day} ${monthShort}`;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  fetch(sheetUrl + '?nocache=' + new Date().getTime())
+    .then(res => res.text())
+    .then(html => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const tables = doc.querySelectorAll('table');
+      const table = [...tables].find(t => t.querySelectorAll('tr').length > 0);
+
+      const container = document.getElementById('eventContainer');
+      container.innerHTML = '';
+
+      if (!table) {
+        container.innerHTML = '<div class="loading">No data table found.</div>';
+        return;
+      }
+
+      const rows = Array.from(table.querySelectorAll('tr'));
+      const todayEvents = [];
+      const upcomingEvents = [];
+
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 7) {
+          const rawDate = cells[1].innerText.trim();
+          const dateObj = parseDateFromString(rawDate);
+          if (!dateObj) return;
+
+          const displayDate = formatDateToDisplay(dateObj);
+          const event = {
+            date: displayDate,
+            time: cells[2].innerText.trim(),
+            name: cells[4].innerText.trim(),
+            location: cells[5].innerText.trim(),
+            banner: cells[6].innerText.trim()
+          };
+
+          dateObj.setHours(0, 0, 0, 0);
+
+          if (dateObj.getTime() === today.getTime()) {
+            todayEvents.push(event);
+          } else if (dateObj > today) {
+            upcomingEvents.push(event);
+          }
+        }
+      });
+
+      const eventsToShow = (todayEvents.length > 0 ? todayEvents : upcomingEvents).slice(0, 1);
+
+      if (eventsToShow.length === 0) {
+        container.innerHTML = '<div class="loading">No upcoming or today events found.</div>';
+        return;
+      }
+
+      document.getElementById('header-upcoming').textContent = todayEvents.length > 0 ? 'Today ' : 'Upcoming ';
+
+      eventsToShow.forEach(ev => {
+        const card = document.createElement('div');
+        card.className = 'event-card';
+        card.innerHTML = `
+          <div class="img-container">
+            <img src="${ev.banner}" alt="Event Image" class="card-img" />
+            <div class="date">${ev.date.split(' ').join('<br>')}</div>
+          </div>
+          <div class="event-title">${ev.name}</div>
+          <div class="event-details">
+            <div class="event-time"><span class="time-icon">🕒</span>${ev.time}</div>
+            <div class="event-location"><span class="location-icon">📍</span>${ev.location}</div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    })
+    .catch(err => {
+      document.getElementById('eventContainer').innerHTML = '<div class="loading">Failed to load events.</div>';
+      console.error('Error loading sheet:', err);
+    });
+</script>
+
+</body>
+</html>
