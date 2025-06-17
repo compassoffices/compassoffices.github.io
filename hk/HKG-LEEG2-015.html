@@ -38,7 +38,9 @@
     }
 
     .row {
+      display: -ms-flexbox;
       display: flex;
+      -ms-flex-align: start;
       align-items: flex-start;
       padding: 0.2vw;
       margin-bottom: 0.3vw;
@@ -102,24 +104,24 @@
   <div id="measure"></div>
 
   <script>
-    const dataUrl =
+    var dataUrl =
       "https://docs.google.com/spreadsheets/d/e/2PACX-1vSHIT3SeyUDvm1vUXuo5xdZJwrFlYkBPR-P4ebecZ1KgJy0LGhHU2QRoHz0pSN2L238rd2IH2_zA0PD/pubhtml?gid=0&single=true";
 
-    let companies = [];
-    let pages = [];
-    let currentPage = 0;
-    let sheetTitle = "Company List";
+    var companies = [];
+    var pages = [];
+    var currentPage = 0;
+    var sheetTitle = "Company List";
 
-    const listDiv = document.getElementById("companyList");
-    const listContainer = document.getElementById("companyListContainer");
-    const footer = document.getElementById("footer");
-    const measure = document.getElementById("measure");
+    var listDiv = document.getElementById("companyList");
+    var listContainer = document.getElementById("companyListContainer");
+    var footer = document.getElementById("footer");
+    var measure = document.getElementById("measure");
 
     function getRowHTML(company) {
-      return `<div class="row">
-        <span class="list-number">${company.listNumber}.</span>
-        <span class="company-name">${company.companyName}</span>
-      </div>`;
+      return '<div class="row">' +
+        '<span class="list-number">' + company.listNumber + '.</span>' +
+        '<span class="company-name">' + company.companyName + '</span>' +
+        '</div>';
     }
 
     function getRowHeight(company) {
@@ -129,11 +131,11 @@
 
     function paginate(availableHeight) {
       pages = [];
-      let page = [];
-      let totalHeight = 0;
+      var page = [];
+      var totalHeight = 0;
 
-      for (let i = 0; i < companies.length; i++) {
-        const rowHeight = getRowHeight(companies[i]);
+      for (var i = 0; i < companies.length; i++) {
+        var rowHeight = getRowHeight(companies[i]);
         if (totalHeight + rowHeight > availableHeight) {
           pages.push(page);
           page = [];
@@ -148,37 +150,36 @@
 
     function showPage(index) {
       listDiv.style.opacity = 0;
-      setTimeout(() => {
-        listDiv.innerHTML = pages[index].map(getRowHTML).join("");
+      setTimeout(function () {
+        var html = '';
+        for (var i = 0; i < pages[index].length; i++) {
+          html += getRowHTML(pages[index][i]);
+        }
+        listDiv.innerHTML = html;
         listDiv.style.opacity = 1;
-        footer.innerText = `${sheetTitle} | Page ${
-          index + 1
-        } of ${pages.length}`;
+        footer.innerHTML = sheetTitle + " | Page " + (index + 1) + " of " + pages.length;
       }, 300);
     }
 
     function startAutoTransition() {
-      setInterval(() => {
+      setInterval(function () {
         currentPage = (currentPage + 1) % pages.length;
         showPage(currentPage);
       }, 15000);
     }
 
     function calculateHeightsAndPaginate() {
-      const wrapperHeight = 800;
-      const footerHeight = footer.offsetHeight;
+      var wrapperHeight = 800;
+      var footerHeight = footer.offsetHeight;
 
-      // Measure one row height
-      const testRowHeight = getRowHeight(companies[0]);
+      var testRowHeight = getRowHeight(companies[0]);
 
-      // Measure padding of listDiv (top + bottom)
-      const computedStyle = getComputedStyle(listDiv);
-      const paddingTop = parseFloat(computedStyle.paddingTop);
-      const paddingBottom = parseFloat(computedStyle.paddingBottom);
-      const totalPadding = paddingTop + paddingBottom;
+      var computedStyle = window.getComputedStyle(listDiv);
+      var paddingTop = parseFloat(computedStyle.paddingTop);
+      var paddingBottom = parseFloat(computedStyle.paddingBottom);
+      var totalPadding = paddingTop + paddingBottom;
 
-      // Available height = wrapper - footer - 1 row - padding
-      const availableHeight = wrapperHeight - footerHeight - testRowHeight - totalPadding;
+      var availableHeight = wrapperHeight - footerHeight - testRowHeight - totalPadding;
 
       listContainer.style.height = availableHeight + "px";
 
@@ -187,32 +188,32 @@
       startAutoTransition();
     }
 
-    const xhr = new XMLHttpRequest();
+    var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4 && xhr.status === 200) {
-        const temp = document.createElement("div");
+        var temp = document.createElement("div");
         temp.innerHTML = xhr.responseText;
 
-        const titleElement = temp.getElementsByTagName("title")[0];
+        var titleElement = temp.getElementsByTagName("title")[0];
         if (titleElement) {
-          sheetTitle = titleElement.innerText.replace(/ - Google .*$/, "").trim();
+          sheetTitle = titleElement.innerHTML.replace(/ - Google .*$/, "").replace(/^\s+|\s+$/g, '');
           document.title = sheetTitle;
         }
 
-        const table = temp.getElementsByTagName("table")[0];
+        var table = temp.getElementsByTagName("table")[0];
         if (!table) {
-          listDiv.innerText = "Error: No table found.";
-          footer.innerText = sheetTitle + " | Page 1 of 1";
+          listDiv.innerHTML = "Error: No table found.";
+          footer.innerHTML = sheetTitle + " | Page 1 of 1";
           return;
         }
 
-        const rows = table.rows;
-        for (let i = 1; i < rows.length; i++) {
-          const cells = rows[i].cells;
+        var rows = table.rows;
+        for (var i = 1; i < rows.length; i++) {
+          var cells = rows[i].cells;
           if (cells.length < 2) continue;
-          const listNumber = cells[0].innerText.trim();
-          const companyName = cells[1].innerText.trim();
-          companies.push({ listNumber, companyName });
+          var listNumber = cells[0].innerText || cells[0].textContent;
+          var companyName = cells[1].innerText || cells[1].textContent;
+          companies.push({ listNumber: listNumber.trim(), companyName: companyName.trim() });
         }
 
         setTimeout(calculateHeightsAndPaginate, 100);
