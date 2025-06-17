@@ -2,213 +2,226 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Company List</title>
-  <link rel="icon" href="https://compassoffices.github.io/img/logo/new-p1-32.png" type="image/png">
+  <meta name="viewport" content="width=880, height=800, initial-scale=1.0" />
   <style>
     html, body {
-      font-family: Arial, sans-serif;
-      background-color: #282828;
-      color: white;
       margin: 0;
-      padding: 1.14vw;
-      padding-bottom: 7.5vh;
-      width: 100%;
-      max-width: 880px;
-      height: 100vh;
+      padding: 0;
+      background: #282828;
+      font-family: Arial, sans-serif;
+      color: white;
+      overflow: hidden;
+    }
+
+    #wrapper {
+      width: 880px;
+      height: 800px;
+      margin: 0 auto;
+      position: relative;
       box-sizing: border-box;
+      background: #282828;
+    }
+
+    #companyListContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
       overflow: hidden;
     }
 
     #companyList {
-      margin-bottom: 60px;
+      padding: 1.14vw;
+      box-sizing: border-box;
       transition: opacity 0.5s ease-in-out;
     }
 
+    .row {
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-align: start;
+      align-items: flex-start;
+      padding: 0.2vw;
+      margin-bottom: 0.3vw;
+      border-bottom: 1px solid #444;
+      font-size: 3.64vw;
+      line-height: 1.3;
+      word-wrap: break-word;
+      max-width: calc(100% - 2.28vw);
+    }
 
-.row {
-  display: flex;
-  align-items: flex-start;
-  padding-top: 0.2vw;              /* More space above */
-  padding-bottom: 0.2vw;           /* More space below */
-  padding-left: 0.2vw;
-  padding-right: 0.2vw;
-  margin-bottom: 0.3vw;          /* More space between rows */
-  border-bottom: 1px solid #444;
-  font-size: 3.64vw;
-  line-height: 1.3;              /* Better spacing for wrapped text */
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  max-width: calc(100% - 2.28vw);
-}
+    .list-number {
+      font-size: 0.6em;
+      color: grey;
+      font-family: monospace;
+      flex-shrink: 0;
+      width: 1.9em;
+      text-align: left;
+      padding-right: 0.1em;
+    }
 
-.list-number {
-  font-size: 0.6em;
-  color: grey;
-  font-family: monospace;
-  flex-shrink: 0;
-  width: 1.9em;
-  text-align: left;
-  padding-right: 0.1em; /* More space between number and name */
-}
-
-.company-name {
-  font-size: 1.2em;
-  flex: 1;
-  padding-left: 0.1em;
-  line-height: 1.4;              /* Ensures better spacing between name lines */
-}
+    .company-name {
+      font-size: 1.2em;
+      flex: 1;
+      padding-left: 0.1em;
+      line-height: 1.4;
+    }
 
     .footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
       background-color: #ff6600;
       color: white;
       text-align: center;
       padding: 1.14vw;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      width: 100%;
       font-size: 1.7vw;
       font-weight: bold;
       box-sizing: border-box;
     }
 
-    .fade-out {
-      opacity: 0;
-    }
-
-    .fade-in {
-      opacity: 1;
-    }
-
-    @media screen and (max-width: 600px) {
-      .row {
-        font-size: 5vw;
-        line-height: 6vw;
-        padding: 0.8vw;
-      }
-      .footer {
-        font-size: 2.5vw;
-        padding: 1.5vw;
-      }
-    }
-
-    @media screen and (min-width: 1200px) {
-      .row {
-        font-size: 2.67vw;
-        line-height: 3vw;
-        padding: 0.33vw;
-      }
-      .footer {
-        font-size: 1.25vw;
-        padding: 0.83vw;
-      }
+    #measure {
+      visibility: hidden;
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      width: 880px;
+      padding: 1.14vw;
+      box-sizing: border-box;
     }
   </style>
 </head>
 <body>
-  <div id="companyList">Loading...</div>
-  <div class="footer" id="footer">Loading... | Page 1 of 1</div>
+  <div id="wrapper">
+    <div id="companyListContainer">
+      <div id="companyList">Loading...</div>
+    </div>
+    <div class="footer" id="footer">Loading... | Page 1 of 1</div>
+  </div>
+
+  <div id="measure"></div>
 
   <script>
-    var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwnGG-wmOXJpZLA5nt5geZe2UTE8tetjam6qgPrRWM1vD_TtYQz53XVGG-oVZyBtgoD-FyDuLyQTa7/pubhtml?gid=0&single=true";
+    var dataUrl =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vSwnGG-wmOXJpZLA5nt5geZe2UTE8tetjam6qgPrRWM1vD_TtYQz53XVGG-oVZyBtgoD-FyDuLyQTa7/pubhtml?gid=0&single=true";
 
     var companies = [];
+    var pages = [];
     var currentPage = 0;
-    var targetCompaniesPerPage = 10;
-    var totalPages = 1;
     var sheetTitle = "Company List";
-    var pageBreaks = [0];
 
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4) {
-        if (xhr.status === 200) {
-          var temp = document.createElement("div");
-          temp.innerHTML = xhr.responseText;
+    var listDiv = document.getElementById("companyList");
+    var listContainer = document.getElementById("companyListContainer");
+    var footer = document.getElementById("footer");
+    var measure = document.getElementById("measure");
 
-          var titleElement = temp.getElementsByTagName("title")[0];
-          if (titleElement && titleElement.innerText) {
-            sheetTitle = titleElement.innerText.replace(/ - Google .*$/, "").replace(/^\s+|\s+$/g, "");
-            document.title = sheetTitle;
-          }
+    function getRowHTML(company) {
+      return '<div class="row">' +
+        '<span class="list-number">' + company.listNumber + '.</span>' +
+        '<span class="company-name">' + company.companyName + '</span>' +
+        '</div>';
+    }
 
-          var table = temp.getElementsByTagName("table")[0];
-          if (!table) {
-            document.getElementById("companyList").innerText = "Error: No table found.";
-            document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
-            return;
-          }
+    function getRowHeight(company) {
+      measure.innerHTML = getRowHTML(company);
+      return measure.firstChild.offsetHeight;
+    }
 
-          var rows = table.rows;
-          companies = [];
-          for (var i = 1; i < rows.length; i++) {
-            var cells = rows[i].cells;
-            if (cells.length < 2) {
-              continue;
-            }
-            var listNumber = cells[0] ? cells[0].innerText.replace(/^\s+|\s+$/g, "") : (i + 1).toString();
-            var companyName = cells[1] ? cells[1].innerText.replace(/^\s+|\s+$/g, "") : "Unnamed";
-            companies.push({ listNumber: listNumber, companyName: companyName });
-          }
+    function paginate(availableHeight) {
+      pages = [];
+      var page = [];
+      var totalHeight = 0;
 
-          pageBreaks = [0];
-          for (var j = 0; j < companies.length; j += targetCompaniesPerPage) {
-            pageBreaks.push(Math.min(j + targetCompaniesPerPage, companies.length));
-          }
-          totalPages = pageBreaks.length - 1;
-
-          displayPage(currentPage);
-          updateFooter();
-          startAutoTransition();
-        } else {
-          document.getElementById("companyList").innerText = "Error loading data (Status: " + xhr.status + ")";
-          document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
+      for (var i = 0; i < companies.length; i++) {
+        var rowHeight = getRowHeight(companies[i]);
+        if (totalHeight + rowHeight > availableHeight) {
+          pages.push(page);
+          page = [];
+          totalHeight = 0;
         }
+        page.push(companies[i]);
+        totalHeight += rowHeight;
       }
-    };
-    xhr.open("GET", dataUrl, true);
-    try {
-      xhr.send();
-    } catch (e) {
-      document.getElementById("companyList").innerText = "Error: Could not send request.";
-      document.getElementById("footer").innerText = sheetTitle + " | Page 1 of 1";
+
+      if (page.length > 0) pages.push(page);
     }
 
-    function displayPage(page) {
-      var companyList = document.getElementById("companyList");
-      companyList.className = "fade-out";
-
-      setTimeout(function() {
-        var start = pageBreaks[page];
-        var end = pageBreaks[page + 1] || companies.length;
-        var output = "";
-
-        for (var i = start; i < end && i < start + targetCompaniesPerPage; i++) {
-          output += '<div class="row"><span class="list-number">' + companies[i].listNumber + '.</span> <span class="company-name">' + companies[i].companyName + '</span></div>';
+    function showPage(index) {
+      listDiv.style.opacity = 0;
+      setTimeout(function () {
+        var html = '';
+        for (var i = 0; i < pages[index].length; i++) {
+          html += getRowHTML(pages[index][i]);
         }
-
-        for (var k = end - start; k < targetCompaniesPerPage; k++) {
-          output += '<div class="row"> </div>';
-        }
-
-        companyList.innerHTML = output;
-        companyList.className = "fade-in";
-        updateFooter();
-      }, 500);
-    }
-
-    function updateFooter() {
-      document.getElementById("footer").innerText = sheetTitle + " | Page " + (currentPage + 1) + " of " + totalPages;
+        listDiv.innerHTML = html;
+        listDiv.style.opacity = 1;
+        footer.innerHTML = sheetTitle + " | Page " + (index + 1) + " of " + pages.length;
+      }, 300);
     }
 
     function startAutoTransition() {
-      setInterval(function() {
-        currentPage = (currentPage + 1) % totalPages;
-        displayPage(currentPage);
+      setInterval(function () {
+        currentPage = (currentPage + 1) % pages.length;
+        showPage(currentPage);
       }, 15000);
     }
+
+    function calculateHeightsAndPaginate() {
+      var wrapperHeight = 800;
+      var footerHeight = footer.offsetHeight;
+
+      var testRowHeight = getRowHeight(companies[0]);
+
+      var computedStyle = window.getComputedStyle(listDiv);
+      var paddingTop = parseFloat(computedStyle.paddingTop);
+      var paddingBottom = parseFloat(computedStyle.paddingBottom);
+      var totalPadding = paddingTop + paddingBottom;
+
+      var availableHeight = wrapperHeight - footerHeight - testRowHeight - totalPadding;
+
+      listContainer.style.height = availableHeight + "px";
+
+      paginate(availableHeight);
+      showPage(0);
+      startAutoTransition();
+    }
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        var temp = document.createElement("div");
+        temp.innerHTML = xhr.responseText;
+
+        var titleElement = temp.getElementsByTagName("title")[0];
+        if (titleElement) {
+          sheetTitle = titleElement.innerHTML.replace(/ - Google .*$/, "").replace(/^\s+|\s+$/g, '');
+          document.title = sheetTitle;
+        }
+
+        var table = temp.getElementsByTagName("table")[0];
+        if (!table) {
+          listDiv.innerHTML = "Error: No table found.";
+          footer.innerHTML = sheetTitle + " | Page 1 of 1";
+          return;
+        }
+
+        var rows = table.rows;
+        for (var i = 1; i < rows.length; i++) {
+          var cells = rows[i].cells;
+          if (cells.length < 2) continue;
+          var listNumber = cells[0].innerText || cells[0].textContent;
+          var companyName = cells[1].innerText || cells[1].textContent;
+          companies.push({ listNumber: listNumber.trim(), companyName: companyName.trim() });
+        }
+
+        setTimeout(calculateHeightsAndPaginate, 100);
+      }
+    };
+
+    xhr.open("GET", dataUrl, true);
+    xhr.send();
   </script>
 </body>
 </html>
