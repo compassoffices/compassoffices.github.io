@@ -8,8 +8,6 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-
-  <!-- Prevent caching when served via HTTP headers -->
   <meta http-equiv="Cache" content="no-cache" />
 
   <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
@@ -221,102 +219,114 @@
 </div>
 
 <script>
-  const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHHIkS2fCZhbgyTTXuNifmRBxOY4RmDGIZnzEePIYQnZm9dlpMnPHpdGjFoiyMHdKWd023G-xmwSS2/pubhtml';
+  var sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHHIkS2fCZhbgyTTXuNifmRBxOY4RmDGIZnzEePIYQnZm9dlpMnPHpdGjFoiyMHdKWd023G-xmwSS2/pubhtml';
 
   function parseDateFromString(dateStr) {
-    const parts = dateStr.split('/');
+    var parts = dateStr.split('/');
     if (parts.length !== 3) return null;
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
+    var day = parseInt(parts[0], 10);
+    var month = parseInt(parts[1], 10) - 1;
+    var year = parseInt(parts[2], 10);
     return new Date(year, month, day);
   }
 
   function formatDateToDisplay(dateObj) {
-    const day = String(dateObj.getDate()).padStart(2, '0');
-    const monthShort = dateObj.toLocaleString('en-GB', { month: 'short' });
-    return `${day} ${monthShort}`;
+    var day = ('0' + dateObj.getDate()).slice(-2);
+    var monthShort = dateObj.toLocaleString('en-GB', { month: 'short' });
+    return day + ' ' + monthShort;
   }
 
-  const today = new Date();
+  var today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  fetch(sheetUrl + '?nocache=' + new Date().getTime())
-    .then(res => res.text())
-    .then(html => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const tables = doc.querySelectorAll('table');
-      const table = [...tables].find(t => t.querySelectorAll('tr').length > 0);
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', sheetUrl + '?nocache=' + new Date().getTime(), true);
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      var container = document.getElementById('eventContainer');
+      if (xhr.status === 200) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(xhr.responseText, 'text/html');
+        var tables = doc.getElementsByTagName('table');
 
-      const container = document.getElementById('eventContainer');
-      container.innerHTML = '';
-
-      if (!table) {
-        container.innerHTML = '<div class="loading">No data table found.</div>';
-        return;
-      }
-
-      const rows = Array.from(table.querySelectorAll('tr'));
-      const todayEvents = [];
-      const upcomingEvents = [];
-
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 7) {
-          const rawDate = cells[1].innerText.trim();
-          const dateObj = parseDateFromString(rawDate);
-          if (!dateObj) return;
-
-          const displayDate = formatDateToDisplay(dateObj);
-          const event = {
-            date: displayDate,
-            time: cells[2].innerText.trim(),
-            name: cells[4].innerText.trim(),
-            location: cells[5].innerText.trim(),
-            banner: cells[6].innerText.trim()
-          };
-
-          dateObj.setHours(0, 0, 0, 0);
-
-          if (dateObj.getTime() === today.getTime()) {
-            todayEvents.push(event);
-          } else if (dateObj > today) {
-            upcomingEvents.push(event);
+        var table = null;
+        for (var i = 0; i < tables.length; i++) {
+          if (tables[i].getElementsByTagName('tr').length > 0) {
+            table = tables[i];
+            break;
           }
         }
-      });
 
-      const eventsToShow = (todayEvents.length > 0 ? todayEvents : upcomingEvents).slice(0, 1);
+        container.innerHTML = '';
 
-      if (eventsToShow.length === 0) {
-        container.innerHTML = '<div class="loading">No upcoming or today events found.</div>';
-        return;
+        if (!table) {
+          container.innerHTML = '<div class="loading">No data table found.</div>';
+          return;
+        }
+
+        var rows = table.getElementsByTagName('tr');
+        var todayEvents = [];
+        var upcomingEvents = [];
+
+        for (var r = 0; r < rows.length; r++) {
+          var cells = rows[r].getElementsByTagName('td');
+          if (cells.length >= 7) {
+            var rawDate = (cells[1].innerText || cells[1].textContent).trim();
+            var dateObj = parseDateFromString(rawDate);
+            if (!dateObj) continue;
+
+            var displayDate = formatDateToDisplay(dateObj);
+            var event = {
+              date: displayDate,
+              time: (cells[2].innerText || cells[2].textContent).trim(),
+              name: (cells[4].innerText || cells[4].textContent).trim(),
+              location: (cells[5].innerText || cells[5].textContent).trim(),
+              banner: (cells[6].innerText || cells[6].textContent).trim()
+            };
+
+            dateObj.setHours(0, 0, 0, 0);
+
+            if (dateObj.getTime() === today.getTime()) {
+              todayEvents.push(event);
+            } else if (dateObj > today) {
+              upcomingEvents.push(event);
+            }
+          }
+        }
+
+        var eventsToShow = (todayEvents.length > 0 ? todayEvents : upcomingEvents).slice(0, 1);
+
+        if (eventsToShow.length === 0) {
+          container.innerHTML = '<div class="loading">No upcoming or today events found.</div>';
+          return;
+        }
+
+        document.getElementById('header-upcoming').textContent = todayEvents.length > 0 ? 'Today ' : 'Upcoming ';
+
+        for (var i = 0; i < eventsToShow.length; i++) {
+          var ev = eventsToShow[i];
+          var card = document.createElement('div');
+          card.className = 'event-card';
+          card.innerHTML =
+            '<div class="img-container">' +
+              '<img src="' + ev.banner + '" alt="Event Image" class="card-img" />' +
+              '<div class="date">' + ev.date.split(' ').join('<br>') + '</div>' +
+            '</div>' +
+            '<div class="event-title">' + ev.name + '</div>' +
+            '<div class="event-details">' +
+              '<div class="event-time"><span class="time-icon">🕒</span>' + ev.time + '</div>' +
+              '<div class="event-location"><span class="location-icon">📍</span>' + ev.location + '</div>' +
+            '</div>';
+          container.appendChild(card);
+        }
+
+      } else {
+        container.innerHTML = '<div class="loading">Failed to load events.</div>';
+        console.error('Error loading sheet:', xhr.status);
       }
-
-      document.getElementById('header-upcoming').textContent = todayEvents.length > 0 ? 'Today ' : 'Upcoming ';
-
-      eventsToShow.forEach(ev => {
-        const card = document.createElement('div');
-        card.className = 'event-card';
-        card.innerHTML = `
-          <div class="img-container">
-            <img src="${ev.banner}" alt="Event Image" class="card-img" />
-            <div class="date">${ev.date.split(' ').join('<br>')}</div>
-          </div>
-          <div class="event-title">${ev.name}</div>
-          <div class="event-details">
-            <div class="event-time"><span class="time-icon">🕒</span>${ev.time}</div>
-            <div class="event-location"><span class="location-icon">📍</span>${ev.location}</div>
-          </div>
-        `;
-        container.appendChild(card);
-      });
-    })
-    .catch(err => {
-      document.getElementById('eventContainer').innerHTML = '<div class="loading">Failed to load events.</div>';
-      console.error('Error loading sheet:', err);
-    });
+    }
+  };
+  xhr.send();
 </script>
 
 </body>
