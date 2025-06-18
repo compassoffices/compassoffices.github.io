@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Company List</title>
-  <meta name="viewport" content="width=880, height=800, initial-scale=1.0" />
+  <meta name="viewport" content="width=880, height=800, initial-scale=1.0">
   <style>
     html, body {
       margin: 0;
@@ -19,7 +19,6 @@
       height: 800px;
       margin: 0 auto;
       position: relative;
-      box-sizing: border-box;
       background: #282828;
     }
 
@@ -32,40 +31,46 @@
     }
 
     #companyList {
-      padding: 1.14vw;
-      box-sizing: border-box;
+      padding: 10px;
+      padding-bottom: 20px;
       transition: opacity 0.5s ease-in-out;
+      -webkit-transition: opacity 0.5s ease-in-out;
+      -moz-transition: opacity 0.5s ease-in-out;
+      margin-bottom: 15px;
     }
 
     .row {
-      display: -ms-flexbox;
-      display: flex;
-      -ms-flex-align: start;
-      align-items: flex-start;
-      padding: 0.2vw;
-      margin-bottom: 0.3vw;
+      display: block;
+      overflow: hidden;
+      padding: 2px;
+      margin-bottom: 3px;
       border-bottom: 1px solid #444;
-      font-size: 3.64vw;
+      font-size: 32px;
       line-height: 1.3;
       word-wrap: break-word;
-      max-width: calc(100% - 2.28vw);
+      width: 860px;
     }
 
     .list-number {
       font-size: 0.6em;
       color: grey;
-      font-family: monospace;
-      flex-shrink: 0;
-      width: 1.9em;
+      font-family: "Courier New", monospace;
+      float: left;
+      width: 30px;
       text-align: left;
-      padding-right: 0.1em;
+      padding-right: 2px;
     }
 
     .company-name {
       font-size: 1.2em;
-      flex: 1;
-      padding-left: 0.1em;
+      float: left;
+      padding-left: 2px;
       line-height: 1.4;
+      width: 820px;
+    }
+
+    .small-text {
+      font-size: 0.6em;
     }
 
     .footer {
@@ -76,10 +81,9 @@
       background-color: #ff6600;
       color: white;
       text-align: center;
-      padding: 1.14vw;
-      font-size: 1.7vw;
+      padding: 10px;
+      font-size: 15px;
       font-weight: bold;
-      box-sizing: border-box;
     }
 
     #measure {
@@ -87,9 +91,12 @@
       position: absolute;
       top: -9999px;
       left: -9999px;
-      width: 880px;
-      padding: 1.14vw;
-      box-sizing: border-box;
+      width: 860px;
+      padding: 10px;
+    }
+
+    .clear {
+      clear: both;
     }
   </style>
 </head>
@@ -104,9 +111,14 @@
   <div id="measure"></div>
 
   <script>
-    var dataUrl =
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6uu-gsseV_Tyd7KNlzaRY2dAc4yht2Hgn1K3kwP-LXGhHSQBPE0YBx5csCP2vo6HXExI0Jz-gjt9k/pubhtml?gid=0&single=true";
+    // Polyfill for String.trim
+    if (!String.prototype.trim) {
+      String.prototype.trim = function() {
+        return this.replace(/^\s+|\s+$/g, '');
+      };
+    }
 
+    var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6uu-gsseV_Tyd7KNlzaRY2dAc4yht2Hgn1K3kwP-LXGhHSQBPE0YBx5csCP2vo6HXExI0Jz-gjt9k/pubhtml?gid=0&single=true";
     var companies = [];
     var pages = [];
     var currentPage = 0;
@@ -118,15 +130,25 @@
     var measure = document.getElementById("measure");
 
     function getRowHTML(company) {
-      return '<div class="row">' +
-        '<span class="list-number">' + company.listNumber + '.</span>' +
-        '<span class="company-name">' + company.companyName + '</span>' +
-        '</div>';
+      var parts = company.companyName.split('<td>');
+      var html = '<div class="row"><span class="list-number">' + company.listNumber + '</span><div class="company-name">';
+      for (var i = 0; i < parts.length; i++) {
+        var part = parts[i].trim();
+        if (part.indexOf('<nobr>') === 0) {
+          part = part.replace('<nobr>', '').trim();
+          html += '<div class="small-text">' + part + '</div>';
+        } else {
+          html += '<div>' + part + '</div>';
+        }
+      }
+      html += '</div><div class="clear"></div></div>';
+      return html;
     }
 
     function getRowHeight(company) {
       measure.innerHTML = getRowHTML(company);
-      return measure.firstChild.offsetHeight;
+      var height = measure.firstChild.offsetHeight || measure.firstChild.clientHeight;
+      return height + 8;
     }
 
     function paginate(availableHeight) {
@@ -136,7 +158,7 @@
 
       for (var i = 0; i < companies.length; i++) {
         var rowHeight = getRowHeight(companies[i]);
-        if (totalHeight + rowHeight > availableHeight) {
+        if (totalHeight + rowHeight > availableHeight && page.length > 0) {
           pages.push(page);
           page = [];
           totalHeight = 0;
@@ -145,12 +167,14 @@
         totalHeight += rowHeight;
       }
 
-      if (page.length > 0) pages.push(page);
+      if (page.length > 0) {
+        pages.push(page);
+      }
     }
 
     function showPage(index) {
       listDiv.style.opacity = 0;
-      setTimeout(function () {
+      setTimeout(function() {
         var html = '';
         for (var i = 0; i < pages[index].length; i++) {
           html += getRowHTML(pages[index][i]);
@@ -162,7 +186,7 @@
     }
 
     function startAutoTransition() {
-      setInterval(function () {
+      setInterval(function() {
         currentPage = (currentPage + 1) % pages.length;
         showPage(currentPage);
       }, 15000);
@@ -170,26 +194,29 @@
 
     function calculateHeightsAndPaginate() {
       var wrapperHeight = 800;
-      var footerHeight = footer.offsetHeight;
+      var footerHeight = footer.offsetHeight || footer.clientHeight;
 
-      var testRowHeight = getRowHeight(companies[0]);
-
-      var computedStyle = window.getComputedStyle(listDiv);
-      var paddingTop = parseFloat(computedStyle.paddingTop);
-      var paddingBottom = parseFloat(computedStyle.paddingBottom);
+      var computedStyle = listDiv.currentStyle || window.getComputedStyle(listDiv);
+      var paddingTop = parseFloat(computedStyle.paddingTop) || 10;
+      var paddingBottom = parseFloat(computedStyle.paddingBottom) || 20;
       var totalPadding = paddingTop + paddingBottom;
 
-      var availableHeight = wrapperHeight - footerHeight - testRowHeight - totalPadding;
+      var availableHeight = wrapperHeight - footerHeight - totalPadding - 20;
 
       listContainer.style.height = availableHeight + "px";
 
       paginate(availableHeight);
-      showPage(0);
-      startAutoTransition();
+      if (pages.length > 0) {
+        showPage(0);
+        startAutoTransition();
+      } else {
+        listDiv.innerHTML = "No companies to display.";
+        footer.innerHTML = sheetTitle + " | Page 1 of 1";
+      }
     }
 
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function () {
+    var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
+    xhr.onreadystatechange = function() {
       if (xhr.readyState === 4 && xhr.status === 200) {
         var temp = document.createElement("div");
         temp.innerHTML = xhr.responseText;
@@ -211,8 +238,8 @@
         for (var i = 1; i < rows.length; i++) {
           var cells = rows[i].cells;
           if (cells.length < 2) continue;
-          var listNumber = cells[0].innerText || cells[0].textContent;
-          var companyName = cells[1].innerText || cells[1].textContent;
+          var listNumber = cells[0].innerText || cells[0].textContent || "";
+          var companyName = cells[1].innerText || cells[1].textContent || "";
           companies.push({ listNumber: listNumber.trim(), companyName: companyName.trim() });
         }
 
