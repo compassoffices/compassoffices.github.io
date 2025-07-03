@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Event Display</title>
+  <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
+    }
+
+    body {
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      color: white;
+    }
+
+    .top-left {
+      position: absolute;
+      top: 2rem;
+      left: 2rem;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding: 1.5rem 2rem;
+      border-radius: 1rem;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .location {
+      font-size: 2.6rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .time {
+      font-size: 2.2rem;
+      font-weight: 400;
+      display: flex;
+      align-items: center;
+    }
+
+    .icon {
+      font-size: 2.4rem;
+      margin-right: 1rem;
+    }
+
+    .top-right-wrapper {
+      position: absolute;
+      top: 2rem;
+      right: 2rem;
+      display: flex;
+      flex-direction: row-reverse;
+      align-items: flex-start;
+      gap: 2rem;
+    }
+
+    .qr-box {
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding: 1rem;
+      border-radius: 1rem;
+      width: 140px;
+      height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .qr-box img {
+      width: 100px;
+      height: 100px;
+      border-radius: 0.5rem;
+    }
+
+    .qr-label {
+      font-size: 0.9rem;
+      text-align: center;
+      color: #fff;
+      line-height: 1rem;
+    }
+
+    .date-box {
+      width: 12rem;
+      height: 12rem;
+      background: linear-gradient(to right, rgba(255, 102, 0, 0.6), rgba(255, 140, 0, 0.3));
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      font-size: 4rem;
+      font-weight: 700;
+      line-height: 4.2rem;
+      color: white;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+      100% { transform: translateY(0px); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Left: Location and Time -->
+  <div class="top-left">
+    <div class="location" id="event-location"><span class="icon">📍</span> Loading...</div>
+    <div class="time" id="event-time"><span class="icon">🕒</span> Loading...</div>
+  </div>
+
+  <!-- Top Right: QR Code and Date -->
+  <div class="top-right-wrapper">
+    <!-- QR Code Box -->
+    <div class="qr-box">
+      <img src="https://cdn.glitch.global/d3825f09-16b9-42c5-aed8-ef674a7a82c1/linkedtre-qr.png?v=1747650115477" alt="QR Code" />
+      <div class="qr-label">Scan to follow<br>Compass Offices</div>
+    </div>
+
+    <!-- Date Box -->
+    <div class="date-box" id="event-date">
+      --
+    </div>
+  </div>
+
+  <script>
+    function formatDateParts(dateStr) {
+      var parts = dateStr.split('-');
+      var day = parts[0];
+      var month = parts[1];
+      var monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      var monthText = monthNames[parseInt(month, 10) - 1];
+      return { day: day, monthText: monthText };
+    }
+
+    function loadEventData() {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "https://docs.google.com/spreadsheets/d/e/2PACX-1vQipx6p43dqkFXUkcT8O6YGAiqs_dlSJUvBZ5538JjEA0PFg47z1Tw0GVqn3apA2cp-LI54XO2sNaqZ/pubhtml", true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+          var parser = new DOMParser();
+          var doc = parser.parseFromString(xhr.responseText, "text/html");
+          var rows = doc.querySelectorAll("table tbody tr");
+          if (rows.length < 2) return;
+
+          var cells = rows[1].getElementsByTagName("td");
+          var location = cells[0].textContent.trim();
+          var date = cells[1].textContent.trim();
+          var time = cells[2].textContent.trim();
+          var image = cells[3].textContent.trim();
+
+          // Update DOM
+          document.getElementById("event-location").innerHTML = '<span class="icon">📍</span> ' + location;
+          document.getElementById("event-time").innerHTML = '<span class="icon">🕒</span> ' + time;
+
+          var dateParts = formatDateParts(date);
+          document.getElementById("event-date").innerHTML = dateParts.day + "<br>" + dateParts.monthText;
+
+          // Set background image
+          document.body.style.backgroundImage = "url('" + image + "')";
+        }
+      };
+      xhr.send();
+    }
+
+    loadEventData();
+  </script>
+
+</body>
+</html>
