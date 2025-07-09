@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compass Offices Bulk QR Code Generator from CSV</title>
+   <link rel="icon" type="image/x-icon" href="https://cdn.glitch.global/824e67c6-cef9-4122-b4f3-2559a8d6a30c/apple-touch-icon.png?v=1737970541407">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background-color: #f4f4f9;
+    padding: 20px;
+    margin: 0;
+}
+
+.container {
+    max-width: 90%; /* Make it responsive */
+    width: 600px; /* Maintain a max width */
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    position: relative; /* Ensure absolute positioning works inside */
+}
+
+.logo {
+    max-width: 180px;
+    margin: 0 auto 20px;
+}
+
+.copyright {
+    margin-top: 15px;
+    font-size: 12px;
+    color: #555;
+    text-align: center;
+}
+
+h1 {
+    color: #FF6600;
+    font-size: 24px;
+    margin-top: 20px;
+}
+
+input, button {
+    font-size: 16px;
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    width: 100%;
+    max-width: 400px;
+    margin: 10px auto; /* Centered */
+    display: block;
+}
+
+button {
+    background-color: #FF6600;
+    color: white;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #CC5200;
+}
+
+/* Responsive and Improved File Drop Area */
+.file-drop-area {
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+    border: 2px dashed #FF6600;
+    border-radius: 10px;
+    text-align: center;
+    cursor: pointer;
+    margin: 10px auto;
+    background-color: #FFF;
+    font-weight: bold;
+    color: #FF6600;
+    transition: background-color 0.3s ease;
+    word-wrap: break-word; /* Prevent text overflow */
+}
+
+.file-drop-area:hover {
+    background-color: #FFF3E0;
+}
+
+/* Responsive Fix for File Drop Area */
+@media (max-width: 768px) {
+    .file-drop-area {
+        max-width: 90%;  /* Adjust width to fit smaller screens */
+        padding: 15px;  /* Reduce padding for better fit */
+        font-size: 14px; /* Reduce font size */
+    }
+}
+
+.download-btn {
+    background-color: #28a745;
+    color: white;
+    padding: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: none;
+    text-align: center;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+}
+
+.download-btn:hover {
+    background-color: #218838;
+}
+
+/* Return Icon (Fixed Positioning) */
+#returnIcon {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 24px; /* Adjust size */
+    color: #A0A0A0; /* Light Grey */
+    text-decoration: none; /* Remove underline */
+    transition: color 0.3s ease;
+}
+
+#returnIcon:hover {
+    color: #808080; /* Darker Grey on Hover */
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        width: 95%;
+        padding: 15px;
+    }
+
+    h1 {
+        font-size: 22px;
+    }
+
+    input, button {
+        font-size: 14px;
+        padding: 10px;
+    }
+
+    .download-btn {
+        font-size: 14px;
+    }
+
+    #returnIcon {
+        font-size: 22px;
+        top: 10px;
+        right: 10px;
+    }
+}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a id="returnIcon" href="https://compass-offices-vcard.glitch.me/">&#x21A9;</a>
+ <img src="https://cdn.glitch.global/824e67c6-cef9-4122-b4f3-2559a8d6a30c/compassoffices-logo-web-2025_ob.png?v=1737969746898" alt="Compass Offices Logo" class="logo">
+    <h1>Bulk vCard QR Code Generator</h1>
+
+    <div class="file-drop-area" onclick="document.getElementById('csvInput').click()">
+        Upload CSV File Here
+    </div>
+<br>
+    <input type="file" id="csvInput" accept=".csv" style="display: none">
+    
+    <button id="generateBtn" onclick="processCSV()">Generate QR Codes</button>
+    <button id="downloadBtn" class="download-btn" onclick="downloadZip()">Download All QR Codes</button>
+        <p class="copyright">© 2025 Compass Offices - All Rights Reserved.</p>
+</div>
+
+    <script>
+        let zip = new JSZip();
+        let fileCount = 0;
+        let zipTimestamp = "";
+
+        function processCSV() {
+            const fileInput = document.getElementById("csvInput");
+            if (!fileInput.files.length) {
+                alert("Please upload a CSV file first.");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                const lines = event.target.result.split("\n").map(line => line.trim()).filter(line => line);
+                const headers = lines[0].split(",");
+                const dataRows = lines.slice(1);
+
+                fileCount = 0;
+                zip = new JSZip(); // Reset ZIP file
+                zipTimestamp = getFormattedTimestamp(); // Generate timestamp for ZIP file
+
+                dataRows.forEach(row => {
+                    const values = row.split(",");
+                    if (values.length < 3) return;
+
+                    const contact = {};
+                    headers.forEach((header, index) => {
+                        contact[header.trim()] = values[index] ? values[index].trim() : "";
+                    });
+
+                    generateQRCode(contact);
+                });
+
+                document.getElementById("downloadBtn").style.display = "block";
+            };
+
+            reader.readAsText(file);
+        }
+
+        function generateQRCode(contact) {
+            const vCardData = createVCard(contact);
+            const timestamp = getFormattedTimestamp();
+            const filename = `${contact["First Name"]}_${contact["Last Name"]}_${timestamp}_QR.png`.replace(/\s+/g, "_");
+
+            const canvas = document.createElement("canvas");
+            QRCode.toCanvas(canvas, vCardData, { width: 256, margin: 2, color: { dark: "#FFFFFF", light: "#00000000" } }, function (err) {
+                if (err) return console.error(err);
+
+                const ctx = canvas.getContext("2d");
+
+                // Convert black QR to white while keeping transparency
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    if (imageData.data[i] === 0 && imageData.data[i + 1] === 0 && imageData.data[i + 2] === 0) {
+                        imageData.data[i] = 255;    // Set Red to 255 (white)
+                        imageData.data[i + 1] = 255; // Set Green to 255 (white)
+                        imageData.data[i + 2] = 255; // Set Blue to 255 (white)
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+
+                canvas.toBlob(blob => {
+                    zip.file(filename, blob);
+                    fileCount++;
+                }, "image/png");
+            });
+        }
+
+        function createVCard(contact) {
+            return `BEGIN:VCARD\nVERSION:3.0\nFN:${contact["First Name"]} ${contact["Last Name"]}\nN:${contact["Last Name"]};${contact["First Name"]};;;\nTEL;TYPE=WORK:${contact["Phone"]}\n`
+                + (contact["Mobile"] ? `TEL;TYPE=CELL:${contact["Mobile"]}\n` : "")
+                + (contact["Email"] ? `EMAIL:${contact["Email"]}\n` : "")
+                + (contact["Address 1"] ? `ADR;TYPE=WORK:;;${contact["Address 1"]};;;;\n` : "")
+                + (contact["Address 2"] ? `ADR;TYPE=WORK:;;${contact["Address 2"]};;;;\n` : "")
+                + (contact["Address 3"] ? `ADR;TYPE=WORK:;;${contact["Address 3"]};;;;\n` : "")
+                + (contact["Job Title"] ? `TITLE:${contact["Job Title"]}\n` : "")
+                + `ORG:Compass Offices\nURL:https://www.compassoffices.com/\nEND:VCARD`;
+        }
+
+        function getFormattedTimestamp() {
+            const now = new Date();
+            const year = String(now.getFullYear()).slice(-2);
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            const day = String(now.getDate()).padStart(2, "0");
+            const hours = String(now.getHours()).padStart(2, "0");
+            const minutes = String(now.getMinutes()).padStart(2, "0");
+            return `${year}${month}${day}${hours}${minutes}`;
+        }
+
+        function downloadZip() {
+            if (fileCount === 0) {
+                alert("No QR codes generated yet.");
+                return;
+            }
+
+            const zipFilename = `QR_Codes_${zipTimestamp}.zip`;
+
+            zip.generateAsync({ type: "blob" }).then(function (content) {
+                saveAs(content, zipFilename);
+            });
+        }
+    </script>
+
+</body>
+</html>
