@@ -23,7 +23,7 @@
       height: 100%;
       background-color: #282828;
       color: white;
-      padding-bottom: 18vh; /* Reserve space for banner + footer */
+      padding-bottom: 12vh; /* Adjusted for taller footer */
       box-sizing: border-box;
     }
 
@@ -125,64 +125,57 @@
       animation: splitFlap 0.8s ease-in-out forwards;
     }
 
-    .bottom-wrapper {
+    .footer {
       position: fixed;
       bottom: 0;
       left: 0;
       width: 100%;
-      display: flex;
-      flex-direction: column;
-      z-index: 99;
-    }
-
-    .banner-iframe {
-      width: 100%;
       height: 12vh;
-      border: none;
-      margin: 0;
-      padding: 0;
-      display: block;
-      background-color: #282828;
-    }
-
-    .footer {
-      height: 6vh;
       background-color: #ff6600;
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 0 3.7037%;
       font-size: 1.8vw;
+      z-index: 99;
     }
 
     .footer .left-container,
     .footer .center-container,
     .footer .social-container {
-      flex: 1;
       display: flex;
       align-items: center;
     }
 
-    .footer .center-container {
+    .footer .left-container {
+      flex: 1;
       justify-content: flex-start;
-      margin-left: 0.3vw;
+    }
+
+    .footer .center-container {
+      flex: 1;
+      justify-content: center;
     }
 
     .footer .social-container {
+      flex: 1;
       justify-content: flex-end;
-      gap: 2vw;
-      margin-right: 5vw;
+      white-space: nowrap;
     }
 
     .footer .social-container img {
-      height: 50px;
-      width: 50px;
-      object-fit: contain;
+      height: 8vh;
+      width: auto;
+      max-height: 80px;
+      vertical-align: middle;
     }
 
     .footer .social-container span {
       font-size: 1.5vw;
+      line-height: 1.2;
       text-align: left;
+      display: inline-block;
+      vertical-align: middle;
     }
 
     .page-number {
@@ -228,76 +221,82 @@
       <div class="slideshow" id="slideshow"></div>
     </div>
 
-    <div class="bottom-wrapper">
-      <iframe src="https://compassoffices.github.io/150/banner.html" class="banner-iframe" scrolling="no" title="Banner Slideshow"></iframe>
-      <div class="footer">
-        <div class="left-container">
-          <span>Compass Offices | BFT46</span>
-        </div>
-        <div class="center-container">
-          <span class="page-number" id="pageCounter">Page 1/1</span>
-        </div>
-        <div class="social-container">
-          <img src="https://compassoffices.github.io/qr/linkedtre-qr.png" alt="QR Code" />
-          <span>Follow us on <br> social media <br> for more updates</span>
-        </div>
-        <div class="timeline-bar"></div>
+    <div class="footer">
+      <div class="left-container">
+        <span>Compass Offices | BFT46</span>
       </div>
+      <div class="center-container">
+        <span class="page-number" id="pageCounter">Page 1/1</span>
+      </div>
+      <div class="social-container">
+        <img src="https://compassoffices.github.io/qr/linkedtre-qr.png" alt="QR Code" />
+        &nbsp;&nbsp;&nbsp;
+        <span>
+          Follow us on<br>
+          social media<br>
+          for more updates
+        </span>
+      </div>
+      <div class="timeline-bar"></div>
     </div>
   </div>
 
   <script>
     function openFullscreen() {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) elem.requestFullscreen();
-      else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
-      else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
-    }
-
-    async function fetchSheetData() {
-      const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT0QQeWelpvIGGBcPjxPZHNyrhuBII9N9FLX3fCR1KkG4Xpc4Fi2u5A80PZOTVLp37j_3xuRJ8_ASSC/pub?output=csv";
-      try {
-        const response = await fetch(url);
-        const data = await response.text();
-        const rows = data.split('\n').slice(1).filter(Boolean);
-        return rows.map(row => {
-          const match = row.match(/(?:"([^"]*)"|([^,]*))(?:,\s*(?:"([^"]*)"|([^,]*)))?/);
-          const company = (match[1] || match[2] || '').trim();
-          const tax = (match[3] || match[4] || '').trim();
-          return { company, tax };
-        });
-      } catch (error) {
-        console.error("Error fetching sheet data:", error);
-        return [];
+      var elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
       }
     }
 
+    function fetchSheetData() {
+      var url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT0QQeWelpvIGGBcPjxPZHNyrhuBII9N9FLX3fCR1KkG4Xpc4Fi2u5A80PZOTVLp37j_3xuRJ8_ASSC/pub?output=csv";
+      return fetch(url)
+        .then(function(response) { return response.text(); })
+        .then(function(data) {
+          var rows = data.split('\n').slice(1).filter(Boolean);
+          return rows.map(function(row) {
+            var match = row.match(/(?:"([^"]*)"|([^,]*))(?:,\s*(?:"([^"]*)"|([^,]*)))?/);
+            var company = (match[1] || match[2] || '').trim();
+            var tax = (match[3] || match[4] || '').trim();
+            return { company: company, tax: tax };
+          });
+        })
+        .catch(function(error) {
+          console.error("Error fetching sheet data:", error);
+          return [];
+        });
+    }
+
     function calculateItemsPerPage() {
-      const content = document.getElementById('contentArea');
-      const sampleRow = document.createElement('div');
+      var content = document.getElementById('contentArea');
+      var sampleRow = document.createElement('div');
       sampleRow.className = 'row';
       sampleRow.style.visibility = 'hidden';
-      sampleRow.innerHTML = `<span class="company-name">Sample</span><span class="tax-code"><span class="tax-label">Tax:</span> 123</span>`;
+      sampleRow.innerHTML = '<span class="company-name">Sample</span><span class="tax-code"><span class="tax-label">Tax:</span> 123</span>';
       content.appendChild(sampleRow);
-      const rowHeight = sampleRow.offsetHeight;
+      var rowHeight = sampleRow.offsetHeight;
       content.removeChild(sampleRow);
-      const availableHeight = content.clientHeight;
+      var availableHeight = content.clientHeight;
       return Math.floor(availableHeight / rowHeight);
     }
 
     function createPages(data, itemsPerPage) {
-      const pages = [];
-      for (let i = 0; i < data.length; i += itemsPerPage) {
-        const pageData = data.slice(i, i + itemsPerPage);
-        const page = document.createElement('div');
+      var pages = [];
+      for (var i = 0; i < data.length; i += itemsPerPage) {
+        var pageData = data.slice(i, i + itemsPerPage);
+        var page = document.createElement('div');
         page.className = 'page';
-        pageData.forEach(entry => {
-          const row = document.createElement('div');
+        pageData.forEach(function(entry) {
+          var row = document.createElement('div');
           row.className = 'row';
-          row.innerHTML = `
-            <span class="company-name">${entry.company || 'N/A'}</span>
-            <span class="tax-code"><span class="tax-label">Tax: </span>${entry.tax || 'N/A'}</span>
-          `;
+          row.innerHTML =
+            '<span class="company-name">' + (entry.company || 'N/A') + '</span>' +
+            '<span class="tax-code"><span class="tax-label">Tax: </span>' + (entry.tax || 'N/A') + '</span>';
           page.appendChild(row);
         });
         pages.push(page);
@@ -305,37 +304,44 @@
       return pages;
     }
 
-    let slideshowData = [];
-    let pages = [];
-    let currentPage = 0;
-    let slideshowInterval;
-    const slideshow = document.getElementById('slideshow');
-    const pageCounter = document.getElementById('pageCounter');
+    var slideshowData = [];
+    var pages = [];
+    var currentPage = 0;
+    var slideshowInterval;
+    var slideshow = document.getElementById('slideshow');
+    var pageCounter = document.getElementById('pageCounter');
 
-    async function initSlideshow() {
+    function initSlideshow() {
       if (!slideshowData.length) {
-        slideshowData = await fetchSheetData();
-        if (!slideshowData.length) {
-          slideshow.innerHTML = `<div style="color: red; font-size: 2vw;">Failed to load data</div>`;
-          return;
-        }
+        fetchSheetData().then(function(data) {
+          slideshowData = data;
+          if (!slideshowData.length) {
+            slideshow.innerHTML = '<div style="color: red; font-size: 2vw;">Failed to load data</div>';
+            return;
+          }
+          setupAndStart();
+        });
+      } else {
+        setupAndStart();
       }
+    }
 
-      const itemsPerPage = calculateItemsPerPage();
+    function setupAndStart() {
+      var itemsPerPage = calculateItemsPerPage();
       pages = createPages(slideshowData, itemsPerPage);
 
       slideshow.innerHTML = '';
-      pages.forEach(p => slideshow.appendChild(p));
+      pages.forEach(function(p) { slideshow.appendChild(p); });
       currentPage = 0;
       showPage(currentPage);
 
-      const timelineBar = document.querySelector('.timeline-bar');
+      var timelineBar = document.querySelector('.timeline-bar');
       timelineBar.style.animation = 'none';
       timelineBar.offsetHeight;
       timelineBar.style.animation = 'loadProgress 15s linear infinite';
 
       clearInterval(slideshowInterval);
-      slideshowInterval = setInterval(() => {
+      slideshowInterval = setInterval(function() {
         currentPage = (currentPage + 1) % pages.length;
         showPage(currentPage);
         timelineBar.style.animation = 'none';
@@ -345,26 +351,28 @@
     }
 
     function showPage(index) {
-      pages.forEach(p => p.classList.remove('active'));
-      const current = pages[index];
+      pages.forEach(function(p) { p.classList.remove('active'); });
+      var current = pages[index];
       current.classList.add('active');
-      const rows = current.querySelectorAll('.row');
-      rows.forEach((row, i) => {
-        row.className = 'row';
-        setTimeout(() => {
-          row.classList.add('animate');
-        }, i * 100);
-      });
-      pageCounter.textContent = `Page ${index + 1}/${pages.length}`;
+      var rows = current.querySelectorAll('.row');
+      for (var i = 0; i < rows.length; i++) {
+        (function(row, i) {
+          row.className = 'row';
+          setTimeout(function() {
+            row.classList.add('animate');
+          }, i * 100);
+        })(rows[i], i);
+      }
+      pageCounter.textContent = 'Page ' + (index + 1) + '/' + pages.length;
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', function() {
       initSlideshow();
 
-      let resizeTimeout;
-      window.addEventListener('resize', () => {
+      var resizeTimeout;
+      window.addEventListener('resize', function() {
         clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
+        resizeTimeout = setTimeout(function() {
           initSlideshow();
         }, 300);
       });
