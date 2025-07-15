@@ -3,32 +3,98 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Auto Resize & Crop Image to Max 300KB</title>
+  <title>Image Resize & Download</title>
   <style>
+    :root {
+      --primary: #0d6efd;
+      --bg: #f9f9f9;
+      --text: #333;
+    }
+
     body {
-      font-family: sans-serif;
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
       padding: 2rem;
       text-align: center;
     }
-    input {
-      margin: 1rem;
+
+    h2 {
+      margin-bottom: 1rem;
+      font-size: 1.8rem;
     }
-    canvas {
-      display: block;
-      margin: 1rem auto;
-      max-width: 100%;
-      border: 1px solid #ccc;
+
+    input[type="file"] {
+      padding: 0.5rem 1rem;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      background: white;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: border-color 0.3s;
     }
+
+    input[type="file"]:hover {
+      border-color: var(--primary);
+    }
+
     .preview {
       margin-top: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      align-items: center;
     }
+
+    .card {
+      background: white;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+      max-width: 90%;
+      width: 400px;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
     .info {
-      margin-bottom: 1rem;
+      margin: 0.5rem 0;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    .download-link {
+      display: inline-block;
+      margin-top: 0.5rem;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      background: var(--primary);
+      color: white;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: background 0.3s;
+    }
+
+    .download-link:hover {
+      background: #0b5ed7;
+    }
+
+    @media (max-width: 500px) {
+      .card {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-  <h2>Upload Image (Auto Resize + Crop to Max 300KB)</h2>
+
+  <h2>Upload Image (Resize & Crop to Max 300KB)</h2>
   <input type="file" accept="image/*" id="upload" />
   <div class="preview" id="preview"></div>
 
@@ -36,6 +102,11 @@
     const upload = document.getElementById("upload");
     const preview = document.getElementById("preview");
     const MAX_SIZE = 300 * 1024;
+
+    function formatDateTime() {
+      const now = new Date();
+      return now.toISOString().replace(/[:.]/g, "-");
+    }
 
     upload.addEventListener("change", (e) => {
       const file = e.target.files[0];
@@ -53,33 +124,28 @@
 
         const targets = [
           { width: 1080, height: 720, crop: false },
-          { width: 1080, height: 450, crop: true },
+          { width: 1080, height: 450, crop: true }
         ];
 
         targets.forEach((target) => {
           const canvas = document.createElement("canvas");
-          canvas.width = target.width;
-          canvas.height = target.height;
           const ctx = canvas.getContext("2d");
 
           let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-
           const targetRatio = target.width / target.height;
           const imageRatio = img.width / img.height;
 
           if (target.crop) {
-            // Crop the image to center based on target ratio
             if (imageRatio > targetRatio) {
-              // Crop width
               sWidth = img.height * targetRatio;
               sx = (img.width - sWidth) / 2;
             } else {
-              // Crop height
               sHeight = img.width / targetRatio;
               sy = (img.height - sHeight) / 2;
             }
+            canvas.width = target.width;
+            canvas.height = target.height;
           } else {
-            // Resize with aspect ratio fitting
             const scale = Math.min(target.width / img.width, target.height / img.height);
             const newWidth = img.width * scale;
             const newHeight = img.height * scale;
@@ -89,8 +155,8 @@
 
           ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
-          // Compress image below 300KB
           let quality = 0.9;
+
           const compress = () => new Promise((resolve) => {
             const loop = () => {
               canvas.toBlob((blob) => {
@@ -108,6 +174,16 @@
           compress().then(({ blob, quality }) => {
             const sizeKB = Math.round(blob.size / 1024);
             const url = URL.createObjectURL(blob);
+            const timestamp = formatDateTime();
+            const filename = `image-${target.width}x${target.height}-${sizeKB}KB-${timestamp}.jpg`;
+
+            const card = document.createElement("div");
+            card.className = "card";
+
+            const previewCanvas = document.createElement("canvas");
+            previewCanvas.width = canvas.width;
+            previewCanvas.height = canvas.height;
+            previewCanvas.getContext("2d").drawImage(canvas, 0, 0);
 
             const info = document.createElement("p");
             info.className = "info";
@@ -115,19 +191,14 @@
 
             const download = document.createElement("a");
             download.href = url;
-            download.download = `resized-${target.width}x${target.height}.jpg`;
-            download.textContent = `Download ${target.width}x${target.height}`;
-            download.style.display = "block";
+            download.download = filename;
+            download.textContent = `Download ${target.width}×${target.height}`;
+            download.className = "download-link";
 
-            // Clone canvas for preview
-            const previewCanvas = document.createElement("canvas");
-            previewCanvas.width = canvas.width;
-            previewCanvas.height = canvas.height;
-            previewCanvas.getContext("2d").drawImage(canvas, 0, 0);
-
-            preview.appendChild(previewCanvas);
-            preview.appendChild(info);
-            preview.appendChild(download);
+            card.appendChild(previewCanvas);
+            card.appendChild(info);
+            card.appendChild(download);
+            preview.appendChild(card);
           });
         });
       };
