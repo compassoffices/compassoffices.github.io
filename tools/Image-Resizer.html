@@ -3,154 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Image Resizer & Cropper</title>
+  <title>Auto Resize & Crop Image to Max 300KB</title>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f0f4f8;
-      margin: 0;
+      font-family: sans-serif;
       padding: 2rem;
       text-align: center;
     }
-
-    h1 {
-      font-size: 1.8rem;
-      color: #333;
-      margin-bottom: 1rem;
+    input {
+      margin: 1rem;
     }
-
-    .drop-area {
-      border: 2px dashed #4a90e2;
-      padding: 2rem;
-      background: white;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: background 0.3s;
-      max-width: 600px;
-      margin: 0 auto 2rem;
-    }
-
-    .drop-area.dragover {
-      background: #e0f0ff;
-    }
-
-    .preview {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1.5rem;
-      margin-top: 2rem;
-    }
-
     canvas {
-      border: 1px solid #ccc;
+      display: block;
+      margin: 1rem auto;
       max-width: 100%;
+      border: 1px solid #ccc;
     }
-
-    a.download-link {
-      background: #4a90e2;
-      color: white;
-      padding: 0.5rem 1rem;
-      text-decoration: none;
-      border-radius: 5px;
-      margin-top: 0.5rem;
-      display: inline-block;
-    }
-
-    #downloadAllBtn {
+    .preview {
       margin-top: 2rem;
-      display: none;
-      padding: 0.75rem 1.5rem;
-      font-size: 1rem;
-      background: #28a745;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
     }
-
-    #downloadAllBtn:hover {
-      background: #218838;
-    }
-
     .info {
-      font-size: 0.9rem;
-      color: #555;
-    }
-
-    input[type="file"] {
-      display: none;
+      margin-bottom: 1rem;
     }
   </style>
 </head>
 <body>
-  <h1>Image Resizer & Cropper (Max 300KB)</h1>
-  <div class="drop-area" id="dropArea">
-    <p>📁 Drag & Drop image here or click to upload</p>
-    <input type="file" id="fileInput" accept="image/*" />
-  </div>
-
-  <button id="downloadAllBtn">Download All</button>
-
+  <h2>Upload Image (Auto Resize + Crop to Max 300KB)</h2>
+  <input type="file" accept="image/*" id="upload" />
   <div class="preview" id="preview"></div>
 
-  <!-- JSZip from CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
   <script>
-    const dropArea = document.getElementById("dropArea");
-    const fileInput = document.getElementById("fileInput");
+    const upload = document.getElementById("upload");
     const preview = document.getElementById("preview");
-    const downloadAllBtn = document.getElementById("downloadAllBtn");
-
     const MAX_SIZE = 300 * 1024;
 
-    let filesToZip = [];
-
-    const targets = [
-      { width: 1080, height: 720, crop: false },
-      { width: 1080, height: 450, crop: true }
-    ];
-
-    dropArea.addEventListener("click", () => fileInput.click());
-
-    ["dragenter", "dragover"].forEach(eventName => {
-      dropArea.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropArea.classList.add("dragover");
-      });
-    });
-
-    ["dragleave", "drop"].forEach(eventName => {
-      dropArea.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropArea.classList.remove("dragover");
-      });
-    });
-
-    dropArea.addEventListener("drop", (e) => {
-      const file = e.dataTransfer.files[0];
-      if (file) processImage(file);
-    });
-
-    fileInput.addEventListener("change", (e) => {
+    upload.addEventListener("change", (e) => {
       const file = e.target.files[0];
-      if (file) processImage(file);
-    });
+      if (!file) return;
 
-    function processImage(file) {
       const img = new Image();
       const reader = new FileReader();
-      reader.onload = () => (img.src = reader.result);
+      reader.onload = () => {
+        img.src = reader.result;
+      };
       reader.readAsDataURL(file);
 
-      img.onload = async () => {
+      img.onload = () => {
         preview.innerHTML = "";
-        filesToZip = [];
 
-        for (const target of targets) {
+        const targets = [
+          { width: 1080, height: 720, crop: false },
+          { width: 1080, height: 450, crop: true },
+        ];
+
+        targets.forEach((target) => {
           const canvas = document.createElement("canvas");
           canvas.width = target.width;
           canvas.height = target.height;
@@ -162,21 +68,28 @@
           const imageRatio = img.width / img.height;
 
           if (target.crop) {
+            // Crop the image to center based on target ratio
             if (imageRatio > targetRatio) {
+              // Crop width
               sWidth = img.height * targetRatio;
               sx = (img.width - sWidth) / 2;
             } else {
+              // Crop height
               sHeight = img.width / targetRatio;
               sy = (img.height - sHeight) / 2;
             }
           } else {
+            // Resize with aspect ratio fitting
             const scale = Math.min(target.width / img.width, target.height / img.height);
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
+            const newWidth = img.width * scale;
+            const newHeight = img.height * scale;
+            canvas.width = newWidth;
+            canvas.height = newHeight;
           }
 
           ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
+          // Compress image below 300KB
           let quality = 0.9;
           const compress = () => new Promise((resolve) => {
             const loop = () => {
@@ -192,51 +105,32 @@
             loop();
           });
 
-          const { blob, quality } = await compress();
-          const sizeKB = Math.round(blob.size / 1024);
-          const url = URL.createObjectURL(blob);
-          const filename = `resized-${target.width}x${target.height}.jpg`;
+          compress().then(({ blob, quality }) => {
+            const sizeKB = Math.round(blob.size / 1024);
+            const url = URL.createObjectURL(blob);
 
-          const canvasClone = document.createElement("canvas");
-          canvasClone.width = canvas.width;
-          canvasClone.height = canvas.height;
-          canvasClone.getContext("2d").drawImage(canvas, 0, 0);
+            const info = document.createElement("p");
+            info.className = "info";
+            info.textContent = `${target.width}×${target.height} — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
 
-          const info = document.createElement("p");
-          info.className = "info";
-          info.textContent = `${target.width}×${target.height} — ${sizeKB} KB — Quality: ${quality.toFixed(2)}`;
+            const download = document.createElement("a");
+            download.href = url;
+            download.download = `resized-${target.width}x${target.height}.jpg`;
+            download.textContent = `Download ${target.width}x${target.height}`;
+            download.style.display = "block";
 
-          const downloadLink = document.createElement("a");
-          downloadLink.href = url;
-          downloadLink.download = filename;
-          downloadLink.className = "download-link";
-          downloadLink.textContent = `Download ${target.width}×${target.height}`;
+            // Clone canvas for preview
+            const previewCanvas = document.createElement("canvas");
+            previewCanvas.width = canvas.width;
+            previewCanvas.height = canvas.height;
+            previewCanvas.getContext("2d").drawImage(canvas, 0, 0);
 
-          preview.appendChild(canvasClone);
-          preview.appendChild(info);
-          preview.appendChild(downloadLink);
-
-          filesToZip.push({ blob, filename });
-        }
-
-        downloadAllBtn.style.display = "inline-block";
+            preview.appendChild(previewCanvas);
+            preview.appendChild(info);
+            preview.appendChild(download);
+          });
+        });
       };
-    }
-
-    downloadAllBtn.addEventListener("click", () => {
-      if (!filesToZip.length) return;
-
-      const zip = new JSZip();
-      filesToZip.forEach(({ blob, filename }) => {
-        zip.file(filename, blob);
-      });
-
-      zip.generateAsync({ type: "blob" }).then((content) => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(content);
-        a.download = "resized-images.zip";
-        a.click();
-      });
     });
   </script>
 </body>
