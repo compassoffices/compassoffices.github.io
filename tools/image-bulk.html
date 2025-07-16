@@ -13,7 +13,7 @@
     }
 
     .container {
-      max-width: 800px;
+      max-width: 1000px;
       margin: 0 auto;
     }
 
@@ -49,18 +49,42 @@
       background: #ecf0f5;
     }
 
+    .button-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1rem;
+    }
+
+    .download-all {
+      display: none;
+      padding: 0.6rem 1.5rem;
+      border: none;
+      border-radius: 6px;
+      background-color: #198754;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    .download-all:hover {
+      background-color: #157347;
+    }
+
     .preview-zone {
-      text-align: center;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
       margin-top: 2rem;
     }
 
     .card {
       background: white;
-      margin: 1rem auto;
       padding: 1rem;
       border-radius: 12px;
       box-shadow: 0 4px 6px rgba(0,0,0,0.08);
-      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     canvas {
@@ -73,6 +97,7 @@
       font-size: 0.9rem;
       margin: 0.5rem 0;
       color: #555;
+      text-align: center;
     }
 
     .download-link {
@@ -88,22 +113,6 @@
 
     .download-link:hover {
       background: #0b5ed7;
-    }
-
-    .download-all {
-      margin-top: 1rem;
-      display: block;
-      padding: 0.6rem 1.5rem;
-      border: none;
-      border-radius: 6px;
-      background-color: #198754;
-      color: white;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-
-    .download-all:hover {
-      background-color: #157347;
     }
   </style>
 </head>
@@ -121,8 +130,13 @@
       </div>
     </div>
 
+    <!-- Download All Button At Top -->
+    <div class="button-bar">
+      <button class="download-all" id="downloadAll">Download All</button>
+    </div>
+
+    <!-- Image Grid -->
     <div class="preview-zone" id="preview"></div>
-    <button class="download-all" id="downloadAll" style="display:none;">Download All</button>
   </div>
 </section>
 
@@ -196,7 +210,6 @@
           const sizeKB = Math.round(blob.size / 1024);
           const timestamp = formatDateTime();
 
-          // ✅ Get original name without extension
           const originalName = file.name.replace(/\.[^/.]+$/, '');
           const safeName = originalName.trim().replace(/\s+/g, '-');
 
@@ -227,12 +240,21 @@
           preview.appendChild(card);
 
           downloadLinks.push({ url, filename });
-          downloadAllBtn.style.display = "block";
+
+          downloadAllBtn.style.display = "inline-block";
 
           resolve();
         });
       };
     });
+  }
+
+  function handleMultipleImages(fileList) {
+    preview.innerHTML = "";
+    downloadLinks = [];
+    downloadAllBtn.style.display = "none";
+    const files = Array.from(fileList);
+    Promise.all(files.map(handleImage));
   }
 
   upload.addEventListener("change", (e) => {
@@ -256,22 +278,16 @@
     handleMultipleImages(files);
   });
 
-  function handleMultipleImages(fileList) {
-    preview.innerHTML = "";
-    downloadLinks = [];
-    downloadAllBtn.style.display = "none";
-    const files = Array.from(fileList);
-    Promise.all(files.map(handleImage));
-  }
-
   downloadAllBtn.addEventListener("click", () => {
-    downloadLinks.forEach(({ url, filename }) => {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+    downloadLinks.forEach(({ url, filename }, index) => {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, index * 200); // small delay between downloads
     });
   });
 </script>
