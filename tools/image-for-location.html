@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Image Resizer</title>
+  <title>Image Resizer (Center Crop & Scaled)</title>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -99,7 +99,7 @@
 <section>
   <div class="container">
     <div class="form-group">
-      <label class="control-label">500×700 vertical resize | 500×500 cropped thumbnail (scaled up 1.2×)</label>
+      <label class="control-label">Output: 560×840 and 560×560 (center-cropped & scaled)</label>
       <div class="dropzone-wrapper" id="dropZone">
         <div class="dropzone-desc">
           <p>Choose an image file or drag it here.</p>
@@ -117,7 +117,6 @@
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
   const MAX_SIZE = 300 * 1024;
-  const UPSCALE = 1.2;
 
   function formatDateTime() {
     const now = new Date();
@@ -144,38 +143,33 @@
     img.onload = () => {
       preview.innerHTML = "";
 
+      // Scaled-up target sizes
       const targets = [
-        { width: 500, height: 700, crop: false },
-        { width: 500, height: 500, crop: true }
+        { width: 560, height: 840 },
+        { width: 560, height: 560 }
       ];
 
       targets.forEach((target) => {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
 
-        let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
         const targetRatio = target.width / target.height;
         const imageRatio = img.width / img.height;
 
-        if (target.crop) {
-          if (imageRatio > targetRatio) {
-            sWidth = img.height * targetRatio;
-            sx = (img.width - sWidth) / 2;
-          } else {
-            sHeight = img.width / targetRatio;
-            sy = (img.height - sHeight) / 2;
-          }
-          canvas.width = Math.round(target.width * UPSCALE);
-          canvas.height = Math.round(target.height * UPSCALE);
+        let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+        if (imageRatio > targetRatio) {
+          sWidth = img.height * targetRatio;
+          sx = (img.width - sWidth) / 2;
         } else {
-          const scale = Math.min(target.width / img.width, target.height / img.height);
-          const newWidth = img.width * scale;
-          const newHeight = img.height * scale;
-          canvas.width = Math.round(newWidth * UPSCALE);
-          canvas.height = Math.round(newHeight * UPSCALE);
+          sHeight = img.width / targetRatio;
+          sy = (img.height - sHeight) / 2;
         }
 
-        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+        canvas.width = target.width;
+        canvas.height = target.height;
+
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, target.width, target.height);
 
         let quality = 0.9;
 
@@ -197,7 +191,7 @@
           const sizeKB = Math.round(blob.size / 1024);
           const url = URL.createObjectURL(blob);
           const timestamp = formatDateTime();
-          const filename = `${originalName}-${canvas.width}x${canvas.height}-${sizeKB}KB-${timestamp}.jpg`;
+          const filename = `${originalName}-${target.width}x${target.height}-${sizeKB}KB-${timestamp}.jpg`;
 
           const card = document.createElement("div");
           card.className = "card";
@@ -209,12 +203,12 @@
 
           const info = document.createElement("p");
           info.className = "info";
-          info.textContent = `${canvas.width}×${canvas.height} — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
+          info.textContent = `${target.width}×${target.height} — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
 
           const download = document.createElement("a");
           download.href = url;
           download.download = filename;
-          download.textContent = `Download ${canvas.width}×${canvas.height}`;
+          download.textContent = `Download ${target.width}×${target.height}`;
           download.className = "download-link";
 
           card.appendChild(previewCanvas);
