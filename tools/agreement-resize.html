@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF to JPG Converter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #fff;
+      padding: 2rem;
+      color: #000;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 50px 5%;
+    }
+
+    .dropzone-wrapper {
+      border: 2px dashed #000;
+      color: #000;
+      position: relative;
+      height: 150px;
+      cursor: pointer;
+      background: white;
+    }
+
+    .dropzone-desc {
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      top: 50px;
+      font-size: 16px;
+    }
+
+    .dropzone,
+    .dropzone:focus {
+      position: absolute;
+      outline: none !important;
+      width: 100%;
+      height: 150px;
+      cursor: pointer;
+      opacity: 0;
+    }
+
+    .dropzone-wrapper:hover,
+    .dropzone-wrapper.dragover {
+      background: #e0e0e0;
+    }
+
+    .preview-zone {
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    .card {
+      background: white;
+      margin: 1rem auto;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+      max-width: 100%;
+      border: 1px solid #000;
+    }
+
+    canvas {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #000;
+    }
+
+    .info {
+      font-size: 0.9rem;
+      margin: 0.5rem 0;
+      color: #000;
+    }
+
+    .download-link {
+      display: inline-block;
+      margin-top: 0.5rem;
+      padding: 0.4rem 1.2rem;
+      border-radius: 6px;
+      background: #000;
+      color: white;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    .download-link:hover {
+      background: #333;
+    }
+  </style>
+</head>
+<body>
+
+<section>
+  <div class="container">
+    <div class="form-group">
+      <label class="control-label">Upload a PDF to convert to JPG (1800px wide, compressed)</label>
+      <div class="dropzone-wrapper" id="dropZone">
+        <div class="dropzone-desc">
+          <p>Choose a PDF file or drag it here.</p>
+        </div>
+        <input type="file" accept="application/pdf" class="dropzone" id="upload" />
+      </div>
+    </div>
+
+    <div class="preview-zone" id="preview"></div>
+  </div>
+</section>
+
+<script>
+  const upload = document.getElementById("upload");
+  const dropZone = document.getElementById("dropZone");
+  const preview = document.getElementById("preview");
+  const MAX_WIDTH = 1800;
+  const MAX_SIZE = 500 * 1024; // 500KB limit for compression
+
+  function formatDateTime() {
+    const now = new Date();
+    return now.toISOString().replace(/[:.]/g, "-");
+  }
+
+  async function renderPDFtoJPG(file) {
+    if (!file || file.type !== "application/pdf") return;
+
+    preview.innerHTML = "Processing PDF...";
+
+    const fileReader = new FileReader();
+    fileReader.readAsArrayBuffer(file);
+
+    fileReader.onload = async function () {
+      const pdfData = new Uint8Array(fileReader.result);
+      const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+      preview.innerHTML = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = MAX_WIDTH / viewport.width;
+        const scaledViewport = page.getViewport({ scale });
+
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+
+        await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+
+        let quality = 0.9;
+        const compress = () => new Promise((resolve) => {
+          const loop = () => {
+            canvas.toBlob((blob) => {
+              if (blob.size <= MAX_SIZE || quality < 0.3) {
+                resolve({ blob, quality });
+              } else {
+                quality -= 0.05;
+                loop();
+              }
+            }, "image/jpeg", quality);
+          };
+          loop();
+        });
+
+        const { blob, quality } = await compress();
+        const sizeKB = Math.round(blob.size / 1024);
+        const url = URL.createObjectURL(blob);
+        const timestamp = formatDateTime();
+        const filename = `pdf-page-${i}-${MAX_WIDTH}px-${sizeKB}KB-${timestamp}.jpg`;
+
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const previewCanvas = document.createElement("canvas");
+        previewCanvas.width = canvas.width;
+        previewCanvas.height = canvas.height;
+        const ctx = previewCanvas.getContext("2d");
+        ctx.drawImage(canvas, 0, 0);
+
+        const info = document.createElement("p");
+        info.className = "info";
+        info.textContent = `Page ${i} — ${MAX_WIDTH}px wide — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
+
+        const download = document.createElement("a");
+        download.href = url;
+        download.download = filename;
+        download.textContent = `Download JPG Page ${i}`;
+        download.className = "download-link";
+
+        card.appendChild(previewCanvas);
+        card.appendChild(info);
+        card.appendChild(download);
+        preview.appendChild(card);
+      }
+    };
+  }
+
+  upload.addEventListener("change", (e) => {
+    renderPDFtoJPG(e.target.files[0]);
+  });
+
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+  });
+
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    upload.files = e.dataTransfer.files;
+    renderPDFtoJPG(file);
+  });
+</script>
+
+</body>
+</html>
