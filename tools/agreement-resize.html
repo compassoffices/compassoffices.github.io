@@ -121,8 +121,8 @@
   const upload = document.getElementById("upload");
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
-  const MAX_WIDTH = 1800;
-  const MAX_SIZE = 500 * 1024;
+  const TARGET_WIDTH = 1800;
+  const MAX_SIZE = 500 * 1024; // 500KB
 
   function formatDateTime() {
     const now = new Date();
@@ -147,25 +147,44 @@
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-        const originalViewport = page.getViewport({ scale: 1 });
-        const scale = MAX_WIDTH / originalViewport.width;
-        const viewport = page.getViewport({ scale });
 
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // Step 1: Render at high resolution (2x for clarity)
+        const originalViewport = page.getViewport({ scale: 2 });
+        const highResCanvas = document.createElement("canvas");
+        highResCanvas.width = originalViewport.width;
+        highResCanvas.height = originalViewport.height;
+        const highResCtx = highResCanvas.getContext("2d");
 
-        await page.render({ canvasContext: context, viewport }).promise;
+        await page.render({
+          canvasContext: highResCtx,
+          viewport: originalViewport
+        }).promise;
 
-        let quality = 0.9;
+        // Step 2: Downscale to TARGET_WIDTH
+        const scaleFactor = TARGET_WIDTH / highResCanvas.width;
+        const targetHeight = Math.round(highResCanvas.height * scaleFactor);
 
+        const finalCanvas = document.createElement("canvas");
+        finalCanvas.width = TARGET_WIDTH;
+        finalCanvas.height = targetHeight;
+        const finalCtx = finalCanvas.getContext("2d");
+
+        finalCtx.drawImage(
+          highResCanvas,
+          0, 0,
+          highResCanvas.width, highResCanvas.height,
+          0, 0,
+          TARGET_WIDTH, targetHeight
+        );
+
+        // Step 3: Compress with quality logic
+        let quality = 0.92;
         const compress = () =>
           new Promise((resolve) => {
             const loop = () => {
-              canvas.toBlob(
+              finalCanvas.toBlob(
                 (blob) => {
-                  if (blob.size <= MAX_SIZE || quality < 0.3) {
+                  if (blob.size <= MAX_SIZE || quality < 0.4) {
                     resolve({ blob, quality });
                   } else {
                     quality -= 0.05;
@@ -182,20 +201,20 @@
         const { blob, quality: finalQuality } = await compress();
         const sizeKB = Math.round(blob.size / 1024);
         const url = URL.createObjectURL(blob);
-        const filename = `page-${pageNum}-${MAX_WIDTH}px-${sizeKB}KB-${formatDateTime()}.jpg`;
+        const filename = `page-${pageNum}-${TARGET_WIDTH}px-${sizeKB}KB-${formatDateTime()}.jpg`;
 
+        // UI Card
         const card = document.createElement("div");
         card.className = "card";
 
         const previewCanvas = document.createElement("canvas");
-        previewCanvas.width = canvas.width;
-        previewCanvas.height = canvas.height;
-        const ctx = previewCanvas.getContext("2d");
-        ctx.drawImage(canvas, 0, 0);
+        previewCanvas.width = finalCanvas.width;
+        previewCanvas.height = finalCanvas.height;
+        previewCanvas.getContext("2d").drawImage(finalCanvas, 0, 0);
 
         const info = document.createElement("p");
         info.className = "info";
-        info.textContent = `Page ${pageNum} — ${MAX_WIDTH}px wide — ${sizeKB}KB — Quality: ${finalQuality.toFixed(2)}`;
+        info.textContent = `Page ${pageNum} — ${TARGET_WIDTH}px wide — ${sizeKB}KB — Quality: ${finalQuality.toFixed(2)}`;
 
         const download = document.createElement("a");
         download.href = url;
