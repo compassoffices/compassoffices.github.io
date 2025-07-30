@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="https://compassoffices.github.io/img/logo/new-p1-32.png" type="image/png" />
-  <title>PDF to PNG Converter</title>
+  <title>PDF to PNG Converter (1800x2244)</title>
 
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -104,7 +104,7 @@
 <section>
   <div class="container">
     <div class="form-group">
-      <label class="control-label">Upload a PDF to convert to PNG (1800px wide)</label>
+      <label class="control-label">Upload a PDF to convert to PNG (1800×2244 white background)</label>
       <div class="dropzone-wrapper" id="dropZone">
         <div class="dropzone-desc">
           <p>Choose a PDF file or drag it here.</p>
@@ -121,7 +121,9 @@
   const upload = document.getElementById("upload");
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
-  const MAX_WIDTH = 1800;
+
+  const TARGET_WIDTH = 1800;
+  const TARGET_HEIGHT = 2244;
 
   function formatDateTime() {
     const now = new Date();
@@ -146,34 +148,63 @@
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
+
+        // Get viewport at scale 1 to determine original size
         const originalViewport = page.getViewport({ scale: 1 });
-        const scale = MAX_WIDTH / originalViewport.width;
-        const viewport = page.getViewport({ scale });
+        const pageWidth = originalViewport.width;
+        const pageHeight = originalViewport.height;
 
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // Determine scale to fit into 1800x2244 while preserving aspect ratio
+        const scaleX = TARGET_WIDTH / pageWidth;
+        const scaleY = TARGET_HEIGHT / pageHeight;
+        const scale = Math.min(scaleX, scaleY);
+        const scaledViewport = page.getViewport({ scale });
 
-        await page.render({ canvasContext: context, viewport }).promise;
+        // Render original content to a temporary canvas
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = scaledViewport.width;
+        tempCanvas.height = scaledViewport.height;
+        const tempCtx = tempCanvas.getContext("2d");
+        await page.render({ canvasContext: tempCtx, viewport: scaledViewport }).promise;
 
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        // Create final canvas with target size and white background
+        const finalCanvas = document.createElement("canvas");
+        finalCanvas.width = TARGET_WIDTH;
+        finalCanvas.height = TARGET_HEIGHT;
+        const finalCtx = finalCanvas.getContext("2d");
+
+        // Fill background white
+        finalCtx.fillStyle = "#FFFFFF";
+        finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+
+        // Calculate centering offsets
+        const offsetX = (TARGET_WIDTH - tempCanvas.width) / 2;
+        const offsetY = (TARGET_HEIGHT - tempCanvas.height) / 2;
+
+        // Draw the PDF page centered on white background
+        finalCtx.drawImage(tempCanvas, offsetX, offsetY);
+
+        // Convert to PNG blob
+        const blob = await new Promise((resolve) =>
+          finalCanvas.toBlob(resolve, "image/png")
+        );
         const sizeKB = Math.round(blob.size / 1024);
         const url = URL.createObjectURL(blob);
-        const filename = `page-${pageNum}-${MAX_WIDTH}px-${sizeKB}KB-${formatDateTime()}.png`;
+        const filename = `page-${pageNum}-1800x2244-${sizeKB}KB-${formatDateTime()}.png`;
 
+        // Create preview card
         const card = document.createElement("div");
         card.className = "card";
 
         const previewCanvas = document.createElement("canvas");
-        previewCanvas.width = canvas.width;
-        previewCanvas.height = canvas.height;
-        const ctx = previewCanvas.getContext("2d");
-        ctx.drawImage(canvas, 0, 0);
+        previewCanvas.width = finalCanvas.width;
+        previewCanvas.height = finalCanvas.height;
+        const previewCtx = previewCanvas.getContext("2d");
+        previewCtx.drawImage(finalCanvas, 0, 0);
 
         const info = document.createElement("p");
         info.className = "info";
-        info.textContent = `Page ${pageNum} — ${MAX_WIDTH}px wide — ${sizeKB}KB`;
+        info.textContent = `Page ${pageNum} — 1800×2244 pixels — ${sizeKB}KB`;
 
         const download = document.createElement("a");
         download.href = url;
