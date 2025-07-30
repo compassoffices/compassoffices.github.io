@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PDF to JPG Converter</title>
+
+  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -100,7 +103,7 @@
 <section>
   <div class="container">
     <div class="form-group">
-      <label class="control-label">Upload a PDF to convert to JPG (1800px wide, compressed)</label>
+      <label class="control-label">Upload a PDF to convert to JPG (1800px wide)</label>
       <div class="dropzone-wrapper" id="dropZone">
         <div class="dropzone-desc">
           <p>Choose a PDF file or drag it here.</p>
@@ -118,7 +121,7 @@
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
   const MAX_WIDTH = 1800;
-  const MAX_SIZE = 500 * 1024; // 500KB limit for compression
+  const MAX_SIZE = 500 * 1024;
 
   function formatDateTime() {
     const now = new Date();
@@ -126,7 +129,10 @@
   }
 
   async function renderPDFtoJPG(file) {
-    if (!file || file.type !== "application/pdf") return;
+    if (!file || file.type !== "application/pdf") {
+      alert("Please upload a valid PDF file.");
+      return;
+    }
 
     preview.innerHTML = "Processing PDF...";
 
@@ -138,39 +144,44 @@
       const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
       preview.innerHTML = "";
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 1 });
-        const scale = MAX_WIDTH / viewport.width;
-        const scaledViewport = page.getViewport({ scale });
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const originalViewport = page.getViewport({ scale: 1 });
+        const scale = MAX_WIDTH / originalViewport.width;
+        const viewport = page.getViewport({ scale });
 
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
-        canvas.width = scaledViewport.width;
-        canvas.height = scaledViewport.height;
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-        await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+        await page.render({ canvasContext: context, viewport }).promise;
 
         let quality = 0.9;
-        const compress = () => new Promise((resolve) => {
-          const loop = () => {
-            canvas.toBlob((blob) => {
-              if (blob.size <= MAX_SIZE || quality < 0.3) {
-                resolve({ blob, quality });
-              } else {
-                quality -= 0.05;
-                loop();
-              }
-            }, "image/jpeg", quality);
-          };
-          loop();
-        });
 
-        const { blob, quality } = await compress();
+        const compress = () =>
+          new Promise((resolve) => {
+            const loop = () => {
+              canvas.toBlob(
+                (blob) => {
+                  if (blob.size <= MAX_SIZE || quality < 0.3) {
+                    resolve({ blob, quality });
+                  } else {
+                    quality -= 0.05;
+                    loop();
+                  }
+                },
+                "image/jpeg",
+                quality
+              );
+            };
+            loop();
+          });
+
+        const { blob, quality: finalQuality } = await compress();
         const sizeKB = Math.round(blob.size / 1024);
         const url = URL.createObjectURL(blob);
-        const timestamp = formatDateTime();
-        const filename = `pdf-page-${i}-${MAX_WIDTH}px-${sizeKB}KB-${timestamp}.jpg`;
+        const filename = `page-${pageNum}-${MAX_WIDTH}px-${sizeKB}KB-${formatDateTime()}.jpg`;
 
         const card = document.createElement("div");
         card.className = "card";
@@ -183,12 +194,12 @@
 
         const info = document.createElement("p");
         info.className = "info";
-        info.textContent = `Page ${i} — ${MAX_WIDTH}px wide — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
+        info.textContent = `Page ${pageNum} — ${MAX_WIDTH}px wide — ${sizeKB}KB — Quality: ${finalQuality.toFixed(2)}`;
 
         const download = document.createElement("a");
         download.href = url;
         download.download = filename;
-        download.textContent = `Download JPG Page ${i}`;
+        download.textContent = `Download JPG Page ${pageNum}`;
         download.className = "download-link";
 
         card.appendChild(previewCanvas);
