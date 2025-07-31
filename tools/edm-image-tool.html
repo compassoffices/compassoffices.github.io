@@ -3,17 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Drag Collage Editor</title>
+  <title>High-Resolution Collage Tool</title>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
+      font-family: sans-serif;
       background: #fff;
       padding: 2rem;
-      color: #000;
     }
     .container {
-      max-width: 1080px;
-      margin: 0 auto;
+      max-width: 900px;
+      margin: auto;
     }
     .dropzones {
       display: flex;
@@ -23,133 +22,177 @@
     }
     .dropzone {
       border: 2px dashed #000;
-      padding: 2rem;
+      padding: 1.5rem;
       text-align: center;
-      position: relative;
+      background: #f0f0f0;
       cursor: pointer;
-      background: #f9f9f9;
     }
     .dropzone.dragover {
-      background: #e0e0e0;
+      background: #ddd;
+    }
+    .controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .controls label {
+      flex: 1 1 30%;
+      font-size: 0.9rem;
     }
     canvas {
       border: 1px solid #000;
+      margin: 1rem 0;
       width: 100%;
-      max-width: 100%;
-      cursor: move;
-      user-select: none;
+      height: auto;
+      cursor: grab;
     }
-    .download-link {
-      display: inline-block;
-      margin-top: 1rem;
+    .btns {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .btns button {
       padding: 0.5rem 1rem;
+      font-size: 0.9rem;
       background: #000;
       color: #fff;
-      text-decoration: none;
+      border: none;
+      cursor: pointer;
       border-radius: 6px;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="dropzones">
-      <div class="dropzone" id="drop1">Drop Image 1 Here</div>
-      <div class="dropzone" id="drop2">Drop Image 2 Here</div>
-      <div class="dropzone" id="drop3">Drop Image 3 Here</div>
-    </div>
-    <canvas id="collageCanvas" width="1080" height="1080"></canvas>
-    <a id="downloadLink" class="download-link" href="#" download="collage.jpg" style="display:none">Download Collage</a>
+<div class="container">
+  <div class="dropzones">
+    <div class="dropzone" id="drop1">Drop Image 1 Here</div>
+    <div class="dropzone" id="drop2">Drop Image 2 Here</div>
+    <div class="dropzone" id="drop3">Drop Image 3 Here</div>
   </div>
 
-  <script>
-    const canvas = document.getElementById('collageCanvas');
-    const ctx = canvas.getContext('2d');
-    const downloadLink = document.getElementById('downloadLink');
+  <div class="controls">
+    <label>Zoom 1
+      <input type="range" id="scale1" min="0.05" max="5" step="0.05" value="1">
+    </label>
+    <label>Zoom 2
+      <input type="range" id="scale2" min="0.05" max="5" step="0.05" value="1">
+    </label>
+    <label>Zoom 3
+      <input type="range" id="scale3" min="0.05" max="5" step="0.05" value="1">
+    </label>
+  </div>
 
-    const dropZones = [
-      document.getElementById('drop1'),
-      document.getElementById('drop2'),
-      document.getElementById('drop3')
-    ];
+  <canvas id="canvas400" width="1600" height="1200"></canvas>
+  <canvas id="canvas680" width="2720" height="1200"></canvas>
 
-    const images = [null, null, null];
-    const offsets = [
-      { x: 0, y: 0 }, // image 1
-      { x: 0, y: 0 }, // image 2
-      { x: 0, y: 0 }  // image 3
-    ];
-    const positions = [
-      { x: 10, y: 10, w: 1060, h: 530 },  // top image
-      { x: 10, y: 550, w: 525, h: 520 },  // bottom left
-      { x: 545, y: 550, w: 525, h: 520 }  // bottom right
-    ];
-    let dragging = null;
-    let dragStart = { x: 0, y: 0 };
+  <div class="btns">
+    <button onclick="downloadImage(canvas400, '400x300')">Download 400x300</button>
+    <button onclick="downloadImage(canvas680, '680x300')">Download 680x300</button>
+  </div>
+</div>
 
-    dropZones.forEach((dropZone, index) => {
-      dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-      });
-      dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-      });
-      dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const img = new Image();
-            img.onload = () => {
-              images[index] = img;
-              offsets[index] = { x: 0, y: 0 };
-              render();
-              downloadLink.style.display = "inline-block";
-            };
-            img.src = reader.result;
-          };
-          reader.readAsDataURL(file);
-        }
-      });
+<script>
+  const images = [null, null, null];
+  const offsets = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
+  const scales = [1, 1, 1];
+
+  const dropZones = [drop1, drop2, drop3];
+  const scaleInputs = [scale1, scale2, scale3];
+
+  const canvas400 = document.getElementById('canvas400');
+  const canvas680 = document.getElementById('canvas680');
+  const ctx400 = canvas400.getContext('2d');
+  const ctx680 = canvas680.getContext('2d');
+
+  let dragging = null;
+  let dragStart = { x: 0, y: 0 };
+
+  // Layouts in high resolution (×4)
+  const layout400 = [
+    { x: 20, y: 20, w: 1560, h: 580 },
+    { x: 20, y: 620, w: 760, h: 560 },
+    { x: 820, y: 620, w: 760, h: 560 },
+  ];
+
+  const layout680 = [
+    { x: 20, y: 20, w: 1520, h: 1160 },
+    { x: 1560, y: 20, w: 1120, h: 560 },
+    { x: 1560, y: 620, w: 1120, h: 560 },
+  ];
+
+  dropZones.forEach((zone, i) => {
+    zone.addEventListener('dragover', e => {
+      e.preventDefault();
+      zone.classList.add('dragover');
     });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          images[i] = img;
+          offsets[i] = { x: 0, y: 0 };
+          renderAll();
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  });
 
-    function render() {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+  scaleInputs.forEach((input, i) => {
+    input.addEventListener('input', () => {
+      scales[i] = parseFloat(input.value);
+      renderAll();
+    });
+  });
 
-      for (let i = 0; i < 3; i++) {
-        if (!images[i]) continue;
+  function drawImageClipped(ctx, img, box, offset, scale) {
+    if (!img) return;
+    const iw = img.width * scale;
+    const ih = img.height * scale;
+    const dx = box.x + (box.w - iw) / 2 + offset.x;
+    const dy = box.y + (box.h - ih) / 2 + offset.y;
 
-        const pos = positions[i];
-        const offset = offsets[i];
-        const img = images[i];
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(box.x, box.y, box.w, box.h);
+    ctx.clip();
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(box.x - 6, box.y - 6, box.w + 12, box.h + 12); // white gap
+    ctx.drawImage(img, dx, dy, iw, ih);
+    ctx.restore();
+  }
 
-        // Maintain aspect ratio:
-        const scale = Math.min(pos.w / img.width, pos.h / img.height);
-        const drawW = img.width * scale;
-        const drawH = img.height * scale;
+  function renderAll() {
+    ctx400.fillStyle = "#fff";
+    ctx400.fillRect(0, 0, canvas400.width, canvas400.height);
+    layout400.forEach((box, i) => drawImageClipped(ctx400, images[i], box, offsets[i], scales[i]));
 
-        const cx = pos.x + offset.x + (pos.w - drawW) / 2;
-        const cy = pos.y + offset.y + (pos.h - drawH) / 2;
+    ctx680.fillStyle = "#fff";
+    ctx680.fillRect(0, 0, canvas680.width, canvas680.height);
+    layout680.forEach((box, i) => drawImageClipped(ctx680, images[i], box, offsets[i], scales[i]));
+  }
 
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(pos.x - 5, pos.y - 5, pos.w + 10, pos.h + 10); // white border
-
-        ctx.drawImage(img, cx, cy, drawW, drawH);
-      }
-    }
+  // Dragging support for both canvases
+  [canvas400, canvas680].forEach((canvas, canvasIndex) => {
+    const layout = canvasIndex === 0 ? layout400 : layout680;
 
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      for (let i = 0; i < 3; i++) {
-        if (!images[i]) continue;
-        const pos = positions[i];
-        if (x >= pos.x && x <= pos.x + pos.w && y >= pos.y && y <= pos.y + pos.h) {
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      for (let i = 0; i < layout.length; i++) {
+        const b = layout[i];
+        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
           dragging = i;
           dragStart = { x, y };
           break;
@@ -160,28 +203,29 @@
     canvas.addEventListener('mousemove', (e) => {
       if (dragging === null) return;
       const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
       const dx = x - dragStart.x;
       const dy = y - dragStart.y;
       dragStart = { x, y };
       offsets[dragging].x += dx;
       offsets[dragging].y += dy;
-      render();
+      renderAll();
     });
 
-    canvas.addEventListener('mouseup', () => {
-      dragging = null;
-    });
+    canvas.addEventListener('mouseup', () => dragging = null);
+    canvas.addEventListener('mouseleave', () => dragging = null);
+  });
 
-    canvas.addEventListener('mouseleave', () => {
-      dragging = null;
-    });
-
-    downloadLink.addEventListener('click', () => {
-      const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-      downloadLink.href = dataURL;
-    });
-  </script>
+  function downloadImage(canvas, label) {
+    const now = new Date().toISOString().replace(/[:.]/g, '-');
+    const link = document.createElement('a');
+    link.download = `collage-${label}-${now}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 1.0);
+    link.click();
+  }
+</script>
 </body>
 </html>
