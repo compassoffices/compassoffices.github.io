@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Image Collage Maker</title>
+  <title>Drag Collage Editor</title>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -12,236 +12,175 @@
       color: #000;
     }
     .container {
-      max-width: 1200px;
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 50px 10%;
     }
-    .dropzone-wrapper {
+    .dropzones {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .dropzone {
       border: 2px dashed #000;
-      color: #000;
-      position: relative;
-      height: 150px;
-      cursor: pointer;
-      background: white;
-      margin-bottom: 1rem;
-    }
-    .dropzone-desc {
-      position: absolute;
-      left: 0;
-      right: 0;
+      padding: 2rem;
       text-align: center;
-      top: 50px;
-      font-size: 16px;
-    }
-    .dropzone,
-    .dropzone:focus {
-      position: absolute;
-      outline: none !important;
-      width: 100%;
-      height: 150px;
+      position: relative;
       cursor: pointer;
-      opacity: 0;
+      background: #f9f9f9;
     }
-    .dropzone-wrapper:hover,
-    .dropzone-wrapper.dragover {
+    .dropzone.dragover {
       background: #e0e0e0;
     }
-    .preview-zone {
-      text-align: center;
-      margin-top: 2rem;
-    }
-    .card {
-      background: white;
-      margin: 1rem auto;
-      padding: 1rem;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.08);
-      max-width: 1000px;
-      border: 1px solid #000;
-      position: relative;
-    }
     canvas {
-      width: 100%;
-      border-radius: 8px;
       border: 1px solid #000;
-    }
-    .info {
-      font-size: 0.9rem;
-      margin: 0.5rem 0;
-      color: #000;
+      width: 100%;
+      max-width: 100%;
+      cursor: move;
+      user-select: none;
     }
     .download-link {
       display: inline-block;
-      margin-top: 0.5rem;
-      padding: 0.4rem 1.2rem;
-      border-radius: 6px;
-      background: #000;
-      color: white;
-      text-decoration: none;
-      font-size: 0.9rem;
-    }
-    .download-link:hover {
-      background: #333;
-    }
-    .adjust-controls {
       margin-top: 1rem;
-    }
-    .adjust-controls input {
-      margin: 0.5rem 0.5rem 1rem 0;
+      padding: 0.5rem 1rem;
+      background: #000;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 6px;
     }
   </style>
 </head>
 <body>
-  <section>
-    <div class="container">
-      <div class="form-group">
-        <label class="control-label">Upload three images to create a collage</label>
-        <div class="dropzone-wrapper" id="dropZone1">
-          <div class="dropzone-desc"><p>Choose first image or drag it here.</p></div>
-          <input type="file" accept="image/*" class="dropzone" id="upload1" />
-        </div>
-        <div class="dropzone-wrapper" id="dropZone2">
-          <div class="dropzone-desc"><p>Choose second image or drag it here.</p></div>
-          <input type="file" accept="image/*" class="dropzone" id="upload2" />
-        </div>
-        <div class="dropzone-wrapper" id="dropZone3">
-          <div class="dropzone-desc"><p>Choose third image or drag it here.</p></div>
-          <input type="file" accept="image/*" class="dropzone" id="upload3" />
-        </div>
-      </div>
-
-      <div class="adjust-controls" id="adjustControls" style="display: none;">
-        <label>X Offset 1 <input type="range" id="xOffset1" min="-200" max="200" value="0" step="10"></label>
-        <label>Y Offset 1 <input type="range" id="yOffset1" min="-200" max="200" value="0" step="10"></label>
-        <label>X Offset 2 <input type="range" id="xOffset2" min="-200" max="200" value="0" step="10"></label>
-        <label>Y Offset 2 <input type="range" id="yOffset2" min="-200" max="200" value="0" step="10"></label>
-        <label>X Offset 3 <input type="range" id="xOffset3" min="-200" max="200" value="0" step="10"></label>
-        <label>Y Offset 3 <input type="range" id="yOffset3" min="-200" max="200" value="0" step="10"></label>
-      </div>
-
-      <div class="preview-zone" id="preview"></div>
+  <div class="container">
+    <div class="dropzones">
+      <div class="dropzone" id="drop1">Drop Image 1 Here</div>
+      <div class="dropzone" id="drop2">Drop Image 2 Here</div>
+      <div class="dropzone" id="drop3">Drop Image 3 Here</div>
     </div>
-  </section>
+    <canvas id="collageCanvas" width="1080" height="1080"></canvas>
+    <a id="downloadLink" class="download-link" href="#" download="collage.jpg" style="display:none">Download Collage</a>
+  </div>
 
   <script>
-    const uploads = [document.getElementById("upload1"), document.getElementById("upload2"), document.getElementById("upload3")];
-    const dropZones = [document.getElementById("dropZone1"), document.getElementById("dropZone2"), document.getElementById("dropZone3")];
-    const preview = document.getElementById("preview");
-    const adjustControls = document.getElementById("adjustControls");
-    let images = [];
-    const MAX_SIZE = 300 * 1024;
+    const canvas = document.getElementById('collageCanvas');
+    const ctx = canvas.getContext('2d');
+    const downloadLink = document.getElementById('downloadLink');
 
-    function formatDateTime() {
-      const now = new Date();
-      return now.toISOString().replace(/[:.]/g, "-");
-    }
+    const dropZones = [
+      document.getElementById('drop1'),
+      document.getElementById('drop2'),
+      document.getElementById('drop3')
+    ];
 
-    function handleImage(file, index) {
-      if (!file || !file.type.startsWith("image/")) return;
-      const img = new Image();
-      const reader = new FileReader();
-      reader.onload = () => { img.src = reader.result; };
-      reader.readAsDataURL(file);
-      img.onload = () => {
-        images[index] = img;
-        if (images.filter(Boolean).length === 3) {
-          renderCollage();
-          adjustControls.style.display = "block";
-        }
-      };
-    }
+    const images = [null, null, null];
+    const offsets = [
+      { x: 0, y: 0 }, // image 1
+      { x: 0, y: 0 }, // image 2
+      { x: 0, y: 0 }  // image 3
+    ];
+    const positions = [
+      { x: 10, y: 10, w: 1060, h: 530 },  // top image
+      { x: 10, y: 550, w: 525, h: 520 },  // bottom left
+      { x: 545, y: 550, w: 525, h: 520 }  // bottom right
+    ];
+    let dragging = null;
+    let dragStart = { x: 0, y: 0 };
 
-    function renderCollage() {
-      preview.innerHTML = "";
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      canvas.width = 1080;
-      canvas.height = 1080;
-
-      const xOffsets = [
-        parseInt(document.getElementById("xOffset1").value),
-        parseInt(document.getElementById("xOffset2").value),
-        parseInt(document.getElementById("xOffset3").value)
-      ];
-      const yOffsets = [
-        parseInt(document.getElementById("yOffset1").value),
-        parseInt(document.getElementById("yOffset2").value),
-        parseInt(document.getElementById("yOffset3").value)
-      ];
-
-      // Top image (full width)
-      ctx.drawImage(images[0], xOffsets[0], yOffsets[0], canvas.width, canvas.height / 2);
-
-      // Bottom left
-      ctx.drawImage(images[1], 0 + xOffsets[1], canvas.height / 2 + yOffsets[1], canvas.width / 2, canvas.height / 2);
-
-      // Bottom right
-      ctx.drawImage(images[2], canvas.width / 2 + xOffsets[2], canvas.height / 2 + yOffsets[2], canvas.width / 2, canvas.height / 2);
-
-      let quality = 0.9;
-      const compress = () => new Promise((resolve) => {
-        const loop = () => {
-          canvas.toBlob((blob) => {
-            if (blob.size <= MAX_SIZE || quality < 0.1) {
-              resolve({ blob, quality });
-            } else {
-              quality -= 0.05;
-              loop();
-            }
-          }, 'image/jpeg', quality);
-        };
-        loop();
-      });
-
-      compress().then(({ blob, quality }) => {
-        const sizeKB = Math.round(blob.size / 1024);
-        const url = URL.createObjectURL(blob);
-        const timestamp = formatDateTime();
-        const filename = `collage-${canvas.width}x${canvas.height}-${sizeKB}KB-${timestamp}.jpg`;
-
-        const card = document.createElement("div");
-        card.className = "card";
-
-        const previewCanvas = document.createElement("canvas");
-        previewCanvas.width = canvas.width;
-        previewCanvas.height = canvas.height;
-        previewCanvas.getContext("2d").drawImage(canvas, 0, 0);
-
-        const info = document.createElement("p");
-        info.className = "info";
-        info.textContent = `${canvas.width}×${canvas.height} — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
-
-        const download = document.createElement("a");
-        download.href = url;
-        download.download = filename;
-        download.textContent = `Download ${canvas.width}×${canvas.height}`;
-        download.className = "download-link";
-
-        card.appendChild(previewCanvas);
-        card.appendChild(info);
-        card.appendChild(download);
-        preview.appendChild(card);
-
-        ["xOffset1", "yOffset1", "xOffset2", "yOffset2", "xOffset3", "yOffset3"].forEach(id => {
-          document.getElementById(id).addEventListener("input", renderCollage);
-        });
-      });
-    }
-
-    uploads.forEach((upload, index) => {
-      upload.addEventListener("change", (e) => handleImage(e.target.files[0], index));
-      dropZones[index].addEventListener("dragover", (e) => {
+    dropZones.forEach((dropZone, index) => {
+      dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZones[index].classList.add("dragover");
+        dropZone.classList.add('dragover');
       });
-      dropZones[index].addEventListener("dragleave", () => dropZones[index].classList.remove("dragover"));
-      dropZones[index].addEventListener("drop", (e) => {
+      dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+      });
+      dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZones[index].classList.remove("dragover");
+        dropZone.classList.remove('dragover');
         const file = e.dataTransfer.files[0];
-        upload.files = e.dataTransfer.files;
-        handleImage(file, index);
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+              images[index] = img;
+              offsets[index] = { x: 0, y: 0 };
+              render();
+              downloadLink.style.display = "inline-block";
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+        }
       });
+    });
+
+    function render() {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < 3; i++) {
+        if (!images[i]) continue;
+
+        const pos = positions[i];
+        const offset = offsets[i];
+        const img = images[i];
+
+        // Maintain aspect ratio:
+        const scale = Math.min(pos.w / img.width, pos.h / img.height);
+        const drawW = img.width * scale;
+        const drawH = img.height * scale;
+
+        const cx = pos.x + offset.x + (pos.w - drawW) / 2;
+        const cy = pos.y + offset.y + (pos.h - drawH) / 2;
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(pos.x - 5, pos.y - 5, pos.w + 10, pos.h + 10); // white border
+
+        ctx.drawImage(img, cx, cy, drawW, drawH);
+      }
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      for (let i = 0; i < 3; i++) {
+        if (!images[i]) continue;
+        const pos = positions[i];
+        if (x >= pos.x && x <= pos.x + pos.w && y >= pos.y && y <= pos.y + pos.h) {
+          dragging = i;
+          dragStart = { x, y };
+          break;
+        }
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (dragging === null) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const dx = x - dragStart.x;
+      const dy = y - dragStart.y;
+      dragStart = { x, y };
+      offsets[dragging].x += dx;
+      offsets[dragging].y += dy;
+      render();
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      dragging = null;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      dragging = null;
+    });
+
+    downloadLink.addEventListener('click', () => {
+      const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+      downloadLink.href = dataURL;
     });
   </script>
 </body>
