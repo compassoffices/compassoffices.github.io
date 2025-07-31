@@ -1,10 +1,9 @@
-<!-- Full HTML Code -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Pro Text Image Editor</title>
+  <title>Pro Image Editor</title>
   <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
@@ -26,14 +25,14 @@
       margin-top: 1.5rem;
       font-weight: 600;
     }
-    canvas {
-      border: 1px solid #ccc;
-      width: 100%;
-      height: auto;
-      cursor: grab;
-      margin: 1rem 0;
-      border-radius: 6px;
-    }
+canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1rem 0;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
     .row {
       display: flex;
       flex-wrap: wrap;
@@ -88,6 +87,7 @@
       <select id="layoutSelect">
         <option value="680x200">680×200</option>
         <option value="680x150">680×150</option>
+        <option value="680x300">680×300</option>
       </select>
     </label>
     <label>Overlay Effect:
@@ -116,7 +116,7 @@
     <button onclick="moveImage(20, 0)">➡️</button>
   </div>
 
-  <canvas id="editorCanvas" width="680" height="200"></canvas>
+  <canvas id="editorCanvas"></canvas>
 
   <h3>📝 Text 1</h3>
   <textarea id="text1" placeholder="Text 1..."></textarea>
@@ -206,18 +206,33 @@
   let image = null;
   let zoom = 1;
   let offset = { x: 0, y: 0 };
-  let textPos1 = { x: 340, y: 80 };
-  let textPos2 = { x: 340, y: 140 };
+  let textPos1 = { x: 680, y: 160 };
+  let textPos2 = { x: 680, y: 280 };
   let draggingText = null;
   let dragging = false;
   let dragStart = { x: 0, y: 0 };
 
-  function setCanvasSize() {
-    const [w, h] = layoutSelect.value.split('x').map(Number);
-    canvas.width = w * 2;
-    canvas.height = h * 2;
-    render();
-  }
+function setCanvasSize() {
+  const [w, h] = layoutSelect.value.split('x').map(Number);
+  const scale = 2;
+
+  // Set resolution for high quality
+  canvas.width = w * scale;
+  canvas.height = h * scale;
+
+  // Set display size (user-visible)
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+
+  // Reset zoom/offset/text positions
+  zoom = 1;
+  zoomSlider.value = 1;
+  offset = { x: 0, y: 0 };
+  textPos1 = { x: canvas.width / 2, y: canvas.height * 0.4 };
+  textPos2 = { x: canvas.width / 2, y: canvas.height * 0.7 };
+
+  render();
+}
 
   function drawTextBlock(text, size, color, align, weight, pos, shadowEnabled, shadowOptions) {
     ctx.save();
@@ -340,9 +355,6 @@
       const img = new Image();
       img.onload = () => {
         image = img;
-        offset = { x: 0, y: 0 };
-        zoom = 1;
-        zoomSlider.value = 1;
         render();
       };
       img.src = reader.result;
