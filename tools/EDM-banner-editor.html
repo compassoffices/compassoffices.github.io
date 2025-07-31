@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EDM banner Editor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f4f4f4;
+    }
+    .editor {
+      max-width: 700px;
+      margin: auto;
+      background: #fff;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    canvas {
+      border: 1px solid #ccc;
+      width: 100%;
+      height: auto;
+      cursor: grab;
+      margin-bottom: 1rem;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .controls label {
+      flex: 1 1 45%;
+      font-size: 0.9rem;
+    }
+    select, input[type="color"], input[type="range"], input[type="text"] {
+      width: 100%;
+      padding: 0.3rem;
+      margin-top: 0.3rem;
+    }
+    textarea {
+      width: 100%;
+      height: 60px;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      background: #000;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+<div class="editor">
+  <h2>EDM banner Editor</h2>
+
+  <label>Select Layout:</label>
+  <select id="layoutSelect">
+    <option value="680x200">680×200</option>
+    <option value="680x150">680×150</option>
+  </select>
+
+  <label>Upload Image:</label>
+  <input type="file" id="uploadImage" accept="image/*" />
+
+  <label>Zoom:</label>
+  <input type="range" id="zoomSlider" min="0.05" max="5" step="0.05" value="1" />
+
+  <label>Text Overlay:</label>
+  <textarea id="overlayText" placeholder="Enter your text here..."></textarea>
+
+  <div class="controls">
+    <label>Text Size:
+      <input type="range" id="textSize" min="10" max="80" value="24" />
+    </label>
+    <label>Text Color:
+      <input type="color" id="textColor" value="#ffffff" />
+    </label>
+    <label>Text Alignment:
+      <select id="textAlign">
+        <option value="center">Center</option>
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+      </select>
+    </label>
+    <label>Font Weight:
+      <select id="fontWeight">
+        <option value="normal">Light</option>
+        <option value="bold">Bold</option>
+      </select>
+    </label>
+    <label>Overlay Effect:
+      <select id="overlayEffect">
+        <option value="none">None</option>
+        <option value="gradient">Black Gradient (Bottom to Top)</option>
+        <option value="dark">Dark Transparent Cover</option>
+      </select>
+    </label>
+  </div>
+
+  <canvas id="editorCanvas" width="680" height="200"></canvas>
+
+  <button onclick="downloadImage()">Download Image</button>
+</div>
+
+<script>
+  const canvas = document.getElementById('editorCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const layoutSelect = document.getElementById('layoutSelect');
+  const uploadImage = document.getElementById('uploadImage');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const overlayText = document.getElementById('overlayText');
+  const textSize = document.getElementById('textSize');
+  const textColor = document.getElementById('textColor');
+  const textAlign = document.getElementById('textAlign');
+  const fontWeight = document.getElementById('fontWeight');
+  const overlayEffect = document.getElementById('overlayEffect');
+
+  let image = null;
+  let zoom = 1;
+  let offset = { x: 0, y: 0 };
+  let dragging = false;
+  let dragStart = { x: 0, y: 0 };
+
+  function setCanvasSize() {
+    const [w, h] = layoutSelect.value.split('x').map(Number);
+    canvas.width = w * 2; // Increase resolution
+    canvas.height = h * 2;
+    render();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw image
+    if (image) {
+      const iw = image.width * zoom;
+      const ih = image.height * zoom;
+      const dx = (canvas.width - iw) / 2 + offset.x;
+      const dy = (canvas.height - ih) / 2 + offset.y;
+      ctx.drawImage(image, dx, dy, iw, ih);
+    }
+
+    // Overlay effect
+    if (overlayEffect.value === 'dark') {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (overlayEffect.value === 'gradient') {
+      const grad = ctx.createLinearGradient(0, canvas.height, 0, 0);
+      grad.addColorStop(0, 'rgba(0,0,0,0.7)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Draw text
+    const text = overlayText.value;
+    if (text) {
+      ctx.fillStyle = textColor.value;
+      ctx.font = `${fontWeight.value} ${textSize.value * 2}px sans-serif`;
+      ctx.textAlign = textAlign.value;
+      ctx.textBaseline = 'middle';
+
+      const x = textAlign.value === 'center' ? canvas.width / 2
+              : textAlign.value === 'left' ? 40
+              : canvas.width - 40;
+      const y = canvas.height / 2;
+
+      const lines = text.split('\n');
+      lines.forEach((line, i) => {
+        ctx.fillText(line, x, y + i * textSize.value * 2);
+      });
+    }
+  }
+
+  uploadImage.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        image = img;
+        offset = { x: 0, y: 0 };
+        zoom = 1;
+        zoomSlider.value = 1;
+        render();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  zoomSlider.addEventListener('input', () => {
+    zoom = parseFloat(zoomSlider.value);
+    render();
+  });
+
+  [overlayText, textSize, textColor, textAlign, fontWeight, overlayEffect].forEach(el =>
+    el.addEventListener('input', render)
+  );
+
+  layoutSelect.addEventListener('change', setCanvasSize);
+
+  canvas.addEventListener('mousedown', e => {
+    dragging = true;
+    dragStart = { x: e.offsetX, y: e.offsetY };
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dx = e.offsetX - dragStart.x;
+    const dy = e.offsetY - dragStart.y;
+    offset.x += dx * 2; // Adjust for canvas scale
+    offset.y += dy * 2;
+    dragStart = { x: e.offsetX, y: e.offsetY };
+    render();
+  });
+
+  canvas.addEventListener('mouseup', () => dragging = false);
+  canvas.addEventListener('mouseleave', () => dragging = false);
+
+  function downloadImage() {
+    const now = new Date().toISOString().replace(/[:.]/g, '-');
+    const link = document.createElement('a');
+    link.download = `image-${layoutSelect.value}-${now}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 1.0);
+    link.click();
+  }
+
+  // Initialize
+  setCanvasSize();
+</script>
+</body>
+</html>
