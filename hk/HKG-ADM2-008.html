@@ -111,14 +111,14 @@
   <div id="measure"></div>
 
   <script>
-    // Polyfill for String.trim
     if (!String.prototype.trim) {
-      String.prototype.trim = function() {
+      String.prototype.trim = function () {
         return this.replace(/^\s+|\s+$/g, '');
       };
     }
 
-    var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSeKQPPWGTLlLhxZZDGQmV1i1-lRCXtlzAbvefBPI8voJqZKObg-4nWtJ3cAvq8ftHJZ81Es63SoWhd/pubhtml?gid=0&single=true";
+    var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSeKQPPWGTLlLhxZZDGQmV1i1-lRCXtlzAbvefBPI8voJqZKObg-4nWtJ3cAvq8ftHJZ81Es63SoWhd/pub?gid=0&single=true&output=csv";
+
     var companies = [];
     var pages = [];
     var currentPage = 0;
@@ -174,7 +174,7 @@
 
     function showPage(index) {
       listDiv.style.opacity = 0;
-      setTimeout(function() {
+      setTimeout(function () {
         var html = '';
         for (var i = 0; i < pages[index].length; i++) {
           html += getRowHTML(pages[index][i]);
@@ -186,7 +186,7 @@
     }
 
     function startAutoTransition() {
-      setInterval(function() {
+      setInterval(function () {
         currentPage = (currentPage + 1) % pages.length;
         showPage(currentPage);
       }, 15000);
@@ -215,38 +215,30 @@
       }
     }
 
-    var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
-    xhr.onreadystatechange = function() {
+    function parseCSV(text) {
+      const lines = text.trim().split("\n");
+      let listNumber = 1;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line === "") continue;
+        companies.push({
+          listNumber: listNumber++,
+          companyName: line
+        });
+      }
+    }
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function () {
       if (xhr.readyState === 4 && xhr.status === 200) {
-        var temp = document.createElement("div");
-        temp.innerHTML = xhr.responseText;
+        sheetTitle = "Company List";
+        document.title = sheetTitle;
 
-        var titleElement = temp.getElementsByTagName("title")[0];
-        if (titleElement) {
-          sheetTitle = titleElement.innerHTML.replace(/ - Google .*$/, "").replace(/^\s+|\s+$/g, '');
-          document.title = sheetTitle;
-        }
-
-        var table = temp.getElementsByTagName("table")[0];
-        if (!table) {
-          listDiv.innerHTML = "Error: No table found.";
-          footer.innerHTML = sheetTitle + " | Page 1 of 1";
-          return;
-        }
-
-        var rows = table.rows;
-        for (var i = 1; i < rows.length; i++) {
-          var cells = rows[i].cells;
-          if (cells.length < 2) continue;
-          var listNumber = cells[0].innerText || cells[0].textContent || "";
-          var companyName = cells[1].innerText || cells[1].textContent || "";
-          companies.push({ listNumber: listNumber.trim(), companyName: companyName.trim() });
-        }
-
+        parseCSV(xhr.responseText);
         setTimeout(calculateHeightsAndPaginate, 100);
       }
     };
-
     xhr.open("GET", dataUrl, true);
     xhr.send();
   </script>
