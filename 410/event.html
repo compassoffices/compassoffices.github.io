@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,6 +13,8 @@
   <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
   <title>Compass Events</title>
   <style>
+    /* All your original styles preserved */
+    /* ... unchanged styles here ... */
     * {
       margin: 0;
       padding: 0;
@@ -207,140 +208,106 @@
   <div class="loading">Loading events...</div>
 </div>
 
-<!-- QR Code Section -->
-
 <div class="bottom-section">
-
-<div class="qr-follow">
-
-<div class="follow">Scan for<br />more details&nbsp;&nbsp;</div>
-	&nbsp;
-<div class="qr-code">
-
-<img src="https://cdn.glitch.global/d3825f09-16b9-42c5-aed8-ef674a7a82c1/linkedtre-qr.png?v=1747650115477" alt="QR Code" />
-
-</div>
-
-</div>
-
+  <div class="qr-follow">
+    <div class="follow">Scan for<br />more details&nbsp;&nbsp;</div>
+    &nbsp;
+    <div class="qr-code">
+      <img src="https://cdn.glitch.global/d3825f09-16b9-42c5-aed8-ef674a7a82c1/linkedtre-qr.png?v=1747650115477" alt="QR Code" />
+    </div>
+  </div>
 </div>
 
 <script>
-  var sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHHIkS2fCZhbgyTTXuNifmRBxOY4RmDGIZnzEePIYQnZm9dlpMnPHpdGjFoiyMHdKWd023G-xmwSS2/pubhtml';
+  const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHHIkS2fCZhbgyTTXuNifmRBxOY4RmDGIZnzEePIYQnZm9dlpMnPHpdGjFoiyMHdKWd023G-xmwSS2/pub?gid=0&single=true&output=csv';
 
   function parseDateFromString(dateStr) {
-    var parts = dateStr.split('/');
+    const parts = dateStr.split('/');
     if (parts.length !== 3) return null;
-    var day = parseInt(parts[0], 10);
-    var month = parseInt(parts[1], 10) - 1;
-    var year = parseInt(parts[2], 10);
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
     return new Date(year, month, day);
   }
 
   function formatDateToDisplay(dateObj) {
-    var day = ('0' + dateObj.getDate()).slice(-2);
-    var monthShort = dateObj.toLocaleString('en-GB', { month: 'short' });
+    const day = ('0' + dateObj.getDate()).slice(-2);
+    const monthShort = dateObj.toLocaleString('en-GB', { month: 'short' });
     return day + ' ' + monthShort;
   }
 
-  var today = new Date();
+  const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', sheetUrl + '?nocache=' + new Date().getTime(), true);
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState === 4) {
-      var container = document.getElementById('eventContainer');
-      if (xhr.status === 200) {
-        var parser = new DOMParser();
-        var doc = parser.parseFromString(xhr.responseText, 'text/html');
-        var tables = doc.getElementsByTagName('table');
+  fetch(csvUrl)
+    .then(response => response.text())
+    .then(text => {
+      const rows = text.split('\n').slice(1); // Skip header
+      const container = document.getElementById('eventContainer');
+      let todayEvents = [];
+      let upcomingEvents = [];
 
-        var table = null;
-        for (var i = 0; i < tables.length; i++) {
-          if (tables[i].getElementsByTagName('tr').length > 0) {
-            table = tables[i];
-            break;
-          }
+      rows.forEach(row => {
+        const cols = row.split(',');
+        if (cols.length < 7) return;
+
+        const rawDate = cols[1].trim();
+        const dateObj = parseDateFromString(rawDate);
+        if (!dateObj) return;
+
+        const displayDate = formatDateToDisplay(dateObj);
+
+        const event = {
+          date: displayDate,
+          time: cols[2].trim(),
+          name: cols[4].trim(),
+          location: cols[5].trim(),
+          banner: cols[6].trim(),
+          rawDate: dateObj
+        };
+
+        dateObj.setHours(0, 0, 0, 0);
+
+        if (dateObj.getTime() === today.getTime()) {
+          todayEvents.push(event);
+        } else if (dateObj > today) {
+          upcomingEvents.push(event);
         }
+      });
 
-        container.innerHTML = '';
+      upcomingEvents.sort((a, b) => a.rawDate - b.rawDate);
 
-        if (!table) {
-          container.innerHTML = '<div class="loading">No data table found.</div>';
-          return;
-        }
+      const eventsToShow = todayEvents.length > 0 ? todayEvents.slice(0, 1) : upcomingEvents.slice(0, 1);
 
-        var rows = table.getElementsByTagName('tr');
-        var todayEvents = [];
-        var upcomingEvents = [];
+      container.innerHTML = '';
 
-        for (var r = 0; r < rows.length; r++) {
-          var cells = rows[r].getElementsByTagName('td');
-          if (cells.length >= 7) {
-            var rawDate = (cells[1].innerText || cells[1].textContent).trim();
-            var dateObj = parseDateFromString(rawDate);
-            if (!dateObj) continue;
-
-            var displayDate = formatDateToDisplay(dateObj);
-            var event = {
-              date: displayDate,
-              time: (cells[2].innerText || cells[2].textContent).trim(),
-              name: (cells[4].innerText || cells[4].textContent).trim(),
-              location: (cells[5].innerText || cells[5].textContent).trim(),
-              banner: (cells[6].innerText || cells[6].textContent).trim(),
-              rawDate: dateObj // Store the raw Date object for sorting
-            };
-
-            dateObj.setHours(0, 0, 0, 0);
-
-            if (dateObj.getTime() === today.getTime()) {
-              todayEvents.push(event);
-            } else if (dateObj > today) {
-              upcomingEvents.push(event);
-            }
-          }
-        }
-
-        // Sort upcoming events by date
-        upcomingEvents.sort(function(a, b) {
-          return a.rawDate - b.rawDate;
-        });
-
-        // Select the first event: prefer today's events, otherwise the closest upcoming event
-        var eventsToShow = todayEvents.length > 0 ? todayEvents.slice(0, 1) : upcomingEvents.slice(0, 1);
-
-        if (eventsToShow.length === 0) {
-          container.innerHTML = '<div class="loading">No upcoming or today events found.</div>';
-          return;
-        }
-
-        document.getElementById('header-upcoming').textContent = todayEvents.length > 0 ? 'Today ' : 'Upcoming ';
-
-        for (var i = 0; i < eventsToShow.length; i++) {
-          var ev = eventsToShow[i];
-          var card = document.createElement('div');
-          card.className = 'event-card';
-          card.innerHTML =
-            '<div class="img-container">' +
-              '<img src="' + ev.banner + '" alt="Event Image" class="card-img" />' +
-              '<div class="date">' + ev.date.split(' ').join('<br>') + '</div>' +
-            '</div>' +
-            '<div class="event-title">' + ev.name + '</div>' +
-            '<div class="event-details">' +
-              '<div class="event-time"><span class="time-icon">🕒</span>' + ev.time + '</div>' +
-              '<div class="event-location"><span class="location-icon">📍</span>' + ev.location + '</div>' +
-            '</div>';
-          container.appendChild(card);
-        }
-
-      } else {
-        container.innerHTML = '<div class="loading">Failed to load events.</div>';
-        console.error('Error loading sheet:', xhr.status);
+      if (eventsToShow.length === 0) {
+        container.innerHTML = '<div class="loading">No upcoming or today events found.</div>';
+        return;
       }
-    }
-  };
-  xhr.send();
+
+      document.getElementById('header-upcoming').textContent = todayEvents.length > 0 ? 'Today ' : 'Upcoming ';
+
+      eventsToShow.forEach(ev => {
+        const card = document.createElement('div');
+        card.className = 'event-card';
+        card.innerHTML =
+          '<div class="img-container">' +
+            '<img src="' + ev.banner + '" alt="Event Image" class="card-img" />' +
+            '<div class="date">' + ev.date.split(' ').join('<br>') + '</div>' +
+          '</div>' +
+          '<div class="event-title">' + ev.name + '</div>' +
+          '<div class="event-details">' +
+            '<div class="event-time"><span class="time-icon">🕒</span>' + ev.time + '</div>' +
+            '<div class="event-location"><span class="location-icon">📍</span>' + ev.location + '</div>' +
+          '</div>';
+        container.appendChild(card);
+      });
+    })
+    .catch(error => {
+      document.getElementById('eventContainer').innerHTML = '<div class="loading">Failed to load events.</div>';
+      console.error('CSV Load Error:', error);
+    });
 </script>
 
 </body>
