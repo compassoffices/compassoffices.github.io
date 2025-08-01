@@ -10,14 +10,8 @@
   <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
   <title>Compass Events</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    html {
-      font-size: 12px;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { font-size: 12px; }
     body {
       width: 410px;
       height: 800px;
@@ -36,12 +30,8 @@
       font-size: 4.2rem;
       line-height: 4.2rem;
     }
-    .header-upcoming {
-      font-weight: 400;
-    }
-    .header-events {
-      font-weight: 700;
-    }
+    .header-upcoming { font-weight: 400; }
+    .header-events { font-weight: 700; }
     .event-container {
       overflow-y: auto;
       flex: 1;
@@ -98,11 +88,10 @@
       padding: 1.5rem;
       text-align: left;
       display: -webkit-box;
-      -webkit-line-clamp: 5;
+      -webkit-line-clamp: 4;
       -webkit-box-orient: vertical;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-height: 13rem;
       flex-grow: 1;
     }
     .event-details {
@@ -120,12 +109,8 @@
       display: flex;
       align-items: center;
     }
-    .event-time {
-      margin-bottom: 1rem;
-    }
-    .event-location {
-      padding-top: 0.5rem;
-    }
+    .event-time { margin-bottom: 1rem; }
+    .event-location { padding-top: 0.5rem; }
     .time-icon,
     .location-icon {
       margin-right: 0.75rem;
@@ -184,7 +169,6 @@
 <div class="bottom-section">
   <div class="qr-follow">
     <div class="follow">Scan for<br />more details&nbsp;&nbsp;</div>
-    &nbsp;
     <div class="qr-code">
       <img src="https://cdn.glitch.global/d3825f09-16b9-42c5-aed8-ef674a7a82c1/linkedtre-qr.png?v=1747650115477" alt="QR Code" />
     </div>
@@ -194,99 +178,102 @@
 <script>
   const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHHIkS2fCZhbgyTTXuNifmRBxOY4RmDGIZnzEePIYQnZm9dlpMnPHpdGjFoiyMHdKWd023G-xmwSS2/pub?gid=0&single=true&output=csv';
 
-  function parseDateFromString(dateStr) {
-    const parts = dateStr.split('/');
+  function parseDate(dateStr) {
+    const parts = dateStr.trim().split('/');
     if (parts.length !== 3) return null;
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    return new Date(year, month, day);
+    return new Date(parts[2], parts[1] - 1, parts[0]);
   }
 
-  function formatDateToDisplay(dateObj) {
+  function formatDateToBox(dateObj) {
     const day = ('0' + dateObj.getDate()).slice(-2);
-    const monthShort = dateObj.toLocaleString('en-GB', { month: 'short' });
-    return day + ' ' + monthShort;
+    const month = dateObj.toLocaleString('en-GB', { month: 'short' });
+    return day + '<br>' + month;
   }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   fetch(csvUrl)
-    .then(response => response.text())
+    .then(res => res.text())
     .then(text => {
-      const rows = text.trim().split('\n').slice(1); // Skip header
+      const rows = text.trim().split('\n').slice(1);
       const container = document.getElementById('eventContainer');
-      let todayEvents = [];
-      let upcomingEvents = [];
+      let data = [];
 
       rows.forEach(row => {
         const cols = row.split(',');
         if (cols.length < 7) return;
 
         const rawDate = cols[1].trim();
-        const dateObj = parseDateFromString(rawDate);
+        const dateObj = parseDate(rawDate);
         if (!dateObj) return;
 
-        const displayDate = formatDateToDisplay(dateObj);
-
-        // ✅ Clean the banner URL to fix image loading
-        const bannerUrl = cols[6]
-          .trim()
-          .replace(/^"|"$/g, '')   // remove quotes
-          .replace(/\r|\n/g, '')   // remove line breaks
-          .replace(/\s/g, '');     // remove any accidental spaces
-
         const event = {
-          date: displayDate,
+          date: dateObj,
           time: cols[2].trim(),
-          name: cols[4].trim(),
+          client: cols[3].trim(),
+          subject: cols[4].trim(),
           location: cols[5].trim(),
-          banner: bannerUrl,
-          rawDate: dateObj
+          banner: cols[6].trim().replace(/^"|"$/g, '').replace(/\r|\n/g, '').replace(/\s/g, '')
         };
 
-        dateObj.setHours(0, 0, 0, 0);
-
-        if (dateObj.getTime() === today.getTime()) {
-          todayEvents.push(event);
-        } else if (dateObj > today) {
-          upcomingEvents.push(event);
-        }
+        if (dateObj >= today) data.push(event);
       });
 
-      upcomingEvents.sort((a, b) => a.rawDate - b.rawDate);
+      data.sort((a, b) => a.date - b.date);
+      const firstEvent = data[0];
 
-      const eventsToShow = todayEvents.length > 0 ? todayEvents.slice(0, 1) : upcomingEvents.slice(0, 1);
-
-      container.innerHTML = '';
-
-      if (eventsToShow.length === 0) {
-        container.innerHTML = '<div class="loading">No upcoming or today events found.</div>';
+      if (!firstEvent) {
+        container.innerHTML = '<div class="loading">No upcoming events found.</div>';
         return;
       }
 
-      document.getElementById('header-upcoming').textContent = todayEvents.length > 0 ? 'Today ' : 'Upcoming ';
+      container.innerHTML = '';
 
-      eventsToShow.forEach(ev => {
-        const card = document.createElement('div');
-        card.className = 'event-card';
-        card.innerHTML =
-          '<div class="img-container">' +
-            '<img src="' + ev.banner + '" alt="Event Image" class="card-img" />' +
-            '<div class="date">' + ev.date.split(' ').join('<br>') + '</div>' +
-          '</div>' +
-          '<div class="event-title">' + ev.name + '</div>' +
-          '<div class="event-details">' +
-            '<div class="event-time"><span class="time-icon">🕒</span>' + ev.time + '</div>' +
-            '<div class="event-location"><span class="location-icon">📍</span>' + ev.location + '</div>' +
-          '</div>';
-        container.appendChild(card);
-      });
+      const card = document.createElement('div');
+      card.className = 'event-card';
+
+      const img = document.createElement('img');
+      img.src = firstEvent.banner || '';
+      img.alt = 'Event Image';
+      img.className = 'card-img';
+
+      const imgContainer = document.createElement('div');
+      imgContainer.className = 'img-container';
+      imgContainer.appendChild(img);
+
+      const dateBox = document.createElement('div');
+      dateBox.className = 'date';
+      dateBox.innerHTML = formatDateToBox(firstEvent.date);
+      imgContainer.appendChild(dateBox);
+
+      const title = document.createElement('div');
+      title.className = 'event-title';
+      title.textContent = firstEvent.subject;
+
+      const details = document.createElement('div');
+      details.className = 'event-details';
+
+      const time = document.createElement('div');
+      time.className = 'event-time';
+      time.innerHTML = '<span class="time-icon">🕒</span>' + firstEvent.time;
+
+      const loc = document.createElement('div');
+      loc.className = 'event-location';
+      loc.innerHTML = '<span class="location-icon">📍</span>' + firstEvent.location;
+
+      details.appendChild(time);
+      details.appendChild(loc);
+
+      card.appendChild(imgContainer);
+      card.appendChild(title);
+      card.appendChild(details);
+
+      container.appendChild(card);
     })
-    .catch(error => {
+    .catch(err => {
       document.getElementById('eventContainer').innerHTML = '<div class="loading">Failed to load events.</div>';
-      console.error('CSV Load Error:', error);
+      console.error(err);
     });
 </script>
 
