@@ -172,6 +172,35 @@ cursor: pointer;
 </div>
 <script>
 const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQHHIkS2fCZhbgyTTXuNifmRBxOY4RmDGIZnzEePIYQnZm9dlpMnPHpdGjFoiyMHdKWd023G-xmwSS2/pub?gid=0&single=true&output=csv';
+
+function parseCSVRow(row) {
+  const fields = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < row.length; i++) {
+    const char = row[i];
+    if (char === '"' && inQuotes && row[i + 1] === '"') {
+      field += '"';
+      i++;
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (char === ',' && !inQuotes) {
+      fields.push(field);
+      field = '';
+      continue;
+    }
+    field += char;
+  }
+  if (field) {
+    fields.push(field);
+  }
+  return fields.map(f => f.trim());
+}
+
 function parseDate(dateStr) {
 const parts = dateStr.trim().split('/');
 if (parts.length !== 3) return null;
@@ -191,23 +220,18 @@ const rows = text.trim().split('\n').slice(1);
 const container = document.getElementById('eventContainer');
 let data = [];
 rows.forEach(row => {
-const cols = row.split(',');
+const cols = parseCSVRow(row);
 if (cols.length < 7) return;
-const rawDate = cols[1].trim();
+const rawDate = cols[1];
 const dateObj = parseDate(rawDate);
 if (!dateObj) return;
-const bannerRaw = cols[6];
-const cleanBanner = bannerRaw
-.replace(/(^"|"$)/g, '') // remove surrounding quotes
-.trim()
-.replace(/\r?\n|\r/g, ''); // remove line breaks
 const event = {
 date: dateObj,
-time: cols[2].trim(),
-client: cols[3].trim(),
-subject: cols[4].trim(),
-location: cols[5].trim(),
-banner: cleanBanner
+time: cols[2],
+client: cols[3],
+subject: cols[4],
+location: cols[5],
+banner: cols[6]
 };
 if (dateObj >= today) data.push(event);
 });
