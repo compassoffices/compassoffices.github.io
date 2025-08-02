@@ -190,6 +190,38 @@
     return day + '<br>' + month;
   }
 
+  function parseCSVRow(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (inQuotes) {
+        if (char === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          current += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -201,25 +233,21 @@
       let data = [];
 
       rows.forEach(row => {
-        const cols = row.split(',');
+        const cols = parseCSVRow(row);
         if (cols.length < 7) return;
 
-        const rawDate = cols[1].trim();
+        const rawDate = cols[1];
         const dateObj = parseDate(rawDate);
         if (!dateObj) return;
 
-        const bannerRaw = cols[6];
-        const cleanBanner = bannerRaw
-          .replace(/(^"|"$)/g, '') // remove surrounding quotes
-          .trim()
-          .replace(/\r?\n|\r/g, ''); // remove line breaks
+        const cleanBanner = cols[6].trim().replace(/\r?\n|\r/g, '');
 
         const event = {
           date: dateObj,
-          time: cols[2].trim(),
-          client: cols[3].trim(),
-          subject: cols[4].trim(),
-          location: cols[5].trim(),
+          time: cols[2],
+          client: cols[3],
+          subject: cols[4],
+          location: cols[5],
           banner: cleanBanner
         };
 
