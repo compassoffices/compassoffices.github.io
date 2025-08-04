@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hong Kong Weather Warnings and Signals</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+  <div class="bg-white shadow-lg rounded-lg p-6 max-w-2xl w-full">
+    <h1 class="text-2xl font-bold text-center text-gray-800 mb-4">Hong Kong Weather Warnings and Signals</h1>
+    <div id="warnings" class="text-gray-700"></div>
+  </div>
+
+  <script>
+    async function fetchWeatherWarnings() {
+      const url = 'https://data.weather.gov.hk/weatherAPI/opendata/weatherWarningSummary.php?dataType=rhr&lang=en';
+      const warningsDiv = document.getElementById('warnings');
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        const data = await response.json();
+
+        // Check if there are active warnings
+        if (data.warningStatement && data.warningStatement.length > 0) {
+          warningsDiv.innerHTML = '<h2 class="text-lg font-semibold text-red-600 mb-2">Active Warnings:</h2>';
+          data.warningStatement.forEach(warning => {
+            const warningItem = document.createElement('div');
+            warningItem.className = 'bg-red-100 border-l-4 border-red-500 p-4 mb-2';
+            warningItem.innerHTML = `
+              <p><strong>Warning:</strong> ${warning.code || 'N/A'}</p>
+              <p><strong>Details:</strong> ${warning.details || 'No details available'}</p>
+              <p><strong>Issued:</strong> ${warning.issueTime || 'N/A'}</p>
+            `;
+            warningsDiv.appendChild(warningItem);
+          });
+        } else {
+          warningsDiv.innerHTML = '<p class="text-green-600 font-semibold">No active weather warnings at this time.</p>';
+        }
+      } catch (error) {
+        console.error('Error fetching weather warnings:', error);
+        warningsDiv.innerHTML = '<p class="text-red-600 font-semibold">Failed to load weather warnings. Please try again later.</p>';
+      }
+    }
+
+    // Fetch warnings when the page loads
+    window.onload = fetchWeatherWarnings;
+  </script>
+</body>
+</html>
