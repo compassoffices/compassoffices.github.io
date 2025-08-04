@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hong Kong Weather Warnings and Signals</title>
+  <title>Hong Kong Weather Warnings and Signals (Scraped)</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
@@ -14,7 +14,7 @@
 
   <script>
     async function fetchWeatherWarnings(attempt = 1, maxAttempts = 3) {
-      const url = 'https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=warnsum&lang=en';
+      const url = 'http://localhost:3000/weather-warnings'; // Your Node.js server
       const warningsDiv = document.getElementById('warnings');
 
       try {
@@ -30,19 +30,16 @@
         }
 
         const data = await response.json();
-        console.log('API Response:', data); // Debug log
+        console.log('Server Response:', data); // Debug log
 
-        // Check if warnsum exists and has active warnings
-        if (data && data.warnsum && Object.keys(data.warnsum).length > 0) {
+        if (data && Array.isArray(data) && data.length > 0 && data[0].title !== 'No Warnings') {
           warningsDiv.innerHTML = '<h2 class="text-lg font-semibold text-red-600 mb-2">Active Warnings:</h2>';
-          Object.entries(data.warnsum).forEach(([warningType, warning]) => {
+          data.forEach(warning => {
             const warningItem = document.createElement('div');
             warningItem.className = 'bg-red-100 border-l-4 border-red-500 p-4 mb-2';
             warningItem.innerHTML = `
-              <p><strong>Warning Type:</strong> ${warningType || 'Unknown'}</p>
-              <p><strong>Code:</strong> ${warning.code || 'Unknown'}</p>
-              <p><strong>Action:</strong> ${warning.actionCode || 'Unknown'}</p>
-              <p><strong>Issued:</strong> ${warning.issueTime || 'Unknown'}</p>
+              <p><strong>Warning:</strong> ${warning.title || 'Unknown'}</p>
+              <p><strong>Details:</strong> ${warning.details || 'No details available'}</p>
               <p><strong>Updated:</strong> ${warning.updateTime || 'Unknown'}</p>
             `;
             warningsDiv.appendChild(warningItem);
@@ -54,18 +51,17 @@
         console.error(`Attempt ${attempt} failed:`, error.message);
         if (attempt < maxAttempts) {
           console.log(`Retrying... (${attempt + 1}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
           return fetchWeatherWarnings(attempt + 1, maxAttempts);
         } else {
           warningsDiv.innerHTML = `
             <p class="text-red-600 font-semibold">Failed to load weather warnings: ${error.message}</p>
-            <p>Please try again later. If running locally, use a server (e.g., 'python -m http.server') to avoid CORS issues.</p>
+            <p>Please ensure the Node.js server is running (http://localhost:3000) and try again.</p>
           `;
         }
       }
     }
 
-    // Fetch warnings when the page loads
     window.onload = () => fetchWeatherWarnings();
   </script>
 </body>
