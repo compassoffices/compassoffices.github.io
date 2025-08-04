@@ -3,54 +3,66 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hong Kong Weather Warnings</title>
+  <title>Hong Kong Weather Warnings (Live)</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
   <div class="bg-white shadow-md rounded-lg p-6 max-w-lg w-full">
-    <h1 class="text-xl font-bold text-center text-gray-800 mb-4">Hong Kong Weather Warnings</h1>
+    <h1 class="text-xl font-bold text-center text-gray-800 mb-4">Hong Kong Weather Warnings (Live)</h1>
     <div id="warnings" class="text-gray-700"></div>
   </div>
 
   <script>
-    async function fetchWeatherWarnings() {
+    async function fetchWeatherWarnings(attempt = 1, maxAttempts = 3) {
       const url = 'https://rss.weather.gov.hk/rss/CurrentWeather.xml';
       const warningsDiv = document.getElementById('warnings');
 
-      // Map warning types to icon URLs
+      // Map warning types to HKO warning signal image URLs
       const warningIcons = {
-        'Rainstorm Warning': 'https://www.hko.gov.hk/common/images/icon63.gif',
-        'Thunderstorm Warning': 'https://www.hko.gov.hk/common/images/icon62.gif',
-        'Tropical Cyclone Warning': 'https://www.hko.gov.hk/common/images/icon50.gif',
-        'Fire Danger Warning': 'https://www.hko.gov.hk/common/images/icon70.gif',
-        'Frost Warning': 'https://www.hko.gov.hk/common/images/icon81.gif',
-        'Very Hot Weather Warning': 'https://www.hko.gov.hk/common/images/icon80.gif',
-        'Cold Weather Warning': 'https://www.hko.gov.hk/common/images/icon82.gif',
-        'Strong Monsoon Signal': 'https://www.hko.gov.hk/common/images/icon52.gif',
-        'Flood Warning': 'https://www.hko.gov.hk/common/images/icon63.gif',
-        'Landslip Warning': 'https://www.hko.gov.hk/common/images/icon63.gif'
+        'Black Rainstorm Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_11_rain black.png',
+        'Red Rainstorm Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_11_rain red.png',
+        'Amber Rainstorm Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_11_rain amber.png',
+        'Thunderstorm Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_12_thunder.png',
+        'Tropical Cyclone Warning No. 1': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_02_TC1.png',
+        'Tropical Cyclone Warning No. 3': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_03_TC3.png',
+        'Tropical Cyclone Warning No. 8': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_04_TC8NE.png',
+        'Tropical Cyclone Warning No. 9': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_05_TC9.png',
+        'Tropical Cyclone Warning No. 10': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_06_TC10.png',
+        'Fire Danger Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_07_fire.png',
+        'Frost Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_09_frost.png',
+        'Very Hot Weather Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_08_hot.png',
+        'Cold Weather Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_10_cold.png',
+        'Strong Monsoon Signal': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_13_monsoon.png',
+        'Flood Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_14_flood.png',
+        'Landslip Warning': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_15_landslip.png'
       };
 
       try {
         const response = await fetch(url, { headers: { 'Accept': 'application/xml' } });
-        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+        if (!response.ok) throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
 
         const xmlText = await response.text();
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
 
+        // Check for XML parsing errors
+        if (xmlDoc.querySelector('parsererror')) throw new Error('Failed to parse XML response');
+
         // Extract description and pubDate
-        const description = xmlDoc.querySelector('description').textContent;
-        const pubDate = xmlDoc.querySelector('pubDate').textContent;
+        const description = xmlDoc.querySelector('description')?.textContent || '';
+        const pubDate = xmlDoc.querySelector('pubDate')?.textContent || 'Unknown';
 
         // Extract warnings from description
         const warnings = [];
         const warningTypes = Object.keys(warningIcons);
         warningTypes.forEach(type => {
-          if (description.includes(type)) {
+          // Match warning with optional "Signal" and number (e.g., "Tropical Cyclone Warning Signal, No. 3")
+          const regex = new RegExp(`${type}(?:\\s*Signal)?(?:\\s*,\\s*No\\.\\s*[1-9][0]?)?[^\\.]*\\.`, 'i');
+          const match = description.match(regex);
+          if (match) {
             warnings.push({
               type,
-              details: description.match(new RegExp(`${type}[^\\.]+\\.`))?.[0] || 'No details available',
+              details: match[0] || 'No details available',
               icon: warningIcons[type]
             });
           }
@@ -58,12 +70,12 @@
 
         // Display warnings or fallback message
         if (warnings.length > 0) {
-          warningsDiv.innerHTML = '<h2 class="text-md font-semibold text-red-600 mb-2">Active Warnings:</h2>';
+          warningsDiv.innerHTML = '<h2 class="text-md font-semibold text-red-600 mb-2">Active Warnings (Live):</h2>';
           warnings.forEach(warning => {
             const div = document.createElement('div');
             div.className = 'bg-red-50 border-l-4 border-red-400 p-3 mb-2 flex items-start';
             div.innerHTML = `
-              <img src="${warning.icon}" alt="${warning.type}" class="w-8 h-8 mr-3">
+              <img src="${warning.icon}" alt="${warning.type}" class="w-8 h-8 mr-3" onerror="this.src='https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_99_general.png'">
               <div>
                 <p><strong>${warning.type}</strong></p>
                 <p>${warning.details}</p>
@@ -76,7 +88,20 @@
           warningsDiv.innerHTML = '<p class="text-green-600">No active weather warnings.</p>';
         }
       } catch (error) {
-        warningsDiv.innerHTML = `<p class="text-red-600">Failed to load warnings: ${error.message}. Run via a local server (e.g., 'python -m http.server 8000').</p>`;
+        console.error(`Attempt ${attempt} failed:`, error.message);
+        if (attempt < maxAttempts) {
+          console.log(`Retrying... (${attempt + 1}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchWeatherWarnings(attempt + 1, maxAttempts);
+        }
+        warningsDiv.innerHTML = `
+          <p class="text-red-600">Failed to load live warnings: ${error.message}</p>
+          <p>Ensure this page is served via a local server: <br>
+             - Run: <code>python -m http.server 8000</code><br>
+             - Access: <a href="http://localhost:8000/weather_warnings.html" target="_blank">http://localhost:8000/weather_warnings.html</a></p>
+          <p>Test the RSS feed: <a href="https://rss.weather.gov.hk/rss/CurrentWeather.xml" target="_blank">RSS Feed</a></p>
+          <p>Check your network connection and try again.</p>
+        `;
       }
     }
 
