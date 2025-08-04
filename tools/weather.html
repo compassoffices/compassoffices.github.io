@@ -18,31 +18,47 @@
       const warningsDiv = document.getElementById('warnings');
 
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
         }
+
         const data = await response.json();
 
-        // Check if there are active warnings
-        if (data.warningStatement && data.warningStatement.length > 0) {
+        // Log the response for debugging
+        console.log('API Response:', data);
+
+        // Check if data contains warningStatement and it's an array
+        if (data && Array.isArray(data.warningStatement) && data.warningStatement.length > 0) {
           warningsDiv.innerHTML = '<h2 class="text-lg font-semibold text-red-600 mb-2">Active Warnings:</h2>';
           data.warningStatement.forEach(warning => {
             const warningItem = document.createElement('div');
             warningItem.className = 'bg-red-100 border-l-4 border-red-500 p-4 mb-2';
             warningItem.innerHTML = `
-              <p><strong>Warning:</strong> ${warning.code || 'N/A'}</p>
+              <p><strong>Warning:</strong> ${warning.code || 'Unknown'}</p>
               <p><strong>Details:</strong> ${warning.details || 'No details available'}</p>
-              <p><strong>Issued:</strong> ${warning.issueTime || 'N/A'}</p>
+              <p><strong>Issued:</strong> ${warning.issueTime || 'Unknown'}</p>
+              ${warning.cancelTime ? `<p><strong>Cancelled:</strong> ${warning.cancelTime}</p>` : ''}
             `;
             warningsDiv.appendChild(warningItem);
           });
-        } else {
+        } else if (data && !data.warningStatement) {
           warningsDiv.innerHTML = '<p class="text-green-600 font-semibold">No active weather warnings at this time.</p>';
+        } else {
+          warningsDiv.innerHTML = '<p class="text-yellow-600 font-semibold">Warning data unavailable or in unexpected format.</p>';
         }
       } catch (error) {
-        console.error('Error fetching weather warnings:', error);
-        warningsDiv.innerHTML = '<p class="text-red-600 font-semibold">Failed to load weather warnings. Please try again later.</p>';
+        console.error('Error fetching weather warnings:', error.message);
+        warningsDiv.innerHTML = `
+          <p class="text-red-600 font-semibold">Failed to load weather warnings: ${error.message}</p>
+          <p>Please try again later or check if the page is running on a local server to avoid CORS issues.</p>
+        `;
       }
     }
 
