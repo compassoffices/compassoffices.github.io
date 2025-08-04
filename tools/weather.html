@@ -3,66 +3,84 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hong Kong Weather Warnings and Signals (Scraped)</title>
+  <title>Hong Kong Weather Warnings</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
-  <div class="bg-white shadow-lg rounded-lg p-6 max-w-2xl w-full">
-    <h1 class="text-2xl font-bold text-center text-gray-800 mb-4">Hong Kong Weather Warnings and Signals</h1>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white shadow-md rounded-lg p-6 max-w-lg w-full">
+    <h1 class="text-xl font-bold text-center text-gray-800 mb-4">Hong Kong Weather Warnings</h1>
     <div id="warnings" class="text-gray-700"></div>
   </div>
 
   <script>
-    async function fetchWeatherWarnings(attempt = 1, maxAttempts = 3) {
-      const url = 'http://localhost:3000/weather-warnings'; // Your Node.js server
+    async function fetchWeatherWarnings() {
+      const url = 'https://rss.weather.gov.hk/rss/CurrentWeather.xml';
       const warningsDiv = document.getElementById('warnings');
 
+      // Map warning types to icon URLs
+      const warningIcons = {
+        'Rainstorm Warning': 'https://www.hko.gov.hk/common/images/icon63.gif',
+        'Thunderstorm Warning': 'https://www.hko.gov.hk/common/images/icon62.gif',
+        'Tropical Cyclone Warning': 'https://www.hko.gov.hk/common/images/icon50.gif',
+        'Fire Danger Warning': 'https://www.hko.gov.hk/common/images/icon70.gif',
+        'Frost Warning': 'https://www.hko.gov.hk/common/images/icon81.gif',
+        'Very Hot Weather Warning': 'https://www.hko.gov.hk/common/images/icon80.gif',
+        'Cold Weather Warning': 'https://www.hko.gov.hk/common/images/icon82.gif',
+        'Strong Monsoon Signal': 'https://www.hko.gov.hk/common/images/icon52.gif',
+        'Flood Warning': 'https://www.hko.gov.hk/common/images/icon63.gif',
+        'Landslip Warning': 'https://www.hko.gov.hk/common/images/icon63.gif'
+      };
+
       try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json'
+        const response = await fetch(url, { headers: { 'Accept': 'application/xml' } });
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+
+        // Extract description and pubDate
+        const description = xmlDoc.querySelector('description').textContent;
+        const pubDate = xmlDoc.querySelector('pubDate').textContent;
+
+        // Extract warnings from description
+        const warnings = [];
+        const warningTypes = Object.keys(warningIcons);
+        warningTypes.forEach(type => {
+          if (description.includes(type)) {
+            warnings.push({
+              type,
+              details: description.match(new RegExp(`${type}[^\\.]+\\.`))?.[0] || 'No details available',
+              icon: warningIcons[type]
+            });
           }
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('Server Response:', data); // Debug log
-
-        if (data && Array.isArray(data) && data.length > 0 && data[0].title !== 'No Warnings') {
-          warningsDiv.innerHTML = '<h2 class="text-lg font-semibold text-red-600 mb-2">Active Warnings:</h2>';
-          data.forEach(warning => {
-            const warningItem = document.createElement('div');
-            warningItem.className = 'bg-red-100 border-l-4 border-red-500 p-4 mb-2';
-            warningItem.innerHTML = `
-              <p><strong>Warning:</strong> ${warning.title || 'Unknown'}</p>
-              <p><strong>Details:</strong> ${warning.details || 'No details available'}</p>
-              <p><strong>Updated:</strong> ${warning.updateTime || 'Unknown'}</p>
+        // Display warnings or fallback message
+        if (warnings.length > 0) {
+          warningsDiv.innerHTML = '<h2 class="text-md font-semibold text-red-600 mb-2">Active Warnings:</h2>';
+          warnings.forEach(warning => {
+            const div = document.createElement('div');
+            div.className = 'bg-red-50 border-l-4 border-red-400 p-3 mb-2 flex items-start';
+            div.innerHTML = `
+              <img src="${warning.icon}" alt="${warning.type}" class="w-8 h-8 mr-3">
+              <div>
+                <p><strong>${warning.type}</strong></p>
+                <p>${warning.details}</p>
+                <p>Updated: ${new Date(pubDate).toLocaleString()}</p>
+              </div>
             `;
-            warningsDiv.appendChild(warningItem);
+            warningsDiv.appendChild(div);
           });
         } else {
-          warningsDiv.innerHTML = '<p class="text-green-600 font-semibold">No active weather warnings at this time.</p>';
+          warningsDiv.innerHTML = '<p class="text-green-600">No active weather warnings.</p>';
         }
       } catch (error) {
-        console.error(`Attempt ${attempt} failed:`, error.message);
-        if (attempt < maxAttempts) {
-          console.log(`Retrying... (${attempt + 1}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return fetchWeatherWarnings(attempt + 1, maxAttempts);
-        } else {
-          warningsDiv.innerHTML = `
-            <p class="text-red-600 font-semibold">Failed to load weather warnings: ${error.message}</p>
-            <p>Please ensure the Node.js server is running (http://localhost:3000) and try again.</p>
-          `;
-        }
+        warningsDiv.innerHTML = `<p class="text-red-600">Failed to load warnings: ${error.message}. Run via a local server (e.g., 'python -m http.server 8000').</p>`;
       }
     }
 
-    window.onload = () => fetchWeatherWarnings();
+    window.onload = fetchWeatherWarnings;
   </script>
 </body>
 </html>
