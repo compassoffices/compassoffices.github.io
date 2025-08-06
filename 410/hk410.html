@@ -4,78 +4,80 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=410, height=800, user-scalable=no">
   <title>Compass Digital Board Slideshow</title>
+  <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet"/>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { font-size: clamp(12px, 2vw, 14px); } /* Reduced for smaller text */
+    html { font-size: clamp(11px, 2vw, 13px); }
     body {
-      width: 100%;
-      height: 100%;
       background-color: #000;
       color: #fff;
       font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
-      display: flex;
-      flex-direction: column;
-      padding: 0 2rem;
+      width: 100vw;
+      height: 100vh;
+      padding: 0;
       overflow: hidden;
       position: relative;
-      min-height: 100vh;
+      min-width: 410px;
+      min-height: 800px;
     }
-
     .banner-container {
       width: 410px;
       height: 800px;
-      position: relative;
-      overflow: hidden;
       margin: 0 auto;
       background-color: #000;
+      position: relative;
+      overflow: hidden;
+      border-radius: 1.2rem;
+      box-shadow: 0 8px 36px rgba(0,0,0,0.36);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
     }
-
     .banner-slide {
       width: 100%;
       height: 100%;
       position: absolute;
       top: 0;
       left: 100%;
-      -webkit-transition: left 0.5s ease-in-out; /* For older WebKit browsers */
       transition: left 0.5s ease-in-out;
+      background: #000;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
     }
-
-    .banner-slide.active {
-      left: 0;
-    }
-
+    .banner-slide.active { left: 0; z-index: 11; }
     .banner-slide iframe {
       width: 100%;
       height: 100%;
       border: none;
       display: block;
+      background: #000;
+      border-radius: 1.2rem;
     }
-
     .loader {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      text-align: center; /* Fallback for centering */
-      line-height: 800px; /* Matches container height for vertical centering */
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.86);
+      text-align: center;
+      line-height: 800px;
       z-index: 100;
       opacity: 0;
       visibility: hidden;
-      -webkit-transition: opacity 0.3s ease, visibility 0.3s ease;
       transition: opacity 0.3s ease, visibility 0.3s ease;
     }
-
     .loader.active {
       opacity: 1;
       visibility: visible;
     }
-
     .loader img {
-      width: 200px;
-      height: 200px;
-      vertical-align: middle; /* Ensures image is centered vertically */
+      width: 135px;
+      height: 135px;
+      vertical-align: middle;
+    }
+    /* Optional: Small scroll prevention for mobile browsers */
+    @media (max-width: 410px), (max-height: 800px) {
+      .banner-container { width: 100vw; height: 100vh; min-width: 350px; min-height: 650px; }
     }
   </style>
 </head>
@@ -85,22 +87,18 @@
       <img src="https://compassoffices.github.io/img/logo/co-loading_white.gif" alt="Loading">
     </div>
   </div>
-
   <script>
     // Console fallback for older browsers
-    if (!window.console) {
-      window.console = { log: function() {}, error: function() {} };
-    }
+    if (!window.console) window.console = { log: function(){}, error: function(){} };
 
     var urls = [
       'https://compassoffices.github.io/410/event.html',
       'https://compassoffices.github.io/410/perks.html'
     ];
-
     var currentSlide = 0;
     var defaultInterval = 18000;
     var perksInterval = 50000;
-    var minLoaderTime = 2000; // 2 seconds in milliseconds
+    var minLoaderTime = 2000; // 2 seconds
 
     function createSlides() {
       var container = document.getElementById('bannerContainer');
@@ -109,17 +107,14 @@
       for (var i = 0; i < urls.length; i++) {
         var slide = document.createElement('div');
         slide.className = 'banner-slide';
-
         var iframe = document.createElement('iframe');
         iframe.setAttribute('data-src', urls[i]);
         if (urls[i].indexOf('perks.html') === -1) {
           iframe.src = urls[i];
         }
-
         slide.appendChild(iframe);
         container.appendChild(slide);
       }
-
       initSlideshow();
     }
 
@@ -133,36 +128,26 @@
         var iframe = slide.getElementsByTagName('iframe')[0];
         var isPerks = urls[index].indexOf('perks.html') !== -1;
 
-        // Hide all slides first
-        for (var i = 0; i < slides.length; i++) {
-          slides[i].className = 'banner-slide';
-        }
+        // Hide all slides
+        for (var i = 0; i < slides.length; i++) slides[i].className = 'banner-slide';
 
         if (isPerks && !skipLoader) {
-          console.log('Showing loader for perks.html');
           loader.className = 'loader active';
-
-          // Force loader to render before starting preload
           setTimeout(function() {
             var startTime = Date.now();
             preloadIframe(iframe, function() {
               var elapsedTime = Date.now() - startTime;
-              var remainingTime = minLoaderTime - elapsedTime;
-
+              var remaining = minLoaderTime - elapsedTime;
               setTimeout(function() {
-                console.log('Hiding loader for perks.html');
                 loader.className = 'loader';
                 slide.className = 'banner-slide active';
-              }, Math.max(0, remainingTime));
+              }, Math.max(0, remaining));
             });
-          }, 50); // Small delay to ensure loader renders
+          }, 60);
         } else {
-          console.log('Showing slide without loader: ' + urls[index]);
           loader.className = 'loader';
           slide.className = 'banner-slide active';
-          if (isPerks) {
-            iframe.src = iframe.getAttribute('data-src');
-          }
+          if (isPerks) iframe.src = iframe.getAttribute('data-src');
         }
       }
 
@@ -171,16 +156,12 @@
         tempIframe.style.display = 'none';
         tempIframe.src = iframe.getAttribute('data-src');
         document.body.appendChild(tempIframe);
-
         tempIframe.onload = function() {
-          console.log('Perks iframe loaded');
           iframe.src = iframe.getAttribute('data-src');
           document.body.removeChild(tempIframe);
           callback();
         };
-
         tempIframe.onerror = function() {
-          console.error('Error loading perks iframe');
           document.body.removeChild(tempIframe);
           callback();
         };
@@ -189,13 +170,10 @@
       function nextSlide() {
         currentSlide = (currentSlide + 1) % slides.length;
         showSlide(currentSlide);
-
         var currentUrl = urls[currentSlide];
         var interval = currentUrl.indexOf('perks.html') !== -1 ? perksInterval : defaultInterval;
-
         setTimeout(nextSlide, interval);
       }
-
       showSlide(currentSlide, true);
       var initialUrl = urls[currentSlide];
       var initialInterval = initialUrl.indexOf('perks.html') !== -1 ? perksInterval : defaultInterval;
