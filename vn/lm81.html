@@ -352,19 +352,40 @@
         }
 
         async function fetchSheetData() {
-            const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_tCRUkoIcOJYk2FSpSmYy8T4jdzANAJkSKnJfO0q74T7cYHtv3ccoQsGYG1ETcdRZO7Mo0WSRGyOe/pub?gid=0&single=true&output=csv";
+            const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_tCRUkoIcOJYk2FSpSmYy8T4jdzANAJkSKnJfO0q74T7cYHtv3ccoQsGYG1ETcdRZO7Mo0WSRGyOe/pubhtml";
             try {
                 const response = await fetch(url);
+                if (!response.ok) {
+                    console.error(`HTTP error! Status: ${response.status}, Status Text: ${response.statusText}`);
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
                 const data = await response.text();
-                const rows = data.split('\n').slice(1).filter(Boolean);
-                return rows.map(row => {
-                    const match = row.match(/(?:"([^"]*)"|([^,]*))(?:,\s*(?:"([^"]*)"|([^,]*)))?/);
-                    const company = (match[1] || match[2] || '').trim();
-                    const tax = (match[3] || match[4] || '').trim();
+                if (!data) {
+                    console.error("Received empty HTML from Google Sheets");
+                    return [];
+                }
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(data, 'text/html');
+                const table = doc.querySelector('table');
+                if (!table) {
+                    console.error("No table found in HTML");
+                    return [];
+                }
+                const rows = Array.from(table.querySelectorAll('tr')).slice(1); // Skip header row
+                if (!rows.length) {
+                    console.error("No data rows found in table");
+                    return [];
+                }
+                const parsedData = rows.map(row => {
+                    const cells = row.querySelectorAll('td');
+                    const company = (cells[0] ? cells[0].textContent.trim() : '');
+                    const tax = (cells[1] ? cells[1].textContent.trim() : '');
                     return { company, tax };
-                });
+                }).filter(entry => entry.company || entry.tax); // Filter out empty rows
+                console.log("Parsed Data:", parsedData);
+                return parsedData;
             } catch (error) {
-                console.error("Error fetching sheet data:", error);
+                console.error("Error fetching sheet data:", error.message);
                 return [];
             }
         }
@@ -394,7 +415,7 @@
 
             if (!data.length) {
                 const slideshow = document.getElementById('slideshow');
-                slideshow.innerHTML = `<div style="color: red; font-size: 2vw;">Failed to load data</div>`;
+                slideshow.innerHTML = `<div style="color: white; font-size: 2vw;">No data available at this time. Please check the data source or try again later.</div>`;
                 return;
             }
 
