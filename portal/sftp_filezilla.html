@@ -3,33 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FileZilla-like SFTP Client</title>
+    <title>FileZilla-like FTP Client</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background-color: #f4f4f4; }
-        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .form-container { display: flex; flex-direction: column; gap: 15px; }
-        input, button { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background-color: #28a745; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #218838; }
-        #status { margin-top: 20px; color: #333; font-weight: bold; }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .login-container, .upload-container, .file-list {
+            margin-bottom: 20px;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 5px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        #fileList {
+            border: 1px solid #ccc;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .file-item {
+            padding: 5px;
+            cursor: pointer;
+        }
+        .file-item:hover {
+            background-color: #f0f0f0;
+        }
+        #status {
+            margin-top: 20px;
+            color: #333;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Upload File to SFTP Server</h1>
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            <div class="form-container">
-                <input type="file" name="file" required>
-                <input type="password" name="password" placeholder="Enter SFTP Password" required>
-                <button type="submit">Upload File</button>
-            </div>
-        </form>
+        <h1>FileZilla-like FTP Client</h1>
+        <div class="login-container">
+            <h3>Connect to Server</h3>
+            <input type="password" id="passwordInput" placeholder="Enter FTP Password">
+            <label><input type="checkbox" id="useFtps"> Use FTPS (secure)</label>
+            <button onclick="connectToServer()">Connect</button>
+        </div>
+        <div class="upload-container" style="display: none;">
+            <h3>Upload File</h3>
+            <input type="file" id="fileInput" accept="*/*">
+            <button onclick="uploadFile()">Upload File</button>
+        </div>
+        <div class="file-list" style="display: none;">
+            <h3>Server Files and Directories</h3>
+            <button onclick="goToParentDir()">Parent Directory</button>
+            <div id="fileList"></div>
+        </div>
         <div id="status"></div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ftp@0.3.10/lib/ftp.min.js"></script>
     <script>
-        if (window.location.search.includes('status=')) {
-            const status = new URLSearchParams(window.location.search).get('status');
-            document.getElementById('status').textContent = status || 'Upload failed.';
+        let ftpClient = null;
+        let currentDir = '/';
+
+        function connectToServer() {
+            const passwordInput = document.getElementById('passwordInput');
+            const useFtps = document.getElementById('useFtps').checked;
+            const status = document.getElementById('status');
+            const password = passwordInput.value;
+
+            if (!password) {
+                status.textContent = 'Please enter the FTP password.';
+                return;
+            }
+
+            status.textContent = 'Connecting to server...';
+            document.querySelector('.login-container button').disabled = true;
+
+            ftpClient = new Ftp();
+            const timeoutId = setTimeout(() => {
+                status.textContent = 'Connection timed out. Check server IP, port, firewall, or try FTPS.';
+                ftpClient.end();
+                document.querySelector('.login-container button').disabled = false;
+            }, 5000);
+
+            ftpClient.on('ready', function() {
+                clearTimeout(timeoutId);
+                status.textContent = 'Connected to server!';
+                document.querySelector('.login-container').style.display = 'none';
+                document.querySelector('.upload-container').style.display = 'block';
+                document.querySelector('.file-list').style.display = 'block';
+                document.querySelector('.login-container button').disabled = false;
+                listDirectory(currentDir);
+            });
+
+            ftpClient.on('error', function(err) {
+                clearTimeout(timeoutId);
+                status.textContent = 'Connection failed: ' + err.message;
+                console.error('FTP error:', err);
+                ftpClient.end();
+                document.querySelector('.login-container button').disabled = false;
+            });
+
+            ftpClient.connect({
+                host: '35.241.115.157',
+                port: 13097,
+                user: 'compassoffices',
+                password: password,
+                secure: useFtps
+            });
+        }
+
+        function listDirectory(path) {
+            const status = document.getElementById('status');
+            const fileList = document.getElementById('fileList');
+            status.textContent = 'Loading directory contents...';
+
+            ftpClient.list(path, function(err, list) {
+                if (err) {
+                    status.textContent = 'Failed to list directory: ' + err.message;
+                    console.error('List error:', err);
+                    return;
+                }
+                currentDir = path;
+                fileList.innerHTML = '';
+                list.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'file-item';
+                    itemDiv.textContent = `${item.type === 'd' ? '[DIR]' : '[FILE]'} ${item.name} (${item.size} bytes)`;
+                    if (item.type === 'd') {
+                        itemDiv.onclick = () => listDirectory(`${path}/${item.name}`.replace('//', '/'));
+                    }
+                    fileList.appendChild(itemDiv);
+                });
+                status.textContent = `Directory: ${path}`;
+            });
+        }
+
+        function goToParentDir() {
+            if (currentDir === '/') return;
+            const parentDir = currentDir.split('/').slice(0, -1).join('/') || '/';
+            listDirectory(parentDir);
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const status = document.getElementById('status');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                status.textContent = 'Please select a file to upload.';
+                return;
+            }
+
+            status.textContent = 'Uploading file...';
+            document.querySelector('.upload-container button').disabled = true;
+
+            ftpClient.put(file, `${currentDir}/${file.name}`.replace('//', '/'), function(err) {
+                if (err) {
+                    status.textContent = 'Upload failed: ' + err.message;
+                    console.error('Upload error:', err);
+                    document.querySelector('.upload-container button').disabled = false;
+                    return;
+                }
+                status.textContent = 'File uploaded successfully!';
+                document.querySelector('.upload-container button').disabled = false;
+                listDirectory(currentDir);
+            });
         }
     </script>
 </body>
