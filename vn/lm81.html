@@ -352,8 +352,11 @@
         }
 
         async function fetchSheetData() {
-            const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_tCRUkoIcOJYk2FSpSmYy8T4jdzANAJkSKnJfO0q74T7cYHtv3ccoQsGYG1ETcdRZO7Mo0WSRGyOe/pubhtml";
+            const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+            const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_tCRUkoIcOJYk2FSpSmYy8T4jdzANAJkSKnJfO0q74T7cYHtv3ccoQsGYG1ETcdRZO7Mo0WSRGyOe/pubhtml';
+            const url = proxyUrl + sheetUrl;
             try {
+                console.log("Fetching data from:", url);
                 const response = await fetch(url);
                 if (!response.ok) {
                     console.error(`HTTP error! Status: ${response.status}, Status Text: ${response.statusText}`);
@@ -364,6 +367,7 @@
                     console.error("Received empty HTML from Google Sheets");
                     return [];
                 }
+                console.log("HTML content length:", data.length);
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(data, 'text/html');
                 const table = doc.querySelector('table');
@@ -371,13 +375,16 @@
                     console.error("No table found in HTML");
                     return [];
                 }
+                console.log("Table found, processing rows...");
                 const rows = Array.from(table.querySelectorAll('tr')).slice(1); // Skip header row
                 if (!rows.length) {
                     console.error("No data rows found in table");
                     return [];
                 }
-                const parsedData = rows.map(row => {
+                console.log("Number of rows:", rows.length);
+                const parsedData = rows.map((row, index) => {
                     const cells = row.querySelectorAll('td');
+                    console.log(`Row ${index + 1} cells:`, cells.length, Array.from(cells).map(cell => cell.textContent.trim()));
                     const company = (cells[0] ? cells[0].textContent.trim() : '');
                     const tax = (cells[1] ? cells[1].textContent.trim() : '');
                     return { company, tax };
