@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Signage Display</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="bg-white shadow-lg rounded-lg p-6 w-full max-w-4xl">
+        <h1 class="text-2xl font-bold text-center mb-6">Company Signage - LM81</h1>
+        <div id="loading" class="text-center text-gray-500">Loading data...</div>
+        <table id="signage-table" class="w-full border-collapse hidden">
+            <thead>
+                <tr class="bg-gray-200">
+                    <th class="border p-2">Company Name</th>
+                    <th class="border p-2">Tax Code</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+        <div id="error-message" class="text-center text-red-500 hidden"></div>
+    </div>
+
+    <script>
+        async function fetchSheetData() {
+            const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_tCRUkoIcOJYk2FSpSmYy8T4jdzANAJkSKnJfO0q74T7cYHtv3ccoQsGYG1ETcdRZO7Mo0WSRGyOe/pub?output=tsv';
+            try {
+                const response = await fetch(sheetUrl);
+                const data = await response.text();
+                const rows = data.split('\n').map(row => row.split('\t').map(cell => cell.trim()));
+                
+                // Get headers from the first row
+                const headers = rows[0];
+                const companyNameIndex = headers.findIndex(header => header.toLowerCase() === 'company name');
+                const taxCodeIndex = headers.findIndex(header => header.toLowerCase() === 'tax code');
+
+                // Check if both columns exist
+                if (companyNameIndex === -1 || taxCodeIndex === -1) {
+                    throw new Error('Required columns "Company Name" or "Tax Code" not found in the sheet.');
+                }
+
+                // Populate table body with only Company Name and Tax Code
+                const tableBody = document.querySelector('#table-body');
+                tableBody.innerHTML = ''; // Clear any existing content
+                rows.slice(1).forEach(row => {
+                    const tr = document.createElement('tr');
+                    const companyNameTd = document.createElement('td');
+                    companyNameTd.className = 'border p-2';
+                    companyNameTd.textContent = row[companyNameIndex] || '-';
+                    const taxCodeTd = document.createElement('td');
+                    taxCodeTd.className = 'border p-2';
+                    taxCodeTd.textContent = row[taxCodeIndex] || '-';
+                    tr.appendChild(companyNameTd);
+                    tr.appendChild(taxCodeTd);
+                    tableBody.appendChild(tr);
+                });
+
+                // Hide loading message and show table
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('signage-table').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error:', error.message);
+                document.getElementById('loading').classList.add('hidden');
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = error.message || 'Error loading data. Please try again later.';
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        // Fetch data when the page loads
+        window.onload = fetchSheetData;
+    </script>
+</body>
+</html>
