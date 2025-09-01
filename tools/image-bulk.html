@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Image Resizer</title>
+  <script src="https://unpkg.com/heic2any@0.0.3/dist/heic2any.min.js"></script>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -126,7 +127,7 @@
         <div class="dropzone-desc">
           <p>Choose multiple images or drag them here.</p>
         </div>
-        <input type="file" accept="image/*" multiple class="dropzone" id="upload" />
+        <input type="file" accept="image/*,image/heic,image/heif" multiple class="dropzone" id="upload" />
       </div>
     </div>
 
@@ -158,94 +159,113 @@
 
   function handleImage(file) {
     return new Promise((resolve) => {
-      if (!file || !file.type.startsWith("image/")) return;
+      if (!file || !file.type.startsWith("image/")) return resolve();
 
-      const img = new Image();
-      const reader = new FileReader();
+      const processImage = (blob) => {
+        const img = new Image();
+        const reader = new FileReader();
 
-      reader.onload = () => {
-        img.src = reader.result;
+        reader.onload = () => {
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(blob);
+
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          const imgRatio = img.width / img.height;
+          const targetRatio = TARGET_WIDTH / TARGET_HEIGHT;
+
+          let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+          if (imgRatio > targetRatio) {
+            sWidth = img.height * targetRatio;
+            sx = (img.width - sWidth) / 2;
+          } else {
+            sHeight = img.width / targetRatio;
+            sy = (img.height - sHeight) / 2;
+          }
+
+          canvas.width = TARGET_WIDTH;
+          canvas.height = TARGET_HEIGHT;
+
+          ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+
+          let quality = 0.9;
+
+          const compress = () => new Promise((res) => {
+            const loop = () => {
+              canvas.toBlob((blob) => {
+                if (blob.size <= MAX_SIZE || quality < 0.1) {
+                  res({ blob, quality });
+                } else {
+                  quality -= 0.05;
+                  loop();
+                }
+              }, 'image/jpeg', quality);
+            };
+            loop();
+          });
+
+          compress().then(({ blob, quality }) => {
+            const sizeKB = Math.round(blob.size / 1024);
+            const timestamp = formatDateTime();
+
+            const originalName = file.name.replace(/\.[^/.]+$/, '');
+            const safeName = originalName.trim().replace(/\s+/g, '-');
+
+            const filename = `${safeName}-${TARGET_WIDTH}x${TARGET_HEIGHT}-${sizeKB}KB-${timestamp}.jpg`;
+            const url = URL.createObjectURL(blob);
+
+            const card = document.createElement("div");
+            card.className = "card";
+
+            const previewCanvas = document.createElement("canvas");
+            previewCanvas.width = canvas.width;
+            previewCanvas.height = canvas.height;
+            previewCanvas.getContext("2d").drawImage(canvas, 0, 0);
+
+            const info = document.createElement("p");
+            info.className = "info";
+            info.textContent = `${TARGET_WIDTH}×${TARGET_HEIGHT} — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
+
+            const download = document.createElement("a");
+            download.href = url;
+            download.download = filename;
+            download.textContent = `Download Image`;
+            download.className = "download-link";
+
+            card.appendChild(previewCanvas);
+            card.appendChild(info);
+            card.appendChild(download);
+            preview.appendChild(card);
+
+            downloadLinks.push({ url, filename });
+
+            downloadAllBtn.style.display = "inline-block";
+
+            resolve();
+          });
+        };
       };
-      reader.readAsDataURL(file);
 
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-
-        const imgRatio = img.width / img.height;
-        const targetRatio = TARGET_WIDTH / TARGET_HEIGHT;
-
-        let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-
-        if (imgRatio > targetRatio) {
-          sWidth = img.height * targetRatio;
-          sx = (img.width - sWidth) / 2;
-        } else {
-          sHeight = img.width / targetRatio;
-          sy = (img.height - sHeight) / 2;
-        }
-
-        canvas.width = TARGET_WIDTH;
-        canvas.height = TARGET_HEIGHT;
-
-        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
-
-        let quality = 0.9;
-
-        const compress = () => new Promise((res) => {
-          const loop = () => {
-            canvas.toBlob((blob) => {
-              if (blob.size <= MAX_SIZE || quality < 0.1) {
-                res({ blob, quality });
-              } else {
-                quality -= 0.05;
-                loop();
-              }
-            }, 'image/jpeg', quality);
-          };
-          loop();
-        });
-
-        compress().then(({ blob, quality }) => {
-          const sizeKB = Math.round(blob.size / 1024);
-          const timestamp = formatDateTime();
-
-          const originalName = file.name.replace(/\.[^/.]+$/, '');
-          const safeName = originalName.trim().replace(/\s+/g, '-');
-
-          const filename = `${safeName}-${TARGET_WIDTH}x${TARGET_HEIGHT}-${sizeKB}KB-${timestamp}.jpg`;
-          const url = URL.createObjectURL(blob);
-
-          const card = document.createElement("div");
-          card.className = "card";
-
-          const previewCanvas = document.createElement("canvas");
-          previewCanvas.width = canvas.width;
-          previewCanvas.height = canvas.height;
-          previewCanvas.getContext("2d").drawImage(canvas, 0, 0);
-
-          const info = document.createElement("p");
-          info.className = "info";
-          info.textContent = `${TARGET_WIDTH}×${TARGET_HEIGHT} — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
-
-          const download = document.createElement("a");
-          download.href = url;
-          download.download = filename;
-          download.textContent = `Download Image`;
-          download.className = "download-link";
-
-          card.appendChild(previewCanvas);
-          card.appendChild(info);
-          card.appendChild(download);
-          preview.appendChild(card);
-
-          downloadLinks.push({ url, filename });
-
-          downloadAllBtn.style.display = "inline-block";
-
+      if (file.type === "image/heic" || file.type === "image/heif") {
+        heic2any({
+          blob: file,
+          toType: "image/jpeg",
+          quality: 1
+        })
+        .then((convertedBlob) => {
+          processImage(convertedBlob);
+        })
+        .catch((err) => {
+          console.error("HEIC conversion error:", err);
           resolve();
         });
-      };
+      } else {
+        processImage(file);
+      }
     });
   }
 
