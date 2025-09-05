@@ -85,7 +85,7 @@
 
     .download-link {
       display: inline-block;
-      margin-top: 0.5rem;
+      margin: 0.5rem 0.5rem 0 0;
       padding: 0.4rem 1.2rem;
       border-radius: 6px;
       background: #000;
@@ -95,6 +95,23 @@
     }
 
     .download-link:hover {
+      background: #333;
+    }
+
+    .download-all {
+      display: block;
+      margin: 1rem auto;
+      padding: 0.6rem 1.5rem;
+      border-radius: 6px;
+      background: #000;
+      color: white;
+      text-decoration: none;
+      font-size: 1rem;
+      text-align: center;
+      width: fit-content;
+    }
+
+    .download-all:hover {
       background: #333;
     }
   </style>
@@ -113,7 +130,9 @@
       </div>
     </div>
 
-    <div class="preview-zone" id="preview"></div>
+    <div class="preview-zone" id="preview">
+      <a href="#" class="download-all" id="downloadAll" style="display: none;">Download All PNGs</a>
+    </div>
   </div>
 </section>
 
@@ -121,9 +140,11 @@
   const upload = document.getElementById("upload");
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
+  const downloadAllBtn = document.getElementById("downloadAll");
 
   const TARGET_WIDTH = 1800;
   const TARGET_HEIGHT = 2244;
+  let downloadLinks = []; // Store all download link elements
 
   function formatDateTime() {
     const now = new Date();
@@ -136,7 +157,9 @@
       return;
     }
 
-    preview.innerHTML = "Processing PDF...";
+    preview.innerHTML = "<a href='#' class='download-all' id='downloadAll' style='display: none;'>Download All PNGs</a>";
+    downloadLinks = []; // Reset download links array
+    downloadAllBtn.style.display = "none";
 
     const fileReader = new FileReader();
     fileReader.readAsArrayBuffer(file);
@@ -144,7 +167,8 @@
     fileReader.onload = async function () {
       const pdfData = new Uint8Array(fileReader.result);
       const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-      preview.innerHTML = "";
+      preview.innerHTML = "<a href='#' class='download-all' id='downloadAll' style='display: none;'>Download All PNGs</a>";
+      const newDownloadAllBtn = document.getElementById("downloadAll");
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
@@ -167,55 +191,73 @@
         const tempCtx = tempCanvas.getContext("2d");
         await page.render({ canvasContext: tempCtx, viewport: scaledViewport }).promise;
 
-        // Create final canvas with target size and white background
-        const finalCanvas = document.createElement("canvas");
-        finalCanvas.width = TARGET_WIDTH;
-        finalCanvas.height = TARGET_HEIGHT;
-        const finalCtx = finalCanvas.getContext("2d");
+        // Create two versions: for Oscar (shifted up) and centered
+        const versions = [
+          { offsetYShift: -100, label: "for Oscar" },
+          { offsetYShift: 0, label: "Centered" }
+        ];
 
-        // Fill background white
-        finalCtx.fillStyle = "#FFFFFF";
-        finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+        for (const version of versions) {
+          // Create final canvas with target size and white background
+          const finalCanvas = document.createElement("canvas");
+          finalCanvas.width = TARGET_WIDTH;
+          finalCanvas.height = TARGET_HEIGHT;
+          const finalCtx = finalCanvas.getContext("2d");
 
-        // Calculate centering offsets, shift up by 100 pixels
-        const offsetX = (TARGET_WIDTH - tempCanvas.width) / 2;
-        const offsetY = ((TARGET_HEIGHT - tempCanvas.height) / 2) - 100;
+          // Fill background white
+          finalCtx.fillStyle = "#FFFFFF";
+          finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
-        // Draw the PDF page centered on white background with offset
-        finalCtx.drawImage(tempCanvas, offsetX, offsetY);
+          // Calculate centering offsets
+          const offsetX = (TARGET_WIDTH - tempCanvas.width) / 2;
+          const offsetY = ((TARGET_HEIGHT - tempCanvas.height) / 2) + version.offsetYShift;
 
-        // Convert to PNG blob
-        const blob = await new Promise((resolve) =>
-          finalCanvas.toBlob(resolve, "image/png")
-        );
-        const sizeKB = Math.round(blob.size / 1024);
-        const url = URL.createObjectURL(blob);
-        const filename = `page-${pageNum}-1800x2244-${sizeKB}KB-${formatDateTime()}.png`;
+          // Draw the PDF page on white background
+          finalCtx.drawImage(tempCanvas, offsetX, offsetY);
 
-        // Create preview card
-        const card = document.createElement("div");
-        card.className = "card";
+          // Convert to PNG blob
+          const blob = await new Promise((resolve) =>
+            finalCanvas.toBlob(resolve, "image/png")
+          );
+          const sizeKB = Math.round(blob.size / 1024);
+          const url = URL.createObjectURL(blob);
+          const filename = `page-${pageNum}-1800x2244-${version.label}-${sizeKB}KB-${formatDateTime()}.png`;
 
-        const previewCanvas = document.createElement("canvas");
-        previewCanvas.width = finalCanvas.width;
-        previewCanvas.height = finalCanvas.height;
-        const previewCtx = previewCanvas.getContext("2d");
-        previewCtx.drawImage(finalCanvas, 0, 0);
+          // Create preview card
+          const card = document.createElement("div");
+          card.className = "card";
 
-        const info = document.createElement("p");
-        info.className = "info";
-        info.textContent = `Page ${pageNum} — 1800×2244 pixels — ${sizeKB}KB`;
+          const previewCanvas = document.createElement("canvas");
+          previewCanvas.width = finalCanvas.width;
+          previewCanvas.height = finalCanvas.height;
+          const previewCtx = previewCanvas.getContext("2d");
+          previewCtx.drawImage(finalCanvas, 0, 0);
 
-        const download = document.createElement("a");
-        download.href = url;
-        download.download = filename;
-        download.textContent = `Download PNG Page ${pageNum}`;
-        download.className = "download-link";
+          const info = document.createElement("p");
+          info.className = "info";
+          info.textContent = `Page ${pageNum} (${version.label}) — 1800×2244 pixels — ${sizeKB}KB`;
 
-        card.appendChild(previewCanvas);
-        card.appendChild(info);
-        card.appendChild(download);
-        preview.appendChild(card);
+          const download = document.createElement("a");
+          download.href = url;
+          download.download = filename;
+          download.textContent = `Download PNG Page ${pageNum} (${version.label})`;
+          download.className = "download-link";
+          downloadLinks.push(download); // Store the download link
+
+          card.appendChild(previewCanvas);
+          card.appendChild(info);
+          card.appendChild(download);
+          preview.appendChild(card);
+        }
+      }
+
+      // Show Download All button and set up to trigger all downloads
+      if (downloadLinks.length > 0) {
+        newDownloadAllBtn.style.display = "block";
+        newDownloadAllBtn.onclick = (e) => {
+          e.preventDefault();
+          downloadLinks.forEach(link => link.click());
+        };
       }
     };
   }
