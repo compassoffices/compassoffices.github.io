@@ -6,75 +6,124 @@
   <title>Pro Image Editor</title>
   <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; }
+    * { 
+      box-sizing: border-box; 
+      margin: 0;
+      padding: 0;
+    }
     body {
       font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
       padding: 2rem;
-      background: #f0f2f5;
-      color: #333;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
     }
     .editor {
-      max-width: 800px;
-      margin: auto;
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 12px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+      max-width: 900px;
+      width: 100%;
+      background: #ffffff;
+      padding: 2rem;
+      border-radius: 16px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease;
     }
-    h2, h3 {
-      margin-top: 1.5rem;
-      font-weight: 600;
+    .editor:hover {
+      transform: translateY(-2px);
     }
-canvas {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 1rem 0;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-}
-    .row {
+    h2 {
+      font-size: 1.8rem;
+      margin-bottom: 1.5rem;
+      color: #1a202c;
       display: flex;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    h3 {
+      font-size: 1.2rem;
+      margin: 1.5rem 0 1rem;
+      color: #2d3748;
+    }
+    canvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 1.5rem auto;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      background: #f7fafc;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 1rem;
-      margin-bottom: 1rem;
+      margin-bottom: 1.5rem;
     }
     label {
-      flex: 1 1 45%;
+      display: flex;
+      flex-direction: column;
       font-size: 0.9rem;
+      font-weight: 500;
+      color: #4a5568;
     }
     input, select, textarea {
       width: 100%;
-      padding: 0.4rem;
+      padding: 0.5rem;
       margin-top: 0.3rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      transition: border-color 0.2s ease;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #4c51bf;
+      box-shadow: 0 0 0 2px rgba(76,81,191,0.2);
     }
     textarea {
-      height: 60px;
+      height: 80px;
+      resize: vertical;
     }
     .btn {
-      padding: 0.7rem 1.5rem;
-      background: #000;
+      padding: 0.8rem 2rem;
+      background: #4c51bf;
       color: #fff;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
-      margin-top: 1rem;
       font-size: 1rem;
+      font-weight: 500;
+      transition: background 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn:hover {
+      background: #434190;
     }
     .image-controls {
       display: flex;
-      gap: 0.5rem;
-      margin: 0.5rem 0;
+      gap: 0.8rem;
+      align-items: center;
+      margin: 1rem 0;
+    }
+    .image-controls strong {
+      font-weight: 500;
+      color: #4a5568;
     }
     .image-controls button {
-      padding: 0.3rem 0.6rem;
+      padding: 0.5rem;
       font-size: 1rem;
-      background: #e0e0e0;
-      border: none;
-      border-radius: 4px;
+      background: #edf2f7;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
       cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .image-controls button:hover {
+      background: #e2e8f0;
     }
   </style>
 </head>
@@ -83,13 +132,13 @@ canvas {
   <h2>🖼️ Pro Image Text Editor</h2>
 
   <div class="row">
-   <!-- <label>Layout Size:
+    <label>Layout Size:
       <select id="layoutSelect">
         <option value="680x200">680×200</option>
         <option value="680x150">680×150</option>
         <option value="680x300">680×300</option>
       </select>
-    </label> -->
+    </label>
     <label>Overlay Effect:
       <select id="overlayEffect">
         <option value="none">None</option>
@@ -206,35 +255,32 @@ canvas {
   let image = null;
   let zoom = 1;
   let offset = { x: 0, y: 0 };
-  let textPos1 = { x: 680, y: 160 };
-  let textPos2 = { x: 680, y: 280 };
+  let textPos1 = { x: 340, y: 80 };
+  let textPos2 = { x: 340, y: 140 };
   let draggingText = null;
   let dragging = false;
   let dragStart = { x: 0, y: 0 };
 
-function setCanvasSize() {
-  const [w, h] = layoutSelect.value.split('x').map(Number);
-  const scale = 2;
+  function setCanvasSize() {
+    const [w, h] = layoutSelect.value.split('x').map(Number);
+    const scale = 2;
 
-  // Set resolution for high quality
-  canvas.width = w * scale;
-  canvas.height = h * scale;
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
 
-  // Set display size (user-visible)
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
+    zoom = 1;
+    zoomSlider.value = 1;
+    offset = { x: 0, y: 0 };
+    textPos1 = { x: canvas.width / 2, y: canvas.height * 0.4 };
+    textPos2 = { x: canvas.width / 2, y: canvas.height * 0.7 };
 
-  // Reset zoom/offset/text positions
-  zoom = 1;
-  zoomSlider.value = 1;
-  offset = { x: 0, y: 0 };
-  textPos1 = { x: canvas.width / 2, y: canvas.height * 0.4 };
-  textPos2 = { x: canvas.width / 2, y: canvas.height * 0.7 };
-
-  render();
-}
+    render();
+  }
 
   function drawTextBlock(text, size, color, align, weight, pos, shadowEnabled, shadowOptions) {
+    if (!text) return; // Skip if text is empty
     ctx.save();
     if (shadowEnabled) {
       ctx.shadowColor = shadowOptions.color;
@@ -277,20 +323,20 @@ function setCanvasSize() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    drawTextBlock(text1.value, textSize1.value, textColor1.value, textAlign1.value, fontWeight1.value, textPos1,
+    drawTextBlock(text1.value, parseFloat(textSize1.value), textColor1.value, textAlign1.value, fontWeight1.value, textPos1,
       shadow1.checked, {
         color: shadowColor1.value,
-        x: parseInt(shadowX1.value),
-        y: parseInt(shadowY1.value),
-        blur: parseInt(shadowBlur1.value)
+        x: parseFloat(shadowX1.value),
+        y: parseFloat(shadowY1.value),
+        blur: parseFloat(shadowBlur1.value)
       });
 
-    drawTextBlock(text2.value, textSize2.value, textColor2.value, textAlign2.value, fontWeight2.value, textPos2,
+    drawTextBlock(text2.value, parseFloat(textSize2.value), textColor2.value, textAlign2.value, fontWeight2.value, textPos2,
       shadow2.checked, {
         color: shadowColor2.value,
-        x: parseInt(shadowX2.value),
-        y: parseInt(shadowY2.value),
-        blur: parseInt(shadowBlur2.value)
+        x: parseFloat(shadowX2.value),
+        y: parseFloat(shadowY2.value),
+        blur: parseFloat(shadowBlur2.value)
       });
   }
 
@@ -309,9 +355,9 @@ function setCanvasSize() {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * 2;
     const y = (e.clientY - rect.top) * 2;
-    if (insideText(textPos1, x, y, textSize1.value)) {
+    if (insideText(textPos1, x, y, parseFloat(textSize1.value))) {
       draggingText = 'text1';
-    } else if (insideText(textPos2, x, y, textSize2.value)) {
+    } else if (insideText(textPos2, x, y, parseFloat(textSize2.value))) {
       draggingText = 'text2';
     }
     dragStart = { x, y };
@@ -336,8 +382,14 @@ function setCanvasSize() {
     render();
   });
 
-  canvas.addEventListener('mouseup', () => dragging = false);
-  canvas.addEventListener('mouseleave', () => dragging = false);
+  canvas.addEventListener('mouseup', () => {
+    dragging = false;
+    draggingText = null;
+  });
+  canvas.addEventListener('mouseleave', () => {
+    dragging = false;
+    draggingText = null;
+  });
 
   function downloadImage() {
     const now = new Date().toISOString().replace(/[:.]/g, '-');
