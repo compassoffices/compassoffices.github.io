@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Compass Offices LEASED Image Editor</title>
 <link rel="icon" href="https://compassoffices.github.io/img/logo/new-p1-32.png" type="image/png" />
+  <title>Compass Offices LEASED Image Editor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -176,9 +176,9 @@
             <div>
               <div class="flex items-center justify-between mb-2">
                 <span class="text-sm text-slate-300">Zoom</span>
-                <span id="pZoomLabel" class="text-xs text-slate-400">1.00×</span>
+                <span id="pZoomLabel" class="text-xs text-slate-400">1.45×</span>
               </div>
-              <input id="pZoom" type="range" min="0.5" max="4" step="0.01" value="1" class="w-full accent-fuchsia-400" disabled />
+              <input id="pZoom" type="range" min="0.5" max="4" step="0.01" value="1.45" class="w-full accent-fuchsia-400" disabled />
             </div>
             <div>
               <div class="flex items-center justify-between mb-2">
@@ -278,7 +278,7 @@
     let pImg = new Image();
     let pLoaded = false;
     let pBaseScale = 1;
-    let pUserZoom = 1;
+    let pUserZoom = 1.45; // Default to 1.45x
     let pOffsetX = 0;
     let pOffsetY = 0;
     let activeLayer = 'polaroid';
@@ -379,8 +379,8 @@
     function computePolaroidBaseScale() {
       if (!pLoaded) return;
       const sx = imgAreaW / pImg.width;
-      const sy = imgAreaH / pImg.height;
-      pBaseScale = Math.min(sx, sy);
+      pBaseScale = sx; // Fit to width
+      pUserZoom = 1.45; // Always set to 1.45x
     }
 
     function roundedRectPath(ctx, x, y, w, h, r) {
@@ -432,14 +432,13 @@
       ctx.restore();
 
       if (leasedImg.complete) {
-        const leasedW = 700 * unit;
+        const leasedW = 750 * unit;
         const leasedH = leasedW * leasedRatio;
         const leasedX = outW / 2 - leasedW / 2;
         const leasedY = 10 * unit;
         ctx.drawImage(leasedImg, leasedX, leasedY, leasedW, leasedH);
       }
 
-      // Add soft dark gradient at the bottom
       const gradient = ctx.createLinearGradient(0, outH * 0.7, 0, outH);
       gradient.addColorStop(0, 'rgba(0,0,0,0.1)');
       gradient.addColorStop(1, 'rgba(0,0,0,0.5)');
@@ -452,10 +451,10 @@
     const cardR = 30;
     const cardX = (EXPORT_W - cardW) / 2;
     const cardY = 250;
-    const imgTopMargin = 40; // Increased margin
-    const imgSideMargin = 40; // Increased margin
-    const imgAreaW = 570; // Adjusted for larger margins
-    const imgAreaH = 320; // Adjusted for larger margins
+    const imgTopMargin = 50;
+    const imgSideMargin = 50;
+    const imgAreaW = 550;
+    const imgAreaH = 300;
     const imgR = 20;
     const imgAreaX = cardX + imgSideMargin;
     const imgAreaY = cardY + imgTopMargin;
@@ -506,10 +505,10 @@
 
       ctx.save();
       ctx.fillStyle = '#0f172a';
-      const txtPad = 40 * unit; // Increased margin
+      const txtPad = 40 * unit;
       const col1X = (cardX + txtPad) * unit;
-      const col2X = (cardX + cardW / 2 + 20 * unit) * unit; // Increased spacing between columns
-      const ty = (imgAreaY + imgAreaH + 40) * unit; // Increased margin
+      const col2X = (cardX + cardW / 2 - 10 * unit) * unit;
+      const ty = (imgAreaY + imgAreaH + 40) * unit;
       const iconSize = 36 * unit;
       ctx.font = `bold ${Math.round(20 * unit)}px 'Neue Haas Grotesk Display Pro', sans-serif`;
       ctx.textAlign = 'left';
@@ -523,15 +522,15 @@
           ctx.drawImage(deskIcon, col1X, yCursor - iconSize / 2, iconSize, iconSize);
           ctx.fillStyle = '#0f172a';
           const deskText = parseInt(deskNumber.value, 10) === 1 ? `${deskNumber.value} desk` : `${deskNumber.value} desks`;
-          ctx.fillText(deskText, col1X + iconSize + 15 * unit, yCursor); // Increased spacing
+          ctx.fillText(deskText, col1X + iconSize + 15 * unit, yCursor);
         }
         if (locationIcon.complete && locationInput.value) {
           ctx.fillStyle = '#ff6600';
           ctx.drawImage(locationIcon, col2X, yCursor - iconSize / 2, iconSize, iconSize);
           ctx.fillStyle = '#0f172a';
-          ctx.fillText(locationInput.value, col2X + iconSize + 15 * unit, yCursor); // Increased spacing
+          ctx.fillText(locationInput.value, col2X + iconSize + 15 * unit, yCursor);
         }
-        yCursor += 48 * unit; // Increased vertical spacing
+        yCursor += 48 * unit;
         ctx.restore();
       }
 
@@ -541,7 +540,7 @@
           ctx.fillStyle = '#ff6600';
           ctx.drawImage(leasedIcon, col1X, yCursor - iconSize / 2, iconSize, iconSize);
           ctx.fillStyle = '#0f172a';
-          ctx.fillText(`Leased by ${leasedBy.value}`, col1X + iconSize + 15 * unit, yCursor); // Increased spacing
+          ctx.fillText(`Leased by ${leasedBy.value}`, col1X + iconSize + 15 * unit, yCursor);
         }
         ctx.restore();
       }
@@ -638,7 +637,6 @@
       tmp.onload = () => {
         pImg = tmp;
         pLoaded = true;
-        pUserZoom = 1;
         pOffsetX = 0;
         pOffsetY = 0;
         computePolaroidBaseScale();
@@ -702,7 +700,7 @@
     pX.addEventListener('input', () => { pOffsetX = parseInt(pX.value, 10); drawAll(); });
     pY.addEventListener('input', () => { pOffsetY = parseInt(pY.value, 10); drawAll(); });
     pCenter.addEventListener('click', () => { pOffsetX = 0; pOffsetY = 0; syncControlsFromState(); drawAll(); });
-    pBestFit.addEventListener('click', () => { pUserZoom = 1; computePolaroidBaseScale(); syncControlsFromState(); drawAll(); });
+    pBestFit.addEventListener('click', () => { computePolaroidBaseScale(); syncControlsFromState(); drawAll(); });
 
     [deskNumber, locationInput, leasedBy].forEach(inp => inp.addEventListener('input', drawAll));
 
@@ -731,7 +729,6 @@
         computeBaseScale();
       }
       if (pLoaded) {
-        pUserZoom = 1;
         pOffsetX = 0;
         pOffsetY = 0;
         computePolaroidBaseScale();
@@ -845,7 +842,7 @@
           drawAll();
         }
         if (e.key === '+') { pUserZoom = Math.min(4, +(pUserZoom + 0.05).toFixed(2)); pZoom.value = pUserZoom; drawAll(); }
-        if (e.key === '-') { pUserZoom = Math.max(0.5, +(pUserZoom - 0.05).toFixed(2)); pZoom.value = pZoom; drawAll(); }
+        if (e.key === '-') { pUserZoom = Math.max(0.5, +(pUserZoom - 0.05).toFixed(2)); pZoom.value = pUserZoom; drawAll(); }
       }
       if (e.key === 'Enter') { downloadBtn.click(); }
     });
