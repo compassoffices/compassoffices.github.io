@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>800×1000 Image Editor - Canva Code</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Subtle animated gradient background */
+    .bg-aurora {
+      background: radial-gradient(1200px 600px at 10% 10%, #1f2937 0%, #0a0f1d 40%),
+                  radial-gradient(800px 500px at 90% 20%, #0b3b5d55 0%, #0a0f1d 60%),
+                  radial-gradient(900px 600px at 50% 100%, #2b7a7740 0%, #0a0f1d 60%);
+    }
+    /* Canvas crisp rendering */
+    canvas { image-rendering: optimizeQuality; }
+    /* Handle focus outlines nicely */
+    :focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+  </style>
+</head>
+<body class="min-h-screen bg-aurora text-slate-100 font-sans">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-semibold tracking-tight">Canva Code — 800×1000 Image Editor</h1>
+        <p class="text-slate-300 mt-1">Upload a photo, adjust it visually, and download a perfect 800×1000 image.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="relative cursor-pointer inline-flex items-center">
+          <input id="fileInput" type="file" accept="image/*" class="sr-only" />
+          <span class="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 active:scale-[.99] transition text-white px-4 py-2 rounded-lg shadow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="-ml-1">
+              <path d="M4 17V7a3 3 0 0 1 3-3h5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M20 7v10a3 3 0 0 1-3 3H7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M14 3h7v7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M21 3l-8 8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>Upload image</span>
+          </span>
+        </label>
+        <button id="resetBtn" class="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 disabled:opacity-50" disabled>Reset</button>
+        <button id="downloadBtn" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white shadow disabled:opacity-50" disabled>Download PNG</button>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <section class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Preview Area -->
+      <div class="lg:col-span-2">
+        <div class="rounded-2xl border border-white/10 bg-[#0d1324]/70 backdrop-blur p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-slate-300">Preview</span>
+              <span id="statusBadge" class="text-xs px-2 py-0.5 rounded bg-slate-700/70 text-slate-200">No image</span>
+            </div>
+            <div class="text-xs text-slate-400">Export size: 800 × 1000</div>
+          </div>
+
+          <!-- Canvas container keeps aspect ratio 4:5 -->
+          <div class="relative w-full">
+            <div id="canvasHolder" class="relative mx-auto max-w-[900px]">
+              <!-- Use padding-top to maintain 5:4? We need 4:5 (width:height). We'll set dynamic height in JS for crispness -->
+              <canvas id="previewCanvas" class="w-full rounded-xl bg-[conic-gradient(at_10%_10%,#0d1324,#0b1430)] border border-white/10 shadow-inner"
+                aria-label="Image preview canvas" tabindex="0"></canvas>
+
+              <!-- Overlay guides -->
+              <div id="overlayGuides" class="pointer-events-none absolute inset-0 rounded-xl">
+                <!-- Safe frame -->
+                <div class="absolute inset-0 rounded-xl ring-1 ring-white/15"></div>
+                <!-- Rule of thirds -->
+                <div class="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                  <div class="border-r border-b border-white/10"></div>
+                  <div class="border-r border-b border-white/10"></div>
+                  <div class="border-b border-white/10"></div>
+
+                  <div class="border-r border-b border-white/10"></div>
+                  <div class="border-r border-b border-white/10"></div>
+                  <div class="border-b border-white/10"></div>
+
+                  <div class="border-r border-white/10"></div>
+                  <div class="border-r border-white/10"></div>
+                  <div></div>
+                </div>
+                <!-- Size badge -->
+                <div class="absolute bottom-2 right-2 text-[11px] px-2 py-1 rounded bg-black/50 text-white">800 × 1000</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-3 text-xs text-slate-400">
+            Tip: Drag to move. Scroll or pinch to zoom. Hold Shift while dragging to constrain to one axis. Use arrow keys to nudge.
+          </p>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <aside class="lg:col-span-1">
+        <div class="rounded-2xl border border-white/10 bg-[#0d1324]/70 backdrop-blur p-4 space-y-5">
+          <!-- Fit / Fill -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-medium">Fit mode</h3>
+              <div id="fitLabel" class="text-xs text-slate-400">—</div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="containBtn" class="px-3 py-2 rounded-lg bg-slate-700/70 hover:bg-slate-600 text-slate-100 disabled:opacity-60" disabled>Fit (contain)</button>
+              <button id="coverBtn" class="px-3 py-2 rounded-lg bg-slate-700/70 hover:bg-slate-600 text-slate-100 disabled:opacity-60" disabled>Fill (cover)</button>
+            </div>
+          </div>
+
+          <!-- Zoom -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-medium">Zoom</h3>
+              <span id="zoomValue" class="text-xs text-slate-400">1.00×</span>
+            </div>
+            <input id="zoomRange" type="range" min="0.2" max="5" step="0.01" value="1" class="w-full accent-indigo-400" disabled />
+          </div>
+
+          <!-- Rotate -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-medium">Rotate</h3>
+              <span id="rotateValue" class="text-xs text-slate-400">0°</span>
+            </div>
+            <input id="rotateRange" type="range" min="-180" max="180" step="0.1" value="0" class="w-full accent-indigo-400" disabled />
+          </div>
+
+          <!-- Position -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-medium">Position</h3>
+              <span id="posValue" class="text-xs text-slate-400">X: 0, Y: 0</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-xs w-4 text-slate-400">X</span>
+                <input id="xRange" type="range" min="-800" max="800" step="1" value="0" class="w-full accent-indigo-400" disabled />
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs w-4 text-slate-400">Y</span>
+                <input id="yRange" type="range" min="-1000" max="1000" step="1" value="0" class="w-full accent-indigo-400" disabled />
+              </div>
+            </div>
+          </div>
+
+          <!-- Flips -->
+          <div class="grid grid-cols-2 gap-2">
+            <button id="flipHBtn" class="px-3 py-2 rounded-lg bg-slate-700/70 hover:bg-slate-600 text-slate-100 disabled:opacity-60" disabled>Flip horizontal</button>
+            <button id="flipVBtn" class="px-3 py-2 rounded-lg bg-slate-700/70 hover:bg-slate-600 text-slate-100 disabled:opacity-60" disabled>Flip vertical</button>
+          </div>
+
+          <!-- Background -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-medium">Background</h3>
+              <span class="text-xs text-slate-400">Transparent by default</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <label class="flex items-center gap-2">
+                <input id="transparentToggle" type="checkbox" class="accent-indigo-400" checked />
+                <span class="text-sm">Transparent</span>
+              </label>
+              <label class="flex items-center gap-2">
+                <span class="text-sm text-slate-300">Color</span>
+                <input id="bgColor" type="color" value="#0d1324" class="w-10 h-8 rounded border border-white/10 bg-transparent" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="grid grid-cols-3 gap-2">
+            <button id="centerBtn" class="px-3 py-2 rounded-lg bg-slate-700/70 hover:bg-slate-600 text-slate-100 disabled:opacity-60" disabled>Center</button>
+            <button id="fitFrameBtn" class="px-3 py-2 rounded-lg bg-slate-700/70 hover:bg-slate-600 text-slate-100 disabled:opacity-60" disabled>Best fit</button>
+            <button id="clearBtn" class="px-3 py-2 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white disabled:opacity-60" disabled>Clear</button>
+          </div>
+
+          <p class="text-xs text-slate-400">Everything exports at exactly 800×1000. Preview scales to your screen without changing the final output.</p>
+        </div>
+      </aside>
+    </section>
+  </div>
+
+  <!-- Hidden export canvas -->
+  <canvas id="exportCanvas" width="800" height="1000" class="hidden"></canvas>
+
+  <script>
+    // Elements
+    const fileInput = document.getElementById('fileInput');
+    const previewCanvas = document.getElementById('previewCanvas');
+    const exportCanvas = document.getElementById('exportCanvas');
+    const statusBadge = document.getElementById('statusBadge');
+
+    const containBtn = document.getElementById('containBtn');
+    const coverBtn = document.getElementById('coverBtn');
+    const fitLabel = document.getElementById('fitLabel');
+
+    const zoomRange = document.getElementById('zoomRange');
+    const zoomValue = document.getElementById('zoomValue');
+
+    const rotateRange = document.getElementById('rotateRange');
+    const rotateValue = document.getElementById('rotateValue');
+
+    const xRange = document.getElementById('xRange');
+    const yRange = document.getElementById('yRange');
+    const posValue = document.getElementById('posValue');
+
+    const flipHBtn = document.getElementById('flipHBtn');
+    const flipVBtn = document.getElementById('flipVBtn');
+
+    const transparentToggle = document.getElementById('transparentToggle');
+    const bgColor = document.getElementById('bgColor');
+
+    const centerBtn = document.getElementById('centerBtn');
+    const fitFrameBtn = document.getElementById('fitFrameBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const resetBtn = document.getElementById('resetBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    // State
+    const EXPORT_W = 800;
+    const EXPORT_H = 1000;
+
+    let img = new Image();
+    let imgLoaded = false;
+
+    let mode = 'cover'; // 'cover' or 'contain'
+    let baseScale = 1;  // computed to satisfy mode
+    let userZoom = 1;   // multiplier from zoom slider
+    let rotation = 0;   // degrees
+    let offsetX = 0;    // in export canvas pixels
+    let offsetY = 0;
+    let flipH = false;
+    let flipV = false;
+    let transparent = true;
+    let bg = '#0d1324';
+
+    // Dragging on preview
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let startOffset = { x: 0, y: 0 };
+    let constrainAxis = null; // 'x' or 'y' when Shift is held
+
+    // Helpers
+    function enableControls(enable) {
+      [containBtn, coverBtn, zoomRange, rotateRange, xRange, yRange,
+       flipHBtn, flipVBtn, centerBtn, fitFrameBtn, clearBtn,
+       resetBtn, downloadBtn].forEach(el => el.disabled = !enable);
+    }
+
+    function updateLabels() {
+      fitLabel.textContent = mode === 'cover' ? 'Fill' : 'Fit';
+      zoomValue.textContent = (userZoom).toFixed(2) + '×';
+      rotateValue.textContent = Math.round(rotation) + '°';
+      posValue.textContent = `X: ${Math.round(offsetX)}, Y: ${Math.round(offsetY)}`;
+      statusBadge.textContent = imgLoaded ? 'Ready' : 'No image';
+      statusBadge.className = 'text-xs px-2 py-0.5 rounded ' + (imgLoaded ? 'bg-emerald-600/80' : 'bg-slate-700/70');
+    }
+
+    function computeBaseScale() {
+      if (!imgLoaded) return;
+      const sx = EXPORT_W / img.width;
+      const sy = EXPORT_H / img.height;
+      baseScale = (mode === 'cover') ? Math.max(sx, sy) : Math.min(sx, sy);
+    }
+
+    function fitToFrame() {
+      userZoom = 1;
+      rotation = 0;
+      flipH = false;
+      flipV = false;
+      offsetX = 0;
+      offsetY = 0;
+      computeBaseScale();
+      syncControlsFromState();
+      drawAll();
+    }
+
+    function centerImage() {
+      offsetX = 0;
+      offsetY = 0;
+      syncControlsFromState();
+      drawAll();
+    }
+
+    function clearAll() {
+      imgLoaded = false;
+      // Reset state
+      mode = 'cover';
+      baseScale = 1;
+      userZoom = 1;
+      rotation = 0;
+      offsetX = 0;
+      offsetY = 0;
+      flipH = false;
+      flipV = false;
+      transparent = true;
+      transparentToggle.checked = true;
+      bg = '#0d1324';
+      bgColor.value = bg;
+      previewCtx().clearRect(0,0,previewCanvas.width, previewCanvas.height);
+      exportCtx().clearRect(0,0,EXPORT_W, EXPORT_H);
+      enableControls(false);
+      updateLabels();
+    }
+
+    function exportCtx() { return exportCanvas.getContext('2d'); }
+    function previewCtx() { return previewCanvas.getContext('2d'); }
+
+    function sizePreviewCanvas() {
+      // Keep exact 4:5 aspect (width:height = 4:5).
+      // We'll choose the largest size that fits the container width.
+      const holder = document.getElementById('canvasHolder');
+      const maxW = holder.clientWidth;
+      const targetW = maxW;              // use full width
+      const targetH = Math.round(targetW * (5/4)); // 4:5 -> H = W * 1.25
+
+      // Set internal pixel size for crispness
+      const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap DPR for performance
+      previewCanvas.width = Math.floor(targetW * dpr);
+      previewCanvas.height = Math.floor(targetH * dpr);
+      previewCanvas.style.width = targetW + 'px';
+      previewCanvas.style.height = targetH + 'px';
+    }
+
+    function getPreviewScale() {
+      // Ratio from export to preview coordinates
+      const sx = previewCanvas.width / EXPORT_W;
+      const sy = previewCanvas.height / EXPORT_H;
+      return { sx, sy };
+    }
+
+    function drawCanvas(ctx, outW, outH) {
+      // Background
+      if (!transparent) {
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, outW, outH);
+      } else {
+        ctx.clearRect(0, 0, outW, outH);
+      }
+
+      if (!imgLoaded) return;
+
+      ctx.save();
+      // Center + user offsets
+      ctx.translate(outW / 2 + offsetX * (outW / EXPORT_W), outH / 2 + offsetY * (outH / EXPORT_H));
+
+      // Rotation
+      ctx.rotate(rotation * Math.PI / 180);
+
+      // Scale (uniform) + flips
+      const scale = baseScale * userZoom;
+      const signX = flipH ? -1 : 1;
+      const signY = flipV ? -1 : 1;
+
+      // Adapt scale to this canvas size (export vs preview)
+      const unit = outW / EXPORT_W; // how many actual pixels in this canvas equals 1 export pixel
+      ctx.scale(scale * unit * signX, scale * unit * signY);
+
+      // Draw centered
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      ctx.restore();
+    }
+
+    function drawAll() {
+      // Export
+      drawCanvas(exportCtx(), EXPORT_W, EXPORT_H);
+      // Preview
+      drawCanvas(previewCtx(), previewCanvas.width, previewCanvas.height);
+      updateLabels();
+    }
+
+    function syncControlsFromState() {
+      zoomRange.value = userZoom.toFixed(2);
+      rotateRange.value = rotation;
+      xRange.value = offsetX;
+      yRange.value = offsetY;
+    }
+
+    function syncStateFromControls() {
+      userZoom = parseFloat(zoomRange.value);
+      rotation = parseFloat(rotateRange.value);
+      offsetX = parseInt(xRange.value, 10);
+      offsetY = parseInt(yRange.value, 10);
+    }
+
+    // File handling
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const tmp = new Image();
+      tmp.onload = () => {
+        img = tmp;
+        imgLoaded = true;
+        // Initialize
+        mode = 'cover';
+        userZoom = 1;
+        rotation = 0;
+        flipH = false;
+        flipV = false;
+        offsetX = 0;
+        offsetY = 0;
+        computeBaseScale();
+        sizePreviewCanvas();
+        enableControls(true);
+        syncControlsFromState();
+        drawAll();
+        URL.revokeObjectURL(url);
+      };
+      tmp.onerror = () => {
+        alert('Sorry, that image failed to load. Please try a different file.');
+        URL.revokeObjectURL(url);
+      };
+      tmp.src = url;
+    });
+
+    // Controls events
+    containBtn.addEventListener('click', () => {
+      mode = 'contain';
+      computeBaseScale();
+      drawAll();
+    });
+    coverBtn.addEventListener('click', () => {
+      mode = 'cover';
+      computeBaseScale();
+      drawAll();
+    });
+
+    zoomRange.addEventListener('input', () => {
+      userZoom = parseFloat(zoomRange.value);
+      drawAll();
+    });
+
+    rotateRange.addEventListener('input', () => {
+      rotation = parseFloat(rotateRange.value);
+      drawAll();
+    });
+
+    xRange.addEventListener('input', () => {
+      offsetX = parseInt(xRange.value, 10);
+      drawAll();
+    });
+
+    yRange.addEventListener('input', () => {
+      offsetY = parseInt(yRange.value, 10);
+      drawAll();
+    });
+
+    flipHBtn.addEventListener('click', () => {
+      flipH = !flipH;
+      drawAll();
+    });
+
+    flipVBtn.addEventListener('click', () => {
+      flipV = !flipV;
+      drawAll();
+    });
+
+    transparentToggle.addEventListener('change', () => {
+      transparent = transparentToggle.checked;
+      drawAll();
+    });
+
+    bgColor.addEventListener('input', () => {
+      bg = bgColor.value;
+      transparent = false;
+      transparentToggle.checked = false;
+      drawAll();
+    });
+
+    centerBtn.addEventListener('click', centerImage);
+    fitFrameBtn.addEventListener('click', fitToFrame);
+    clearBtn.addEventListener('click', clearAll);
+
+    resetBtn.addEventListener('click', () => {
+      // Reset adjustments but keep the same image
+      if (!imgLoaded) return;
+      userZoom = 1;
+      rotation = 0;
+      flipH = false;
+      flipV = false;
+      offsetX = 0;
+      offsetY = 0;
+      transparent = true;
+      transparentToggle.checked = true;
+      bg = '#0d1324';
+      bgColor.value = bg;
+      computeBaseScale();
+      syncControlsFromState();
+      drawAll();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!imgLoaded) return;
+      // Ensure latest render
+      drawAll();
+      const link = document.createElement('a');
+      link.download = 'image-800x1000.png';
+      link.href = exportCanvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // Preview interactions: drag, wheel, keys
+    function previewToExportDelta(dx, dy) {
+      const { sx, sy } = getPreviewScale();
+      return { dx: dx / sx, dy: dy / sy };
+    }
+
+    // Pointer events
+    previewCanvas.addEventListener('pointerdown', (e) => {
+      if (!imgLoaded) return;
+      previewCanvas.setPointerCapture(e.pointerId);
+      isDragging = true;
+      dragStart = { x: e.clientX, y: e.clientY };
+      startOffset = { x: offsetX, y: offsetY };
+      constrainAxis = e.shiftKey ? 'pending' : null;
+    });
+
+    previewCanvas.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+
+      // Determine constraint axis on first noticeable move if Shift is held
+      if (constrainAxis === 'pending') {
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          constrainAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        } else {
+          return; // wait for decisive direction
+        }
+      }
+
+      let moveX = dx;
+      let moveY = dy;
+      if (constrainAxis === 'x') moveY = 0;
+      if (constrainAxis === 'y') moveX = 0;
+
+      const delta = previewToExportDelta(moveX, moveY);
+      offsetX = Math.round(startOffset.x + delta.dx);
+      offsetY = Math.round(startOffset.y + delta.dy);
+
+      // Update sliders (selective to avoid jitter)
+      xRange.value = offsetX;
+      yRange.value = offsetY;
+
+      drawAll();
+    });
+
+    const endDrag = (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      constrainAxis = null;
+      try { previewCanvas.releasePointerCapture(e.pointerId); } catch {}
+    };
+    previewCanvas.addEventListener('pointerup', endDrag);
+    previewCanvas.addEventListener('pointercancel', endDrag);
+    previewCanvas.addEventListener('pointerleave', endDrag);
+
+    // Wheel to zoom (Ctrl+wheel or regular wheel; smooth)
+    previewCanvas.addEventListener('wheel', (e) => {
+      if (!imgLoaded) return;
+      e.preventDefault();
+      const delta = -Math.sign(e.deltaY) * 0.05; // step
+      let nextZoom = Math.min(5, Math.max(0.2, userZoom + delta));
+      if (nextZoom === userZoom) return;
+      userZoom = parseFloat(nextZoom.toFixed(2));
+      zoomRange.value = userZoom;
+      drawAll();
+    }, { passive: false });
+
+    // Keyboard nudges
+    previewCanvas.addEventListener('keydown', (e) => {
+      if (!imgLoaded) return;
+      let step = e.shiftKey ? 10 : 2;
+      if (e.key === 'ArrowLeft') { offsetX -= step; e.preventDefault(); }
+      if (e.key === 'ArrowRight') { offsetX += step; e.preventDefault(); }
+      if (e.key === 'ArrowUp') { offsetY -= step; e.preventDefault(); }
+      if (e.key === 'ArrowDown') { offsetY += step; e.preventDefault(); }
+      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+        xRange.value = offsetX; yRange.value = offsetY;
+        drawAll();
+      }
+      if (e.key.toLowerCase() === 'r') { rotation = 0; rotateRange.value = rotation; drawAll(); }
+      if (e.key.toLowerCase() === 'f') { mode = (mode === 'cover' ? 'contain' : 'cover'); computeBaseScale(); drawAll(); }
+      if (e.key === '+') { userZoom = Math.min(5, +(userZoom + 0.05).toFixed(2)); zoomRange.value = userZoom; drawAll(); }
+      if (e.key === '-') { userZoom = Math.max(0.2, +(userZoom - 0.05).toFixed(2)); zoomRange.value = userZoom; drawAll(); }
+      if (e.key === 'Enter') { downloadBtn.click(); }
+    });
+
+    // Resize handling for crisp preview
+    const resizeObserver = new ResizeObserver(() => {
+      sizePreviewCanvas();
+      drawAll();
+    });
+    resizeObserver.observe(document.getElementById('canvasHolder'));
+    window.addEventListener('orientationchange', () => {
+      sizePreviewCanvas();
+      drawAll();
+    });
+
+    // Initial sizing
+    sizePreviewCanvas();
+    updateLabels();
+  </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97fcf4abe7d4c742',t:'MTc1Nzk4OTk3Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
