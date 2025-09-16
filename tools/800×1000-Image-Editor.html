@@ -6,22 +6,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    @import url('https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro');
     .bg-aurora {
       background: radial-gradient(1200px 600px at 10% 10%, #1f2937 0%, #0a0f1d 40%),
                   radial-gradient(800px 500px at 90% 20%, #0b3b5d55 0%, #0a0f1d 60%),
                   radial-gradient(900px 600px at 50% 100%, #2b7a7740 0%, #0a0f1d 60%);
     }
-    canvas { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; } /* Fallback for compatibility */
+    canvas { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
     :focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+    body { font-family: 'Neue Haas Grotesk Display Pro', sans-serif; }
   </style>
 </head>
 <body class="min-h-screen bg-aurora text-slate-100 font-sans">
   <div class="max-w-7xl mx-auto px-4 py-8">
-    <!-- Header (unchanged) -->
     <header class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
       <div>
         <h1 class="text-2xl md:text-3xl font-semibold tracking-tight">Canva Code — 800×1000 Image Editor</h1>
-        <p class="text-slate-300 mt-1">Upload, adjust, and export a perfect 800×1000 image. Now with a polaroid overlay and LEASED banner.</p>
+        <p class="text-slate-300 mt-1">Upload, adjust, and export a perfect 800×1000 image with a polaroid overlay.</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <label class="relative cursor-pointer inline-flex items-center">
@@ -50,7 +51,6 @@
       </div>
     </header>
 
-    <!-- Main Layout (unchanged) -->
     <section class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2">
         <div class="rounded-2xl border border-white/10 bg-[#0d1324]/70 backdrop-blur p-4">
@@ -89,17 +89,16 @@
       </div>
       <aside class="lg:col-span-1">
         <div class="rounded-2xl border border-white/10 bg-[#0d1324]/70 backdrop-blur p-4 space-y-6">
-          <!-- Controls (unchanged) -->
           <div>
             <h3 class="text-sm font-medium mb-2">Adjust</h3>
             <div class="grid grid-cols-2 gap-2">
               <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-800/60">
-                <input type="radio" name="activeLayer" value="bg" id="activeBg" checked class="accent-indigo-400" />
-                <span class="text-sm">Background</span>
+                <input type="radio" name="activeLayer" value="polaroid" id="activePolaroid" checked class="accent-fuchsia-400" />
+                <span class="text-sm">Polaroid photo</span>
               </label>
               <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-800/60">
-                <input type="radio" name="activeLayer" value="polaroid" id="activePolaroid" class="accent-fuchsia-400" />
-                <span class="text-sm">Polaroid photo</span>
+                <input type="radio" name="activeLayer" value="bg" id="activeBg" class="accent-indigo-400" />
+                <span class="text-sm">Background</span>
               </label>
             </div>
           </div>
@@ -188,11 +187,11 @@
               <div class="grid grid-cols-2 gap-2">
                 <div class="flex items-center gap-2">
                   <span class="text-xs w-4 text-slate-400">X</span>
-                  <input id="pX" type="range" min="-400" max="400" step="1" value="0" class="w-full accent-fuchsia-400" disabled />
+                  <input id="pX" type="range" min="-300" max="300" step="1" value="0" class="w-full accent-fuchsia-400" disabled />
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="text-xs w-4 text-slate-400">Y</span>
-                  <input id="pY" type="range" min="-400" max="400" step="1" value="0" class="w-full accent-fuchsia-400" disabled />
+                  <input id="pY" type="range" min="-200" max="200" step="1" value="0" class="w-full accent-fuchsia-400" disabled />
                 </div>
               </div>
             </div>
@@ -203,7 +202,7 @@
             <div class="grid grid-cols-1 gap-2">
               <div class="flex items-center gap-2">
                 <label for="deskNumber" class="text-sm w-28 text-slate-300">Desk number</label>
-                <input id="deskNumber" type="text" placeholder="e.g. D-24" class="flex-1 px-3 py-2 rounded-lg bg-slate-800/60 border border-white/10 text-slate-100 placeholder-slate-400" />
+                <input id="deskNumber" type="text" placeholder="e.g. 24" class="flex-1 px-3 py-2 rounded-lg bg-slate-800/60 border border-white/10 text-slate-100 placeholder-slate-400" />
               </div>
               <div class="flex items-center gap-2">
                 <label for="location" class="text-sm w-28 text-slate-300">Location</label>
@@ -223,7 +222,6 @@
   <canvas id="exportCanvas" width="800" height="1000" class="hidden"></canvas>
 
   <script>
-    // Elements (unchanged)
     const fileInput = document.getElementById('fileInput');
     const fileInputPolaroid = document.getElementById('fileInputPolaroid');
     const previewCanvas = document.getElementById('previewCanvas');
@@ -262,7 +260,6 @@
     const resetBtn = document.getElementById('resetBtn');
     const downloadBtn = document.getElementById('downloadBtn');
 
-    // State (unchanged)
     const EXPORT_W = 800;
     const EXPORT_H = 1000;
     let img = new Image();
@@ -283,17 +280,62 @@
     let pUserZoom = 1;
     let pOffsetX = 0;
     let pOffsetY = 0;
-    let activeLayer = 'bg';
+    let activeLayer = 'polaroid';
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
     let startOffset = { x: 0, y: 0 };
     let constrainAxis = null;
 
-    // Initialize canvas contexts
+    let logoImg = new Image();
+    logoImg.crossOrigin = 'Anonymous';
+    logoImg.src = 'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg';
+    let logoRatio = 0.3;
+    logoImg.onload = () => {
+      logoRatio = logoImg.height / logoImg.width;
+      drawAll();
+    };
+
+    let leasedImg = new Image();
+    leasedImg.crossOrigin = 'Anonymous';
+    leasedImg.src = 'https://www.compassoffices.com/wp-content/uploads/2025/09/leased-co-11.png';
+    let leasedRatio = 0.3;
+    leasedImg.onload = () => {
+      leasedRatio = leasedImg.height / leasedImg.width;
+      drawAll();
+    };
+
+    let defaultBg = new Image();
+    defaultBg.crossOrigin = 'Anonymous';
+    defaultBg.src = 'https://www.compassoffices.com/wp-content/uploads/2025/09/co-bg-800x100-1.jpg';
+    defaultBg.onload = () => {
+      img = defaultBg;
+      imgLoaded = true;
+      mode = 'cover';
+      userZoom = 1;
+      rotation = 0;
+      flipH = false;
+      flipV = false;
+      offsetX = 0;
+      offsetY = 0;
+      computeBaseScale();
+      enableControls(true);
+      syncControlsFromState();
+      drawAll();
+    };
+
+    let deskIcon = new Image();
+    deskIcon.crossOrigin = 'Anonymous';
+    deskIcon.src = 'https://www.compassoffices.com/wp-content/uploads/2025/07/website-icon-master_desk-chair-1.svg';
+    let locationIcon = new Image();
+    locationIcon.crossOrigin = 'Anonymous';
+    locationIcon.src = 'https://www.compassoffices.com/wp-content/uploads/2025/07/website-icon-master-30.svg';
+    let leasedIcon = new Image();
+    leasedIcon.crossOrigin = 'Anonymous';
+    leasedIcon.src = 'https://www.compassoffices.com/wp-content/uploads/2025/07/website-icon-master-25.svg';
+
     const pctx = previewCanvas.getContext('2d', { alpha: true });
     const ectx = exportCanvas.getContext('2d', { alpha: true });
 
-    // Debounce utility for performance
     function debounce(func, wait) {
       let timeout;
       return function (...args) {
@@ -333,12 +375,11 @@
       baseScale = (mode === 'cover') ? Math.max(sx, sy) : Math.min(sx, sy);
     }
 
-    // Adjusted polaroid scaling to maintain aspect ratio
     function computePolaroidBaseScale() {
       if (!pLoaded) return;
-      const sx = imgAreaSize / pImg.width;
-      const sy = imgAreaSize / pImg.height;
-      pBaseScale = Math.min(sx, sy); // Changed to contain to avoid distortion
+      const sx = imgAreaW / pImg.width;
+      const sy = imgAreaH / pImg.height;
+      pBaseScale = Math.min(sx, sy);
     }
 
     function roundedRectPath(ctx, x, y, w, h, r) {
@@ -361,7 +402,7 @@
       previewCanvas.height = Math.floor(targetH * dpr);
       previewCanvas.style.width = targetW + 'px';
       previewCanvas.style.height = targetH + 'px';
-      pctx.imageSmoothingEnabled = true; // Ensure quality rendering
+      pctx.imageSmoothingEnabled = true;
     }
 
     function drawBackground(ctx, outW, outH) {
@@ -388,20 +429,35 @@
         console.error('Error drawing background image:', err);
       }
       ctx.restore();
+
+      if (leasedImg.complete) {
+        const leasedW = 700 * unit;
+        const leasedH = leasedW * leasedRatio;
+        const leasedX = outW / 2 - leasedW / 2;
+        const leasedY = 10 * unit;
+        ctx.drawImage(leasedImg, leasedX, leasedY, leasedW, leasedH);
+      }
+
+      // Add soft dark gradient at the bottom
+      const gradient = ctx.createLinearGradient(0, outH * 0.7, 0, outH);
+      gradient.addColorStop(0, 'rgba(0,0,0,0.1)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, outH * 0.7, outW, outH * 0.3);
     }
 
-    // Polaroid layout constants (unchanged)
-    const cardW = 560;
-    const cardH = 680;
-    const cardR = 28;
+    const cardW = 650;
+    const cardH = 500;
+    const cardR = 30;
     const cardX = (EXPORT_W - cardW) / 2;
-    const cardY = 260;
-    const bannerH = 72;
-    const imgMargin = 40;
-    const imgAreaY = cardY + bannerH + imgMargin;
-    const imgAreaX = cardX + imgMargin;
-    const imgAreaSize = cardW - imgMargin * 2;
-    const textAreaH = 110;
+    const cardY = 250;
+    const imgTopMargin = 40; // Increased margin
+    const imgSideMargin = 40; // Increased margin
+    const imgAreaW = 570; // Adjusted for larger margins
+    const imgAreaH = 320; // Adjusted for larger margins
+    const imgR = 20;
+    const imgAreaX = cardX + imgSideMargin;
+    const imgAreaY = cardY + imgTopMargin;
 
     function drawPolaroid(ctx, outW, outH) {
       const unit = outW / EXPORT_W;
@@ -420,30 +476,21 @@
       ctx.fill();
       ctx.restore();
 
-      ctx.save();
-      ctx.fillStyle = '#ef4444';
-      roundedRectPath(ctx, x, y, w, bannerH * unit, r);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `${Math.round(36 * unit)}px ui-sans-serif, system-ui, -apple-system`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('LEASED', x + w / 2, y + (bannerH * unit) / 2);
-      ctx.restore();
-
       const iaX = imgAreaX * unit;
       const iaY = imgAreaY * unit;
-      const iaS = imgAreaSize * unit;
+      const iaW = imgAreaW * unit;
+      const iaH = imgAreaH * unit;
+      const ir = imgR * unit;
       ctx.save();
-      roundedRectPath(ctx, iaX, iaY, iaS, iaS, 20 * unit);
+      roundedRectPath(ctx, iaX, iaY, iaW, iaH, ir);
       ctx.clip();
       ctx.fillStyle = '#e5e7eb';
-      ctx.fillRect(iaX, iaY, iaS, iaS);
+      ctx.fillRect(iaX, iaY, iaW, iaH);
 
       if (pLoaded) {
         ctx.save();
-        const px = iaX + iaS / 2 + pOffsetX * unit;
-        const py = iaY + iaS / 2 + pOffsetY * unit;
+        const px = iaX + iaW / 2 + pOffsetX * unit;
+        const py = iaY + iaH / 2 + pOffsetY * unit;
         ctx.translate(px, py);
         const scale = pBaseScale * pUserZoom * unit;
         ctx.scale(scale, scale);
@@ -458,19 +505,65 @@
 
       ctx.save();
       ctx.fillStyle = '#0f172a';
-      const txtPad = 18 * unit;
-      const tx = (cardX + txtPad) * unit;
-      const tw = (cardW - txtPad * 2) * unit;
-      const ty = (cardY + cardH - textAreaH + 18) * unit;
-      ctx.font = `${Math.round(18 * unit)}px ui-sans-serif, system-ui, -apple-system`;
+      const txtPad = 40 * unit; // Increased margin
+      const col1X = (cardX + txtPad) * unit;
+      const col2X = (cardX + cardW / 2 + 20 * unit) * unit; // Increased spacing between columns
+      const ty = (imgAreaY + imgAreaH + 40) * unit; // Increased margin
+      const iconSize = 36 * unit;
+      ctx.font = `bold ${Math.round(20 * unit)}px 'Neue Haas Grotesk Display Pro', sans-serif`;
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      const line1 = deskNumber.value ? `Desk: ${deskNumber.value}` : '';
-      const line2 = locationInput.value ? `Location: ${locationInput.value}` : '';
-      const line3 = leasedBy.value ? `Leased by: ${leasedBy.value}` : '';
-      const lines = [line1, line2, line3].filter(Boolean);
+      ctx.textBaseline = 'middle';
       let yCursor = ty;
-      lines.forEach((t) => { ctx.fillText(t, tx, yCursor); yCursor += 26 * unit; });
+
+      if (deskNumber.value || locationInput.value) {
+        ctx.save();
+        if (deskIcon.complete && deskNumber.value) {
+          ctx.fillStyle = '#ff6600';
+          ctx.drawImage(deskIcon, col1X, yCursor - iconSize / 2, iconSize, iconSize);
+          ctx.fillStyle = '#0f172a';
+          const deskText = parseInt(deskNumber.value, 10) === 1 ? `${deskNumber.value} desk` : `${deskNumber.value} desks`;
+          ctx.fillText(deskText, col1X + iconSize + 15 * unit, yCursor); // Increased spacing
+        }
+        if (locationIcon.complete && locationInput.value) {
+          ctx.fillStyle = '#ff6600';
+          ctx.drawImage(locationIcon, col2X, yCursor - iconSize / 2, iconSize, iconSize);
+          ctx.fillStyle = '#0f172a';
+          ctx.fillText(locationInput.value, col2X + iconSize + 15 * unit, yCursor); // Increased spacing
+        }
+        yCursor += 48 * unit; // Increased vertical spacing
+        ctx.restore();
+      }
+
+      if (leasedBy.value) {
+        ctx.save();
+        if (leasedIcon.complete) {
+          ctx.fillStyle = '#ff6600';
+          ctx.drawImage(leasedIcon, col1X, yCursor - iconSize / 2, iconSize, iconSize);
+          ctx.fillStyle = '#0f172a';
+          ctx.fillText(`Leased by ${leasedBy.value}`, col1X + iconSize + 15 * unit, yCursor); // Increased spacing
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    function drawLogoAndWebsite(ctx, outW, outH) {
+      const unit = outW / EXPORT_W;
+      if (logoImg.complete) {
+        const logoW = 300 * unit;
+        const logoH = logoW * logoRatio;
+        const logoX = outW / 2 - logoW / 2;
+        const logoY = outH - logoH - 40 * unit;
+        ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
+      }
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 4 * unit;
+      ctx.font = `bold ${Math.round(18 * unit)}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('compassoffices.com', outW / 2, outH - 15 * unit);
       ctx.restore();
     }
 
@@ -479,14 +572,16 @@
         ectx.clearRect(0, 0, EXPORT_W, EXPORT_H);
         drawBackground(ectx, EXPORT_W, EXPORT_H);
         drawPolaroid(ectx, EXPORT_W, EXPORT_H);
+        drawLogoAndWebsite(ectx, EXPORT_W, EXPORT_H);
         pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         drawBackground(pctx, previewCanvas.width, previewCanvas.height);
         drawPolaroid(pctx, previewCanvas.width, previewCanvas.height);
+        drawLogoAndWebsite(pctx, previewCanvas.width, previewCanvas.height);
         updateLabels();
       } catch (err) {
         console.error('Error in drawAll:', err);
       }
-    }, 16); // ~60fps
+    }, 16);
 
     function syncControlsFromState() {
       zoomRange.value = userZoom.toFixed(2);
@@ -503,13 +598,12 @@
       drawAll();
     }
 
-    // File handling (background)
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       const url = URL.createObjectURL(file);
       const tmp = new Image();
-      tmp.crossOrigin = 'Anonymous'; // Handle potential CORS
+      tmp.crossOrigin = 'Anonymous';
       tmp.onload = () => {
         img = tmp;
         imgLoaded = true;
@@ -534,7 +628,6 @@
       tmp.src = url;
     });
 
-    // File handling (polaroid)
     fileInputPolaroid.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
@@ -560,11 +653,9 @@
       tmp.src = url;
     });
 
-    // Active layer selection
     activeBg.addEventListener('change', () => { if (activeBg.checked) activeLayer = 'bg'; });
     activePolaroid.addEventListener('change', () => { if (activePolaroid.checked) activeLayer = 'polaroid'; });
 
-    // Background control events
     containBtn.addEventListener('click', () => { mode = 'contain'; computeBaseScale(); drawAll(); });
     coverBtn.addEventListener('click', () => { mode = 'cover'; computeBaseScale(); drawAll(); });
     zoomRange.addEventListener('input', () => { userZoom = parseFloat(zoomRange.value); drawAll(); });
@@ -588,7 +679,8 @@
       drawAll();
     });
     clearBtn.addEventListener('click', () => {
-      imgLoaded = false;
+      img = defaultBg;
+      imgLoaded = true;
       mode = 'cover';
       baseScale = 1;
       userZoom = 1;
@@ -601,21 +693,18 @@
       transparentToggle.checked = true;
       bg = '#0d1324';
       bgColor.value = bg;
-      enableControls(false);
+      enableControls(true);
       drawAll();
     });
 
-    // Polaroid control events
     pZoom.addEventListener('input', () => { pUserZoom = parseFloat(pZoom.value); drawAll(); });
     pX.addEventListener('input', () => { pOffsetX = parseInt(pX.value, 10); drawAll(); });
     pY.addEventListener('input', () => { pOffsetY = parseInt(pY.value, 10); drawAll(); });
     pCenter.addEventListener('click', () => { pOffsetX = 0; pOffsetY = 0; syncControlsFromState(); drawAll(); });
     pBestFit.addEventListener('click', () => { pUserZoom = 1; computePolaroidBaseScale(); syncControlsFromState(); drawAll(); });
 
-    // Lease info live update
     [deskNumber, locationInput, leasedBy].forEach(inp => inp.addEventListener('input', drawAll));
 
-    // Download (consolidated)
     downloadBtn.addEventListener('click', () => {
       try {
         const link = document.createElement('a');
@@ -628,9 +717,9 @@
       }
     });
 
-    // Reset
     resetBtn.addEventListener('click', () => {
       if (imgLoaded) {
+        img = defaultBg;
         mode = 'cover';
         userZoom = 1;
         rotation = 0;
@@ -657,7 +746,6 @@
       drawAll();
     });
 
-    // Interactions
     function previewToExportDelta(dx, dy) {
       const sx = previewCanvas.width / EXPORT_W;
       const sy = previewCanvas.height / EXPORT_H;
@@ -761,7 +849,6 @@
       if (e.key === 'Enter') { downloadBtn.click(); }
     });
 
-    // Resize handling with cleanup
     const resizeObserver = new ResizeObserver(sizeAndRedraw);
     resizeObserver.observe(document.getElementById('canvasHolder'));
     window.addEventListener('orientationchange', sizeAndRedraw);
@@ -770,9 +857,8 @@
       window.removeEventListener('orientationchange', sizeAndRedraw);
     });
 
-    // Initial setup
     sizePreviewCanvas();
-    enableControls(false);
+    enableControls(true);
     enablePolaroidControls(false);
     updateLabels();
   </script>
