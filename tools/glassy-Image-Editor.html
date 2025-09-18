@@ -54,6 +54,20 @@
               <span class="text-sm px-3 py-1 rounded-lg bg-white/10">Choose</span>
             </div>
           </label>
+          <div class="grid grid-cols-3 gap-2 pt-3">
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400" for="imgX">Image X</label>
+              <input id="imgX" type="number" value="0" class="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-2 outline-none">
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400" for="imgY">Image Y</label>
+              <input id="imgY" type="number" value="0" class="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-2 outline-none">
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-slate-400" for="imgScale">Image Scale</label>
+              <input id="imgScale" type="number" step="0.01" value="1" class="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-2 outline-none">
+            </div>
+          </div>
         </div>
 
         <div class="h-px bg-white/10"></div>
@@ -76,7 +90,7 @@
               <input id="textColor" type="color" value="#ffffff" class="w-full h-[42px] rounded-lg border border-white/10 bg-transparent">
             </div>
           </div>
-          <p class="text-xs text-slate-400">Fixed sizes: subtitle 54 (thin), title 80 (bold). Left‑aligned, block centered vertically (nudged up).</p>
+          <p class="text-xs text-slate-400">Fixed sizes: subtitle 54 (thin), title 80 (bold). Left‑aligned, block centered vertically (nudged up). Defaults: Text X 100, Y -150.</p>
         </div>
 
         <div class="h-px bg-white/10"></div>
@@ -86,7 +100,7 @@
           <div class="grid grid-cols-3 gap-2">
             <div class="space-y-1">
               <label class="text-xs text-slate-400" for="circleX">X</label>
-              <input id="circleX" type="number" value="320" class="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-2 outline-none">
+              <input id="circleX" type="number" value="480" class="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-2 outline-none">
             </div>
             <div class="space-y-1">
               <label class="text-xs text-slate-400" for="circleY">Y</label>
@@ -94,12 +108,12 @@
             </div>
             <div class="space-y-1">
               <label class="text-xs text-slate-400" for="circleR">R</label>
-              <input id="circleR" type="number" value="560" class="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-2 outline-none">
+              <input id="circleR" type="number" value="525" class="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-2 outline-none">
             </div>
           </div>
           <div class="flex items-center justify-between gap-2">
             <label for="circleSize" class="text-sm text-slate-300">Radius (R)</label>
-            <input id="circleSize" type="range" min="160" max="560" value="560" class="w-40">
+            <input id="circleSize" type="range" min="160" max="560" value="525" class="w-40">
           </div>
           <p class="text-xs text-slate-400">Drag the circle to move it. Live badge shows X/Y/R while dragging.</p>
         </div>
@@ -130,7 +144,8 @@
       img: null,
       imgW: 0, imgH: 0,
       cover: { dx:0, dy:0, dw:0, dh:0 },
-      circle: { mode:'free', cx: 320, cy: 1600, radius: 560 },
+      imageAdjust: { x: 0, y: 0, scale: 1 },
+      circle: { mode:'free', cx: 480, cy: 1600, radius: 525 },
       text: {
         subtitle:'', title:'',
         color:'#ffffff',
@@ -138,8 +153,8 @@
         subtitleSize:54,
         titleSize:80,
         // Nudge block position relative to circle center
-        offsetX: 0,
-        offsetY: -24
+        offsetX: 100,
+        offsetY: -150
       }
     };
 
@@ -163,6 +178,10 @@
     const emptyState = document.getElementById('emptyState');
     const downloadBtn = document.getElementById('downloadBtn');
 
+    const imgX = document.getElementById('imgX');
+    const imgY = document.getElementById('imgY');
+    const imgScale = document.getElementById('imgScale');
+
     // Helpers
     function computeCover() {
       if (!state.img) return;
@@ -179,7 +198,10 @@
 
     function drawBackground() {
       const { dx, dy, dw, dh } = state.cover;
-      ctx.drawImage(state.img, dx, dy, dw, dh);
+      const { x: ox, y: oy, scale } = state.imageAdjust;
+      const cx = dx + ox; const cy = dy + oy;
+      const sw = dw * scale; const sh = dh * scale;
+      ctx.drawImage(state.img, cx + (dw - sw)/2, cy + (dh - sh)/2, sw, sh);
     }
 
     // Glassy circle: single layer, stronger blur (8px), soft depth
@@ -215,6 +237,12 @@
       hl.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = hl;
       ctx.fillRect(x - r, y - r, r * 2, r * 2);
+
+      // soft text shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 8;
 
       ctx.restore();
     }
@@ -274,6 +302,12 @@
         }
       }
 
+      // soft text shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 8;
+
       ctx.restore();
     }
 
@@ -322,6 +356,9 @@
           circleSize.value = state.circle.radius;
           textOffsetX.value = state.text.offsetX;
           textOffsetY.value = state.text.offsetY;
+          imgX.value = state.imageAdjust.x;
+          imgY.value = state.imageAdjust.y;
+          imgScale.value = state.imageAdjust.scale;
           draw();
         };
         img.src = reader.result;
@@ -331,6 +368,18 @@
 
     window.addEventListener('resize', () => {
       if (state.img) { computeCover(); draw(); }
+    });
+
+    // Image controls
+    ;[imgX, imgY, imgScale].forEach(inp => {
+      inp.addEventListener('input', () => {
+        state.imageAdjust.x = parseFloat(imgX.value || 0);
+        state.imageAdjust.y = parseFloat(imgY.value || 0);
+        let s = parseFloat(imgScale.value || 1);
+        if (!isFinite(s) || s <= 0) s = 1;
+        state.imageAdjust.scale = s;
+        draw();
+      });
     });
 
     // Text inputs
@@ -430,5 +479,5 @@
       }, 'image/png', 0.92);
     });
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'980f1452136fbe06',t:'MTc1ODE4MDAxMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'980f22050656d1c8',t:'MTc1ODE4MDU3My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
