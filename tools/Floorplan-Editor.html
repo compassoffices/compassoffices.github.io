@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floorplan Editor</title>
+    <style>
+        body {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .toolbar {
+            padding: 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #64748b;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn-success {
+            background: #059669;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #047857;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .canvas-container {
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            background: #f1f5f9;
+            min-height: 500px;
+            position: relative;
+        }
+
+        #canvas {
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            background: white;
+            cursor: crosshair;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-width: 100%;
+            height: auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        select, input[type="range"] {
+            padding: 6px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        input[type="range"] {
+            width: 120px;
+        }
+
+        .status {
+            margin-left: auto;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .controls {
+                justify-content: center;
+            }
+
+            .status {
+                margin-left: 0;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 Floorplan Editor</h1>
+        </div>
+        
+        <div class="toolbar">
+            <div class="controls">
+                <input type="file" id="fileInput" class="file-input" accept="image/*">
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    📁 Upload Floorplan
+                </button>
+                
+                <div class="control-group">
+                    <label>Size:</label>
+                    <select id="canvasSize">
+                        <option value="1000x1000">1000×1000</option>
+                        <option value="2000x1000" selected>2000×1000</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>Rotate:</label>
+                    <input type="range" id="rotationSlider" min="0" max="3" step="1" value="0">
+                    <span id="rotationValue">0°</span>
+                </div>
+                
+                <div class="control-group">
+                    <label>Scale:</label>
+                    <input type="range" id="scaleSlider" min="0.1" max="3" step="0.1" value="1">
+                    <span id="scaleValue">100%</span>
+                </div>
+                
+                <button class="btn btn-secondary" id="rectangleBtn">📐 Rectangle Tool</button>
+                <button class="btn btn-secondary" id="dragBtn">✋ Move Image</button>
+                <button class="btn btn-danger" onclick="clearRectangles()">🗑️ Clear All</button>
+                <button class="btn btn-success" onclick="downloadImage()">💾 Download JPG</button>
+            </div>
+            
+            <div class="status" id="status">Upload an image to start editing</div>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="canvas" width="2000" height="1000"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('fileInput');
+        const canvasSize = document.getElementById('canvasSize');
+        const rotationSlider = document.getElementById('rotationSlider');
+        const scaleSlider = document.getElementById('scaleSlider');
+        const rectangleBtn = document.getElementById('rectangleBtn');
+        const dragBtn = document.getElementById('dragBtn');
+        const status = document.getElementById('status');
+        
+        let dragMode = false;
+        
+        let uploadedImage = null;
+        let rectangles = [];
+        let isDrawing = false;
+        let startX, startY;
+        let rectangleMode = false;
+        let currentRect = null;
+        let isDragging = false;
+        let imageOffsetX = 0;
+        let imageOffsetY = 0;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        
+        // Initialize canvas size
+        updateCanvasSize();
+        
+        // Event listeners
+        fileInput.addEventListener('change', handleImageUpload);
+        canvasSize.addEventListener('change', updateCanvasSize);
+        rotationSlider.addEventListener('input', updateRotation);
+        scaleSlider.addEventListener('input', updateScale);
+        rectangleBtn.addEventListener('click', toggleRectangleMode);
+        dragBtn.addEventListener('click', toggleDragMode);
+        
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    uploadedImage = img;
+                    redrawCanvas();
+                    status.textContent = `Image loaded: ${img.width}×${img.height}`;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function updateCanvasSize() {
+            const size = canvasSize.value.split('x');
+            canvas.width = parseInt(size[0]);
+            canvas.height = parseInt(size[1]);
+            redrawCanvas();
+        }
+        
+        function updateRotation() {
+            const rotation = rotationSlider.value * 90;
+            document.getElementById('rotationValue').textContent = rotation + '°';
+            redrawCanvas();
+        }
+        
+        function updateScale() {
+            const scale = scaleSlider.value;
+            document.getElementById('scaleValue').textContent = Math.round(scale * 100) + '%';
+            redrawCanvas();
+        }
+        
+        function toggleRectangleMode() {
+            rectangleMode = !rectangleMode;
+            if (rectangleMode) {
+                dragMode = false;
+                dragBtn.textContent = '✋ Move Image';
+                dragBtn.className = 'btn btn-secondary';
+            }
+            rectangleBtn.textContent = rectangleMode ? '✏️ Drawing Mode' : '📐 Rectangle Tool';
+            rectangleBtn.className = rectangleMode ? 'btn btn-success' : 'btn btn-secondary';
+            canvas.style.cursor = rectangleMode ? 'crosshair' : (dragMode ? 'move' : 'default');
+        }
+        
+        function toggleDragMode() {
+            dragMode = !dragMode;
+            if (dragMode) {
+                rectangleMode = false;
+                rectangleBtn.textContent = '📐 Rectangle Tool';
+                rectangleBtn.className = 'btn btn-secondary';
+            }
+            dragBtn.textContent = dragMode ? '🖱️ Normal Mode' : '✋ Move Image';
+            dragBtn.className = dragMode ? 'btn btn-success' : 'btn btn-secondary';
+            canvas.style.cursor = dragMode ? 'move' : (rectangleMode ? 'crosshair' : 'default');
+        }
+        
+        function startDrawing(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            const mouseY = (e.clientY - rect.top) * scaleY;
+            
+            if (rectangleMode) {
+                startX = mouseX;
+                startY = mouseY;
+                isDrawing = true;
+                
+                currentRect = {
+                    x: startX,
+                    y: startY,
+                    width: 0,
+                    height: 0
+                };
+            } else if (dragMode) {
+                isDragging = true;
+                dragStartX = mouseX - imageOffsetX;
+                dragStartY = mouseY - imageOffsetY;
+            }
+        }
+        
+        function draw(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            const mouseY = (e.clientY - rect.top) * scaleY;
+            
+            if (isDrawing && rectangleMode) {
+                currentRect.width = mouseX - startX;
+                currentRect.height = mouseY - startY;
+                
+                redrawCanvas();
+                
+                // Draw current rectangle being drawn
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fillRect(currentRect.x, currentRect.y, currentRect.width, currentRect.height);
+            } else if (isDragging && dragMode) {
+                imageOffsetX = mouseX - dragStartX;
+                imageOffsetY = mouseY - dragStartY;
+                redrawCanvas();
+            }
+        }
+        
+        function stopDrawing() {
+            if (isDrawing && rectangleMode) {
+                isDrawing = false;
+                if (Math.abs(currentRect.width) > 5 && Math.abs(currentRect.height) > 5) {
+                    rectangles.push({
+                        x: Math.min(startX, startX + currentRect.width),
+                        y: Math.min(startY, startY + currentRect.height),
+                        width: Math.abs(currentRect.width),
+                        height: Math.abs(currentRect.height)
+                    });
+                    redrawCanvas();
+                    status.textContent = `${rectangles.length} rectangle(s) added`;
+                }
+                currentRect = null;
+            } else if (isDragging && dragMode) {
+                isDragging = false;
+            }
+        }
+        
+        function redrawCanvas() {
+            // Enable high-quality image rendering
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (uploadedImage) {
+                ctx.save();
+                
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                
+                // Move to center for rotation
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(rotation);
+                ctx.scale(scale, scale);
+                
+                // Calculate image position to center it with offset
+                const imgWidth = uploadedImage.width;
+                const imgHeight = uploadedImage.height;
+                
+                // Use high-quality image rendering with offset
+                ctx.drawImage(uploadedImage, -imgWidth / 2 + imageOffsetX, -imgHeight / 2 + imageOffsetY);
+                ctx.restore();
+            }
+            
+            // Draw rectangles
+            rectangles.forEach(rect => {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+            });
+        }
+        
+        function clearRectangles() {
+            rectangles = [];
+            redrawCanvas();
+            status.textContent = 'All rectangles cleared';
+        }
+        
+        function downloadImage() {
+            if (!uploadedImage) {
+                alert('Please upload an image first!');
+                return;
+            }
+            
+            // Create a temporary canvas for download with high quality
+            const downloadCanvas = document.createElement('canvas');
+            const downloadCtx = downloadCanvas.getContext('2d');
+            
+            // Enable high-quality rendering for download
+            downloadCtx.imageSmoothingEnabled = true;
+            downloadCtx.imageSmoothingQuality = 'high';
+            
+            downloadCanvas.width = canvas.width;
+            downloadCanvas.height = canvas.height;
+            
+            // Fill with white background
+            downloadCtx.fillStyle = 'white';
+            downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+            
+            // Redraw everything with high quality
+            if (uploadedImage) {
+                downloadCtx.save();
+                
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                
+                downloadCtx.translate(downloadCanvas.width / 2, downloadCanvas.height / 2);
+                downloadCtx.rotate(rotation);
+                downloadCtx.scale(scale, scale);
+                
+                const imgWidth = uploadedImage.width;
+                const imgHeight = uploadedImage.height;
+                
+                downloadCtx.drawImage(uploadedImage, -imgWidth / 2 + imageOffsetX, -imgHeight / 2 + imageOffsetY);
+                downloadCtx.restore();
+            }
+            
+            // Draw rectangles
+            rectangles.forEach(rect => {
+                downloadCtx.fillStyle = 'white';
+                downloadCtx.fillRect(rect.x, rect.y, rect.width, rect.height);
+            });
+            
+            // Convert to JPG with maximum quality
+            downloadCanvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `floorplan_${canvas.width}x${canvas.height}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                status.textContent = 'Image downloaded successfully!';
+            }, 'image/jpeg', 1.0);
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98a3d06bc3b32d56',t:'MTc1OTczOTYwOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
