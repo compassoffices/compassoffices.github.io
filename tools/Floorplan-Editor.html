@@ -334,8 +334,22 @@
             const mouseY = (e.clientY - rect.top) * scaleY;
             
             if (rectangleMode) {
-                startX = mouseX;
-                startY = mouseY;
+                // Convert screen coordinates to image-relative coordinates
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                
+                // Translate to image center
+                const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
+                const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
+                
+                // Apply inverse transformations
+                const cosR = Math.cos(-rotation);
+                const sinR = Math.sin(-rotation);
+                const invScale = 1 / scale;
+                
+                startX = (relativeX * cosR - relativeY * sinR) * invScale;
+                startY = (relativeX * sinR + relativeY * cosR) * invScale;
+                
                 isDrawing = true;
                 
                 currentRect = {
@@ -360,14 +374,34 @@
             const mouseY = (e.clientY - rect.top) * scaleY;
             
             if (isDrawing && rectangleMode) {
-                currentRect.width = mouseX - startX;
-                currentRect.height = mouseY - startY;
+                // Convert screen coordinates to image-relative coordinates
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                
+                const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
+                const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
+                
+                const cosR = Math.cos(-rotation);
+                const sinR = Math.sin(-rotation);
+                const invScale = 1 / scale;
+                
+                const currentX = (relativeX * cosR - relativeY * sinR) * invScale;
+                const currentY = (relativeX * sinR + relativeY * cosR) * invScale;
+                
+                currentRect.width = currentX - startX;
+                currentRect.height = currentY - startY;
                 
                 redrawCanvas();
                 
                 // Draw current rectangle being drawn
+                ctx.save();
+                ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
+                ctx.rotate(rotation);
+                ctx.scale(scale, scale);
+                
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
                 ctx.fillRect(currentRect.x, currentRect.y, currentRect.width, currentRect.height);
+                ctx.restore();
             } else if (isDragging && dragMode) {
                 imageOffsetX = mouseX - dragStartX;
                 imageOffsetY = mouseY - dragStartY;
@@ -394,6 +428,28 @@
             }
         }
         
+        function drawGrid() {
+            const gridSize = 50;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.lineWidth = 1;
+            
+            // Draw vertical lines
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Draw horizontal lines
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+        
         function redrawCanvas() {
             // Enable high-quality image rendering
             ctx.imageSmoothingEnabled = true;
@@ -408,24 +464,38 @@
                 const scale = parseFloat(scaleSlider.value);
                 
                 // Move to center for rotation
-                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
                 
-                // Calculate image position to center it with offset
+                // Calculate image position to center it
                 const imgWidth = uploadedImage.width;
                 const imgHeight = uploadedImage.height;
                 
-                // Use high-quality image rendering with offset
-                ctx.drawImage(uploadedImage, -imgWidth / 2 + imageOffsetX, -imgHeight / 2 + imageOffsetY);
+                // Use high-quality image rendering
+                ctx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
                 ctx.restore();
             }
             
-            // Draw rectangles
+            // Draw rectangles that stick with the image
             rectangles.forEach(rect => {
+                ctx.save();
+                
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                
+                // Apply same transformations as image
+                ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
+                ctx.rotate(rotation);
+                ctx.scale(scale, scale);
+                
                 ctx.fillStyle = 'white';
                 ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+                ctx.restore();
             });
+            
+            // Draw grid overlay on top
+            drawGrid();
         }
         
         function clearRectangles() {
@@ -455,28 +525,38 @@
             downloadCtx.fillStyle = 'white';
             downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
             
-            // Redraw everything with high quality
+            // Redraw everything with high quality (no grid)
             if (uploadedImage) {
                 downloadCtx.save();
                 
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
                 
-                downloadCtx.translate(downloadCanvas.width / 2, downloadCanvas.height / 2);
+                downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
                 
                 const imgWidth = uploadedImage.width;
                 const imgHeight = uploadedImage.height;
                 
-                downloadCtx.drawImage(uploadedImage, -imgWidth / 2 + imageOffsetX, -imgHeight / 2 + imageOffsetY);
+                downloadCtx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
                 downloadCtx.restore();
             }
             
-            // Draw rectangles
+            // Draw rectangles that stick with the image
             rectangles.forEach(rect => {
+                downloadCtx.save();
+                
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                
+                downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
+                downloadCtx.rotate(rotation);
+                downloadCtx.scale(scale, scale);
+                
                 downloadCtx.fillStyle = 'white';
                 downloadCtx.fillRect(rect.x, rect.y, rect.width, rect.height);
+                downloadCtx.restore();
             });
             
             // Convert to JPG with maximum quality
@@ -494,5 +574,5 @@
             }, 'image/jpeg', 1.0);
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98a3d836956f2d56',t:'MTc1OTczOTkyOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98a3ef3362ee2d56',t:'MTc1OTc0MDg2OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
