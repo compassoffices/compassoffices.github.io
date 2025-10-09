@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logo Animation Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+        
+        body {
+            box-sizing: border-box;
+        }
+        
+        .video-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+        
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .logo-animation {
+            animation: logoFloat 3s ease-in-out infinite;
+        }
+        
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-10px) scale(1.05); }
+        }
+        
+        .gradient-bg-1 {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .gradient-bg-2 {
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .gradient-bg-3 {
+            background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .gradient-bg-4 {
+            background: linear-gradient(45deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .curve-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'%3E%3Cpath d='M0,0 Q480,200 960,100 T1920,150 L1920,1080 L0,1080 Z' fill='rgba(255,255,255,0.1)'/%3E%3C/svg%3E") no-repeat center center;
+            background-size: cover;
+            pointer-events: none;
+        }
+        
+        .preview-canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .fullscreen-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .preview-controls {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .preview-controls.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="min-h-full bg-gray-900 overflow-x-auto">
+    <!-- Background -->
+    <div id="videoContainer" class="fixed inset-0 bg-gradient-to-br from-gray-900 to-gray-800">
+    </div>
+    
+    <!-- Main Content -->
+    <div class="relative z-10 min-h-full p-8">
+        <!-- Center Logo Display -->
+        <div class="fixed inset-0 flex items-center justify-center pointer-events-none z-5">
+            <div class="text-center">
+                <div class="flex items-center justify-center gap-6 mb-4">
+                    <h1 class="text-8xl font-bold text-white drop-shadow-2xl" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</h1>
+                    <div id="headerCompanyName" class="text-6xl font-bold text-white drop-shadow-2xl" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;"></div>
+                </div>
+                <p class="text-2xl text-white/80 font-light mb-8" style="font-family: 'Noto Sans JP', sans-serif;">ようこそ</p>
+                <div id="mainLogoDisplay" class="logo-animation"></div>
+            </div>
+        </div>
+        
+        <!-- Control Panel -->
+        <div class="max-w-4xl mx-auto glass-effect rounded-2xl p-8 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Logo Upload -->
+                <div>
+                    <label class="block text-white text-lg font-semibold mb-4">Upload Logo</label>
+                    <div class="border-2 border-dashed border-white/30 rounded-xl p-6 text-center hover:border-white/50 transition-colors cursor-pointer" onclick="document.getElementById('logoInput').click()">
+                        <input type="file" id="logoInput" accept="image/*" class="hidden" onchange="handleLogoUpload(event)">
+                        <div id="logoPreview" class="mb-4">
+                            <svg class="w-16 h-16 mx-auto text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                        </div>
+                        <p class="text-white/70">Click to upload logo</p>
+                    </div>
+                </div>
+                
+                <!-- Company Name -->
+                <div>
+                    <label class="block text-white text-lg font-semibold mb-4">Company Name</label>
+                    <input type="text" id="companyName" placeholder="Enter company name" 
+                           class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30"
+                           oninput="updateCompanyName()">
+                </div>
+            </div>
+            
+
+            
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-4 mt-8 justify-center">
+                <button onclick="previewAnimation()" class="px-8 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-all transform hover:scale-105">
+                    Preview Animation
+                </button>
+                <button onclick="downloadVideo()" class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all transform hover:scale-105">
+                    Download MP4
+                </button>
+            </div>
+        </div>
+        
+        <!-- Live Preview -->
+        <div class="max-w-2xl mx-auto glass-effect rounded-2xl p-6">
+            <h3 class="text-white text-xl font-semibold mb-4 text-center">Live Preview</h3>
+            <div class="aspect-video bg-black/20 rounded-xl flex items-center justify-center relative overflow-hidden">
+                <div style="position:relative; width:100%; height:100%;">
+                    <iframe allow="fullscreen" allowfullscreen height="100%" src="https://streamable.com/e/0anerx?" width="100%" style="border:none; width:100%; height:100%; position:absolute; left:0px; top:0px; overflow:hidden; border-radius: 0.75rem;"></iframe>
+                </div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <div id="livePreview" class="text-center">
+                        <div class="flex items-center justify-center gap-4 mb-2">
+                            <div class="text-white text-2xl font-bold" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</div>
+                            <div id="companyDisplay" class="text-white text-xl font-bold" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;"></div>
+                        </div>
+                        <div class="text-white/80 text-sm mb-4" style="font-family: 'Noto Sans JP', sans-serif;">ようこそ</div>
+                        <div id="logoDisplay" class="logo-animation"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Preview Modal -->
+    <div id="previewModal" class="fixed inset-0 bg-black z-50 hidden" onmousemove="showControls()" onmouseleave="hideControls()">
+        <div id="previewControls" class="preview-controls show">
+            <button onclick="closePreview()" class="fullscreen-btn px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold">
+                Close
+            </button>
+            <button onclick="toggleFullscreen()" class="fullscreen-btn right-32 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">
+                Fullscreen
+            </button>
+        </div>
+        <div id="previewContent" class="preview-canvas">
+            <!-- Preview content will be generated here -->
+        </div>
+    </div>
+
+    <script>
+        let currentLogo = null;
+        let currentCompanyName = '';
+        let currentBackground = 1;
+        
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentLogo = e.target.result;
+                    const logoPreview = document.getElementById('logoPreview');
+                    logoPreview.innerHTML = `<img src="${currentLogo}" alt="Logo" class="max-w-full max-h-24 mx-auto rounded-lg">`;
+                    updateLivePreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function updateCompanyName() {
+            currentCompanyName = document.getElementById('companyName').value;
+            updateLivePreview();
+            updateHeaderCompanyName();
+        }
+        
+        function updateHeaderCompanyName() {
+            const headerCompanyName = document.getElementById('headerCompanyName');
+            headerCompanyName.textContent = currentCompanyName;
+        }
+        
+        function updateLivePreview() {
+            const logoDisplay = document.getElementById('logoDisplay');
+            const companyDisplay = document.getElementById('companyDisplay');
+            const mainLogoDisplay = document.getElementById('mainLogoDisplay');
+            
+            if (currentLogo) {
+                logoDisplay.innerHTML = `<img src="${currentLogo}" alt="Logo" class="max-h-20 mx-auto">`;
+                mainLogoDisplay.innerHTML = `<img src="${currentLogo}" alt="Logo" class="max-h-32 mx-auto">`;
+            } else {
+                logoDisplay.innerHTML = '<div class="w-20 h-20 bg-white/20 rounded-lg mx-auto flex items-center justify-center"><span class="text-white/50">Logo</span></div>';
+                mainLogoDisplay.innerHTML = '<div class="w-32 h-32 bg-white/20 rounded-2xl mx-auto flex items-center justify-center"><span class="text-white/50 text-xl">Logo</span></div>';
+            }
+            
+            companyDisplay.textContent = currentCompanyName || 'Your Company';
+        }
+        
+
+        
+        let controlsTimeout;
+        
+        function showControls() {
+            const controls = document.getElementById('previewControls');
+            controls.classList.add('show');
+            
+            // Clear existing timeout
+            if (controlsTimeout) {
+                clearTimeout(controlsTimeout);
+            }
+            
+            // Set new timeout to hide controls after 3 seconds
+            controlsTimeout = setTimeout(() => {
+                controls.classList.remove('show');
+            }, 3000);
+        }
+        
+        function hideControls() {
+            // Don't hide immediately on mouse leave, let the timeout handle it
+        }
+        
+        function previewAnimation() {
+            const modal = document.getElementById('previewModal');
+            const content = document.getElementById('previewContent');
+            
+            // Generate full-size preview
+            content.innerHTML = `
+                <div class="w-full h-full relative">
+                    <div style="position:relative; width:100%; height:100%;">
+                        <iframe allow="fullscreen" allowfullscreen height="100%" src="https://streamable.com/e/0anerx?" width="100%" style="border:none; width:100%; height:100%; position:absolute; left:0px; top:0px; overflow:hidden;"></iframe>
+                    </div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="flex items-center justify-center gap-6 mb-4">
+                                <h1 class="text-8xl font-bold text-white drop-shadow-2xl" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</h1>
+                                <div class="text-6xl font-bold text-white drop-shadow-2xl" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">${currentCompanyName || ''}</div>
+                            </div>
+                            <p class="text-2xl text-white/80 font-light mb-8" style="font-family: 'Noto Sans JP', sans-serif;">ようこそ</p>
+                            <div class="logo-animation">
+                                ${currentLogo ? 
+                                    `<img src="${currentLogo}" alt="Logo" class="max-h-32 mx-auto">` : 
+                                    '<div class="w-32 h-32 bg-white/20 rounded-2xl mx-auto flex items-center justify-center"><span class="text-white/50 text-xl">Logo</span></div>'
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+            
+            // Start the auto-hide timer
+            showControls();
+        }
+        
+        function closePreview() {
+            const modal = document.getElementById('previewModal');
+            modal.classList.add('hidden');
+            
+            // Exit fullscreen if active
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+        }
+        
+        function toggleFullscreen() {
+            const modal = document.getElementById('previewModal');
+            
+            if (!document.fullscreenElement) {
+                modal.requestFullscreen().catch(err => {
+                    console.log('Fullscreen not supported');
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        function downloadVideo() {
+            // Create a canvas for video generation
+            const canvas = document.createElement('canvas');
+            canvas.width = 1920;
+            canvas.height = 1080;
+            const ctx = canvas.getContext('2d');
+            
+            // Create gradient background
+            const gradients = {
+                1: ['#667eea', '#764ba2'],
+                2: ['#f093fb', '#f5576c'],
+                3: ['#4facfe', '#00f2fe'],
+                4: ['#43e97b', '#38f9d7']
+            };
+            
+            const [color1, color2] = gradients[currentBackground];
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add text
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 120px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Welcome', canvas.width/2, 400);
+            
+            ctx.font = '40px Arial';
+            ctx.fillText('ようこそ', canvas.width/2, 460);
+            
+            if (currentCompanyName) {
+                ctx.font = 'bold 80px Arial';
+                ctx.fillText(currentCompanyName, canvas.width/2, 700);
+            }
+            
+            // Convert to blob and download
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'logo-animation.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                alert('Static image downloaded! Full MP4 video generation requires server-side processing.');
+            }, 'image/png');
+        }
+        
+        // Initialize
+        updateLivePreview();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bf39ded5c98670',t:'MTc2MDAyNzA0My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
