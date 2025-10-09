@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Logo Animation Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         @import url('https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro');
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
@@ -165,7 +166,7 @@
             <h3 class="text-white text-xl font-semibold mb-4 text-center">Live Preview</h3>
             <div class="aspect-video bg-black/20 rounded-xl flex items-center justify-center relative overflow-hidden">
                 <div style="position:relative; width:100%; height:100%;">
-                    <iframe src="https://player.vimeo.com/video/1125945249?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" title="welcome-jp" style="border:none; width:100%; height:100%; position:absolute; left:0px; top:0px; overflow:hidden; border-radius: 0.75rem;"></iframe>
+                    <iframe src="https://player.vimeo.com/video/1125945249?badge=0&amp;autopause=0&amp;autoplay=1&amp;loop=1&amp;player_id=0&amp;app_id=58479" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" title="welcome-jp" style="border:none; width:100%; height:100%; position:absolute; left:0px; top:0px; overflow:hidden; border-radius: 0.75rem;"></iframe>
                 </div>
                 <div class="absolute inset-0">
                     <!-- Text positioned in upper area -->
@@ -274,7 +275,7 @@
             content.innerHTML = `
                 <div class="w-full h-full relative">
                     <div style="position:relative; width:100%; height:100%;">
-                        <iframe src="https://player.vimeo.com/video/1125945249?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" title="welcome-jp" style="border:none; width:100%; height:100%; position:absolute; left:0px; top:0px; overflow:hidden;"></iframe>
+                        <iframe src="https://player.vimeo.com/video/1125945249?badge=0&amp;autopause=0&amp;autoplay=1&amp;loop=1&amp;player_id=0&amp;app_id=58479" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" title="welcome-jp" style="border:none; width:100%; height:100%; position:absolute; left:0px; top:0px; overflow:hidden;"></iframe>
                     </div>
                     <div class="absolute inset-0">
                         <!-- Text positioned in upper area -->
@@ -324,64 +325,23 @@
         }
         
         function downloadVideo() {
-            // Create a canvas for image generation
-            const canvas = document.createElement('canvas');
-            canvas.width = 1920;
-            canvas.height = 1080;
-            const ctx = canvas.getContext('2d');
+            // First show the fullscreen preview
+            previewAnimation();
             
-            // Load background image
-            const backgroundImg = new Image();
-            backgroundImg.crossOrigin = 'anonymous';
-            backgroundImg.onload = function() {
-                // Draw background image
-                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            // Wait a moment for the preview to render, then capture it
+            setTimeout(() => {
+                const previewContent = document.getElementById('previewContent');
                 
-                // Add "Welcome" text (positioned at top 1/4)
-                ctx.fillStyle = '#000000';
-                ctx.font = '120px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('Welcome', canvas.width/2, canvas.height/4 - 40);
-                
-                // Add company name text with orange color
-                if (currentCompanyName) {
-                    ctx.fillStyle = '#ff6600';
-                    ctx.font = 'bold 100px Arial';
-                    ctx.fillText(currentCompanyName, canvas.width/2, canvas.height/4 + 80);
-                }
-                
-                // Add logo if available (positioned at center)
-                if (currentLogo) {
-                    const logoImg = new Image();
-                    logoImg.onload = function() {
-                        // Calculate logo size and position (center, bigger size)
-                        const maxLogoSize = 300;
-                        const logoAspect = logoImg.width / logoImg.height;
-                        let logoWidth, logoHeight;
-                        
-                        if (logoAspect > 1) {
-                            logoWidth = maxLogoSize;
-                            logoHeight = maxLogoSize / logoAspect;
-                        } else {
-                            logoHeight = maxLogoSize;
-                            logoWidth = maxLogoSize * logoAspect;
-                        }
-                        
-                        const logoX = (canvas.width - logoWidth) / 2;
-                        const logoY = (canvas.height - logoHeight) / 2;
-                        
-                        ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
-                        
-                        // Download the final image
-                        downloadFinalImage();
-                    };
-                    logoImg.src = currentLogo;
-                } else {
-                    // Download without logo
-                    downloadFinalImage();
-                }
-                
-                function downloadFinalImage() {
+                // Use html2canvas to capture the preview content
+                html2canvas(previewContent, {
+                    width: 1920,
+                    height: 1080,
+                    scale: 1,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#000000'
+                }).then(canvas => {
+                    // Download the captured image
                     canvas.toBlob(function(blob) {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -394,19 +354,98 @@
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
+                        
+                        // Close the preview after download
+                        closePreview();
                     }, 'image/jpeg', 0.9);
-                }
-            };
+                }).catch(error => {
+                    console.error('Screenshot failed:', error);
+                    // Fallback to manual canvas creation
+                    createManualScreenshot();
+                });
+            }, 1000);
+        }
+        
+        function createManualScreenshot() {
+            // Create a canvas for image generation
+            const canvas = document.createElement('canvas');
+            canvas.width = 1920;
+            canvas.height = 1080;
+            const ctx = canvas.getContext('2d');
             
-            backgroundImg.onerror = function() {
-                alert('Failed to load background image. Please try again.');
-            };
+            // Create gradient background similar to video
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#1f2937');
+            gradient.addColorStop(1, '#111827');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            backgroundImg.src = 'https://compassoffices.github.io/img/welcome-client-jp.png';
+            // Add "Welcome" text (positioned at top 1/4)
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 120px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Welcome', canvas.width/2, canvas.height/4 - 40);
+            
+            // Add company name text with orange color
+            if (currentCompanyName) {
+                ctx.fillStyle = '#ff6600';
+                ctx.font = 'bold 100px Arial';
+                ctx.fillText(currentCompanyName, canvas.width/2, canvas.height/4 + 80);
+            }
+            
+            // Add logo if available (positioned at center)
+            if (currentLogo) {
+                const logoImg = new Image();
+                logoImg.onload = function() {
+                    // Calculate logo size and position (center, bigger size)
+                    const maxLogoSize = 300;
+                    const logoAspect = logoImg.width / logoImg.height;
+                    let logoWidth, logoHeight;
+                    
+                    if (logoAspect > 1) {
+                        logoWidth = maxLogoSize;
+                        logoHeight = maxLogoSize / logoAspect;
+                    } else {
+                        logoHeight = maxLogoSize;
+                        logoWidth = maxLogoSize * logoAspect;
+                    }
+                    
+                    const logoX = (canvas.width - logoWidth) / 2;
+                    const logoY = (canvas.height - logoHeight) / 2;
+                    
+                    ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+                    
+                    // Download the final image
+                    downloadFinalImage();
+                };
+                logoImg.src = currentLogo;
+            } else {
+                // Download without logo
+                downloadFinalImage();
+            }
+            
+            function downloadFinalImage() {
+                canvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const fileName = currentCompanyName ? 
+                        `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.jpg` : 
+                        'welcome-image.jpg';
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    // Close the preview
+                    closePreview();
+                }, 'image/jpeg', 0.9);
+            }
         }
         
         // Initialize
         updateLivePreview();
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bf9f19f58d84af',t:'MTc2MDAzMTE5MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfa350875084af',t:'MTc2MDAzMTM2My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
