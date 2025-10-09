@@ -112,7 +112,7 @@
         <!-- Center Logo Display -->
         <div class="fixed inset-0 pointer-events-none z-5">
             <!-- Text positioned in upper area -->
-            <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+            <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center" style="top: 28%;">
                 <h1 class="text-8xl font-light black-gradient-text drop-shadow-2xl mb-4" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</h1>
                 <div id="headerCompanyName" class="text-5xl font-bold orange-gradient-text drop-shadow-2xl" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;"></div>
             </div>
@@ -170,7 +170,7 @@
                 </div>
                 <div class="absolute inset-0">
                     <!-- Text positioned in upper area -->
-                    <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                    <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center" style="top: 28%;">
                         <div class="black-gradient-text text-xl font-light mb-2" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</div>
                         <div id="companyDisplay" class="orange-gradient-text text-base font-bold" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;"></div>
                     </div>
@@ -279,7 +279,7 @@
                     </div>
                     <div class="absolute inset-0">
                         <!-- Text positioned in upper area -->
-                        <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                        <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center" style="top: 28%;">
                             <h1 class="text-8xl font-light black-gradient-text drop-shadow-2xl mb-4" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</h1>
                             <div class="text-5xl font-bold orange-gradient-text drop-shadow-2xl" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">${currentCompanyName || ''}</div>
                         </div>
@@ -325,45 +325,105 @@
         }
         
         function downloadVideo() {
-            // First show the fullscreen preview
-            previewAnimation();
+            // Create a canvas for image generation that matches the preview exactly
+            const canvas = document.createElement('canvas');
+            canvas.width = 1920;
+            canvas.height = 1080;
+            const ctx = canvas.getContext('2d');
             
-            // Wait a moment for the preview to render, then capture it
-            setTimeout(() => {
-                const previewContent = document.getElementById('previewContent');
+            // Load the background image from Vimeo thumbnail or create gradient
+            const backgroundImg = new Image();
+            backgroundImg.crossOrigin = 'anonymous';
+            backgroundImg.onload = function() {
+                // Draw background image
+                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+                drawTextAndLogo();
+            };
+            
+            backgroundImg.onerror = function() {
+                // Fallback: Create gradient background similar to video
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, '#1f2937');
+                gradient.addColorStop(1, '#111827');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                drawTextAndLogo();
+            };
+            
+            // Try to load a frame from the video background
+            backgroundImg.src = 'https://i.vimeocdn.com/video/1125945249-1920x1080.jpg';
+            
+            function drawTextAndLogo() {
+                // Add "Welcome" text (positioned at 28% from top)
+                ctx.fillStyle = '#000000';
+                ctx.font = 'bold 120px Arial';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                ctx.fillText('Welcome', canvas.width/2, canvas.height * 0.28);
                 
-                // Use html2canvas to capture the preview content
-                html2canvas(previewContent, {
-                    width: 1920,
-                    height: 1080,
-                    scale: 1,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#000000'
-                }).then(canvas => {
-                    // Download the captured image
-                    canvas.toBlob(function(blob) {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        const fileName = currentCompanyName ? 
-                            `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.jpg` : 
-                            'welcome-image.jpg';
-                        a.download = fileName;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
+                // Add company name text with orange color
+                if (currentCompanyName) {
+                    ctx.fillStyle = '#ff6600';
+                    ctx.font = 'bold 80px Arial';
+                    ctx.fillText(currentCompanyName, canvas.width/2, canvas.height * 0.28 + 120);
+                }
+                
+                // Reset shadow
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+                
+                // Add logo if available (positioned at center)
+                if (currentLogo) {
+                    const logoImg = new Image();
+                    logoImg.onload = function() {
+                        // Calculate logo size and position (center, bigger size)
+                        const maxLogoSize = 300;
+                        const logoAspect = logoImg.width / logoImg.height;
+                        let logoWidth, logoHeight;
                         
-                        // Close the preview after download
-                        closePreview();
-                    }, 'image/jpeg', 0.9);
-                }).catch(error => {
-                    console.error('Screenshot failed:', error);
-                    // Fallback to manual canvas creation
-                    createManualScreenshot();
-                });
-            }, 1000);
+                        if (logoAspect > 1) {
+                            logoWidth = maxLogoSize;
+                            logoHeight = maxLogoSize / logoAspect;
+                        } else {
+                            logoHeight = maxLogoSize;
+                            logoWidth = maxLogoSize * logoAspect;
+                        }
+                        
+                        const logoX = (canvas.width - logoWidth) / 2;
+                        const logoY = (canvas.height - logoHeight) / 2;
+                        
+                        ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+                        
+                        // Download the final image
+                        downloadFinalImage();
+                    };
+                    logoImg.src = currentLogo;
+                } else {
+                    // Download without logo
+                    downloadFinalImage();
+                }
+            }
+            
+            function downloadFinalImage() {
+                canvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const fileName = currentCompanyName ? 
+                        `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.jpg` : 
+                        'welcome-image.jpg';
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 'image/jpeg', 0.9);
+            }
         }
         
         function createManualScreenshot() {
@@ -380,18 +440,28 @@
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Add "Welcome" text (positioned at top 1/4)
+            // Add "Welcome" text (positioned at 28% from top)
             ctx.fillStyle = '#000000';
             ctx.font = 'bold 120px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('Welcome', canvas.width/2, canvas.height/4 - 40);
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            ctx.fillText('Welcome', canvas.width/2, canvas.height * 0.28);
             
             // Add company name text with orange color
             if (currentCompanyName) {
                 ctx.fillStyle = '#ff6600';
-                ctx.font = 'bold 100px Arial';
-                ctx.fillText(currentCompanyName, canvas.width/2, canvas.height/4 + 80);
+                ctx.font = 'bold 80px Arial';
+                ctx.fillText(currentCompanyName, canvas.width/2, canvas.height * 0.28 + 120);
             }
+            
+            // Reset shadow
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
             
             // Add logo if available (positioned at center)
             if (currentLogo) {
@@ -447,5 +517,5 @@
         // Initialize
         updateLivePreview();
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfa350875084af',t:'MTc2MDAzMTM2My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfaa7735ee0651',t:'MTc2MDAzMTY1NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
