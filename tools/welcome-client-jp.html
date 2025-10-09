@@ -325,85 +325,95 @@
         }
         
         function downloadScreenshot() {
-            const previewContent = document.getElementById('previewContent');
-            
-            // Use html2canvas to capture the preview content in high quality
-            html2canvas(previewContent, {
-                width: 1920,
-                height: 1080,
-                scale: 2, // Higher scale for better quality
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#000000',
-                logging: false,
-                removeContainer: true,
-                imageTimeout: 0,
-                onclone: function(clonedDoc) {
-                    // Ensure the cloned document maintains the same styling
-                    const clonedContent = clonedDoc.getElementById('previewContent');
-                    if (clonedContent) {
-                        clonedContent.style.width = '1920px';
-                        clonedContent.style.height = '1080px';
-                    }
-                }
-            }).then(canvas => {
-                // Download the captured image in high quality
-                canvas.toBlob(function(blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    const fileName = currentCompanyName ? 
-                        `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.jpg` : 
-                        'welcome-animation.jpg';
-                    a.download = fileName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 'image/jpeg', 0.95); // Higher quality JPEG
-            }).catch(error => {
-                console.error('Screenshot failed:', error);
-                // Fallback to manual canvas creation
-                createManualScreenshot();
-            });
+            // Since html2canvas can't capture iframe video content, we'll create a high-quality image
+            // that recreates the video background appearance with proper styling
+            createVideoStyleScreenshot();
         }
         
-        function createManualScreenshot() {
-            // Create a canvas for image generation
+        function createVideoStyleScreenshot() {
+            // Create a canvas for high-quality image generation
             const canvas = document.createElement('canvas');
             canvas.width = 1920;
             canvas.height = 1080;
             const ctx = canvas.getContext('2d');
             
-            // Create gradient background similar to video
-            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-            gradient.addColorStop(0, '#1f2937');
-            gradient.addColorStop(1, '#111827');
-            ctx.fillStyle = gradient;
+            // Create a rich, dynamic background that mimics the video style
+            // Base gradient background
+            const baseGradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width/2);
+            baseGradient.addColorStop(0, '#2a1810');
+            baseGradient.addColorStop(0.3, '#1a1a2e');
+            baseGradient.addColorStop(0.6, '#16213e');
+            baseGradient.addColorStop(1, '#0f0f23');
+            ctx.fillStyle = baseGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Add "Welcome" text (positioned at 28% from top)
-            ctx.fillStyle = '#000000';
-            ctx.font = 'bold 120px Arial';
-            ctx.textAlign = 'center';
-            ctx.shadowColor = 'rgba(0,0,0,0.5)';
-            ctx.shadowBlur = 10;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 2;
-            ctx.fillText('Welcome', canvas.width/2, canvas.height * 0.28);
+            // Add animated-style overlay patterns
+            ctx.globalAlpha = 0.15;
             
-            // Add company name text with orange color
-            if (currentCompanyName) {
-                ctx.fillStyle = '#ff6600';
-                ctx.font = 'bold 80px Arial';
-                ctx.fillText(currentCompanyName, canvas.width/2, canvas.height * 0.28 + 120);
+            // Create flowing wave patterns
+            for (let i = 0; i < 5; i++) {
+                const waveGradient = ctx.createLinearGradient(0, i * 200, canvas.width, (i + 1) * 200);
+                waveGradient.addColorStop(0, '#ff6b35');
+                waveGradient.addColorStop(0.5, '#f7931e');
+                waveGradient.addColorStop(1, '#ffd23f');
+                ctx.fillStyle = waveGradient;
+                
+                ctx.beginPath();
+                ctx.moveTo(0, i * 200 + 100);
+                for (let x = 0; x <= canvas.width; x += 50) {
+                    const y = i * 200 + 100 + Math.sin((x + i * 100) * 0.01) * 30;
+                    ctx.lineTo(x, y);
+                }
+                ctx.lineTo(canvas.width, canvas.height);
+                ctx.lineTo(0, canvas.height);
+                ctx.closePath();
+                ctx.fill();
             }
             
-            // Reset shadow
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
+            // Add particle-like dots
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const radius = Math.random() * 3 + 1;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Reset alpha for text and logo
+            ctx.globalAlpha = 1;
+            
+            // Add "Welcome" text with enhanced styling (positioned at 28% from top)
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Text shadow for "Welcome"
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.font = 'bold 120px Arial, sans-serif';
+            ctx.fillText('Welcome', canvas.width/2 + 4, canvas.height * 0.28 + 4);
+            
+            // Main "Welcome" text with gradient effect
+            const welcomeGradient = ctx.createLinearGradient(0, canvas.height * 0.28 - 60, 0, canvas.height * 0.28 + 60);
+            welcomeGradient.addColorStop(0, '#333333');
+            welcomeGradient.addColorStop(1, '#000000');
+            ctx.fillStyle = welcomeGradient;
+            ctx.fillText('Welcome', canvas.width/2, canvas.height * 0.28);
+            
+            // Add company name text with orange gradient
+            if (currentCompanyName) {
+                // Shadow for company name
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.font = 'bold 80px Arial, sans-serif';
+                ctx.fillText(currentCompanyName, canvas.width/2 + 3, canvas.height * 0.28 + 123);
+                
+                // Main company name text
+                const companyGradient = ctx.createLinearGradient(0, canvas.height * 0.28 + 80, 0, canvas.height * 0.28 + 160);
+                companyGradient.addColorStop(0, '#ff9933');
+                companyGradient.addColorStop(1, '#ff6600');
+                ctx.fillStyle = companyGradient;
+                ctx.fillText(currentCompanyName, canvas.width/2, canvas.height * 0.28 + 120);
+            }
             
             // Add logo if available (positioned at center)
             if (currentLogo) {
@@ -425,7 +435,14 @@
                     const logoX = (canvas.width - logoWidth) / 2;
                     const logoY = (canvas.height - logoHeight) / 2;
                     
+                    // Add subtle glow around logo
+                    ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
+                    ctx.shadowBlur = 20;
                     ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+                    
+                    // Reset shadow
+                    ctx.shadowColor = 'transparent';
+                    ctx.shadowBlur = 0;
                     
                     // Download the final image
                     downloadFinalImage();
@@ -443,21 +460,18 @@
                     a.href = url;
                     const fileName = currentCompanyName ? 
                         `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.jpg` : 
-                        'welcome-image.jpg';
+                        'welcome-animation.jpg';
                     a.download = fileName;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    
-                    // Close the preview
-                    closePreview();
-                }, 'image/jpeg', 0.9);
+                }, 'image/jpeg', 0.95); // Higher quality JPEG
             }
         }
         
         // Initialize
         updateLivePreview();
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfb9b4e0bd0651',t:'MTc2MDAzMjI4MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfbf8c23ea0651',t:'MTc2MDAzMjUxOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
