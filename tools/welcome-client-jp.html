@@ -155,9 +155,6 @@
                 <button onclick="previewAnimation()" class="px-8 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-all transform hover:scale-105">
                     Preview Animation
                 </button>
-                <button onclick="downloadVideo()" class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all transform hover:scale-105">
-                    Download JPG
-                </button>
             </div>
         </div>
         
@@ -186,11 +183,14 @@
     <!-- Preview Modal -->
     <div id="previewModal" class="fixed inset-0 bg-black z-50 hidden" onmousemove="showControls()" onmouseleave="hideControls()">
         <div id="previewControls" class="preview-controls show">
-            <button onclick="closePreview()" class="fullscreen-btn px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold">
+            <button onclick="closePreview()" class="fullscreen-btn right-80 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full font-semibold">
                 Close
             </button>
-            <button onclick="toggleFullscreen()" class="fullscreen-btn right-32 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">
+            <button onclick="toggleFullscreen()" class="fullscreen-btn right-52 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold">
                 Fullscreen
+            </button>
+            <button onclick="downloadScreenshot()" class="fullscreen-btn right-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-full font-semibold">
+                Download JPG
             </button>
         </div>
         <div id="previewContent" class="preview-canvas">
@@ -324,106 +324,48 @@
             }
         }
         
-        function downloadVideo() {
-            // Create a canvas for image generation that matches the preview exactly
-            const canvas = document.createElement('canvas');
-            canvas.width = 1920;
-            canvas.height = 1080;
-            const ctx = canvas.getContext('2d');
+        function downloadScreenshot() {
+            const previewContent = document.getElementById('previewContent');
             
-            // Load the background image from Vimeo thumbnail or create gradient
-            const backgroundImg = new Image();
-            backgroundImg.crossOrigin = 'anonymous';
-            backgroundImg.onload = function() {
-                // Draw background image
-                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
-                drawTextAndLogo();
-            };
-            
-            backgroundImg.onerror = function() {
-                // Fallback: Create gradient background similar to video
-                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-                gradient.addColorStop(0, '#1f2937');
-                gradient.addColorStop(1, '#111827');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                drawTextAndLogo();
-            };
-            
-            // Try to load a frame from the video background
-            backgroundImg.src = 'https://i.vimeocdn.com/video/1125945249-1920x1080.jpg';
-            
-            function drawTextAndLogo() {
-                // Add "Welcome" text (positioned at 28% from top)
-                ctx.fillStyle = '#000000';
-                ctx.font = 'bold 120px Arial';
-                ctx.textAlign = 'center';
-                ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetX = 2;
-                ctx.shadowOffsetY = 2;
-                ctx.fillText('Welcome', canvas.width/2, canvas.height * 0.28);
-                
-                // Add company name text with orange color
-                if (currentCompanyName) {
-                    ctx.fillStyle = '#ff6600';
-                    ctx.font = 'bold 80px Arial';
-                    ctx.fillText(currentCompanyName, canvas.width/2, canvas.height * 0.28 + 120);
+            // Use html2canvas to capture the preview content in high quality
+            html2canvas(previewContent, {
+                width: 1920,
+                height: 1080,
+                scale: 2, // Higher scale for better quality
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#000000',
+                logging: false,
+                removeContainer: true,
+                imageTimeout: 0,
+                onclone: function(clonedDoc) {
+                    // Ensure the cloned document maintains the same styling
+                    const clonedContent = clonedDoc.getElementById('previewContent');
+                    if (clonedContent) {
+                        clonedContent.style.width = '1920px';
+                        clonedContent.style.height = '1080px';
+                    }
                 }
-                
-                // Reset shadow
-                ctx.shadowColor = 'transparent';
-                ctx.shadowBlur = 0;
-                ctx.shadowOffsetX = 0;
-                ctx.shadowOffsetY = 0;
-                
-                // Add logo if available (positioned at center)
-                if (currentLogo) {
-                    const logoImg = new Image();
-                    logoImg.onload = function() {
-                        // Calculate logo size and position (center, bigger size)
-                        const maxLogoSize = 300;
-                        const logoAspect = logoImg.width / logoImg.height;
-                        let logoWidth, logoHeight;
-                        
-                        if (logoAspect > 1) {
-                            logoWidth = maxLogoSize;
-                            logoHeight = maxLogoSize / logoAspect;
-                        } else {
-                            logoHeight = maxLogoSize;
-                            logoWidth = maxLogoSize * logoAspect;
-                        }
-                        
-                        const logoX = (canvas.width - logoWidth) / 2;
-                        const logoY = (canvas.height - logoHeight) / 2;
-                        
-                        ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
-                        
-                        // Download the final image
-                        downloadFinalImage();
-                    };
-                    logoImg.src = currentLogo;
-                } else {
-                    // Download without logo
-                    downloadFinalImage();
-                }
-            }
-            
-            function downloadFinalImage() {
+            }).then(canvas => {
+                // Download the captured image in high quality
                 canvas.toBlob(function(blob) {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
                     const fileName = currentCompanyName ? 
                         `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.jpg` : 
-                        'welcome-image.jpg';
+                        'welcome-animation.jpg';
                     a.download = fileName;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                }, 'image/jpeg', 0.9);
-            }
+                }, 'image/jpeg', 0.95); // Higher quality JPEG
+            }).catch(error => {
+                console.error('Screenshot failed:', error);
+                // Fallback to manual canvas creation
+                createManualScreenshot();
+            });
         }
         
         function createManualScreenshot() {
@@ -517,5 +459,5 @@
         // Initialize
         updateLivePreview();
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfaa7735ee0651',t:'MTc2MDAzMTY1NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfb9b4e0bd0651',t:'MTc2MDAzMjI4MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
