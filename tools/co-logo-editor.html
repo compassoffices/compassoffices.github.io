@@ -317,6 +317,19 @@
         display: none !important;
       }
 
+      #loading {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 1000;
+      }
+
       @media (max-width: 768px) {
         body {
           flex-direction: column;
@@ -391,6 +404,7 @@
       </div>
     </div>
     <div class="main-content" id="mainContent">
+      <div id="loading">Loading...</div>
       <div class="container" id="clientsSection">
         <div class="industry-group" id="group-finance">
           <div class="industry-title">Finance, Banking & Insurance</div>
@@ -433,8 +447,9 @@
         return Promise.all(
           imageUrls.map(
             (url) =>
-              new Promise((resolve, reject) => {
+              new Promise((resolve) => {
                 const img = new Image();
+                img.crossOrigin = "Anonymous";
                 img.src = url;
                 img.onload = () => resolve(img);
                 img.onerror = () => {
@@ -448,9 +463,11 @@
 
       async function togglePreview() {
         const section = document.getElementById("clientsSection");
+        const loading = document.getElementById("loading");
         section.classList.toggle("preview");
 
         if (section.classList.contains("preview")) {
+          loading.style.display = "block";
           const images = Array.from(section.querySelectorAll(".client-logo img")).map(
             (img) => img.src
           );
@@ -462,6 +479,7 @@
               useCORS: true,
               logging: false,
               backgroundColor: null,
+              scale: 2, // Higher resolution for better quality
             });
 
             const image = canvas.toDataURL("image/png");
@@ -471,8 +489,9 @@
             link.click();
           } catch (error) {
             console.error("Error capturing image with html2canvas:", error);
-            alert("Failed to generate image. Ensure all images are loaded and CORS is allowed.");
+            alert("Failed to generate image. Some images may not have loaded correctly.");
           }
+          loading.style.display = "none";
         }
 
         const createBtn = document.querySelector(".controls button[onclick='togglePreview()']");
@@ -635,6 +654,8 @@
       }
 
       async function fetchClientData() {
+        const loading = document.getElementById("loading");
+        loading.style.display = "block";
         const SHEET_URL =
           "https://docs.google.com/spreadsheets/d/e/2PACX-1vRaKv9U3pyL8aUtQ-7h7gnB0KJxCf_1QJFtEpLRnltip2cGDcxtClNyikvbYBlboD7D0n6dAfccYvth/pubhtml";
         try {
@@ -652,9 +673,12 @@
             const name = cells[3].textContent.trim();
             const industry = cells[4].textContent.toLowerCase();
             const match = logoURL.match(/id=([a-zA-Z0-9_-]+)/);
-            if (!match) return;
+            if (!match) {
+              console.warn(`Invalid Google Drive URL at row ${index + 2}`);
+              return;
+            }
             const fileId = match[1];
-            const imgSrc = `https://drive.google.com/thumbnail?id=${fileId}`;
+            const imgSrc = `https://corsproxy.io/?${encodeURIComponent(`https://drive.google.com/thumbnail?id=${fileId}`)}`;
             imageUrls.push(imgSrc);
 
             const logoHTML = `
@@ -665,7 +689,7 @@
                 <div class="image-wrapper">
                   <button class="scale-btn plus" onclick="zoomImage(this.closest('.client-logo').querySelector('img'), 0.1)">+</button>
                   <button class="scale-btn minus" onclick="zoomImage(this.closest('.client-logo').querySelector('img'), -0.1)">−</button>
-                  <img src="${imgSrc}" alt="Logo" data-scale="1" onerror="this.src='https://via.placeholder.com/150?text=Image+Not+Found'" />
+                  <img src="${imgSrc}" alt="Logo" data-scale="1" crossOrigin="Anonymous" onerror="this.src='https://via.placeholder.com/150?text=Image+Not+Found'" />
                 </div>
                 <div class="client-name">${name}</div>
               </div>`;
@@ -693,8 +717,9 @@
           }
         } catch (error) {
           console.error("Error fetching client data:", error);
-          alert("Failed to load client data. Please try again.");
+          alert("Failed to load client data. Please check the Google Sheet URL or try again later.");
         }
+        loading.style.display = "none";
       }
 
       fetchClientData();
