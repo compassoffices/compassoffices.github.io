@@ -101,6 +101,20 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+
+        .editor-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            z-index: 1000;
+            color: white;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body class="min-h-full bg-gray-900 overflow-x-auto">
@@ -154,14 +168,12 @@
                 </div>
             </div>
             
-
-            
             <!-- Action Buttons -->
             <div class="flex flex-wrap gap-4 mt-8 justify-center">
                 <button onclick="previewAnimation()" class="px-8 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-all transform hover:scale-105">
                     Preview Animation
                 </button>
-                <button onclick="downloadScreenshot()" class="px-8 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-all transform hover:scale-105">
+                <button onclick="openEditor()" class="px-8 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-all transform hover:scale-105">
                     Download JPG
                 </button>
             </div>
@@ -207,10 +219,52 @@
         </div>
     </div>
 
+    <!-- Editor Modal -->
+    <div id="editorModal" class="fixed inset-0 bg-black z-50 hidden">
+        <div class="editor-panel">
+            <h3 class="text-xl font-semibold mb-4">Adjust Layout</h3>
+            <div class="mb-4">
+                <label class="block text-sm mb-2">Welcome Text Y-Position</label>
+                <input type="range" id="welcomeTextY" min="-200" max="200" value="0" class="w-full" oninput="updateEditorPreview()">
+                <span id="welcomeTextYValue" class="text-sm">0px</span>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm mb-2">Company Name Y-Position</label>
+                <input type="range" id="companyTextY" min="-200" max="200" value="0" class="w-full" oninput="updateEditorPreview()">
+                <span id="companyTextYValue" class="text-sm">0px</span>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm mb-2">Logo Y-Position</label>
+                <input type="range" id="logoY" min="-200" max="200" value="0" class="w-full" oninput="updateEditorPreview()">
+                <span id="logoYValue" class="text-sm">0px</span>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm mb-2">Logo Scale</label>
+                <input type="range" id="logoScale" min="0.5" max="2" step="0.1" value="1" class="w-full" oninput="updateEditorPreview()">
+                <span id="logoScaleValue" class="text-sm">1x</span>
+            </div>
+            <button onclick="downloadAdjustedScreenshot()" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold">
+                Confirm & Download JPG
+            </button>
+            <button onclick="closeEditor()" class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold mt-2">
+                Cancel
+            </button>
+        </div>
+        <div id="editorContent" class="preview-canvas">
+            <!-- Editor preview content will be generated here -->
+        </div>
+    </div>
+
     <script>
         let currentLogo = null;
         let currentCompanyName = '';
         let currentBackground = 1;
+        let editorSettings = {
+            welcomeTextY: 0,
+            companyTextY: 0,
+            logoY: 0,
+            logoScale: 1
+        };
         
         function handleLogoUpload(event) {
             const file = event.target.files[0];
@@ -250,7 +304,6 @@
                 const data = imageData.data;
                 
                 // Simple background removal - remove white/light backgrounds
-                // This is a basic implementation - for better results, you'd use AI services
                 for (let i = 0; i < data.length; i += 4) {
                     const r = data[i];
                     const g = data[i + 1];
@@ -388,10 +441,70 @@
             }
         }
         
-        function downloadScreenshot() {
-            // Hide controls temporarily for clean screenshot
-            const controls = document.getElementById('previewControls');
-            controls.style.display = 'none';
+        function openEditor() {
+            const modal = document.getElementById('editorModal');
+            const content = document.getElementById('editorContent');
+            
+            // Reset editor settings
+            editorSettings = {
+                welcomeTextY: 0,
+                companyTextY: 0,
+                logoY: 0,
+                logoScale: 1
+            };
+            document.getElementById('welcomeTextY').value = 0;
+            document.getElementById('companyTextY').value = 0;
+            document.getElementById('logoY').value = 0;
+            document.getElementById('logoScale').value = 1;
+            document.getElementById('welcomeTextYValue').textContent = '0px';
+            document.getElementById('companyTextYValue').textContent = '0px';
+            document.getElementById('logoYValue').textContent = '0px';
+            document.getElementById('logoScaleValue').textContent = '1x';
+            
+            updateEditorPreview();
+            modal.classList.remove('hidden');
+        }
+        
+        function closeEditor() {
+            const modal = document.getElementById('editorModal');
+            modal.classList.add('hidden');
+        }
+        
+        function updateEditorPreview() {
+            const content = document.getElementById('editorContent');
+            editorSettings.welcomeTextY = parseInt(document.getElementById('welcomeTextY').value);
+            editorSettings.companyTextY = parseInt(document.getElementById('companyTextY').value);
+            editorSettings.logoY = parseInt(document.getElementById('logoY').value);
+            editorSettings.logoScale = parseFloat(document.getElementById('logoScale').value);
+            
+            document.getElementById('welcomeTextYValue').textContent = `${editorSettings.welcomeTextY}px`;
+            document.getElementById('companyTextYValue').textContent = `${editorSettings.companyTextY}px`;
+            document.getElementById('logoYValue').textContent = `${editorSettings.logoY}px`;
+            document.getElementById('logoScaleValue').textContent = `${editorSettings.logoScale.toFixed(1)}x`;
+            
+            content.innerHTML = `
+                <div class="w-full h-full relative">
+                    <img src="https://compassoffices.github.io/img/welcome-client-jp.jpg" class="w-full h-full object-cover" />
+                    <div class="absolute inset-0">
+                        <!-- Text positioned in upper area -->
+                        <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 text-center" style="top: calc(28% + ${editorSettings.welcomeTextY}px);">
+                            <h1 class="text-8xl font-light black-gradient-text drop-shadow-2xl mb-4" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</h1>
+                            <div class="text-5xl font-bold orange-gradient-text drop-shadow-2xl" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; transform: translateY(${editorSettings.companyTextY}px);">${currentCompanyName || ''}</div>
+                        </div>
+                        <!-- Logo positioned in center -->
+                        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" style="transform: translate(-50%, calc(-50% + ${editorSettings.logoY}px)) scale(${editorSettings.logoScale});">
+                            ${currentLogo ? 
+                                `<img src="${currentLogo}" alt="Logo" class="max-h-48 mx-auto">` : 
+                                '<div class="w-48 h-48 bg-white/20 rounded-2xl mx-auto flex items-center justify-center"><span class="text-white/50 text-2xl">Logo</span></div>'
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function downloadAdjustedScreenshot() {
+            const content = document.getElementById('editorContent');
             
             // Create 4K canvas
             const canvas = document.createElement('canvas');
@@ -406,35 +519,35 @@
                 // Draw the background image to fill the canvas
                 ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
                 
-                // Add text with gradients (no shadows)
+                // Add text with gradients
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                // Create gradient for "Welcome" text (black gradient)
-                const welcomeGradient = ctx.createLinearGradient(0, canvas.height * 0.28 - 100, 0, canvas.height * 0.28 + 100);
+                // Create gradient for "Welcome" text
+                const welcomeGradient = ctx.createLinearGradient(0, canvas.height * 0.28 - 100 + editorSettings.welcomeTextY * 2, 0, canvas.height * 0.28 + 100 + editorSettings.welcomeTextY * 2);
                 welcomeGradient.addColorStop(0, '#000000');
                 welcomeGradient.addColorStop(1, '#333333');
                 
                 ctx.fillStyle = welcomeGradient;
-                ctx.font = '200px Arial'; // Reduced from 240px
-                ctx.fillText('Welcome', canvas.width / 2, canvas.height * 0.28);
+                ctx.font = '200px Arial';
+                ctx.fillText('Welcome', canvas.width / 2, canvas.height * 0.28 + editorSettings.welcomeTextY * 2);
                 
                 // Company name with orange gradient
                 if (currentCompanyName) {
-                    const companyGradient = ctx.createLinearGradient(0, canvas.height * 0.38 - 60, 0, canvas.height * 0.38 + 60);
+                    const companyGradient = ctx.createLinearGradient(0, canvas.height * 0.38 - 60 + editorSettings.companyTextY * 2, 0, canvas.height * 0.38 + 60 + editorSettings.companyTextY * 2);
                     companyGradient.addColorStop(0, '#ff6600');
                     companyGradient.addColorStop(1, '#ff9933');
                     
                     ctx.fillStyle = companyGradient;
-                    ctx.font = 'bold 120px Arial'; // Reduced from 160px
-                    ctx.fillText(currentCompanyName, canvas.width / 2, canvas.height * 0.38);
+                    ctx.font = 'bold 120px Arial';
+                    ctx.fillText(currentCompanyName, canvas.width / 2, canvas.height * 0.38 + editorSettings.companyTextY * 2);
                 }
                 
                 // Add logo if available
                 if (currentLogo) {
                     const logoImg = new Image();
                     logoImg.onload = function() {
-                        const maxSize = 800; // Increased from 600px
+                        const maxSize = 800 * editorSettings.logoScale;
                         const aspect = logoImg.width / logoImg.height;
                         let w, h;
                         
@@ -446,17 +559,17 @@
                             w = maxSize * aspect;
                         }
                         
-                        ctx.drawImage(logoImg, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+                        ctx.drawImage(logoImg, (canvas.width - w) / 2, (canvas.height - h) / 2 + editorSettings.logoY * 2, w, h);
                         downloadCanvas();
                     };
                     logoImg.src = currentLogo;
                 } else {
                     // Draw placeholder logo
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                    ctx.fillRect(canvas.width / 2 - 400, canvas.height / 2 - 400, 800, 800);
+                    ctx.fillRect(canvas.width / 2 - 400 * editorSettings.logoScale, canvas.height / 2 - 400 * editorSettings.logoScale + editorSettings.logoY * 2, 800 * editorSettings.logoScale, 800 * editorSettings.logoScale);
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.font = '128px Arial'; // Scaled for larger placeholder
-                    ctx.fillText('Logo', canvas.width / 2, canvas.height / 2);
+                    ctx.font = `${128 * editorSettings.logoScale}px Arial`;
+                    ctx.fillText('Logo', canvas.width / 2, canvas.height / 2 + editorSettings.logoY * 2);
                     downloadCanvas();
                 }
                 
@@ -474,15 +587,13 @@
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
                         
-                        // Show controls again
-                        controls.style.display = 'block';
+                        // Close editor
+                        closeEditor();
                     }, 'image/jpeg', 0.95);
                 }
             };
             
             bgImg.onerror = function() {
-                // Show controls again if image fails to load
-                controls.style.display = 'block';
                 alert('Failed to load background image. Please check the URL.');
             };
             
@@ -490,110 +601,12 @@
             bgImg.src = 'https://compassoffices.github.io/img/welcome-client-jp.jpg';
         }
         
-        function createManualCanvas() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 1920;
-            canvas.height = 1080;
-            const ctx = canvas.getContext('2d');
-            
-            // Create animated-style background
-            const gradient = ctx.createRadialGradient(960, 540, 0, 960, 540, 960);
-            gradient.addColorStop(0, '#2a1810');
-            gradient.addColorStop(0.3, '#1a1a2e');
-            gradient.addColorStop(0.6, '#16213e');
-            gradient.addColorStop(1, '#0f0f23');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Add flowing patterns
-            ctx.globalAlpha = 0.2;
-            for (let i = 0; i < 3; i++) {
-                const waveGradient = ctx.createLinearGradient(0, i * 300, canvas.width, (i + 1) * 300);
-                waveGradient.addColorStop(0, '#ff6b35');
-                waveGradient.addColorStop(0.5, '#f7931e');
-                waveGradient.addColorStop(1, '#ffd23f');
-                ctx.fillStyle = waveGradient;
-                
-                ctx.beginPath();
-                ctx.moveTo(0, i * 300 + 200);
-                for (let x = 0; x <= canvas.width; x += 100) {
-                    const y = i * 300 + 200 + Math.sin((x + i * 150) * 0.008) * 50;
-                    ctx.lineTo(x, y);
-                }
-                ctx.lineTo(canvas.width, canvas.height);
-                ctx.lineTo(0, canvas.height);
-                ctx.closePath();
-                ctx.fill();
-            }
-            ctx.globalAlpha = 1;
-            
-            // Add text
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            // Welcome text shadow
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-            ctx.font = 'bold 120px Arial';
-            ctx.fillText('Welcome', 964, 304);
-            
-            // Welcome text
-            ctx.fillStyle = '#333333';
-            ctx.fillText('Welcome', 960, 300);
-            
-            // Company name
-            if (currentCompanyName) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.font = 'bold 80px Arial';
-                ctx.fillText(currentCompanyName, 964, 424);
-                
-                ctx.fillStyle = '#ff6600';
-                ctx.fillText(currentCompanyName, 960, 420);
-            }
-            
-            // Add logo if available
-            if (currentLogo) {
-                const logoImg = new Image();
-                logoImg.onload = function() {
-                    const maxSize = 300;
-                    const aspect = logoImg.width / logoImg.height;
-                    let w, h;
-                    
-                    if (aspect > 1) {
-                        w = maxSize;
-                        h = maxSize / aspect;
-                    } else {
-                        h = maxSize;
-                        w = maxSize * aspect;
-                    }
-                    
-                    ctx.drawImage(logoImg, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-                    downloadCanvas();
-                };
-                logoImg.src = currentLogo;
-            } else {
-                downloadCanvas();
-            }
-            
-            function downloadCanvas() {
-                canvas.toBlob(function(blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    const fileName = currentCompanyName ? 
-                        `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.jpg` : 
-                        'welcome-animation.jpg';
-                    a.download = fileName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 'image/jpeg', 0.95);
-            }
+        function downloadScreenshot() {
+            openEditor();
         }
         
         // Initialize
         updateLivePreview();
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98bfec65901c0988',t:'MTc2MDAzNDM1Ni4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
