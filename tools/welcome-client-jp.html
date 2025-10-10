@@ -182,14 +182,9 @@
                            class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30"
                            oninput="updateCompanyName()">
                     <div class="mt-4">
-                        <label class="block text-white text-sm mb-2">Welcome Text Size</label>
-                        <input type="range" id="welcomeTextSize" min="20" max="100" value="40" class="w-full" oninput="updateEditorSettings('welcomeTextSize', this.value)">
-                        <span id="welcomeTextSizeValue" class="text-sm">40px</span>
-                    </div>
-                    <div class="mt-4">
-                        <label class="block text-white text-sm mb-2">Company Text Size</label>
-                        <input type="range" id="companyTextSize" min="20" max="80" value="40" class="w-full" oninput="updateEditorSettings('companyTextSize', this.value)">
-                        <span id="companyTextSizeValue" class="text-sm">40px</span>
+                        <label class="block text-white text-sm mb-2">Text Size</label>
+                        <input type="range" id="textSize" min="20" max="100" value="50" class="w-full" oninput="updateEditorSettings('textSize', this.value)">
+                        <span id="textSizeValue" class="text-sm">50px</span>
                     </div>
                     <div class="mt-4">
                         <label class="block text-white text-sm mb-2">Text Y-Position</label>
@@ -213,7 +208,7 @@
         <!-- Live Preview -->
         <div class="max-w-2xl mx-auto glass-effect rounded-2xl p-6">
             <h3 class="text-white text-xl font-semibold mb-4 text-center">Live Preview</h3>
-            <div class="aspect-video bg-black/20 rounded-xl flex items-center justify-center relative overflow-hidden">
+            <div class="aspect-video bg-black/20 rounded-xl flex items-center justify-center relative overflow-hidden" id="livePreviewContainer">
                 <div style="position:relative; width:100%; height:100%;">
                     <iframe src="https://player.vimeo.com/video/1126108035?badge=0&amp;autopause=0&amp;autoplay=1&amp;loop=1&amp;player_id=0&amp;app_id=58479" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" title="welcome-jp" style="border:none; width:100%; height:100%; position:absolute; left:0px; top:0px; overflow:hidden; border-radius: 0.75rem;"></iframe>
                 </div>
@@ -261,18 +256,13 @@
             </div>
             <div class="mb-4">
                 <label class="block text-sm mb-2">Logo Size</label>
-                <input type="range" id="editorLogoSize" min="50" max="300" value="100" class="w-full" oninput="updateEditorPreview()">
+            <input type="range" id="editorLogoSize" min="50" max="300" value="100" class="w-full" oninput="updateEditorPreview()">
                 <span id="editorLogoSizeValue" class="text-sm">100%</span>
             </div>
             <div class="mb-4">
-                <label class="block text-sm mb-2">Welcome Text Size</label>
-                <input type="range" id="editorWelcomeTextSize" min="20" max="100" value="40" class="w-full" oninput="updateEditorPreview()">
-                <span id="editorWelcomeTextSizeValue" class="text-sm">40px</span>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm mb-2">Company Text Size</label>
-                <input type="range" id="editorCompanyTextSize" min="20" max="80" value="40" class="w-full" oninput="updateEditorPreview()">
-                <span id="editorCompanyTextSizeValue" class="text-sm">40px</span>
+                <label class="block text-sm mb-2">Text Size</label>
+                <input type="range" id="editorTextSize" min="20" max="100" value="50" class="w-full" oninput="updateEditorPreview()">
+                <span id="editorTextSizeValue" class="text-sm">50px</span>
             </div>
             <button onclick="downloadAdjustedScreenshot()" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold">
                 Confirm & Download JPG
@@ -293,9 +283,10 @@
         let editorSettings = {
             textY: 0,
             logoSize: 100,
-            welcomeTextSize: 40,
-            companyTextSize: 40
+            textSize: 50
         };
+        const baseHeight = 1080;
+        const baseGap = 16;
         
         function handleLogoUpload(event) {
             const file = event.target.files[0];
@@ -376,7 +367,6 @@
         function updateHeaderCompanyName() {
             const headerCompanyName = document.getElementById('headerCompanyName');
             headerCompanyName.textContent = currentCompanyName;
-            headerCompanyName.style.fontSize = `${editorSettings.companyTextSize}px`;
         }
         
         function updateEditorSettings(key, value) {
@@ -386,33 +376,47 @@
         }
         
         function updateLivePreview() {
+            // Live Preview (small)
+            const previewContainer = document.getElementById('livePreviewContainer');
+            const previewHeight = previewContainer.clientHeight;
+            const previewScale = previewHeight / baseHeight;
+            
             const logoDisplay = document.getElementById('logoDisplay');
             const companyDisplay = document.getElementById('companyDisplay');
-            const mainLogoDisplay = document.getElementById('mainLogoDisplay');
             const liveWelcomeText = document.getElementById('liveWelcomeText');
             const livePreviewText = document.getElementById('livePreviewText');
-            const mainWelcomeText = document.getElementById('mainWelcomeText');
-            const mainTextContainer = document.getElementById('mainTextContainer');
             
             // Update logo
             if (currentLogo) {
-                logoDisplay.innerHTML = `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize * 0.2}px; width: auto; margin: 0 auto;">`;
-                mainLogoDisplay.innerHTML = `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize}px; width: auto; margin: 0 auto;">`;
+                logoDisplay.innerHTML = `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize * previewScale}px; width: auto; margin: 0 auto;">`;
             } else {
-                logoDisplay.innerHTML = `<div style="width: ${editorSettings.logoSize * 0.2}px; height: ${editorSettings.logoSize * 0.2}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50">Logo</span></div>`;
-                mainLogoDisplay.innerHTML = `<div style="width: ${editorSettings.logoSize}px; height: ${editorSettings.logoSize}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50 text-2xl">Logo</span></div>`;
+                logoDisplay.innerHTML = `<div style="width: ${editorSettings.logoSize * previewScale}px; height: ${editorSettings.logoSize * previewScale}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50">Logo</span></div>`;
             }
             
             // Update text
             companyDisplay.textContent = currentCompanyName || 'Your Company';
-            liveWelcomeText.style.fontSize = `${editorSettings.welcomeTextSize}px`;
-            companyDisplay.style.fontSize = `${editorSettings.companyTextSize}px`;
-            mainWelcomeText.style.fontSize = `${editorSettings.welcomeTextSize}px`;
+            liveWelcomeText.style.fontSize = `${editorSettings.textSize * previewScale}px`;
+            companyDisplay.style.fontSize = `${editorSettings.textSize * previewScale}px`;
+            livePreviewText.style.top = `calc(28% + ${editorSettings.textY * previewScale}px)`;
+            livePreviewText.style.gap = `${baseGap * previewScale}px`;
             
-            // Update text position
-            const textY = editorSettings.textY;
-            livePreviewText.style.top = `calc(28% + ${textY}px)`;
-            mainTextContainer.style.top = `calc(28% + ${textY}px)`;
+            // Main display (full screen)
+            const mainScale = window.innerHeight / baseHeight;
+            const mainLogoDisplay = document.getElementById('mainLogoDisplay');
+            const mainWelcomeText = document.getElementById('mainWelcomeText');
+            const mainTextContainer = document.getElementById('mainTextContainer');
+            const headerCompanyName = document.getElementById('headerCompanyName');
+            
+            if (currentLogo) {
+                mainLogoDisplay.innerHTML = `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize * mainScale}px; width: auto; margin: 0 auto;">`;
+            } else {
+                mainLogoDisplay.innerHTML = `<div style="width: ${editorSettings.logoSize * mainScale}px; height: ${editorSettings.logoSize * mainScale}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50 text-2xl">Logo</span></div>`;
+            }
+            
+            mainWelcomeText.style.fontSize = `${editorSettings.textSize * mainScale}px`;
+            headerCompanyName.style.fontSize = `${editorSettings.textSize * mainScale}px`;
+            mainTextContainer.style.top = `calc(28% + ${editorSettings.textY * mainScale}px)`;
+            mainTextContainer.style.gap = `${baseGap * mainScale}px`;
         }
         
         let controlsTimeout;
@@ -421,26 +425,25 @@
             const controls = document.getElementById('previewControls');
             controls.classList.add('show');
             
-            // Clear existing timeout
             if (controlsTimeout) {
                 clearTimeout(controlsTimeout);
             }
             
-            // Set new timeout to hide controls after 3 seconds
             controlsTimeout = setTimeout(() => {
                 controls.classList.remove('show');
             }, 3000);
         }
         
         function hideControls() {
-            // Don't hide immediately on mouse leave, let the timeout handle it
+            // Handled by timeout
         }
         
         function previewAnimation() {
             const modal = document.getElementById('previewModal');
             const content = document.getElementById('previewContent');
+            const previewScale = window.innerHeight / baseHeight;
             
-            // Generate full-size preview matching live preview exactly
+            // Generate full-size preview with scaled settings
             content.innerHTML = `
                 <div class="w-full h-full relative">
                     <div style="position:relative; width:100%; height:100%;">
@@ -448,16 +451,16 @@
                     </div>
                     <div class="absolute inset-0">
                         <!-- Text positioned in upper area - matching live preview structure -->
-                        <div class="live-preview-text-container" style="top: calc(28% + ${editorSettings.textY}px);">
-                            <h1 class="black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.welcomeTextSize}px; font-weight: 300;">Welcome</h1>
-                            <div class="orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.companyTextSize}px; font-weight: bold;">${currentCompanyName || ''}</div>
+                        <div class="live-preview-text-container" style="top: calc(28% + ${editorSettings.textY * previewScale}px); gap: ${baseGap * previewScale}px;">
+                            <h1 class="black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.textSize * previewScale}px; font-weight: 300;">Welcome</h1>
+                            <div class="orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.textSize * previewScale}px; font-weight: bold;">${currentCompanyName || ''}</div>
                         </div>
                         <!-- Logo positioned in center -->
                         <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                             <div class="logo-animation">
                                 ${currentLogo ? 
-                                    `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize * 0.48}px; width: auto; margin: 0 auto;">` : 
-                                    `<div style="width: ${editorSettings.logoSize * 0.48}px; height: ${editorSettings.logoSize * 0.48}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50 text-2xl">Logo</span></div>`
+                                    `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize * previewScale}px; width: auto; margin: 0 auto;">` : 
+                                    `<div style="width: ${editorSettings.logoSize * previewScale}px; height: ${editorSettings.logoSize * previewScale}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50 text-2xl">Logo</span></div>`
                                 }
                             </div>
                         </div>
@@ -496,13 +499,11 @@
             // Sync editor values with current settings
             document.getElementById('editorTextY').value = editorSettings.textY;
             document.getElementById('editorLogoSize').value = editorSettings.logoSize;
-            document.getElementById('editorWelcomeTextSize').value = editorSettings.welcomeTextSize;
-            document.getElementById('editorCompanyTextSize').value = editorSettings.companyTextSize;
+            document.getElementById('editorTextSize').value = editorSettings.textSize;
             
             document.getElementById('editorTextYValue').textContent = `${editorSettings.textY}px`;
             document.getElementById('editorLogoSizeValue').textContent = `${editorSettings.logoSize}%`;
-            document.getElementById('editorWelcomeTextSizeValue').textContent = `${editorSettings.welcomeTextSize}px`;
-            document.getElementById('editorCompanyTextSizeValue').textContent = `${editorSettings.companyTextSize}px`;
+            document.getElementById('editorTextSizeValue').textContent = `${editorSettings.textSize}px`;
             
             updateEditorPreview();
             modal.classList.remove('hidden');
@@ -515,18 +516,17 @@
         
         function updateEditorPreview() {
             const content = document.getElementById('editorContent');
+            const previewScale = window.innerHeight / baseHeight;
             
             // Update editor settings from editor controls
             editorSettings.textY = parseInt(document.getElementById('editorTextY').value);
             editorSettings.logoSize = parseInt(document.getElementById('editorLogoSize').value);
-            editorSettings.welcomeTextSize = parseInt(document.getElementById('editorWelcomeTextSize').value);
-            editorSettings.companyTextSize = parseInt(document.getElementById('editorCompanyTextSize').value);
+            editorSettings.textSize = parseInt(document.getElementById('editorTextSize').value);
             
             // Update value displays
             document.getElementById('editorTextYValue').textContent = `${editorSettings.textY}px`;
             document.getElementById('editorLogoSizeValue').textContent = `${editorSettings.logoSize}%`;
-            document.getElementById('editorWelcomeTextSizeValue').textContent = `${editorSettings.welcomeTextSize}px`;
-            document.getElementById('editorCompanyTextSizeValue').textContent = `${editorSettings.companyTextSize}px`;
+            document.getElementById('editorTextSizeValue').textContent = `${editorSettings.textSize}px`;
             
             // Update live preview to match editor changes
             updateLivePreview();
@@ -535,14 +535,14 @@
                 <div class="w-full h-full relative">
                     <img src="https://compassoffices.github.io/img/welcome-client-jp.jpg" class="w-full h-full object-cover" />
                     <div class="absolute inset-0">
-                        <div class="live-preview-text-container" style="top: calc(28% + ${editorSettings.textY}px);">
-                            <h1 class="black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.welcomeTextSize}px; font-weight: 300;">Welcome</h1>
-                            <div class="orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.companyTextSize}px; font-weight: bold;">${currentCompanyName || ''}</div>
+                        <div class="live-preview-text-container" style="top: calc(28% + ${editorSettings.textY * previewScale}px); gap: ${baseGap * previewScale}px;">
+                            <h1 class="black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.textSize * previewScale}px; font-weight: 300;">Welcome</h1>
+                            <div class="orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.textSize * previewScale}px; font-weight: bold;">${currentCompanyName || ''}</div>
                         </div>
                         <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                             ${currentLogo ? 
-                                `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize}px; width: auto; margin: 0 auto;">` : 
-                                `<div style="width: ${editorSettings.logoSize}px; height: ${editorSettings.logoSize}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50 text-2xl">Logo</span></div>`
+                                `<img src="${currentLogo}" alt="Logo" style="max-height: ${editorSettings.logoSize * previewScale}px; width: auto; margin: 0 auto;">` : 
+                                `<div style="width: ${editorSettings.logoSize * previewScale}px; height: ${editorSettings.logoSize * previewScale}px; background: rgba(255, 255, 255, 0.2); border-radius: 0.5rem; margin: 0 auto; display: flex; align-items: center; justify-content: center;"><span class="text-white/50 text-2xl">Logo</span></div>`
                             }
                         </div>
                     </div>
@@ -555,6 +555,7 @@
             canvas.width = 3840;
             canvas.height = 2160;
             const ctx = canvas.getContext('2d');
+            const scale = canvas.height / baseHeight; // 2160 / 1080 = 2
             
             const bgImg = new Image();
             bgImg.crossOrigin = 'anonymous';
@@ -565,40 +566,43 @@
                 ctx.textBaseline = 'middle';
                 
                 // Measure text widths to calculate positions
-                ctx.font = `300 ${editorSettings.welcomeTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                ctx.font = `300 ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
                 const welcomeWidth = ctx.measureText('Welcome').width;
-                ctx.font = `bold ${editorSettings.companyTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                ctx.font = `bold ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
                 const companyWidth = currentCompanyName ? ctx.measureText(currentCompanyName).width : 0;
                 
-                const totalWidth = welcomeWidth + companyWidth + 64; // 16px gap scaled by 4
+                const gapScaled = baseGap * scale;
+                const totalWidth = welcomeWidth + companyWidth + gapScaled;
                 const welcomeX = canvas.width / 2 - totalWidth / 2 + welcomeWidth / 2;
-                const companyX = welcomeX + welcomeWidth / 2 + 64 + companyWidth / 2;
+                const companyX = welcomeX + welcomeWidth / 2 + gapScaled + companyWidth / 2;
+                
+                const textYPosition = canvas.height * 0.28 + (editorSettings.textY * scale);
                 
                 // Welcome text gradient
-                const welcomeGradient = ctx.createLinearGradient(welcomeX - welcomeWidth / 2, canvas.height * 0.28 + editorSettings.textY, welcomeX + welcomeWidth / 2, canvas.height * 0.28 + editorSettings.textY);
+                const welcomeGradient = ctx.createLinearGradient(welcomeX - welcomeWidth / 2, textYPosition, welcomeX + welcomeWidth / 2, textYPosition);
                 welcomeGradient.addColorStop(0, '#000000');
                 welcomeGradient.addColorStop(1, '#333333');
                 
                 ctx.fillStyle = welcomeGradient;
-                ctx.font = `300 ${editorSettings.welcomeTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                ctx.fillText('Welcome', welcomeX, canvas.height * 0.28 + editorSettings.textY);
+                ctx.font = `300 ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                ctx.fillText('Welcome', welcomeX, textYPosition);
                 
                 // Company name gradient
                 if (currentCompanyName) {
-                    const companyGradient = ctx.createLinearGradient(companyX - companyWidth / 2, canvas.height * 0.28 + editorSettings.textY, companyX + companyWidth / 2, canvas.height * 0.28 + editorSettings.textY);
+                    const companyGradient = ctx.createLinearGradient(companyX - companyWidth / 2, textYPosition, companyX + companyWidth / 2, textYPosition);
                     companyGradient.addColorStop(0, '#ff6600');
                     companyGradient.addColorStop(1, '#ff9933');
                     
                     ctx.fillStyle = companyGradient;
-                    ctx.font = `bold ${editorSettings.companyTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                    ctx.fillText(currentCompanyName, companyX, canvas.height * 0.28 + editorSettings.textY);
+                    ctx.font = `bold ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                    ctx.fillText(currentCompanyName, companyX, textYPosition);
                 }
                 
                 // Logo
                 if (currentLogo) {
                     const logoImg = new Image();
                     logoImg.onload = function() {
-                        const maxSize = editorSettings.logoSize * 4;
+                        const maxSize = editorSettings.logoSize * scale;
                         const aspect = logoImg.width / logoImg.height;
                         let w, h;
                         
@@ -615,10 +619,11 @@
                     };
                     logoImg.src = currentLogo;
                 } else {
+                    const placeholderSize = editorSettings.logoSize * scale;
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                    ctx.fillRect(canvas.width / 2 - editorSettings.logoSize * 2, canvas.height / 2 - editorSettings.logoSize * 2, editorSettings.logoSize * 4, editorSettings.logoSize * 4);
+                    ctx.fillRect(canvas.width / 2 - placeholderSize / 2, canvas.height / 2 - placeholderSize / 2, placeholderSize, placeholderSize);
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.font = `${editorSettings.logoSize * 2}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                    ctx.font = `${placeholderSize * 0.5}px 'Neue Haas Grotesk Display Pro', sans-serif`;
                     ctx.fillText('Logo', canvas.width / 2, canvas.height / 2);
                     downloadCanvas();
                 }
@@ -650,6 +655,9 @@
         
         // Initialize with default values
         updateLivePreview();
+        
+        // Update on resize
+        window.addEventListener('resize', updateLivePreview);
     </script>
 </body>
 </html>
