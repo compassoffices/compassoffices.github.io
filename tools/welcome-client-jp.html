@@ -121,6 +121,10 @@
             left: 50%;
             transform: translateX(-50%);
             white-space: nowrap;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 16px;
         }
     </style>
 </head>
@@ -135,7 +139,7 @@
         <div class="fixed inset-0 pointer-events-none z-5">
             <!-- Text positioned in upper area -->
             <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center live-preview-text-container" id="mainTextContainer" style="top: 28%;">
-                <h1 class="font-light black-gradient-text drop-shadow-2xl mb-4 inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;" id="mainWelcomeText">Welcome</h1>
+                <h1 class="font-light black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;" id="mainWelcomeText">Welcome</h1>
                 <div id="headerCompanyName" class="font-bold orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;"></div>
             </div>
             <!-- Logo positioned in center -->
@@ -216,7 +220,7 @@
                 <div class="absolute inset-0">
                     <!-- Text positioned in upper area -->
                     <div class="live-preview-text-container" id="livePreviewText" style="top: 28%;">
-                        <div id="liveWelcomeText" class="black-gradient-text drop-shadow-2xl mb-2 inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</div>
+                        <div id="liveWelcomeText" class="black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;">Welcome</div>
                         <div id="companyDisplay" class="orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif;"></div>
                     </div>
                     <!-- Logo positioned in center -->
@@ -445,7 +449,7 @@
                     <div class="absolute inset-0">
                         <!-- Text positioned in upper area - matching live preview structure -->
                         <div class="live-preview-text-container" style="top: calc(28% + ${editorSettings.textY}px);">
-                            <h1 class="black-gradient-text drop-shadow-2xl mb-2 inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.welcomeTextSize}px; font-weight: 300;">Welcome</h1>
+                            <h1 class="black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.welcomeTextSize}px; font-weight: 300;">Welcome</h1>
                             <div class="orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.companyTextSize}px; font-weight: bold;">${currentCompanyName || ''}</div>
                         </div>
                         <!-- Logo positioned in center -->
@@ -532,7 +536,7 @@
                     <img src="https://compassoffices.github.io/img/welcome-client-jp.jpg" class="w-full h-full object-cover" />
                     <div class="absolute inset-0">
                         <div class="live-preview-text-container" style="top: calc(28% + ${editorSettings.textY}px);">
-                            <h1 class="black-gradient-text drop-shadow-2xl mb-2 inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.welcomeTextSize}px; font-weight: 300;">Welcome</h1>
+                            <h1 class="black-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.welcomeTextSize}px; font-weight: 300;">Welcome</h1>
                             <div class="orange-gradient-text drop-shadow-2xl inline-block" style="font-family: 'Neue Haas Grotesk Display Pro', sans-serif; font-size: ${editorSettings.companyTextSize}px; font-weight: bold;">${currentCompanyName || ''}</div>
                         </div>
                         <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
@@ -560,24 +564,34 @@
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
+                // Measure text widths to calculate positions
+                ctx.font = `300 ${editorSettings.welcomeTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                const welcomeWidth = ctx.measureText('Welcome').width;
+                ctx.font = `bold ${editorSettings.companyTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                const companyWidth = currentCompanyName ? ctx.measureText(currentCompanyName).width : 0;
+                
+                const totalWidth = welcomeWidth + companyWidth + 64; // 16px gap scaled by 4
+                const welcomeX = canvas.width / 2 - totalWidth / 2 + welcomeWidth / 2;
+                const companyX = welcomeX + welcomeWidth / 2 + 64 + companyWidth / 2;
+                
                 // Welcome text gradient
-                const welcomeGradient = ctx.createLinearGradient(0, canvas.height * 0.28 - 100 + editorSettings.textY * 2, 0, canvas.height * 0.28 + 100 + editorSettings.textY * 2);
+                const welcomeGradient = ctx.createLinearGradient(welcomeX - welcomeWidth / 2, canvas.height * 0.28 + editorSettings.textY, welcomeX + welcomeWidth / 2, canvas.height * 0.28 + editorSettings.textY);
                 welcomeGradient.addColorStop(0, '#000000');
                 welcomeGradient.addColorStop(1, '#333333');
                 
                 ctx.fillStyle = welcomeGradient;
-                ctx.font = `300 ${editorSettings.welcomeTextSize * 4}px 'Arial', sans-serif`;
-                ctx.fillText('Welcome', canvas.width / 2, canvas.height * 0.28 + editorSettings.textY * 2);
+                ctx.font = `300 ${editorSettings.welcomeTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                ctx.fillText('Welcome', welcomeX, canvas.height * 0.28 + editorSettings.textY);
                 
                 // Company name gradient
                 if (currentCompanyName) {
-                    const companyGradient = ctx.createLinearGradient(0, canvas.height * 0.38 - 60 + editorSettings.textY * 2, 0, canvas.height * 0.38 + 60 + editorSettings.textY * 2);
+                    const companyGradient = ctx.createLinearGradient(companyX - companyWidth / 2, canvas.height * 0.28 + editorSettings.textY, companyX + companyWidth / 2, canvas.height * 0.28 + editorSettings.textY);
                     companyGradient.addColorStop(0, '#ff6600');
                     companyGradient.addColorStop(1, '#ff9933');
                     
                     ctx.fillStyle = companyGradient;
-                    ctx.font = `bold ${editorSettings.companyTextSize * 4}px 'Arial', sans-serif`;
-                    ctx.fillText(currentCompanyName, canvas.width / 2, canvas.height * 0.38 + editorSettings.textY * 2);
+                    ctx.font = `bold ${editorSettings.companyTextSize * 4}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                    ctx.fillText(currentCompanyName, companyX, canvas.height * 0.28 + editorSettings.textY);
                 }
                 
                 // Logo
@@ -604,7 +618,7 @@
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
                     ctx.fillRect(canvas.width / 2 - editorSettings.logoSize * 2, canvas.height / 2 - editorSettings.logoSize * 2, editorSettings.logoSize * 4, editorSettings.logoSize * 4);
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.font = `${editorSettings.logoSize * 2}px Arial`;
+                    ctx.font = `${editorSettings.logoSize * 2}px 'Neue Haas Grotesk Display Pro', sans-serif`;
                     ctx.fillText('Logo', canvas.width / 2, canvas.height / 2);
                     downloadCanvas();
                 }
