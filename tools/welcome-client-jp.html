@@ -551,115 +551,39 @@
         }
         
         function downloadAdjustedScreenshot() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 3840;
-            canvas.height = 2160;
-            const ctx = canvas.getContext('2d');
-            const scale = canvas.height / baseHeight; // 2 for 4k
+            const editorContent = document.getElementById('editorContent');
+            const outputWidth = 3840;
+            const outputHeight = 2160;
+            const scale = outputHeight / baseHeight; // 2 for 4k
             
-            const bgImg = new Image();
-            bgImg.crossOrigin = 'anonymous';
-            bgImg.onload = function() {
-                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-                
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                
-                // Set shadow for text
-                ctx.shadowColor = 'black';
-                ctx.shadowBlur = 20;
-                ctx.shadowOffsetX = 0;
-                ctx.shadowOffsetY = 0;
-                
-                // Measure text widths to calculate positions
-                ctx.font = `300 ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                const welcomeWidth = ctx.measureText('Welcome').width;
-                ctx.font = `bold ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                const companyWidth = currentCompanyName ? ctx.measureText(currentCompanyName).width : 0;
-                
-                const gapScaled = baseGap * scale;
-                const totalWidth = welcomeWidth + companyWidth + gapScaled;
-                const welcomeX = canvas.width / 2 - totalWidth / 2 + welcomeWidth / 2;
-                const companyX = welcomeX + welcomeWidth / 2 + gapScaled + companyWidth / 2;
-                
-                const textYPosition = canvas.height * 0.28 + (editorSettings.textY * scale);
-                
-                // Welcome text gradient
-                const welcomeGradient = ctx.createLinearGradient(welcomeX - welcomeWidth / 2, textYPosition - (editorSettings.textSize * scale / 2), welcomeX + welcomeWidth / 2, textYPosition + (editorSettings.textSize * scale / 2));
-                welcomeGradient.addColorStop(0, '#000000');
-                welcomeGradient.addColorStop(1, '#333333');
-                
-                ctx.fillStyle = welcomeGradient;
-                ctx.font = `300 ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                ctx.fillText('Welcome', welcomeX, textYPosition);
-                
-                // Company name gradient
-                if (currentCompanyName) {
-                    const companyGradient = ctx.createLinearGradient(companyX - companyWidth / 2, textYPosition - (editorSettings.textSize * scale / 2), companyX + companyWidth / 2, textYPosition + (editorSettings.textSize * scale / 2));
-                    companyGradient.addColorStop(0, '#ff6600');
-                    companyGradient.addColorStop(1, '#ff9933');
-                    
-                    ctx.fillStyle = companyGradient;
-                    ctx.font = `bold ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                    ctx.fillText(currentCompanyName, companyX, textYPosition);
-                }
-                
-                // Reset shadow for logo
-                ctx.shadowBlur = 0;
-                
-                // Logo
-                if (currentLogo) {
-                    const logoImg = new Image();
-                    logoImg.onload = function() {
-                        const maxSize = editorSettings.logoSize * scale;
-                        const aspect = logoImg.width / logoImg.height;
-                        let w, h;
-                        
-                        if (aspect > 1) {
-                            w = maxSize;
-                            h = maxSize / aspect;
-                        } else {
-                            h = maxSize;
-                            w = maxSize * aspect;
-                        }
-                        
-                        ctx.drawImage(logoImg, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-                        downloadCanvas();
-                    };
-                    logoImg.src = currentLogo;
-                } else {
-                    const placeholderSize = editorSettings.logoSize * scale;
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                    ctx.fillRect(canvas.width / 2 - placeholderSize / 2, canvas.height / 2 - placeholderSize / 2, placeholderSize, placeholderSize);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.font = `${placeholderSize * 0.5}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                    ctx.fillText('Logo', canvas.width / 2, canvas.height / 2);
-                    downloadCanvas();
-                }
-                
-                function downloadCanvas() {
-                    canvas.toBlob(function(blob) {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        const fileName = currentCompanyName ? 
-                            `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-4k.jpg` : 
-                            'welcome-animation-4k.jpg';
-                        a.download = fileName;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        closeEditor();
-                    }, 'image/jpeg', 0.95);
-                }
-            };
-            
-            bgImg.onerror = function() {
-                alert('Failed to load background image. Please check the URL.');
-            };
-            
-            bgImg.src = 'https://compassoffices.github.io/img/welcome-client-jp.jpg';
+            // Use html2canvas to capture the exact editor content
+            html2canvas(editorContent, {
+                width: editorContent.offsetWidth,
+                height: editorContent.offsetHeight,
+                scale: scale * (editorContent.offsetHeight / baseHeight), // Adjust scale to match 4K
+                backgroundColor: null,
+                useCORS: true,
+                logging: false
+            }).then(canvas => {
+                // Download the canvas as JPG
+                canvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const fileName = currentCompanyName ? 
+                        `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-4k.jpg` : 
+                        'welcome-animation-4k.jpg';
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    closeEditor();
+                }, 'image/jpeg', 0.95);
+            }).catch(err => {
+                alert('Failed to generate screenshot. Please try again.');
+                console.error('html2canvas error:', err);
+            });
         }
         
         // Initialize with default values
