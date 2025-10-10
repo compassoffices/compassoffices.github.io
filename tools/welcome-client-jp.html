@@ -251,8 +251,8 @@
             <h3 class="text-xl font-semibold mb-4">Adjust Layout</h3>
             <div class="mb-4">
                 <label class="block text-sm mb-2">Text Y-Position</label>
-                <input type="range" id="editorTextY" min="50" max="300" value="100" class="w-full" oninput="updateEditorPreview()">
-                <span id="editorTextYValue" class="text-sm">100px</span>
+                <input type="range" id="editorTextY" min="-200" max="200" value="0" class="w-full" oninput="updateEditorPreview()">
+                <span id="editorTextYValue" class="text-sm">0px</span>
             </div>
             <div class="mb-4">
                 <label class="block text-sm mb-2">Logo Size</label>
@@ -555,117 +555,104 @@
             canvas.width = 3840;
             canvas.height = 2160;
             const ctx = canvas.getContext('2d');
-            const scale = canvas.height / baseHeight; // 2160 / 1080 = 2
+            const scale = canvas.height / baseHeight; // 2 for 4k
             
             const bgImg = new Image();
             bgImg.crossOrigin = 'anonymous';
             bgImg.onload = function() {
-                // Draw background
                 ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
                 
-                // Text setup
-                const textYPosition = canvas.height * 0.28 + (editorSettings.textY * scale);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Set shadow for text
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 20;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+                
+                // Measure text widths to calculate positions
+                ctx.font = `300 ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                const welcomeWidth = ctx.measureText('Welcome').width;
+                ctx.font = `bold ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                const companyWidth = currentCompanyName ? ctx.measureText(currentCompanyName).width : 0;
+                
                 const gapScaled = baseGap * scale;
+                const totalWidth = welcomeWidth + companyWidth + gapScaled;
+                const welcomeX = canvas.width / 2 - totalWidth / 2 + welcomeWidth / 2;
+                const companyX = welcomeX + welcomeWidth / 2 + gapScaled + companyWidth / 2;
                 
-                // Create a temporary container for text to measure width
-                const tempContainer = document.createElement('div');
-                tempContainer.style.position = 'absolute';
-                tempContainer.style.left = '50%';
-                tempContainer.style.transform = 'translateX(-50%)';
-                tempContainer.style.display = 'flex';
-                tempContainer.style.flexDirection = 'row';
-                tempContainer.style.alignItems = 'center';
-                tempContainer.style.gap = `${gapScaled}px`;
-                tempContainer.style.fontFamily = "'Neue Haas Grotesk Display Pro', sans-serif";
-                tempContainer.style.top = `${textYPosition}px`;
+                const textYPosition = canvas.height * 0.28 + (editorSettings.textY * scale);
                 
-                // Welcome text
-                const welcomeText = document.createElement('h1');
-                welcomeText.style.fontSize = `${editorSettings.textSize * scale}px`;
-                welcomeText.style.fontWeight = '300';
-                welcomeText.textContent = 'Welcome';
-                welcomeText.style.background = 'linear-gradient(45deg, #000000, #333333)';
-                welcomeText.style.webkitBackgroundClip = 'text';
-                welcomeText.style.webkitTextFillColor = 'transparent';
-                welcomeText.style.backgroundClip = 'text';
-                welcomeText.style.textShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+                // Welcome text gradient
+                const welcomeGradient = ctx.createLinearGradient(welcomeX - welcomeWidth / 2, textYPosition - (editorSettings.textSize * scale / 2), welcomeX + welcomeWidth / 2, textYPosition + (editorSettings.textSize * scale / 2));
+                welcomeGradient.addColorStop(0, '#000000');
+                welcomeGradient.addColorStop(1, '#333333');
                 
-                // Company name text
-                const companyText = document.createElement('div');
-                companyText.style.fontSize = `${editorSettings.textSize * scale}px`;
-                companyText.style.fontWeight = 'bold';
-                companyText.textContent = currentCompanyName || '';
-                companyText.style.background = 'linear-gradient(45deg, #ff6600, #ff9933)';
-                companyText.style.webkitBackgroundClip = 'text';
-                companyText.style.webkitTextFillColor = 'transparent';
-                companyText.style.backgroundClip = 'text';
-                companyText.style.textShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+                ctx.fillStyle = welcomeGradient;
+                ctx.font = `300 ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                ctx.fillText('Welcome', welcomeX, textYPosition);
                 
-                tempContainer.appendChild(welcomeText);
-                tempContainer.appendChild(companyText);
-                
-                // Draw text using html2canvas to preserve gradient and shadow
-                document.body.appendChild(tempContainer);
-                html2canvas(tempContainer, {
-                    backgroundColor: null,
-                    scale: 1,
-                    width: canvas.width,
-                    height: canvas.height,
-                    x: 0,
-                    y: textYPosition - (editorSettings.textSize * scale) / 2
-                }).then(textCanvas => {
-                    document.body.removeChild(tempContainer);
-                    ctx.drawImage(textCanvas, 0, 0);
+                // Company name gradient
+                if (currentCompanyName) {
+                    const companyGradient = ctx.createLinearGradient(companyX - companyWidth / 2, textYPosition - (editorSettings.textSize * scale / 2), companyX + companyWidth / 2, textYPosition + (editorSettings.textSize * scale / 2));
+                    companyGradient.addColorStop(0, '#ff6600');
+                    companyGradient.addColorStop(1, '#ff9933');
                     
-                    // Logo
-                    if (currentLogo) {
-                        const logoImg = new Image();
-                        logoImg.onload = function() {
-                            const maxSize = editorSettings.logoSize * scale;
-                            const aspect = logoImg.width / logoImg.height;
-                            let w, h;
-                            
-                            if (aspect > 1) {
-                                w = maxSize;
-                                h = maxSize / aspect;
-                            } else {
-                                h = maxSize;
-                                w = maxSize * aspect;
-                            }
-                            
-                            ctx.drawImage(logoImg, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
-                            downloadCanvas();
-                        };
-                        logoImg.src = currentLogo;
-                    } else {
-                        const placeholderSize = editorSettings.logoSize * scale;
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                        ctx.fillRect(canvas.width / 2 - placeholderSize / 2, canvas.height / 2 - placeholderSize / 2, placeholderSize, placeholderSize);
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.font = `${placeholderSize * 0.5}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText('Logo', canvas.width / 2, canvas.height / 2);
+                    ctx.fillStyle = companyGradient;
+                    ctx.font = `bold ${editorSettings.textSize * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                    ctx.fillText(currentCompanyName, companyX, textYPosition);
+                }
+                
+                // Reset shadow for logo
+                ctx.shadowBlur = 0;
+                
+                // Logo
+                if (currentLogo) {
+                    const logoImg = new Image();
+                    logoImg.onload = function() {
+                        const maxSize = editorSettings.logoSize * scale;
+                        const aspect = logoImg.width / logoImg.height;
+                        let w, h;
+                        
+                        if (aspect > 1) {
+                            w = maxSize;
+                            h = maxSize / aspect;
+                        } else {
+                            h = maxSize;
+                            w = maxSize * aspect;
+                        }
+                        
+                        ctx.drawImage(logoImg, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
                         downloadCanvas();
-                    }
-                    
-                    function downloadCanvas() {
-                        canvas.toBlob(function(blob) {
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            const fileName = currentCompanyName ? 
-                                `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-4k.jpg` : 
-                                'welcome-animation-4k.jpg';
-                            a.download = fileName;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                            closeEditor();
-                        }, 'image/jpeg', 0.95);
-                    }
-                });
+                    };
+                    logoImg.src = currentLogo;
+                } else {
+                    const placeholderSize = editorSettings.logoSize * scale;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.fillRect(canvas.width / 2 - placeholderSize / 2, canvas.height / 2 - placeholderSize / 2, placeholderSize, placeholderSize);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.font = `${placeholderSize * 0.5}px 'Neue Haas Grotesk Display Pro', sans-serif`;
+                    ctx.fillText('Logo', canvas.width / 2, canvas.height / 2);
+                    downloadCanvas();
+                }
+                
+                function downloadCanvas() {
+                    canvas.toBlob(function(blob) {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        const fileName = currentCompanyName ? 
+                            `welcome-${currentCompanyName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-4k.jpg` : 
+                            'welcome-animation-4k.jpg';
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        closeEditor();
+                    }, 'image/jpeg', 0.95);
+                }
             };
             
             bgImg.onerror = function() {
