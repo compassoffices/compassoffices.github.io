@@ -134,8 +134,8 @@
                     
                     <!-- Reception -->
                     <div>
-                        <label for="reception" class="block text-sm font-semibold text-gray-700 mb-2">Reception</label>
-                        <select id="reception" name="reception" required
+                        <label for="reception" class="block text-sm font-semibold text-gray-700 mb-2">Reception (Optional)</label>
+                        <select id="reception" name="reception"
                                 class="input-field w-full px-4 py-3 rounded-lg focus:outline-none">
                             <option value="">Select Reception</option>
                             <option value="HKGWOC027@compassoffices.com">HKGWOC027</option>
@@ -230,12 +230,20 @@
                             </div>
                         </div>
                         
-                        <!-- Room Name Input -->
+                        <!-- Room Name Inputs -->
                         <div class="mb-4" id="roomNameSection" style="display: none;">
-                            <label for="roomName" class="block text-xs font-medium text-gray-600 mb-2">Room/Meeting Room Name</label>
-                            <input type="text" id="roomName" name="roomName"
-                                   placeholder="Enter room name (e.g., 1826)"
-                                   class="input-field w-full px-4 py-3 rounded-lg focus:outline-none">
+                            <div id="regularRoomInput" style="display: none;" class="mb-3">
+                                <label for="regularRoomName" class="block text-xs font-medium text-gray-600 mb-2">Room Name</label>
+                                <input type="text" id="regularRoomName" name="regularRoomName"
+                                       placeholder="Enter room name (e.g., 1826)"
+                                       class="input-field w-full px-4 py-3 rounded-lg focus:outline-none">
+                            </div>
+                            <div id="meetingRoomInput" style="display: none;">
+                                <label for="meetingRoomName" class="block text-xs font-medium text-gray-600 mb-2">Meeting Room Name</label>
+                                <input type="text" id="meetingRoomName" name="meetingRoomName"
+                                       placeholder="Enter meeting room name (e.g., ABC)"
+                                       class="input-field w-full px-4 py-3 rounded-lg focus:outline-none">
+                            </div>
                         </div>
                         
                         <!-- Additional Location Input -->
@@ -395,18 +403,35 @@
             
             // Area type change handlers
             document.getElementById('meetingRoom').addEventListener('change', function() {
-                roomNameSection.style.display = (this.checked || document.getElementById('room').checked) ? 'block' : 'none';
+                updateRoomInputVisibility();
                 updateLocationPreview();
             });
             
             document.getElementById('room').addEventListener('change', function() {
-                roomNameSection.style.display = (this.checked || document.getElementById('meetingRoom').checked) ? 'block' : 'none';
+                updateRoomInputVisibility();
                 updateLocationPreview();
             });
             
             document.getElementById('loungeArea').addEventListener('change', updateLocationPreview);
-            document.getElementById('roomName').addEventListener('input', updateLocationPreview);
+            document.getElementById('regularRoomName').addEventListener('input', updateLocationPreview);
+            document.getElementById('meetingRoomName').addEventListener('input', updateLocationPreview);
             document.getElementById('additionalLocation').addEventListener('input', updateLocationPreview);
+            
+            function updateRoomInputVisibility() {
+                const meetingRoomChecked = document.getElementById('meetingRoom').checked;
+                const roomChecked = document.getElementById('room').checked;
+                const roomNameSection = document.getElementById('roomNameSection');
+                const regularRoomInput = document.getElementById('regularRoomInput');
+                const meetingRoomInput = document.getElementById('meetingRoomInput');
+                
+                if (meetingRoomChecked || roomChecked) {
+                    roomNameSection.style.display = 'block';
+                    regularRoomInput.style.display = roomChecked ? 'block' : 'none';
+                    meetingRoomInput.style.display = meetingRoomChecked ? 'block' : 'none';
+                } else {
+                    roomNameSection.style.display = 'none';
+                }
+            }
             
             function updateLocationPreview() {
                 const building = buildingSelect.value;
@@ -414,7 +439,8 @@
                 const loungeArea = document.getElementById('loungeArea').checked;
                 const meetingRoom = document.getElementById('meetingRoom').checked;
                 const room = document.getElementById('room').checked;
-                const roomName = document.getElementById('roomName').value;
+                const regularRoomName = document.getElementById('regularRoomName').value;
+                const meetingRoomName = document.getElementById('meetingRoomName').value;
                 const additionalLocation = document.getElementById('additionalLocation').value;
                 
                 let preview = '';
@@ -425,28 +451,46 @@
                     if (building === 'Lee Garden Two') buildingName = 'Lee Garden 2';
                     if (building === 'Lee Garden One') buildingName = 'Lee Garden 1';
                     
-                    preview = `${buildingName}, ${floor}F`;
+                    preview = `${buildingName}, ${floor}/F`;
                     
-                    // Add room/meeting room name if specified
-                    if ((meetingRoom || room) && roomName) {
-                        preview += `, ${roomName}`;
+                    // Build location parts array
+                    const locationParts = [];
+                    
+                    // Add room if selected
+                    if (room) {
+                        if (regularRoomName) {
+                            locationParts.push(`Room ${regularRoomName}`);
+                        } else {
+                            locationParts.push('Room');
+                        }
                     }
                     
-                    // Add area types
-                    const areas = [];
-                    if (loungeArea) areas.push('Lounge area');
-                    if (meetingRoom && !roomName) areas.push('Meeting room');
-                    if (room && !roomName) areas.push('Room');
-                    
-                    if (areas.length > 0) {
-                        preview += ` + ${areas.join(' + ')}`;
-                    } else if (loungeArea && (meetingRoom || room) && roomName) {
-                        preview += ` + Lounge area`;
+                    // Add meeting room if selected
+                    if (meetingRoom) {
+                        if (meetingRoomName) {
+                            locationParts.push(`Meeting room (${meetingRoomName})`);
+                        } else {
+                            locationParts.push('Meeting room');
+                        }
                     }
                     
-                    // Add additional location
-                    if (additionalLocation) {
-                        preview += ` + ${additionalLocation}`;
+                    // Add lounge area if selected
+                    if (loungeArea) {
+                        locationParts.push('Lounge area');
+                    }
+                    
+                    // Join all parts with " + "
+                    if (locationParts.length > 0) {
+                        preview += `, ${locationParts.join(' + ')}`;
+                    }
+                    
+                    // Add additional location if provided and no area types selected
+                    if (locationParts.length === 0 && additionalLocation) {
+                        preview += `, ${additionalLocation}`;
+                    }
+                    // Add additional location in parentheses if area types are selected
+                    else if (locationParts.length > 0 && additionalLocation) {
+                        preview += ` (${additionalLocation})`;
                     }
                 } else {
                     preview = 'Please select location details above';
@@ -494,7 +538,8 @@
                     building: document.getElementById('building').value,
                     floor: document.getElementById('floor').value,
                     areaTypes: areaTypes,
-                    roomName: document.getElementById('roomName').value,
+                    regularRoomName: document.getElementById('regularRoomName').value,
+                    meetingRoomName: document.getElementById('meetingRoomName').value,
                     additionalLocation: document.getElementById('additionalLocation').value,
                     formattedLocation: document.getElementById('locationPreview').textContent
                 },
@@ -519,6 +564,8 @@
                     document.getElementById('building').disabled = true;
                     document.getElementById('floor').disabled = true;
                     document.getElementById('roomNameSection').style.display = 'none';
+                    document.getElementById('regularRoomInput').style.display = 'none';
+                    document.getElementById('meetingRoomInput').style.display = 'none';
                 } else {
                     throw new Error('Network response was not ok');
                 }
@@ -533,5 +580,5 @@
             }
         });
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98e05aafc0c709bc',t:'MTc2MDM3NDQxOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98e07ead730e3ee9',t:'MTc2MDM3NTg5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
