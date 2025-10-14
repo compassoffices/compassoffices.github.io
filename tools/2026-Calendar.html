@@ -186,6 +186,10 @@
             background: #f8f9fa !important;
         }
 
+        td.selected {
+            background: #e9ecef !important;
+        }
+
         .day-number {
             font-weight: 600;
             font-size: 0.9em;
@@ -239,7 +243,7 @@
         }
 
         .tooltip {
-            position: absolute;
+            position: fixed;
             background: #fff;
             border-radius: 8px;
             padding: 12px;
@@ -406,7 +410,7 @@
 
         <div class="tooltip" id="tooltip"></div>
 
-        <p class="footer">Click dates to pin tooltip for copying • Hover for details • Tap on mobile</p>
+        <p class="footer">Please check the calendar information. Let me know if you find anything wrong. Thanks, William</p>
     </div>
 
     <script>
@@ -440,22 +444,22 @@
                 "2026-12-26": "Boxing Day"
             },
             japan: {
-                "2026-01-01": "New Year's Day",
-                "2026-01-12": "Coming of Age Day",
-                "2026-02-11": "National Foundation Day",
-                "2026-02-23": "Emperor's Birthday",
-                "2026-03-20": "Vernal Equinox Day",
-                "2026-04-29": "Showa Day",
-                "2026-05-03": "Constitution Memorial Day",
-                "2026-05-04": "Greenery Day",
-                "2026-05-05": "Children's Day",
-                "2026-07-20": "Marine Day",
-                "2026-08-11": "Mountain Day",
-                "2026-09-21": "Respect for the Aged Day",
-                "2026-09-23": "Autumnal Equinox Day",
-                "2026-10-12": "Sports Day",
-                "2026-11-03": "Culture Day",
-                "2026-11-23": "Labor Thanksgiving Day"
+                "2026-01-01": { en: "New Year's Day", jp: "元日" },
+                "2026-01-12": { en: "Coming of Age Day", jp: "成人の日" },
+                "2026-02-11": { en: "National Foundation Day", jp: "建国記念の日" },
+                "2026-02-23": { en: "Emperor's Birthday", jp: "天皇誕生日" },
+                "2026-03-20": { en: "Vernal Equinox Day", jp: "春分の日" },
+                "2026-04-29": { en: "Showa Day", jp: "昭和の日" },
+                "2026-05-03": { en: "Constitution Memorial Day", jp: "憲法記念日" },
+                "2026-05-04": { en: "Greenery Day", jp: "みどりの日" },
+                "2026-05-05": { en: "Children's Day", jp: "こどもの日" },
+                "2026-07-20": { en: "Marine Day", jp: "海の日" },
+                "2026-08-11": { en: "Mountain Day", jp: "山の日" },
+                "2026-09-21": { en: "Respect for the Aged Day", jp: "敬老の日" },
+                "2026-09-23": { en: "Autumnal Equinox Day", jp: "秋分の日" },
+                "2026-10-12": { en: "Sports Day", jp: "スポーツの日" },
+                "2026-11-03": { en: "Culture Day", jp: "文化の日" },
+                "2026-11-23": { en: "Labor Thanksgiving Day", jp: "勤労感謝の日" }
             },
             melbourne: {
                 "2026-01-01": "New Year's Day",
@@ -700,16 +704,16 @@
             const cells = document.querySelectorAll('td[data-date]');
             cells.forEach(cell => {
                 cell.addEventListener('click', toggleTooltip);
-                cell.addEventListener('mouseenter', showTooltip);
-                cell.addEventListener('mouseleave', hideTooltip);
             });
 
-            // Add click event to close tooltip when clicking outside
             document.addEventListener('click', (e) => {
                 if (isTooltipPinned && !e.target.closest('td[data-date]') && !e.target.closest('.tooltip')) {
                     hideTooltip();
                     isTooltipPinned = false;
-                    lastClickedCell = null;
+                    if (lastClickedCell) {
+                        lastClickedCell.classList.remove('selected');
+                        lastClickedCell = null;
+                    }
                 }
             });
         }
@@ -723,6 +727,8 @@
                 asiapacific: document.getElementById('asiapacific').checked,
                 showall: document.getElementById('showall').checked
             };
+
+            const isJapanOnly = selectedGroups.japan && !selectedGroups.hongkong && !selectedGroups.melbourne && !selectedGroups.sydney && !selectedGroups.asiapacific && !selectedGroups.showall;
 
             const cells = document.querySelectorAll('td[data-date]');
             cells.forEach(cell => {
@@ -744,7 +750,10 @@
                     activeGroups.push('hongkong');
                 }
                 if (selectedGroups.japan && holidays.japan[date]) {
-                    holidaysList.push(`<span style="color: ${textColors.japan};">${holidays.japan[date]}</span>`);
+                    const holiday = holidays.japan[date];
+                    holidaysList.push(isJapanOnly 
+                        ? `<span style="color: ${textColors.japan};">${holiday.en} (${holiday.jp})</span>`
+                        : `<span style="color: ${textColors.japan};">${holiday.en}</span>`);
                     isHoliday = true;
                     activeGroups.push('japan');
                 }
@@ -791,9 +800,7 @@
             });
         }
 
-        function showTooltip(e) {
-            if (isTooltipPinned && e.currentTarget === lastClickedCell) return;
-
+        function toggleTooltip(e) {
             const cell = e.currentTarget;
             const date = cell.dataset.date;
             const selectedGroups = {
@@ -804,6 +811,8 @@
                 asiapacific: document.getElementById('asiapacific').checked
             };
 
+            const isJapanOnly = selectedGroups.japan && !selectedGroups.hongkong && !selectedGroups.melbourne && !selectedGroups.sydney && !selectedGroups.asiapacific;
+
             let holidaysList = [];
             let hasHoliday = false;
 
@@ -812,7 +821,8 @@
                 hasHoliday = true;
             }
             if (selectedGroups.japan && holidays.japan[date]) {
-                holidaysList.push({ group: 'japan', name: holidays.japan[date] });
+                const holiday = holidays.japan[date];
+                holidaysList.push({ group: 'japan', name: isJapanOnly ? `${holiday.en} (${holiday.jp})` : holiday.en });
                 hasHoliday = true;
             }
             if (selectedGroups.melbourne && holidays.melbourne[date]) {
@@ -833,38 +843,49 @@
             }
 
             if (hasHoliday) {
-                const tooltip = document.getElementById('tooltip');
-                let html = `<h4>${formatDate(date)}</h4><ul>`;
-                holidaysList.forEach(h => {
-                    html += `<li><span class="color-dot ${colorMap[h.group]}"></span>${groupNames[h.group]}: ${h.name}</li>`;
-                });
-                html += '</ul>';
-                tooltip.innerHTML = html;
-                tooltip.style.display = 'block';
-                
-                const rect = cell.getBoundingClientRect();
-                tooltip.style.left = rect.left + 'px';
-                tooltip.style.top = (rect.bottom + 5) + 'px';
-            }
-        }
-
-        function toggleTooltip(e) {
-            const cell = e.currentTarget;
-            if (isTooltipPinned && cell === lastClickedCell) {
-                hideTooltip();
-                isTooltipPinned = false;
-                lastClickedCell = null;
+                if (isTooltipPinned && cell === lastClickedCell) {
+                    hideTooltip();
+                    isTooltipPinned = false;
+                    cell.classList.remove('selected');
+                    lastClickedCell = null;
+                } else {
+                    if (lastClickedCell) {
+                        lastClickedCell.classList.remove('selected');
+                    }
+                    isTooltipPinned = true;
+                    lastClickedCell = cell;
+                    cell.classList.add('selected');
+                    const tooltip = document.getElementById('tooltip');
+                    let html = `<h4>${formatDate(date)}</h4><ul>`;
+                    holidaysList.forEach(h => {
+                        html += `<li><span class="color-dot ${colorMap[h.group]}"></span>${groupNames[h.group]}: ${h.name}</li>`;
+                    });
+                    html += '</ul>';
+                    tooltip.innerHTML = html;
+                    tooltip.style.display = 'block';
+                    
+                    const rect = cell.getBoundingClientRect();
+                    const tooltipHeight = tooltip.offsetHeight;
+                    const viewportHeight = window.innerHeight;
+                    let top = rect.bottom + 5;
+                    if (top + tooltipHeight > viewportHeight) {
+                        top = rect.top - tooltipHeight - 5;
+                    }
+                    tooltip.style.left = `${rect.left}px`;
+                    tooltip.style.top = `${top}px`;
+                }
             } else {
-                isTooltipPinned = true;
-                lastClickedCell = cell;
-                showTooltip(e);
+                if (isTooltipPinned && cell === lastClickedCell) {
+                    hideTooltip();
+                    isTooltipPinned = false;
+                    cell.classList.remove('selected');
+                    lastClickedCell = null;
+                }
             }
         }
 
         function hideTooltip() {
-            if (!isTooltipPinned) {
-                document.getElementById('tooltip').style.display = 'none';
-            }
+            document.getElementById('tooltip').style.display = 'none';
         }
 
         function formatDate(dateStr) {
