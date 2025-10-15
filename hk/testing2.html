@@ -134,19 +134,32 @@
 
         // Clear cache functionality
         function clearCache() {
+            // Store fullscreen state
+            const wasFullscreen = !!document.fullscreenElement;
+
+            // Clear all caches silently
             caches.keys().then(cacheNames => {
-                cacheNames.forEach(cacheName => {
-                    caches.delete(cacheName);
-                });
+                return Promise.all(
+                    cacheNames.map(cacheName => caches.delete(cacheName))
+                );
             }).then(() => {
-                // Reload iframes to ensure fresh content
+                // Reload iframes without disrupting fullscreen
                 document.querySelectorAll('iframe').forEach(iframe => {
-                    iframe.src = iframe.src;
+                    const src = iframe.src;
+                    iframe.src = ''; // Temporarily clear src to force reload
+                    setTimeout(() => {
+                        iframe.src = src; // Restore original src
+                    }, 0);
                 });
-                alert('Cache cleared successfully!');
+
+                // Restore fullscreen state if it was active
+                if (wasFullscreen && !document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.error(`Error restoring full-screen mode: ${err.message}`);
+                    });
+                }
             }).catch(err => {
                 console.error('Error clearing cache:', err);
-                alert('Error clearing cache. Please try again.');
             });
         }
 
