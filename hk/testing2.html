@@ -137,30 +137,28 @@
             // Store fullscreen state
             const wasFullscreen = !!document.fullscreenElement;
 
-            // Clear all caches silently
+            // Clear service worker caches
             caches.keys().then(cacheNames => {
                 return Promise.all(
                     cacheNames.map(cacheName => caches.delete(cacheName))
                 );
-            }).then(() => {
-                // Reload iframes without disrupting fullscreen
-                document.querySelectorAll('iframe').forEach(iframe => {
-                    const src = iframe.src;
-                    iframe.src = ''; // Temporarily clear src to force reload
-                    setTimeout(() => {
-                        iframe.src = src; // Restore original src
-                    }, 0);
-                });
-
-                // Restore fullscreen state if it was active
-                if (wasFullscreen && !document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.error(`Error restoring full-screen mode: ${err.message}`);
-                    });
-                }
             }).catch(err => {
-                console.error('Error clearing cache:', err);
+                console.error('Error clearing service worker cache:', err);
             });
+
+            // Append cache-busting query parameter to iframe URLs
+            document.querySelectorAll('iframe').forEach(iframe => {
+                const originalSrc = iframe.src.split('?')[0]; // Remove existing query params
+                const cacheBuster = `cb=${Date.now()}`; // Unique timestamp
+                iframe.src = `${originalSrc}?${cacheBuster}`;
+            });
+
+            // Restore fullscreen state if it was active
+            if (wasFullscreen && !document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error restoring full-screen mode: ${err.message}`);
+                });
+            }
         }
 
         // Auto-clear cache at 9 AM and 4 PM
