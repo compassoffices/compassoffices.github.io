@@ -126,7 +126,10 @@
       align-items: center;
     }
     .event-time {
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .event-client {
+      margin-bottom: 0.5rem;
     }
     .event-location {
       padding-top: 0.5rem;
@@ -168,7 +171,7 @@
 </head>
 <body>
   <div class="header">
-    <span id="header-upcoming" class="header-upcoming"></span>
+    <span id="header-upcoming" class="header-upcoming">Loading </span>
     <span class="header-events">Event</span>
   </div>
   <div id="eventContainer" class="event-container">
@@ -187,6 +190,26 @@
   </div>
   <script>
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
+
+    // Sample data for demonstration
+    const sampleData = [
+      {
+        time: '12:00-17:00',
+        date: '16/10/2025',
+        client: 'PURE Fitness',
+        region: 'Hong Kong',
+        subject: 'Wellness Booth Event',
+        location: 'China Building, 18 & 19F'
+      },
+      {
+        time: '14:00-18:00',
+        date: '17/10/2025',
+        client: 'Tech Corp',
+        region: 'Hong Kong',
+        subject: 'Innovation Summit',
+        location: 'Convention Centre, Hall 3'
+      }
+    ];
 
     function parseCSVRow(row) {
       const fields = [];
@@ -226,6 +249,10 @@
           // Try MM/DD/YYYY
           dateObj = new Date(parts[2], parts[0] - 1, parts[1]);
         }
+        if (isNaN(dateObj)) {
+          // Try YYYY-MM-DD
+          dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+        }
       }
       if (isNaN(dateObj)) {
         console.warn(`Invalid date format: ${dateStr}`);
@@ -241,7 +268,7 @@
     }
 
     function isToday(dateObj) {
-      const today = new Date();
+      const today = new Date('2025-10-16');
       today.setHours(0, 0, 0, 0);
       const eventDate = new Date(dateObj);
       eventDate.setHours(0, 0, 0, 0);
@@ -259,22 +286,79 @@
       return colors[Math.floor(Math.random() * colors.length)];
     }
 
-    const today = new Date();
+    const today = new Date('2025-10-16');
     today.setHours(0, 0, 0, 0);
 
+    function displayEvent(event, isTodayEvent) {
+      const container = document.getElementById('eventContainer');
+      const headerUpcoming = document.getElementById('header-upcoming');
+      headerUpcoming.textContent = isTodayEvent ? 'Today ' : 'Upcoming ';
+      container.innerHTML = '';
+      const card = document.createElement('div');
+      card.className = 'event-card';
+      const imgContainer = document.createElement('div');
+      imgContainer.className = 'img-container';
+      imgContainer.style.background = getRandomGradient();
+      const dateBox = document.createElement('div');
+      dateBox.className = 'date';
+      dateBox.innerHTML = formatDateToBox(event.date);
+      imgContainer.appendChild(dateBox);
+      const title = document.createElement('div');
+      title.className = 'event-title';
+      title.textContent = event.subject;
+      const details = document.createElement('div');
+      details.className = 'event-details';
+      const time = document.createElement('div');
+      time.className = 'event-time';
+      time.innerHTML = '<span class="time-icon">🕒</span>' + event.time;
+      const client = document.createElement('div');
+      client.className = 'event-client';
+      client.innerHTML = '<span class="client-icon">👤</span>' + event.client;
+      const loc = document.createElement('div');
+      loc.className = 'event-location';
+      loc.innerHTML = '<span class="location-icon">📍</span>' + event.location;
+      details.appendChild(time);
+      details.appendChild(client);
+      details.appendChild(loc);
+      card.appendChild(imgContainer);
+      card.appendChild(title);
+      card.appendChild(details);
+      container.appendChild(card);
+    }
+
+    // Process sample data
+    let data = sampleData.map(event => ({
+      ...event,
+      date: parseDate(event.date)
+    })).filter(event => event.date && event.region.toLowerCase() === 'hong kong' && event.date >= today);
+
+    data.sort((a, b) => a.date - b.date);
+
+    if (data.length > 0) {
+      const todayEvent = data.find(event => isToday(event.date));
+      const selectedEvent = todayEvent || data[0];
+      console.log('Displaying event:', selectedEvent);
+      displayEvent(selectedEvent, todayEvent !== null);
+    } else {
+      document.getElementById('eventContainer').innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
+      document.getElementById('header-upcoming').textContent = 'No ';
+      console.log('No upcoming Hong Kong events found.');
+    }
+
+    // Fetch real data
     fetch(csvUrl)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
         return res.text();
       })
       .then(text => {
+        console.log('Raw CSV data:', text);
         const rows = text.trim().split('\n').slice(1);
-        const container = document.getElementById('eventContainer');
-        const headerUpcoming = document.getElementById('header-upcoming');
-        let data = [];
+        data = [];
         console.log(`Total rows fetched: ${rows.length}`);
         rows.forEach((row, index) => {
           const cols = parseCSVRow(row);
+          console.log(`Row ${index + 2} columns:`, cols);
           if (cols.length < 11) {
             console.warn(`Row ${index + 2} has insufficient columns: ${cols.length}`);
             return;
@@ -303,50 +387,19 @@
           }
         });
         data.sort((a, b) => a.date - b.date);
-        if (!data.length) {
-          container.innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
-          headerUpcoming.textContent = 'Upcoming ';
+        if (data.length > 0) {
+          const todayEvent = data.find(event => isToday(event.date));
+          const selectedEvent = todayEvent || data[0];
+          console.log('Displaying event:', selectedEvent);
+          displayEvent(selectedEvent, todayEvent !== null);
+        } else {
+          document.getElementById('eventContainer').innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
+          document.getElementById('header-upcoming').textContent = 'No ';
           console.log('No upcoming Hong Kong events found.');
-          return;
         }
-        const firstEvent = data[0];
-        console.log('Displaying event:', firstEvent);
-        headerUpcoming.textContent = isToday(firstEvent.date) ? 'Today ' : 'Upcoming ';
-        container.innerHTML = '';
-        const card = document.createElement('div');
-        card.className = 'event-card';
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'img-container';
-        imgContainer.style.background = getRandomGradient();
-        const dateBox = document.createElement('div');
-        dateBox.className = 'date';
-        dateBox.innerHTML = formatDateToBox(firstEvent.date);
-        imgContainer.appendChild(dateBox);
-        const title = document.createElement('div');
-        title.className = 'event-title';
-        title.textContent = firstEvent.subject;
-        const details = document.createElement('div');
-        details.className = 'event-details';
-        const time = document.createElement('div');
-        time.className = 'event-time';
-        time.innerHTML = '<span class="time-icon">🕒</span>' + firstEvent.time;
-        const client = document.createElement('div');
-        client.className = 'event-client';
-        client.innerHTML = '<span class="client-icon">👤</span>' + firstEvent.client;
-        const loc = document.createElement('div');
-        loc.className = 'event-location';
-        loc.innerHTML = '<span class="location-icon">📍</span>' + firstEvent.location;
-        details.appendChild(time);
-        details.appendChild(client);
-        details.appendChild(loc);
-        card.appendChild(imgContainer);
-        card.appendChild(title);
-        card.appendChild(details);
-        container.appendChild(card);
       })
       .catch(err => {
-        document.getElementById('eventContainer').innerHTML = '<div class="loading">Failed to load events: ' + err.message + '</div>';
-        console.error('Fetch error:', err);
+        console.error('Fetch error, using sample data:', err);
       });
   </script>
 </body>
