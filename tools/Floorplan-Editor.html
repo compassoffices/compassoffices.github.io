@@ -189,6 +189,7 @@
                 </div>
                 <button class="btn btn-secondary" id="rectangleBtn">📐 Rectangle Tool</button>
                 <button class="btn btn-secondary" id="dragBtn">✋ Move Image</button>
+                <button class="btn btn-secondary" id="selectionBtn">🔲 Selection Tool</button>
                 <button class="btn btn-danger" onclick="clearRectangles()">🗑️ Clear All</button>
                 <button class="btn btn-success" onclick="downloadImage()">💾 Download JPG</button>
             </div>
@@ -207,6 +208,7 @@
         const scaleSlider = document.getElementById('scaleSlider');
         const rectangleBtn = document.getElementById('rectangleBtn');
         const dragBtn = document.getElementById('dragBtn');
+        const selectionBtn = document.getElementById('selectionBtn');
         const status = document.getElementById('status');
         const pdfPageSelect = document.getElementById('pdfPage');
         const pageSelector = document.getElementById('pageSelector');
@@ -217,6 +219,7 @@
         let isDrawing = false;
         let startX, startY;
         let rectangleMode = false;
+        let selectionMode = false;
         let currentRect = null;
         let isDragging = false;
         let imageOffsetX = 0;
@@ -225,6 +228,7 @@
         let dragStartY = 0;
         let pdfDoc = null;
         let currentPage = 1;
+        let selectionRect = null;
 
         // Initialize canvas size
         updateCanvasSize();
@@ -236,6 +240,7 @@
         scaleSlider.addEventListener('input', updateScale);
         rectangleBtn.addEventListener('click', toggleRectangleMode);
         dragBtn.addEventListener('click', toggleDragMode);
+        selectionBtn.addEventListener('click', toggleSelectionMode);
         pdfPageSelect.addEventListener('change', updatePdfPage);
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
@@ -252,6 +257,7 @@
             // Reset state
             uploadedImage = null;
             rectangles = [];
+            selectionRect = null;
             imageOffsetX = 0;
             imageOffsetY = 0;
 
@@ -325,6 +331,7 @@
         function updatePdfPage() {
             currentPage = parseInt(pdfPageSelect.value);
             rectangles = [];
+            selectionRect = null;
             imageOffsetX = 0;
             imageOffsetY = 0;
             loadPdfPage(currentPage);
@@ -353,24 +360,45 @@
             rectangleMode = !rectangleMode;
             if (rectangleMode) {
                 dragMode = false;
+                selectionMode = false;
                 dragBtn.textContent = '✋ Move Image';
                 dragBtn.className = 'btn btn-secondary';
+                selectionBtn.textContent = '🔲 Selection Tool';
+                selectionBtn.className = 'btn btn-secondary';
             }
             rectangleBtn.textContent = rectangleMode ? '✏️ Drawing Mode' : '📐 Rectangle Tool';
             rectangleBtn.className = rectangleMode ? 'btn btn-success' : 'btn btn-secondary';
-            canvas.style.cursor = rectangleMode ? 'crosshair' : (dragMode ? 'move' : 'default');
+            canvas.style.cursor = rectangleMode ? 'crosshair' : (dragMode ? 'move' : (selectionMode ? 'crosshair' : 'default'));
         }
 
         function toggleDragMode() {
             dragMode = !dragMode;
             if (dragMode) {
                 rectangleMode = false;
+                selectionMode = false;
                 rectangleBtn.textContent = '📐 Rectangle Tool';
                 rectangleBtn.className = 'btn btn-secondary';
+                selectionBtn.textContent = '🔲 Selection Tool';
+                selectionBtn.className = 'btn btn-secondary';
             }
             dragBtn.textContent = dragMode ? '🖱️ Normal Mode' : '✋ Move Image';
             dragBtn.className = dragMode ? 'btn btn-success' : 'btn btn-secondary';
-            canvas.style.cursor = dragMode ? 'move' : (rectangleMode ? 'crosshair' : 'default');
+            canvas.style.cursor = dragMode ? 'move' : (rectangleMode || selectionMode ? 'crosshair' : 'default');
+        }
+
+        function toggleSelectionMode() {
+            selectionMode = !selectionMode;
+            if (selectionMode) {
+                rectangleMode = false;
+                dragMode = false;
+                rectangleBtn.textContent = '📐 Rectangle Tool';
+                rectangleBtn.className = 'btn btn-secondary';
+                dragBtn.textContent = '✋ Move Image';
+                dragBtn.className = 'btn btn-secondary';
+            }
+            selectionBtn.textContent = selectionMode ? '🔲 Selecting Mode' : '🔲 Selection Tool';
+            selectionBtn.className = selectionMode ? 'btn btn-success' : 'btn btn-secondary';
+            canvas.style.cursor = selectionMode ? 'crosshair' : (rectangleMode ? 'crosshair' : (dragMode ? 'move' : 'default'));
         }
 
         function startDrawing(e) {
@@ -383,7 +411,7 @@
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
 
-            if (rectangleMode) {
+            if (rectangleMode || selectionMode) {
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
 
@@ -422,7 +450,7 @@
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
 
-            if (isDrawing && rectangleMode) {
+            if (isDrawing && (rectangleMode || selectionMode)) {
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
 
@@ -446,7 +474,7 @@
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
 
-                ctx.fillStyle = 'rgb(255, 255, 255)';
+                ctx.fillStyle = selectionMode ? 'rgba(0, 0, 255, 0.3)' : 'rgb(255, 255, 255)';
                 ctx.fillRect(currentRect.x, currentRect.y, currentRect.width, currentRect.height);
                 ctx.restore();
             } else if (isDragging && dragMode) {
@@ -468,6 +496,19 @@
                     });
                     redrawCanvas();
                     status.textContent = `${rectangles.length} rectangle(s) added`;
+                }
+                currentRect = null;
+            } else if (isDrawing && selectionMode) {
+                isDrawing = false;
+                if (Math.abs(currentRect.width) > 5 && Math.abs(currentRect.height) > 5) {
+                    selectionRect = {
+                        x: Math.min(startX, startX + currentRect.width),
+                        y: Math.min(startY, startY + currentRect.height),
+                        width: Math.abs(currentRect.width),
+                        height: Math.abs(currentRect.height)
+                    };
+                    redrawCanvas();
+                    status.textContent = 'Selection area set';
                 }
                 currentRect = null;
             } else if (isDragging && dragMode) {
@@ -501,33 +542,46 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
             if (uploadedImage) {
                 ctx.save();
-
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
-
                 const imgWidth = uploadedImage.width;
                 const imgHeight = uploadedImage.height;
-
                 ctx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
+                ctx.restore();
+            }
+
+            if (selectionRect) {
+                // Fill outside the selection rectangle with white
+                ctx.save();
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
+                ctx.rotate(rotation);
+                ctx.scale(scale, scale);
+                ctx.fillStyle = 'white';
+                const large = 10000;
+                ctx.beginPath();
+                ctx.rect(-large, -large, large * 2, large * 2);
+                ctx.rect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+                ctx.fill('evenodd');
                 ctx.restore();
             }
 
             rectangles.forEach(rect => {
                 ctx.save();
-
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
-
                 ctx.fillStyle = 'rgb(255, 255, 255)';
                 ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
                 ctx.restore();
@@ -538,8 +592,9 @@
 
         function clearRectangles() {
             rectangles = [];
+            selectionRect = null;
             redrawCanvas();
-            status.textContent = 'All rectangles cleared';
+            status.textContent = 'All rectangles and selection cleared';
         }
 
         function downloadImage() {
@@ -562,31 +617,41 @@
 
             if (uploadedImage) {
                 downloadCtx.save();
-
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-
                 downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
-
                 const imgWidth = uploadedImage.width;
                 const imgHeight = uploadedImage.height;
-
                 downloadCtx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
+                downloadCtx.restore();
+            }
+
+            if (selectionRect) {
+                // Fill outside the selection rectangle with white
+                downloadCtx.save();
+                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+                const scale = parseFloat(scaleSlider.value);
+                downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
+                downloadCtx.rotate(rotation);
+                downloadCtx.scale(scale, scale);
+                downloadCtx.fillStyle = 'white';
+                const large = 10000;
+                downloadCtx.beginPath();
+                downloadCtx.rect(-large, -large, large * 2, large * 2);
+                downloadCtx.rect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+                downloadCtx.fill('evenodd');
                 downloadCtx.restore();
             }
 
             rectangles.forEach(rect => {
                 downloadCtx.save();
-
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-
                 downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
-
                 downloadCtx.fillStyle = 'rgb(255, 255, 255)';
                 downloadCtx.fillRect(rect.x, rect.y, rect.width, rect.height);
                 downloadCtx.restore();
