@@ -194,9 +194,22 @@
     }
 
     function parseDate(dateStr) {
-      const parts = dateStr.trim().split('/');
-      if (parts.length !== 3) return null;
-      return new Date(parts[2], parts[1] - 1, parts[0]);
+      // Handle multiple date formats: DD/MM/YYYY, MM/DD/YYYY, or ISO
+      let dateObj = null;
+      const parts = dateStr.trim().split(/[/-]/);
+      if (parts.length === 3) {
+        // Try DD/MM/YYYY
+        dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+        if (isNaN(dateObj)) {
+          // Try MM/DD/YYYY
+          dateObj = new Date(parts[2], parts[0] - 1, parts[1]);
+        }
+      }
+      if (isNaN(dateObj)) {
+        console.warn(`Invalid date format: ${dateStr}`);
+        return null;
+      }
+      return dateObj;
     }
 
     function formatDateToBox(dateObj) {
@@ -220,18 +233,32 @@
     today.setHours(0, 0, 0, 0);
 
     fetch(csvUrl)
-      .then(res => res.text())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+        return res.text();
+      })
       .then(text => {
         const rows = text.trim().split('\n').slice(1);
         const container = document.getElementById('eventContainer');
         let data = [];
-        rows.forEach(row => {
+        console.log(`Total rows fetched: ${rows.length}`);
+        rows.forEach((row, index) => {
           const cols = parseCSVRow(row);
-          if (cols.length < 11) return;
+          if (cols.length < 11) {
+            console.warn(`Row ${index + 2} has insufficient columns: ${cols.length}`);
+            return;
+          }
           const rawDate = cols[1];
           const dateObj = parseDate(rawDate);
-          if (!dateObj) return;
-          if (cols[3].trim().toLowerCase() !== 'hong kong') return;
+          if (!dateObj) {
+            console.warn(`Row ${index + 2} has invalid date: ${rawDate}`);
+            return;
+          }
+          const region = cols[3].trim();
+          if (region.toLowerCase() !== 'hong kong') {
+            console.log(`Row ${index + 2} skipped, region is ${region}`);
+            return;
+          }
           const event = {
             date: dateObj,
             time: cols[0],
@@ -239,14 +266,19 @@
             subject: cols[4],
             location: cols[5]
           };
-          if (dateObj >= today) data.push(event);
+          if (dateObj >= today) {
+            data.push(event);
+            console.log(`Row ${index + 2} added:`, event);
+          }
         });
         data.sort((a, b) => a.date - b.date);
-        const firstEvent = data[0];
-        if (!firstEvent) {
+        if (!data.length) {
           container.innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
+          console.log('No upcoming Hong Kong events found.');
           return;
         }
+        const firstEvent = data[0];
+        console.log('Displaying event:', firstEvent);
         container.innerHTML = '';
         const card = document.createElement('div');
         card.className = 'event-card';
@@ -280,8 +312,8 @@
         container.appendChild(card);
       })
       .catch(err => {
-        document.getElementById('eventContainer').innerHTML = '<div class="loading">Failed to load events.</div>';
-        console.error(err);
+        document.getElementById('eventContainer').innerHTML = '<div class="loading">Failed to load events: ' + err.message + '</div>';
+        console.error('Fetch error:', err);
       });
   </script>
 </body>
