@@ -167,6 +167,15 @@
       margin: 2rem 0;
       text-align: center;
     }
+    .error-message {
+      color: #d63031;
+      font-size: 1.8rem;
+      margin: 2rem 0;
+      text-align: center;
+      background: #ffe6e6;
+      padding: 1rem;
+      border-radius: 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -189,36 +198,39 @@
     </div>
   </div>
   <script>
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
+    const spreadsheetId = '1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt';
+    const gid = '1632866699';
+    const csvUrlDirect = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
+    const csvUrlPublished = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
 
-    // Sample data for demonstration
+    // Sample data for fallback
     const sampleData = [
       {
-        time: '12:00-17:00',
-        date: '16/10/2025',
-        client: 'PURE Fitness',
-        region: 'Hong Kong',
-        subject: 'Wellness Booth Event',
-        location: 'China Building, 18 & 19F'
+        Time: '12:00-17:00',
+        Date: '16/10/2025',
+        'Client-Name': 'PURE Fitness',
+        Region: 'Hong Kong',
+        'Event-Name': 'Wellness Booth Event',
+        Location: 'China Building, 18 & 19F'
       },
       {
-        time: '14:00-18:00',
-        date: '17/10/2025',
-        client: 'Tech Corp',
-        region: 'Hong Kong',
-        subject: 'Innovation Summit',
-        location: 'Convention Centre, Hall 3'
+        Time: '14:00-18:00',
+        Date: '17/10/2025',
+        'Client-Name': 'Tech Corp',
+        Region: 'Hong Kong',
+        'Event-Name': 'Innovation Summit',
+        Location: 'Convention Centre, Hall 3'
       }
     ];
 
-    function parseCSVRow(row) {
-      const fields = [];
-      let field = '';
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
       let inQuotes = false;
-      for (let i = 0; i < row.length; i++) {
-        const char = row[i];
-        if (char === '"' && inQuotes && row[i + 1] === '"') {
-          field += '"';
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"' && inQuotes && line[i + 1] === '"') {
+          current += '"';
           i++;
           continue;
         }
@@ -227,38 +239,56 @@
           continue;
         }
         if (char === ',' && !inQuotes) {
-          fields.push(field);
-          field = '';
+          result.push(current.trim());
+          current = '';
           continue;
         }
-        field += char;
+        current += char;
       }
-      if (field) {
-        fields.push(field);
+      if (current) {
+        result.push(current.trim());
       }
-      return fields.map(f => f.trim());
+      return result;
+    }
+
+    function parseCSV(csvText) {
+      const lines = csvText.split('\n');
+      const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g, ''));
+      const data = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          const values = parseCSVLine(lines[i]);
+          const row = {};
+          headers.forEach((header, index) => {
+            row[header] = values[index] || '';
+          });
+          data.push(row);
+        }
+      }
+      return data;
     }
 
     function parseDate(dateStr) {
-      let dateObj = null;
-      const parts = dateStr.trim().split(/[/-]/);
-      if (parts.length === 3) {
-        // Try DD/MM/YYYY
-        dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-        if (isNaN(dateObj)) {
-          // Try MM/DD/YYYY
-          dateObj = new Date(parts[2], parts[0] - 1, parts[1]);
-        }
-        if (isNaN(dateObj)) {
-          // Try YYYY-MM-DD
-          dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+      if (!dateStr) return null;
+      const formats = [
+        /(\d{1,2})\/(\d{1,2})\/(\d{4})/, // DD/MM/YYYY or MM/DD/YYYY
+        /(\d{4})-(\d{1,2})-(\d{1,2})/, // YYYY-MM-DD
+        /(\d{1,2})-(\d{1,2})-(\d{4})/ // DD-MM-YYYY or MM-DD-YYYY
+      ];
+      for (const format of formats) {
+        const match = dateStr.match(format);
+        if (match) {
+          if (format === formats[0]) {
+            return new Date(match[3], match[2] - 1, match[1]);
+          } else if (format === formats[1]) {
+            return new Date(match[1], match[2] - 1, match[3]);
+          } else {
+            return new Date(match[3], match[1] - 1, match[2]);
+          }
         }
       }
-      if (isNaN(dateObj)) {
-        console.warn(`Invalid date format: ${dateStr}`);
-        return null;
-      }
-      return dateObj;
+      const date = new Date(dateStr);
+      return isNaN(date.getTime()) ? null : date;
     }
 
     function formatDateToBox(dateObj) {
@@ -286,9 +316,6 @@
       return colors[Math.floor(Math.random() * colors.length)];
     }
 
-    const today = new Date('2025-10-16');
-    today.setHours(0, 0, 0, 0);
-
     function displayEvent(event, isTodayEvent) {
       const container = document.getElementById('eventContainer');
       const headerUpcoming = document.getElementById('header-upcoming');
@@ -301,22 +328,22 @@
       imgContainer.style.background = getRandomGradient();
       const dateBox = document.createElement('div');
       dateBox.className = 'date';
-      dateBox.innerHTML = formatDateToBox(event.date);
+      dateBox.innerHTML = formatDateToBox(event.parsedDate);
       imgContainer.appendChild(dateBox);
       const title = document.createElement('div');
       title.className = 'event-title';
-      title.textContent = event.subject;
+      title.textContent = event['Event-Name'] || 'Untitled Event';
       const details = document.createElement('div');
       details.className = 'event-details';
       const time = document.createElement('div');
       time.className = 'event-time';
-      time.innerHTML = '<span class="time-icon">🕒</span>' + event.time;
+      time.innerHTML = '<span class="time-icon">🕒</span>' + (event.Time || 'TBD');
       const client = document.createElement('div');
       client.className = 'event-client';
-      client.innerHTML = '<span class="client-icon">👤</span>' + event.client;
+      client.innerHTML = '<span class="client-icon">👤</span>' + (event['Client-Name'] || 'Unknown Client');
       const loc = document.createElement('div');
       loc.className = 'event-location';
-      loc.innerHTML = '<span class="location-icon">📍</span>' + event.location;
+      loc.innerHTML = '<span class="location-icon">📍</span>' + (event.Location || 'TBD');
       details.appendChild(time);
       details.appendChild(client);
       details.appendChild(loc);
@@ -326,81 +353,84 @@
       container.appendChild(card);
     }
 
-    // Process sample data
-    let data = sampleData.map(event => ({
-      ...event,
-      date: parseDate(event.date)
-    })).filter(event => event.date && event.region.toLowerCase() === 'hong kong' && event.date >= today);
+    async function loadEvents() {
+      const today = new Date('2025-10-16');
+      today.setHours(0, 0, 0, 0);
+      let data = [];
+      let success = false;
 
-    data.sort((a, b) => a.date - b.date);
-
-    if (data.length > 0) {
-      const todayEvent = data.find(event => isToday(event.date));
-      const selectedEvent = todayEvent || data[0];
-      console.log('Displaying event:', selectedEvent);
-      displayEvent(selectedEvent, todayEvent !== null);
-    } else {
-      document.getElementById('eventContainer').innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
-      document.getElementById('header-upcoming').textContent = 'No ';
-      console.log('No upcoming Hong Kong events found.');
-    }
-
-    // Fetch real data
-    fetch(csvUrl)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-        return res.text();
-      })
-      .then(text => {
-        console.log('Raw CSV data:', text);
-        const rows = text.trim().split('\n').slice(1);
-        data = [];
-        console.log(`Total rows fetched: ${rows.length}`);
-        rows.forEach((row, index) => {
-          const cols = parseCSVRow(row);
-          console.log(`Row ${index + 2} columns:`, cols);
-          if (cols.length < 11) {
-            console.warn(`Row ${index + 2} has insufficient columns: ${cols.length}`);
-            return;
-          }
-          const rawDate = cols[1];
-          const dateObj = parseDate(rawDate);
-          if (!dateObj) {
-            console.warn(`Row ${index + 2} has invalid date: ${rawDate}`);
-            return;
-          }
-          const region = cols[3].trim();
-          if (region.toLowerCase() !== 'hong kong') {
-            console.log(`Row ${index + 2} skipped, region is ${region}`);
-            return;
-          }
-          const event = {
-            date: dateObj,
-            time: cols[0] || 'TBD',
-            client: cols[2] || 'Unknown Client',
-            subject: cols[4] || 'Untitled Event',
-            location: cols[5] || 'TBD'
-          };
-          if (dateObj >= today) {
-            data.push(event);
-            console.log(`Row ${index + 2} added:`, event);
+      // Method 1: Direct CSV export
+      try {
+        console.log('Attempting direct CSV fetch:', csvUrlDirect);
+        const response = await fetch(csvUrlDirect, {
+          mode: 'cors',
+          headers: {
+            'Accept': 'text/csv,text/plain,*/*'
           }
         });
-        data.sort((a, b) => a.date - b.date);
-        if (data.length > 0) {
-          const todayEvent = data.find(event => isToday(event.date));
-          const selectedEvent = todayEvent || data[0];
-          console.log('Displaying event:', selectedEvent);
-          displayEvent(selectedEvent, todayEvent !== null);
+        if (response.ok) {
+          const csvText = await response.text();
+          console.log('Direct CSV data:', csvText);
+          data = parseCSV(csvText);
+          success = true;
         } else {
-          document.getElementById('eventContainer').innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
-          document.getElementById('header-upcoming').textContent = 'No ';
-          console.log('No upcoming Hong Kong events found.');
+          console.warn('Direct fetch failed, status:', response.status);
         }
-      })
-      .catch(err => {
-        console.error('Fetch error, using sample data:', err);
-      });
+      } catch (e) {
+        console.warn('Direct fetch error:', e);
+      }
+
+      // Method 2: Published CSV URL
+      if (!success) {
+        try {
+          console.log('Attempting published CSV fetch:', csvUrlPublished);
+          const response = await fetch(csvUrlPublished, {
+            mode: 'cors'
+          });
+          if (response.ok) {
+            const csvText = await response.text();
+            console.log('Published CSV data:', csvText);
+            data = parseCSV(csvText);
+            success = true;
+          } else {
+            console.warn('Published fetch failed, status:', response.status);
+          }
+        } catch (e) {
+          console.warn('Published fetch error:', e);
+        }
+      }
+
+      // Method 3: Fallback to sample data
+      if (!success) {
+        console.log('Using sample data due to fetch failures');
+        data = sampleData;
+        document.getElementById('eventContainer').innerHTML = '<div class="error-message">Using sample data - Please ensure Google Sheet is publicly accessible</div>';
+      }
+
+      // Process data
+      const eventsWithDates = data
+        .map(event => ({
+          ...event,
+          parsedDate: parseDate(event.Date)
+        }))
+        .filter(event => event.parsedDate && event.Region.toLowerCase().includes('hong kong') && event.parsedDate >= today)
+        .sort((a, b) => a.parsedDate - b.parsedDate);
+
+      console.log('Processed events:', eventsWithDates);
+
+      if (eventsWithDates.length > 0) {
+        const todayEvent = eventsWithDates.find(event => isToday(event.parsedDate));
+        const selectedEvent = todayEvent || eventsWithDates[0];
+        console.log('Displaying event:', selectedEvent);
+        displayEvent(selectedEvent, todayEvent !== null);
+      } else {
+        document.getElementById('eventContainer').innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
+        document.getElementById('header-upcoming').textContent = 'No ';
+        console.log('No upcoming Hong Kong events found.');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadEvents);
   </script>
 </body>
 </html>
