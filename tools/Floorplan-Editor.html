@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Floorplan Editor</title>
     <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
     <style>
         body {
             box-sizing: border-box;
@@ -14,7 +15,6 @@
             background: #f8f9fa;
             min-height: 100vh;
         }
-
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -23,7 +23,6 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             overflow: hidden;
         }
-
         .header {
             background: #000000;
             color: white;
@@ -33,18 +32,15 @@
             justify-content: center;
             gap: 16px;
         }
-
         .header img {
             height: 40px;
             width: auto;
         }
-
         .header h1 {
             margin: 0;
             font-size: 28px;
             font-weight: 600;
         }
-
         .toolbar {
             padding: 20px;
             background: #f8fafc;
@@ -54,7 +50,6 @@
             gap: 12px;
             align-items: center;
         }
-
         .btn {
             padding: 10px 16px;
             border: none;
@@ -64,48 +59,38 @@
             transition: all 0.2s;
             font-size: 14px;
         }
-
         .btn-primary {
             background: #ff6600;
             color: white;
         }
-
         .btn-primary:hover {
             background: #e55a00;
             transform: translateY(-1px);
         }
-
         .btn-secondary {
             background: #000000;
             color: white;
         }
-
         .btn-secondary:hover {
             background: #333333;
         }
-
         .btn-success {
             background: #ff6600;
             color: white;
         }
-
         .btn-success:hover {
             background: #e55a00;
         }
-
         .btn-danger {
             background: #000000;
             color: white;
         }
-
         .btn-danger:hover {
             background: #333333;
         }
-
         .file-input {
             display: none;
         }
-
         .canvas-container {
             padding: 20px;
             display: flex;
@@ -114,7 +99,6 @@
             min-height: 500px;
             position: relative;
         }
-
         #canvas {
             border: 2px solid #cbd5e1;
             border-radius: 8px;
@@ -124,52 +108,43 @@
             max-width: 100%;
             height: auto;
         }
-
         .controls {
             display: flex;
             gap: 16px;
             align-items: center;
             flex-wrap: wrap;
         }
-
         .control-group {
             display: flex;
             align-items: center;
             gap: 8px;
         }
-
         .control-group label {
             font-weight: 500;
             color: #374151;
         }
-
         select, input[type="range"] {
             padding: 6px 12px;
             border: 1px solid #d1d5db;
             border-radius: 6px;
             font-size: 14px;
         }
-
         input[type="range"] {
             width: 120px;
         }
-
         .status {
             margin-left: auto;
             color: #6b7280;
             font-size: 14px;
         }
-
         @media (max-width: 768px) {
             .toolbar {
                 flex-direction: column;
                 align-items: stretch;
             }
-
             .controls {
                 justify-content: center;
             }
-
             .status {
                 margin-left: 0;
                 text-align: center;
@@ -183,14 +158,18 @@
             <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices" onerror="this.style.display='none';">
             <h1>Floorplan Editor</h1>
         </div>
-        
         <div class="toolbar">
             <div class="controls">
-                <input type="file" id="fileInput" class="file-input" accept="image/*">
+                <input type="file" id="fileInput" class="file-input" accept="image/*,application/pdf">
                 <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
                     📁 Upload Floorplan
                 </button>
-                
+                <div class="control-group" id="pageSelector" style="display: none;">
+                    <label>Page:</label>
+                    <select id="pdfPage">
+                        <option value="1">Page 1</option>
+                    </select>
+                </div>
                 <div class="control-group">
                     <label>Size:</label>
                     <select id="canvasSize">
@@ -198,33 +177,27 @@
                         <option value="2000x1000" selected>2000×1000</option>
                     </select>
                 </div>
-                
                 <div class="control-group">
                     <label>Rotate:</label>
                     <input type="range" id="rotationSlider" min="0" max="3" step="1" value="0">
                     <span id="rotationValue">0°</span>
                 </div>
-                
                 <div class="control-group">
                     <label>Scale:</label>
-                    <input type="range" id="scaleSlider" min="0.1" max="3" step="0.1" value="1">
+                    <input type="range" id="scaleSlider" min="0.1" max="10" step="0.1" value="1">
                     <span id="scaleValue">100%</span>
                 </div>
-                
                 <button class="btn btn-secondary" id="rectangleBtn">📐 Rectangle Tool</button>
                 <button class="btn btn-secondary" id="dragBtn">✋ Move Image</button>
                 <button class="btn btn-danger" onclick="clearRectangles()">🗑️ Clear All</button>
                 <button class="btn btn-success" onclick="downloadImage()">💾 Download JPG</button>
             </div>
-            
-            <div class="status" id="status">Upload an image to start editing</div>
+            <div class="status" id="status">Upload an image or PDF to start editing</div>
         </div>
-        
         <div class="canvas-container">
             <canvas id="canvas" width="2000" height="1000"></canvas>
         </div>
     </div>
-
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -235,9 +208,10 @@
         const rectangleBtn = document.getElementById('rectangleBtn');
         const dragBtn = document.getElementById('dragBtn');
         const status = document.getElementById('status');
-        
+        const pdfPageSelect = document.getElementById('pdfPage');
+        const pageSelector = document.getElementById('pageSelector');
+
         let dragMode = false;
-        
         let uploadedImage = null;
         let rectangles = [];
         let isDrawing = false;
@@ -249,58 +223,132 @@
         let imageOffsetY = 0;
         let dragStartX = 0;
         let dragStartY = 0;
-        
+        let pdfDoc = null;
+        let currentPage = 1;
+
         // Initialize canvas size
         updateCanvasSize();
-        
+
         // Event listeners
-        fileInput.addEventListener('change', handleImageUpload);
+        fileInput.addEventListener('change', handleFileUpload);
         canvasSize.addEventListener('change', updateCanvasSize);
         rotationSlider.addEventListener('input', updateRotation);
         scaleSlider.addEventListener('input', updateScale);
         rectangleBtn.addEventListener('click', toggleRectangleMode);
         dragBtn.addEventListener('click', toggleDragMode);
-        
+        pdfPageSelect.addEventListener('change', updatePdfPage);
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
-        
-        function handleImageUpload(e) {
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
+
+            const fileType = file.type;
             const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    uploadedImage = img;
-                    redrawCanvas();
-                    status.textContent = `Image loaded: ${img.width}×${img.height}`;
+
+            // Reset state
+            uploadedImage = null;
+            rectangles = [];
+            imageOffsetX = 0;
+            imageOffsetY = 0;
+
+            if (fileType === 'application/pdf') {
+                reader.onload = function(event) {
+                    const typedArray = new Uint8Array(event.target.result);
+                    pdfjsLib.getDocument(typedArray).promise.then(function(pdf) {
+                        pdfDoc = pdf;
+                        const numPages = pdf.numPages;
+                        // Populate page selector
+                        pdfPageSelect.innerHTML = '';
+                        for (let i = 1; i <= numPages; i++) {
+                            const option = document.createElement('option');
+                            option.value = i;
+                            option.textContent = `Page ${i}`;
+                            pdfPageSelect.appendChild(option);
+                        }
+                        pageSelector.style.display = 'flex';
+                        currentPage = 1;
+                        loadPdfPage(currentPage);
+                    }).catch(function(error) {
+                        status.textContent = 'Error loading PDF: ' + error.message;
+                    });
                 };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
+                reader.readAsArrayBuffer(file);
+            } else if (fileType.startsWith('image/')) {
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        uploadedImage = img;
+                        pdfDoc = null;
+                        pageSelector.style.display = 'none';
+                        redrawCanvas();
+                        status.textContent = `Image loaded: ${img.width}×${img.height}`;
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                status.textContent = 'Unsupported file type. Please upload an image or PDF.';
+            }
         }
-        
+
+        function loadPdfPage(pageNum) {
+            if (!pdfDoc) return;
+            pdfDoc.getPage(pageNum).then(function(page) {
+                const viewport = page.getViewport({ scale: 4.0 });
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = viewport.width;
+                tempCanvas.height = viewport.height;
+
+                const renderContext = {
+                    canvasContext: tempCtx,
+                    viewport: viewport
+                };
+
+                page.render(renderContext).promise.then(function() {
+                    uploadedImage = new Image();
+                    uploadedImage.onload = function() {
+                        redrawCanvas();
+                        status.textContent = `PDF page ${pageNum} loaded at high resolution: ${uploadedImage.width}×${uploadedImage.height}`;
+                    };
+                    uploadedImage.src = tempCanvas.toDataURL('image/png', 1.0);
+                }).catch(function(error) {
+                    status.textContent = 'Error rendering PDF page: ' + error.message;
+                });
+            });
+        }
+
+        function updatePdfPage() {
+            currentPage = parseInt(pdfPageSelect.value);
+            rectangles = [];
+            imageOffsetX = 0;
+            imageOffsetY = 0;
+            loadPdfPage(currentPage);
+        }
+
         function updateCanvasSize() {
             const size = canvasSize.value.split('x');
             canvas.width = parseInt(size[0]);
             canvas.height = parseInt(size[1]);
             redrawCanvas();
         }
-        
+
         function updateRotation() {
             const rotation = rotationSlider.value * 90;
             document.getElementById('rotationValue').textContent = rotation + '°';
             redrawCanvas();
         }
-        
+
         function updateScale() {
-            const scale = scaleSlider.value;
+            const scale = parseFloat(scaleSlider.value);
             document.getElementById('scaleValue').textContent = Math.round(scale * 100) + '%';
             redrawCanvas();
         }
-        
+
         function toggleRectangleMode() {
             rectangleMode = !rectangleMode;
             if (rectangleMode) {
@@ -312,7 +360,7 @@
             rectangleBtn.className = rectangleMode ? 'btn btn-success' : 'btn btn-secondary';
             canvas.style.cursor = rectangleMode ? 'crosshair' : (dragMode ? 'move' : 'default');
         }
-        
+
         function toggleDragMode() {
             dragMode = !dragMode;
             if (dragMode) {
@@ -324,34 +372,33 @@
             dragBtn.className = dragMode ? 'btn btn-success' : 'btn btn-secondary';
             canvas.style.cursor = dragMode ? 'move' : (rectangleMode ? 'crosshair' : 'default');
         }
-        
+
         function startDrawing(e) {
+            if (!uploadedImage) return;
+
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            
+
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
-            
+
             if (rectangleMode) {
-                // Convert screen coordinates to image-relative coordinates
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-                
-                // Translate to image center
+
                 const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
                 const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
-                
-                // Apply inverse transformations
+
                 const cosR = Math.cos(-rotation);
                 const sinR = Math.sin(-rotation);
                 const invScale = 1 / scale;
-                
+
                 startX = (relativeX * cosR - relativeY * sinR) * invScale;
                 startY = (relativeX * sinR + relativeY * cosR) * invScale;
-                
+
                 isDrawing = true;
-                
+
                 currentRect = {
                     x: startX,
                     y: startY,
@@ -364,42 +411,42 @@
                 dragStartY = mouseY - imageOffsetY;
             }
         }
-        
+
         function draw(e) {
+            if (!uploadedImage) return;
+
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            
+
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
-            
+
             if (isDrawing && rectangleMode) {
-                // Convert screen coordinates to image-relative coordinates
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-                
+
                 const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
                 const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
-                
+
                 const cosR = Math.cos(-rotation);
                 const sinR = Math.sin(-rotation);
                 const invScale = 1 / scale;
-                
+
                 const currentX = (relativeX * cosR - relativeY * sinR) * invScale;
                 const currentY = (relativeX * sinR + relativeY * cosR) * invScale;
-                
+
                 currentRect.width = currentX - startX;
                 currentRect.height = currentY - startY;
-                
+
                 redrawCanvas();
-                
-                // Draw current rectangle being drawn
+
                 ctx.save();
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
-                
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
                 ctx.fillRect(currentRect.x, currentRect.y, currentRect.width, currentRect.height);
                 ctx.restore();
             } else if (isDragging && dragMode) {
@@ -408,7 +455,7 @@
                 redrawCanvas();
             }
         }
-        
+
         function stopDrawing() {
             if (isDrawing && rectangleMode) {
                 isDrawing = false;
@@ -427,21 +474,19 @@
                 isDragging = false;
             }
         }
-        
+
         function drawGrid() {
             const gridSize = 50;
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.lineWidth = 1;
-            
-            // Draw vertical lines
+
             for (let x = 0; x <= canvas.width; x += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x, canvas.height);
                 ctx.stroke();
             }
-            
-            // Draw horizontal lines
+
             for (let y = 0; y <= canvas.height; y += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(0, y);
@@ -449,117 +494,104 @@
                 ctx.stroke();
             }
         }
-        
+
         function redrawCanvas() {
-            // Enable high-quality image rendering
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
-            
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             if (uploadedImage) {
                 ctx.save();
-                
+
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-                
-                // Move to center for rotation
+
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
-                
-                // Calculate image position to center it
+
                 const imgWidth = uploadedImage.width;
                 const imgHeight = uploadedImage.height;
-                
-                // Use high-quality image rendering
+
                 ctx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
                 ctx.restore();
             }
-            
-            // Draw rectangles that stick with the image
+
             rectangles.forEach(rect => {
                 ctx.save();
-                
+
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-                
-                // Apply same transformations as image
+
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
-                
-                ctx.fillStyle = 'white';
+
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
                 ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
                 ctx.restore();
             });
-            
-            // Draw grid overlay on top
+
             drawGrid();
         }
-        
+
         function clearRectangles() {
             rectangles = [];
             redrawCanvas();
             status.textContent = 'All rectangles cleared';
         }
-        
+
         function downloadImage() {
             if (!uploadedImage) {
-                alert('Please upload an image first!');
+                alert('Please upload an image or PDF first!');
                 return;
             }
-            
-            // Create a temporary canvas for download with high quality
+
             const downloadCanvas = document.createElement('canvas');
             const downloadCtx = downloadCanvas.getContext('2d');
-            
-            // Enable high-quality rendering for download
+
             downloadCtx.imageSmoothingEnabled = true;
             downloadCtx.imageSmoothingQuality = 'high';
-            
+
             downloadCanvas.width = canvas.width;
             downloadCanvas.height = canvas.height;
-            
-            // Fill with white background
+
             downloadCtx.fillStyle = 'white';
             downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
-            
-            // Redraw everything with high quality (no grid)
+
             if (uploadedImage) {
                 downloadCtx.save();
-                
+
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-                
+
                 downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
-                
+
                 const imgWidth = uploadedImage.width;
                 const imgHeight = uploadedImage.height;
-                
+
                 downloadCtx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
                 downloadCtx.restore();
             }
-            
-            // Draw rectangles that stick with the image
+
             rectangles.forEach(rect => {
                 downloadCtx.save();
-                
+
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-                
+
                 downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
-                
-                downloadCtx.fillStyle = 'white';
+
+                downloadCtx.fillStyle = 'rgba(255, 255, 0, 0.5)';
                 downloadCtx.fillRect(rect.x, rect.y, rect.width, rect.height);
                 downloadCtx.restore();
             });
-            
-            // Convert to JPG with maximum quality
+
             downloadCanvas.toBlob(function(blob) {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -569,10 +601,10 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                
+
                 status.textContent = 'Image downloaded successfully!';
             }, 'image/jpeg', 1.0);
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98a3ef3362ee2d56',t:'MTc1OTc0MDg2OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
