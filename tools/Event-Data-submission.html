@@ -454,11 +454,9 @@
             return `${hour12}:${minutes} ${period}`;
         }
 
-        // Function to convert and resize image to PNG under 500KB with minimum 1920x1080
+        // Function to convert and resize image to PNG under 500KB with good quality
         async function processImage(file) {
             const MAX_SIZE = 500 * 1024; // 500KB in bytes
-            const MIN_WIDTH = 1920;
-            const MIN_HEIGHT = 1080;
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 const reader = new FileReader();
@@ -474,47 +472,10 @@
                     let height = img.height;
                     let quality = 0.9; // Start with high quality
 
-                    // Calculate target dimensions to meet minimum 1920x1080
-                    const aspectRatio = width / height;
-                    const targetAspectRatio = MIN_WIDTH / MIN_HEIGHT;
-
-                    if (width < MIN_WIDTH || height < MIN_HEIGHT) {
-                        // Upscale to meet minimum dimensions
-                        if (aspectRatio > targetAspectRatio) {
-                            // Image is wider than 1920x1080
-                            height = MIN_HEIGHT;
-                            width = Math.round(height * aspectRatio);
-                        } else {
-                            // Image is taller or equal to 1920x1080
-                            width = MIN_WIDTH;
-                            height = Math.round(width / aspectRatio);
-                        }
-                    } else {
-                        // Downscale to fit within 1920x1080 if necessary
-                        if (width > MIN_WIDTH || height > MIN_HEIGHT) {
-                            if (aspectRatio > targetAspectRatio) {
-                                // Fit to width
-                                width = MIN_WIDTH;
-                                height = Math.round(width / aspectRatio);
-                            } else {
-                                // Fit to height
-                                height = MIN_HEIGHT;
-                                width = Math.round(height * aspectRatio);
-                            }
-                        }
-                    }
-
-                    // Set canvas to at least 1920x1080
-                    canvas.width = Math.max(width, MIN_WIDTH);
-                    canvas.height = Math.max(height, MIN_HEIGHT);
-
-                    // Fill background with transparent color
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                    // Center the image
-                    const offsetX = (canvas.width - width) / 2;
-                    const offsetY = (canvas.height - height) / 2;
-                    ctx.drawImage(img, offsetX, offsetY, width, height);
+                    // Set initial canvas dimensions
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
 
                     // Function to get blob size
                     const getBlobSize = (blob) => blob.size;
@@ -526,17 +487,32 @@
 
                     getBlob().then((blob) => {
                         let size = getBlobSize(blob);
+                        let currentWidth = width;
+                        let currentHeight = height;
 
-                        // Reduce quality if size exceeds 500KB
-                        const reduceQuality = async () => {
-                            while (size > MAX_SIZE && quality > 0.5) {
-                                quality -= 0.1;
-                                blob = await getBlob();
-                                size = getBlobSize(blob);
+                        // Resize and reduce quality if size exceeds 500KB
+                        const resize = async () => {
+                            while (size > MAX_SIZE && (currentWidth > 100 || currentHeight > 100 || quality > 0.5)) {
+                                // Reduce dimensions by 10% if above minimum threshold
+                                if (currentWidth > 100 && currentHeight > 100) {
+                                    currentWidth = Math.floor(currentWidth * 0.9);
+                                    currentHeight = Math.floor(currentHeight * 0.9);
+                                    canvas.width = currentWidth;
+                                    canvas.height = currentHeight;
+                                    ctx.drawImage(img, 0, 0, currentWidth, currentHeight);
+                                    blob = await getBlob();
+                                    size = getBlobSize(blob);
+                                }
+                                // Reduce quality if dimensions are at minimum
+                                if (size > MAX_SIZE && currentWidth <= 100 && currentHeight <= 100 && quality > 0.5) {
+                                    quality -= 0.1;
+                                    blob = await getBlob();
+                                    size = getBlobSize(blob);
+                                }
                             }
 
                             if (size > MAX_SIZE) {
-                                reject(new Error('Image could not be resized to under 500KB while maintaining 1920x1080 resolution and good quality'));
+                                reject(new Error('Image could not be resized to under 500KB while maintaining good quality'));
                                 return;
                             }
 
@@ -546,7 +522,7 @@
                             });
                         };
 
-                        reduceQuality();
+                        resize();
                     }).catch(reject);
                 };
                 img.onerror = reject;
@@ -645,7 +621,7 @@
             formData.append('formattedLocation', document.getElementById('locationPreview').textContent || '');
             formData.append('details', params.get('Details') || '');
 
-            // Handle image upload as PNG under 500KB with minimum 1920x1080
+            // Handle image upload as PNG under 500KB
             const imageFile = document.getElementById('imageUpload').files[0];
             if (imageFile) {
                 try {
