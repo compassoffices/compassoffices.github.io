@@ -55,7 +55,7 @@
       font-weight: 600;
       letter-spacing: 0.02em;
     }
-    .month-selector {
+    .selector-group {
       margin: 22px 0 0 0;
       display: flex;
       justify-content: center;
@@ -63,12 +63,12 @@
       gap: 15px;
       flex-wrap: wrap;
     }
-    .month-selector label {
+    .selector-group label {
       font-weight: 600;
       font-size: 1rem;
       color: #fff;
     }
-    .month-selector select {
+    .selector-group select {
       background: #111;
       border: 2px solid #ff6600;
       color: #ff6600;
@@ -80,13 +80,13 @@
       transition: all 0.3s ease;
       outline: none;
     }
-    .month-selector select:focus,
-    .month-selector select:hover {
+    .selector-group select:focus,
+    .selector-group select:hover {
       background: #ff6600;
       color: #fff;
       border-color: #ff6600;
     }
-    .month-selector select option {
+    .selector-group select option {
       background: #fff;
       color: #222;
       padding: 10px;
@@ -195,9 +195,107 @@
       font-weight: 600;
       word-break: break-word;
     }
-    .no-events h3 {
-      color: #999;
-      margin-bottom: 10px;
+    .calendar-container {
+      padding: 36px;
+      background: #f7f7f7;
+      border-radius: 14px;
+      margin: 0 36px;
+    }
+    .calendar-header {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      text-align: center;
+      font-weight: 600;
+      color: #222;
+      padding: 10px 0;
+      border-bottom: 2px solid #ff6600;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      margin-top: 10px;
+    }
+    .calendar-day {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      min-height: 100px;
+      padding: 10px;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .calendar-day:hover {
+      background: #f0f0f0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .calendar-day.today {
+      border: 2px solid #ff6b6b;
+      background: #fff6f6;
+    }
+    .calendar-day.has-events {
+      background: #e6f3ff;
+      border-color: #51cf66;
+    }
+    .day-number {
+      font-weight: 600;
+      color: #222;
+      margin-bottom: 5px;
+    }
+    .event-indicator {
+      background: #ff6600;
+      color: #fff;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+      margin: 2px 0;
+      display: inline-block;
+    }
+    .event-modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border-radius: 14px;
+      padding: 25px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      z-index: 1000;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .event-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .event-modal-header h3 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: #222;
+    }
+    .close-modal {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: #ff6600;
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
     }
     .error-message {
       background: #ffe6e6;
@@ -207,17 +305,27 @@
       border-radius: 8px;
       border-left: 4px solid #d63031;
     }
+    .no-events h3 {
+      color: #999;
+      margin-bottom: 10px;
+    }
     @media (max-width: 900px) {
       .container { padding-bottom: 15px; }
       .events-container { padding: 16px; }
+      .calendar-container { padding: 16px; margin: 0 16px; }
+      .calendar-day { min-height: 80px; }
     }
     @media (max-width: 600px) {
       .container { border-radius: 0; }
       .events-container { padding: 8px 2px; }
+      .calendar-container { padding: 8px; margin: 0 8px; }
       .header { padding: 18px 6px 8px 6px; }
       .event-card { padding: 16px; }
       .logo-banner { padding: 11px 0 6px 0; }
       .logo-banner img { height: 35px; }
+      .calendar-day { min-height: 60px; padding: 5px; }
+      .day-number { font-size: 0.9rem; }
+      .event-indicator { font-size: 0.7rem; padding: 2px 6px; }
     }
   </style>
 </head>
@@ -230,23 +338,32 @@
     <header class="header">
       <h1>Compass Hong Kong Events</h1>
       <p>Upcoming events and today's schedule</p>
-      <div class="month-selector">
-        <label for="month-select">Filter by Month:</label>
-        <select id="month-select">
-          <option value="all">All Months</option>
-          <option value="0">January</option>
-          <option value="1">February</option>
-          <option value="2">March</option>
-          <option value="3">April</option>
-          <option value="4">May</option>
-          <option value="5">June</option>
-          <option value="6">July</option>
-          <option value="7">August</option>
-          <option value="8">September</option>
-          <option value="9">October</option>
-          <option value="10">November</option>
-          <option value="11">December</option>
-        </select>
+      <div class="selector-group">
+        <div class="month-selector">
+          <label for="month-select">Filter by Month:</label>
+          <select id="month-select">
+            <option value="all">All Months</option>
+            <option value="0">January</option>
+            <option value="1">February</option>
+            <option value="2">March</option>
+            <option value="3">April</option>
+            <option value="4">May</option>
+            <option value="5">June</option>
+            <option value="6">July</option>
+            <option value="7">August</option>
+            <option value="8">September</option>
+            <option value="9">October</option>
+            <option value="10">November</option>
+            <option value="11">December</option>
+          </select>
+        </div>
+        <div class="view-selector">
+          <label for="view-select">View:</label>
+          <select id="view-select">
+            <option value="list">List View</option>
+            <option value="calendar">Calendar View</option>
+          </select>
+        </div>
       </div>
     </header>
     <div id="loading" class="loading">
@@ -256,21 +373,39 @@
     <div id="events-container" class="events-container" style="display: none;">
       <div id="events-list"></div>
     </div>
+    <div id="calendar-container" class="calendar-container" style="display: none;">
+      <div class="calendar-header">
+        <div>Sun</div>
+        <div>Mon</div>
+        <div>Tue</div>
+        <div>Wed</div>
+        <div>Thu</div>
+        <div>Fri</div>
+        <div>Sat</div>
+      </div>
+      <div id="calendar-grid" class="calendar-grid"></div>
+    </div>
     <div id="error-container" style="display: none;">
       <div class="error-message">
         <h3>Unable to load events</h3>
         <p>There was an issue fetching data from the Google Sheet. Please check the sheet URL and try again.</p>
       </div>
     </div>
+    <div id="modal-overlay" class="modal-overlay"></div>
+    <div id="event-modal" class="event-modal">
+      <div class="event-modal-header">
+        <h3 id="modal-date"></h3>
+        <button class="close-modal">✕</button>
+      </div>
+      <div id="modal-events"></div>
+    </div>
   </main>
   <script>
-    // Google Sheets published URL to CSV
     function getCSVUrl() {
       const spreadsheetId = '1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt';
       const gid = '1632866699';
       return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
     }
-
     function parseCSV(csvText) {
       const lines = csvText.split('\n');
       const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
@@ -287,12 +422,10 @@
       }
       return data;
     }
-
     function parseCSVLine(line) {
       const result = [];
       let current = '';
       let inQuotes = false;
-
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
         if (char === '"') {
@@ -307,8 +440,6 @@
       result.push(current.trim());
       return result;
     }
-
-    // Accepts DD/MM/YYYY, YYYY-MM-DD, and DD-MM-YYYY
     function parseDate(dateStr) {
       if (!dateStr) return null;
       const formats = [
@@ -327,22 +458,18 @@
       const date = new Date(dateStr);
       return isNaN(date.getTime()) ? null : date;
     }
-
     function isToday(date) {
       const today = new Date();
       return date.toDateString() === today.toDateString();
     }
-
     function isUpcoming(date) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const eventDate = new Date(date); eventDate.setHours(0, 0, 0, 0);
       return eventDate >= today;
     }
-
     function getCurrentMonth() {
       return new Date().getMonth();
     }
-
     function formatDate(date) {
       return date.toLocaleDateString('en-US', {
         weekday: 'short',
@@ -351,7 +478,6 @@
         day: 'numeric'
       });
     }
-
     function createEventCard(event, eventDate) {
       const todayClass = isToday(eventDate) ? 'today' : (isUpcoming(eventDate) ? 'upcoming' : '');
       const dateLabel = isToday(eventDate) ? 'Today' : formatDate(eventDate);
@@ -383,13 +509,40 @@
         </div>
       `;
     }
-
+    function generateCalendar(year, month, events) {
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startDay = firstDay.getDay();
+      const daysInMonth = lastDay.getDate();
+      const today = new Date();
+      let calendarHTML = '';
+      let dayCount = 1;
+      const totalCells = Math.ceil((daysInMonth + startDay) / 7) * 7;
+      for (let i = 0; i < totalCells; i++) {
+        if (i < startDay || dayCount > daysInMonth) {
+          calendarHTML += `<div class="calendar-day"></div>`;
+        } else {
+          const currentDate = new Date(year, month, dayCount);
+          const dateStr = currentDate.toDateString();
+          const dayEvents = events.filter(event => event.parsedDate.toDateString() === dateStr);
+          const isTodayClass = isToday(currentDate) ? 'today' : '';
+          const hasEventsClass = dayEvents.length > 0 ? 'has-events' : '';
+          calendarHTML += `
+            <div class="calendar-day ${isTodayClass} ${hasEventsClass}" data-date="${dateStr}">
+              <div class="day-number">${dayCount}</div>
+              ${dayEvents.map(event => `<div class="event-indicator">${event['Event-Name'] || 'Event'}</div>`).join('')}
+            </div>
+          `;
+          dayCount++;
+        }
+      }
+      return calendarHTML;
+    }
     async function loadEvents() {
       const csvUrl = getCSVUrl();
       try {
         let csvText = '';
         let success = false;
-
         try {
           const response = await fetch(csvUrl, {
             mode: 'cors',
@@ -400,7 +553,6 @@
             success = true;
           }
         } catch (e) {}
-
         if (!success) {
           try {
             const altUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
@@ -411,7 +563,6 @@
             }
           } catch (e) {}
         }
-
         if (!success) {
           csvText = `Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details,Trigger,Confirmed,Quarter
 10:00 AM,12/25/2024,ABC Corp,Hong Kong,Annual Conference,Central Plaza,Yes,Year-end meeting,Email,Yes,Q4
@@ -420,7 +571,6 @@
 3:00 PM,12/28/2024,Global Inc,Hong Kong,Networking Event,Admiralty,Yes,Business networking,Email,Yes,Q4`;
           showSampleDataNotice();
         }
-
         const allEvents = parseCSV(csvText);
         const hongKongEvents = allEvents.filter(event =>
           event.Region && event.Region.toLowerCase().includes('hong kong')
@@ -431,7 +581,6 @@
             parsedDate: parseDate(event.Date)
           }))
           .filter(event => event.parsedDate);
-
         const uniqueEvents = eventsWithDates.filter((event, index, array) => {
           return index === array.findIndex(e =>
             e['Event-Name'] === event['Event-Name'] &&
@@ -440,23 +589,22 @@
             e['Client-Name'] === event['Client-Name']
           );
         });
-
         const sortedEvents = uniqueEvents.sort((a, b) => a.parsedDate - b.parsedDate);
         allEventsData = sortedEvents;
         const currentMonth = getCurrentMonth();
         document.getElementById('month-select').value = currentMonth.toString();
         filterEventsByMonth();
         document.getElementById('month-select').addEventListener('change', filterEventsByMonth);
+        document.getElementById('view-select').addEventListener('change', switchView);
       } catch (error) {
         showError();
       }
     }
-
     let allEventsData = [];
-
     function displayEvents(events) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('events-container').style.display = 'block';
+      document.getElementById('calendar-container').style.display = 'none';
       const listEl = document.getElementById('events-list');
       if (events.length === 0) {
         listEl.innerHTML = `
@@ -469,7 +617,55 @@
       }
       listEl.innerHTML = events.map(event => createEventCard(event, event.parsedDate)).join('');
     }
-
+    function displayCalendar(events) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('calendar-container').style.display = 'block';
+      document.getElementById('events-container').style.display = 'none';
+      const gridEl = document.getElementById('calendar-grid');
+      const selectedMonth = document.getElementById('month-select').value;
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = selectedMonth === 'all' ? getCurrentMonth() : parseInt(selectedMonth);
+      gridEl.innerHTML = generateCalendar(year, month, events);
+      if (events.length === 0) {
+        gridEl.innerHTML = `
+          <div class="no-events">
+            <h3>No events found</h3>
+            <p>There are no Hong Kong events for the selected month.</p>
+          </div>
+        `;
+        return;
+      }
+      document.querySelectorAll('.calendar-day').forEach(day => {
+        day.addEventListener('click', () => {
+          const dateStr = day.getAttribute('data-date');
+          if (dateStr) {
+            const dayEvents = events.filter(event => event.parsedDate.toDateString() === dateStr);
+            showEventModal(dayEvents, dateStr);
+          }
+        });
+      });
+    }
+    function showEventModal(events, dateStr) {
+      const modal = document.getElementById('event-modal');
+      const overlay = document.getElementById('modal-overlay');
+      const modalEvents = document.getElementById('modal-events');
+      const modalDate = document.getElementById('modal-date');
+      modalDate.textContent = formatDate(new Date(dateStr));
+      modalEvents.innerHTML = events.length > 0
+        ? events.map(event => createEventCard(event, event.parsedDate)).join('')
+        : '<p>No events for this day.</p>';
+      modal.style.display = 'block';
+      overlay.style.display = 'block';
+      document.querySelector('.close-modal').addEventListener('click', () => {
+        modal.style.display = 'none';
+        overlay.style.display = 'none';
+      });
+      overlay.addEventListener('click', () => {
+        modal.style.display = 'none';
+        overlay.style.display = 'none';
+      });
+    }
     function filterEventsByMonth() {
       const selectedMonth = document.getElementById('month-select').value;
       let filteredEvents = allEventsData;
@@ -490,14 +686,23 @@
         if (!aIsUpcoming && bIsUpcoming) return 1;
         return a.parsedDate - b.parsedDate;
       });
-      displayEvents(filteredEvents);
+      const view = document.getElementById('view-select').value;
+      if (view === 'list') {
+        displayEvents(filteredEvents);
+      } else {
+        displayCalendar(filteredEvents);
+      }
     }
-
+    function switchView() {
+      const view = document.getElementById('view-select').value;
+      filterEventsByMonth();
+    }
     function showError() {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('error-container').style.display = 'block';
+      document.getElementById('events-container').style.display = 'none';
+      document.getElementById('calendar-container').style.display = 'none';
     }
-
     function showSampleDataNotice() {
       const header = document.querySelector('.header p');
       header.innerHTML = 'Showing sample data - Please ensure your Google Sheet is publicly accessible';
@@ -507,7 +712,6 @@
       header.style.marginTop = '15px';
       header.style.color = '#222';
     }
-
     document.addEventListener('DOMContentLoaded', loadEvents);
   </script>
 </body>
