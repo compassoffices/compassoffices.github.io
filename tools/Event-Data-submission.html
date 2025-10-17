@@ -454,6 +454,74 @@
             return `${hour12}:${minutes} ${period}`;
         }
 
+        // Function to convert and resize image to PNG under 500KB
+        async function processImage(file) {
+            const MAX_SIZE = 500 * 1024; // 500KB in bytes
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    let width = img.width;
+                    let height = img.height;
+                    let quality = 0.9; // Initial quality for PNG
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Function to get base64 size in bytes
+                    const getBase64Size = (base64) => {
+                        const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+                        return ((base64.length * 3) / 4) - padding;
+                    };
+
+                    // Function to convert canvas to base64 PNG
+                    const getBase64 = () => canvas.toDataURL('image/png', quality).split(',')[1];
+
+                    let base64 = getBase64();
+                    let size = getBase64Size(base64);
+
+                    // Resize if size exceeds 500KB
+                    while (size > MAX_SIZE && (width > 100 || height > 100 || quality > 0.1)) {
+                        // Reduce dimensions by 10%
+                        width = Math.floor(width * 0.9);
+                        height = Math.floor(height * 0.9);
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        base64 = getBase64();
+                        size = getBase64Size(base64);
+
+                        // If still too large, reduce quality
+                        if (size > MAX_SIZE && width <= 100 && height <= 100) {
+                            quality -= 0.1;
+                            base64 = getBase64();
+                            size = getBase64Size(base64);
+                        }
+                    }
+
+                    // If still too large, reject
+                    if (size > MAX_SIZE) {
+                        reject(new Error('Image could not be resized to under 500KB'));
+                        return;
+                    }
+
+                    resolve({
+                        base64: base64,
+                        name: file.name.replace(/\.[^/.]+$/, '.png') // Ensure .png extension
+                    });
+                };
+                img.onerror = reject;
+            });
+        }
+
         document.getElementById('eventForm').addEventListener('submit', async function(e) {
             e.preventDefault();
            
@@ -462,6 +530,7 @@
             const loadingText = document.getElementById('loadingText');
             const successMessage = document.getElementById('successMessage');
             const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
            
             // Hide previous messages
             successMessage.classList.add('hidden');
@@ -526,21 +595,23 @@
                 formattedClientName = companyName;
             }
 
-            // Handle image upload as base64
+            // Handle image upload as PNG under 500KB
             const imageFile = document.getElementById('imageUpload').files[0];
             let imageBase64 = '';
             let imageName = '';
             if (imageFile) {
                 try {
-                    imageBase64 = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result.split(',')[1]);
-                        reader.onerror = reject;
-                        reader.readAsDataURL(imageFile);
-                    });
-                    imageName = imageFile.name;
+                    const processedImage = await processImage(imageFile);
+                    imageBase64 = processedImage.base64;
+                    imageName = processedImage.name;
                 } catch (error) {
-                    console.error('Error reading image:', error);
+                    console.error('Error processing image:', error);
+                    errorText.textContent = 'Error processing image: ' + error.message;
+                    errorMessage.classList.remove('hidden');
+                    submitText.classList.remove('hidden');
+                    loadingText.classList.add('hidden');
+                    submitBtn.disabled = false;
+                    return;
                 }
             }
 
@@ -586,6 +657,7 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
+                errorText.textContent = 'There was an error submitting the form. Please try again.';
                 errorMessage.classList.remove('hidden');
             } finally {
                 // Reset button state
