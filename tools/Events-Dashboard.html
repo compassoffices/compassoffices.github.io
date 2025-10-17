@@ -226,6 +226,7 @@
       position: relative;
       cursor: pointer;
       transition: all 0.3s ease;
+      overflow-y: auto;
     }
     .calendar-day:hover {
       background: #f0f0f0;
@@ -309,6 +310,22 @@
       color: #999;
       margin-bottom: 10px;
     }
+    .export-button {
+      background: #ff6600;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 25px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin: 20px auto;
+      display: block;
+    }
+    .export-button:hover {
+      background: #e65c00;
+    }
     @media (max-width: 900px) {
       .container { padding-bottom: 15px; }
       .events-container { padding: 16px; }
@@ -323,7 +340,7 @@
       .event-card { padding: 16px; }
       .logo-banner { padding: 11px 0 6px 0; }
       .logo-banner img { height: 35px; }
-      .calendar-day { min-height: 60px; padding: 5px; }
+      .calendar-day { min-height: 60px; padding: 5px; overflow-y: auto; }
       .day-number { font-size: 0.9rem; }
       .event-indicator { font-size: 0.7rem; padding: 2px 6px; }
     }
@@ -357,11 +374,18 @@
             <option value="11">December</option>
           </select>
         </div>
+        <div class="location-selector">
+          <label for="location-select">Filter by Location:</label>
+          <select id="location-select">
+            <option value="all">All Locations</option>
+          </select>
+        </div>
         <div class="view-selector">
           <label for="view-select">View:</label>
           <select id="view-select">
             <option value="list">List View</option>
             <option value="calendar">Calendar View</option>
+            <option value="table">Table View</option>
           </select>
         </div>
       </div>
@@ -372,6 +396,7 @@
     </div>
     <div id="events-container" class="events-container" style="display: none;">
       <div id="events-list"></div>
+      <button id="export-button" class="export-button" style="display: none;">Export to Email</button>
     </div>
     <div id="calendar-container" class="calendar-container" style="display: none;">
       <div class="calendar-header">
@@ -593,45 +618,125 @@
         allEventsData = sortedEvents;
         const currentMonth = getCurrentMonth();
         document.getElementById('month-select').value = currentMonth.toString();
-        filterEventsByMonth();
-        document.getElementById('month-select').addEventListener('change', filterEventsByMonth);
-        document.getElementById('view-select').addEventListener('change', switchView);
+        updateLocationFilter();
+        filterEvents();
+        document.getElementById('month-select').addEventListener('change', () => {
+          updateLocationFilter();
+          filterEvents();
+        });
+        document.getElementById('location-select').addEventListener('change', filterEvents);
+        document.getElementById('view-select').addEventListener('change', filterEvents);
+        document.getElementById('export-button').addEventListener('click', exportToEmail);
       } catch (error) {
         showError();
       }
     }
     let allEventsData = [];
+    function updateLocationFilter() {
+      const selectedMonth = document.getElementById('month-select').value;
+      let filteredEvents = allEventsData;
+      if (selectedMonth !== 'all') {
+        const monthNum = parseInt(selectedMonth);
+        filteredEvents = allEventsData.filter(event => event.parsedDate.getMonth() === monthNum);
+      }
+      const uniqueLocations = [...new Set(filteredEvents.map(e => e.Location).filter(l => l))].sort();
+      const locationSelect = document.getElementById('location-select');
+      locationSelect.innerHTML = '<option value="all">All Locations</option>';
+      uniqueLocations.forEach(loc => {
+        const option = document.createElement('option');
+        option.value = loc;
+        option.textContent = loc;
+        locationSelect.appendChild(option);
+      });
+    }
     function displayEvents(events) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('events-container').style.display = 'block';
       document.getElementById('calendar-container').style.display = 'none';
+      document.getElementById('export-button').style.display = 'none';
       const listEl = document.getElementById('events-list');
       if (events.length === 0) {
         listEl.innerHTML = `
           <div class="no-events">
             <h3>No events found</h3>
-            <p>There are no Hong Kong events for the selected month.</p>
+            <p>There are no Hong Kong events for the selected filters.</p>
           </div>
         `;
         return;
       }
       listEl.innerHTML = events.map(event => createEventCard(event, event.parsedDate)).join('');
     }
-    function displayCalendar(events) {
+    function displayTable(events) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('events-container').style.display = 'block';
+      document.getElementById('calendar-container').style.display = 'none';
+      document.getElementById('export-button').style.display = events.length > 0 ? 'block' : 'none';
+      const listEl = document.getElementById('events-list');
+      if (events.length === 0) {
+        listEl.innerHTML = `
+          <div class="no-events">
+            <h3>No events found</h3>
+            <p>There are no Hong Kong events for the selected filters.</p>
+          </div>
+        `;
+        return;
+      }
+      let tableHTML = '<table style="width:100%; border-collapse: collapse; background: #f7f7f7; border-radius: 14px; overflow: hidden;">';
+      tableHTML += '<thead><tr style="background: #ff6600; color: #fff;"><th style="border:1px solid #ddd; padding:12px; text-align: left;">Date</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Time</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Event Name</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Client Name</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Location</th></tr></thead>';
+      tableHTML += '<tbody>';
+      events.forEach(event => {
+        tableHTML += `<tr style="background: #fff;"><td style="border:1px solid #ddd; padding:12px;">${formatDate(event.parsedDate)}</td><td style="border:1px solid #ddd; padding:12px;">${event.Time || ''}</td><td style="border:1px solid #ddd; padding:12px;">${event['Event-Name'] || ''}</td><td style="border:1px solid #ddd; padding:12px;">${event['Client-Name'] || ''}</td><td style="border:1px solid #ddd; padding:12px;">${event.Location || ''}</td></tr>`;
+      });
+      tableHTML += '</tbody></table>';
+      listEl.innerHTML = tableHTML;
+    }
+    function exportToEmail() {
+      const selectedMonth = document.getElementById('month-select').value;
+      const selectedLocation = document.getElementById('location-select').value;
+      let filteredEvents = allEventsData;
+      if (selectedMonth !== 'all') {
+        const monthNum = parseInt(selectedMonth);
+        filteredEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === monthNum);
+      }
+      if (selectedLocation !== 'all') {
+        filteredEvents = filteredEvents.filter(event => event.Location === selectedLocation);
+      }
+      const monthName = selectedMonth === 'all' ? 'All Months' : new Date(0, selectedMonth).toLocaleString('en-US', { month: 'long' });
+      const uniqueLocations = [...new Set(filteredEvents.map(e => e.Location).filter(l => l))].sort();
+      let emailContent = `<h2>Hong Kong Events for ${monthName}</h2>`;
+      uniqueLocations.forEach(location => {
+        const locationEvents = filteredEvents.filter(event => event.Location === location);
+        if (locationEvents.length > 0) {
+          emailContent += `<h3>${location}</h3>`;
+          emailContent += '<table style="width:100%; border-collapse: collapse; border: 1px solid #ddd; margin-bottom: 20px;">';
+          emailContent += '<thead><tr style="background: #ff6600; color: #fff;"><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Date</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Time</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Event Name</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Client Name</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Location</th></tr></thead>';
+          emailContent += '<tbody>';
+          locationEvents.forEach(event => {
+            emailContent += `<tr><td style="border: 1px solid #ddd; padding: 12px;">${formatDate(event.parsedDate)}</td><td style="border: 1px solid #ddd; padding: 12px;">${event.Time || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event['Event-Name'] || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event['Client-Name'] || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event.Location || ''}</td></tr>`;
+          });
+          emailContent += '</tbody></table>';
+        }
+      });
+      navigator.clipboard.writeText(emailContent).then(() => {
+        alert('Table copied to clipboard! You can paste it into an email.');
+      }).catch(err => {
+        alert('Failed to copy table to clipboard: ' + err);
+      });
+    }
+    function displayCalendar(events, calendarMonth) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('calendar-container').style.display = 'block';
       document.getElementById('events-container').style.display = 'none';
+      document.getElementById('export-button').style.display = 'none';
       const gridEl = document.getElementById('calendar-grid');
-      const selectedMonth = document.getElementById('month-select').value;
       const now = new Date();
       const year = now.getFullYear();
-      const month = selectedMonth === 'all' ? getCurrentMonth() : parseInt(selectedMonth);
-      gridEl.innerHTML = generateCalendar(year, month, events);
+      gridEl.innerHTML = generateCalendar(year, calendarMonth, events);
       if (events.length === 0) {
         gridEl.innerHTML = `
           <div class="no-events">
             <h3>No events found</h3>
-            <p>There are no Hong Kong events for the selected month.</p>
+            <p>There are no Hong Kong events for the selected filters.</p>
           </div>
         `;
         return;
@@ -666,14 +771,17 @@
         overlay.style.display = 'none';
       });
     }
-    function filterEventsByMonth() {
+    function filterEvents() {
       const selectedMonth = document.getElementById('month-select').value;
+      const selectedLocation = document.getElementById('location-select').value;
+      const view = document.getElementById('view-select').value;
       let filteredEvents = allEventsData;
       if (selectedMonth !== 'all') {
         const monthNum = parseInt(selectedMonth);
-        filteredEvents = allEventsData.filter(event =>
-          event.parsedDate.getMonth() === monthNum
-        );
+        filteredEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === monthNum);
+      }
+      if (selectedLocation !== 'all') {
+        filteredEvents = filteredEvents.filter(event => event.Location === selectedLocation);
       }
       filteredEvents.sort((a, b) => {
         const aIsToday = isToday(a.parsedDate);
@@ -686,22 +794,22 @@
         if (!aIsUpcoming && bIsUpcoming) return 1;
         return a.parsedDate - b.parsedDate;
       });
-      const view = document.getElementById('view-select').value;
       if (view === 'list') {
         displayEvents(filteredEvents);
-      } else {
-        displayCalendar(filteredEvents);
+      } else if (view === 'table') {
+        displayTable(filteredEvents);
+      } else if (view === 'calendar') {
+        const calendarMonth = selectedMonth === 'all' ? getCurrentMonth() : parseInt(selectedMonth);
+        const calendarEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === calendarMonth);
+        displayCalendar(calendarEvents, calendarMonth);
       }
-    }
-    function switchView() {
-      const view = document.getElementById('view-select').value;
-      filterEventsByMonth();
     }
     function showError() {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('error-container').style.display = 'block';
       document.getElementById('events-container').style.display = 'none';
       document.getElementById('calendar-container').style.display = 'none';
+      document.getElementById('export-button').style.display = 'none';
     }
     function showSampleDataNotice() {
       const header = document.querySelector('.header p');
