@@ -9,24 +9,19 @@
   <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet" />
   <title>Compass Events</title>
   <style>
-
-
-
-
-
     * {
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
+      box-sizing: border box;
     }
 
     html {
-      font-size: 15px; /* scaled from 12px → 15px */
+      font-size: 15px;
     }
 
     body {
-      width: 500px;  /* scaled from 410px */
-      height: 975px; /* scaled from 800px */
+      width: 500px;
+      height: 975px;
       background-color: #000;
       color: #fff;
       font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
@@ -37,28 +32,26 @@
       position: relative;
     }
 
-    /* --- HEADER --- */
     .header {
       margin: 2rem 0;
       text-align: left;
-      font-size: 5.1rem; /* scaled up */
+      font-size: 5.1rem;
       line-height: 5.1rem;
     }
     .header-upcoming { font-weight: 400; }
     .header-events { font-weight: 700; }
 
-    /* --- EVENT CARD --- */
     .event-container {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 2.6rem; /* slightly increased gap */
+      gap: 2.6rem;
       width: 100%;
     }
 
     .event-card {
       width: 100%;
-      height: 560px; /* scaled from 460px */
+      height: 560px;
       background-color: #fff;
       border-radius: 2.5rem;
       display: flex;
@@ -70,7 +63,6 @@
       transition: transform 0.3s, box-shadow 0.3s;
     }
 
-
     .img-container {
       position: relative;
       display: flex;
@@ -78,8 +70,15 @@
       align-items: center;
       overflow: hidden;
       border-radius: 2.5rem 2.5rem 0 0;
-      height: 250px; /* scaled */
+      height: 250px;
       background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    }
+
+    .img-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     .date {
@@ -89,13 +88,9 @@
       font-weight: 700;
       font-size: 4rem;
       color: #fff;
-background: linear-gradient(
-  to right,
-  rgba(255, 102, 0, 0.6),
-  rgba(255, 140, 0, 0.3)
-);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(3px);
+      background: linear-gradient(to right, rgba(255, 102, 0, 0.6), rgba(255, 140, 0, 0.3));
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(3px);
       width: 12.5rem;
       height: 12.5rem;
       display: flex;
@@ -155,7 +150,6 @@ background: linear-gradient(
       flex-shrink: 0;
     }
 
-    /* --- BOTTOM SECTION --- */
     .bottom-section {
       position: absolute;
       bottom: 2rem;
@@ -191,7 +185,6 @@ background: linear-gradient(
       display: block;
     }
 
-    /* --- Loading/Error --- */
     .loading, .error-message {
       font-size: 1.6rem;
       text-align: center;
@@ -210,13 +203,7 @@ background: linear-gradient(
       body { width: 100vw; min-height: 100vh; }
       .bottom-section { min-height: 80px; padding: 1rem; }
       .follow { font-size: 2.2rem; min-width: 70px; margin-right: 0.2rem; }
-
     }
-  
-  
-  
-  
-  
   </style>
 </head>
 <body>
@@ -242,10 +229,14 @@ background: linear-gradient(
     const csvUrlDirect = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
     const csvUrlPublished = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
 
+    const imageCsvUrlPublished = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTIVKI_E2fEjdS6XT0GjkgvwqU2UBTIjVXBy8zUMWplk4984UFbXULf0bSZK2vhkkeG6k4LFimALywt/pub?gid=0&single=true&output=csv';
+
     const sampleData = [
       { Time: '12:00-17:00', Date: '16/10/2025', 'Client-Name': 'PURE Fitness', Region: 'Hong Kong', 'Event-Name': 'Wellness Booth Event', Location: 'China Building, 18 & 19F' },
       { Time: '14:00-18:00', Date: '17/10/2025', 'Client-Name': 'Tech Corp', Region: 'Hong Kong', 'Event-Name': 'Innovation Summit', Location: 'Convention Centre, Hall 3' }
     ];
+
+    let imageData = [];
 
     function parseCSVLine(line) {
       const result = [];
@@ -270,7 +261,7 @@ background: linear-gradient(
         if (lines[i].trim()) {
           const values = parseCSVLine(lines[i]);
           const row = {};
-          headers.forEach((header, index) => row[header] = values[index] || '');
+          headers.forEach((header, index) => row[header] = values[index] ? values[index].trim() : '');
           data.push(row);
         }
       }
@@ -310,6 +301,26 @@ background: linear-gradient(
       return colors[Math.floor(Math.random() * colors.length)];
     }
 
+    async function loadImageData() {
+      let success = false;
+      try {
+        const response = await fetch(imageCsvUrlPublished, { mode: 'cors' });
+        if (response.ok) {
+          const csvText = await response.text();
+          imageData = parseCSV(csvText);
+          success = true;
+          console.log('Parsed image data:', imageData); // Debugging log
+        }
+      } catch (error) {
+        console.error('Failed to load image data:', error);
+      }
+
+      if (!success) {
+        console.log('Failed to load image data. Using no images.');
+        imageData = [];
+      }
+    }
+
     function displayEvent(event, isTodayEvent) {
       const container = document.getElementById('eventContainer');
       const headerUpcoming = document.getElementById('header-upcoming');
@@ -321,7 +332,42 @@ background: linear-gradient(
 
       const imgContainer = document.createElement('div');
       imgContainer.className = 'img-container';
-      imgContainer.style.background = getRandomGradient();
+
+      // Case-insensitive matching for event name, client name, and date
+      let imageUrl = '';
+      console.log('Looking for match with:', {
+        eventName: event['Event-Name'],
+        clientName: event['Client-Name'],
+        date: event.Date
+      });
+      const matchingImage = imageData.find(img => {
+        const eventNameMatch = img['Event name'] && img['Event name'].toLowerCase() === (event['Event-Name'] || '').toLowerCase();
+        const clientNameMatch = img['Client Name'] && img['Client Name'].toLowerCase() === (event['Client-Name'] || '').toLowerCase();
+        const dateMatch = img['Date'] && img['Date'] === event.Date;
+        return eventNameMatch && clientNameMatch && dateMatch;
+      });
+
+      if (matchingImage) {
+        imageUrl = matchingImage['image url'] || '';
+        console.log('Found matching image:', imageUrl); // Debugging log
+      } else {
+        console.log('No matching image found for event:', event['Event-Name']);
+      }
+
+      if (imageUrl) {
+        const imgElement = document.createElement('img');
+        imgElement.src = imageUrl;
+        imgElement.alt = event['Event-Name'] || 'Event Image';
+        imgElement.border = '0';
+        imgElement.onerror = () => {
+          console.error('Failed to load image:', imageUrl);
+          imgContainer.style.background = getRandomGradient(); // Fallback to gradient if image fails
+          imgElement.remove(); // Remove broken image
+        };
+        imgContainer.appendChild(imgElement);
+      } else {
+        imgContainer.style.background = getRandomGradient();
+      }
 
       const dateBox = document.createElement('div');
       dateBox.className = 'date';
@@ -370,6 +416,7 @@ background: linear-gradient(
           const csvText = await response.text();
           data = parseCSV(csvText);
           success = true;
+          console.log('Parsed event data:', data); // Debugging log
         }
       } catch {}
 
@@ -380,6 +427,7 @@ background: linear-gradient(
             const csvText = await response.text();
             data = parseCSV(csvText);
             success = true;
+            console.log('Parsed event data (published):', data); // Debugging log
           }
         } catch {}
       }
@@ -387,20 +435,29 @@ background: linear-gradient(
       if (!success) {
         data = sampleData;
         document.getElementById('eventContainer').innerHTML = '<div class="error-message">Using sample data - Please ensure Google Sheet is publicly accessible</div>';
+        console.log('Using sample data:', data); // Debugging log
       }
+
+      await loadImageData();
 
       const eventsWithDates = data
         .map(event => ({ ...event, parsedDate: parseDate(event.Date) }))
-        .filter(event => event.parsedDate && event.Region.toLowerCase().includes('hong kong') && event.parsedDate >= today)
+        .filter(event => event.parsedDate && event.Region && event.Region.toLowerCase().includes('hong kong') && event.parsedDate >= today)
         .sort((a, b) => a.parsedDate - b.parsedDate);
 
       if (eventsWithDates.length > 0) {
         const todayEvent = eventsWithDates.find(event => isToday(event.parsedDate));
-        if (todayEvent) displayEvent(todayEvent, true);
-        else displayEvent(eventsWithDates[0], false);
+        if (todayEvent) {
+          console.log('Displaying today event:', todayEvent); // Debugging log
+          displayEvent(todayEvent, true);
+        } else {
+          console.log('Displaying upcoming event:', eventsWithDates[0]); // Debugging log
+          displayEvent(eventsWithDates[0], false);
+        }
       } else {
         document.getElementById('eventContainer').innerHTML = '<div class="loading">No upcoming events found in Hong Kong.</div>';
         document.getElementById('header-upcoming').textContent = 'No ';
+        console.log('No upcoming events found in Hong Kong.');
       }
     }
 
