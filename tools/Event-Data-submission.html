@@ -247,12 +247,9 @@
                     <!-- Image Upload Section -->
                     <div>
                         <div class="flex items-center mb-2">
-                            <input type="checkbox" id="noImageNeeded" class="mr-2">
-                            <label for="noImageNeeded" class="text-sm font-semibold text-gray-700">No Image Needed</label>
+                            <input type="file" id="imageUpload" accept="image/*"
+                                   class="input-field px-4 py-3 rounded-lg focus:outline-none">
                         </div>
-                        <label for="imageUpload" class="block text-sm font-semibold text-gray-700 mb-2">Upload Image (Optional)</label>
-                        <input type="file" id="imageUpload" accept="image/*"
-                               class="input-field px-4 py-3 rounded-lg focus:outline-none">
                     </div>
                    
                     <!-- Submit Button -->
@@ -469,11 +466,13 @@
             return `${hour12}:${minutes} ${period}`;
         }
 
-        // Function to convert and resize image to 1080x450 PNG under 500KB with good quality
+        // Function to convert and resize image to 1080x450 JPEG under 500KB with good quality
         async function processImage(file) {
             const MAX_SIZE = 500 * 1024; // 500KB in bytes
             const TARGET_WIDTH = 1080;
             const TARGET_HEIGHT = 450;
+            const MIN_QUALITY = 0.05; // Lowered minimum quality threshold
+            const MIN_SCALE = 0.5; // Minimum scale factor (50% of target dimensions)
             return new Promise((resolve, reject) => {
                 const img = new Image();
                 const reader = new FileReader();
@@ -485,60 +484,84 @@
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-
-                    // Center crop calculation
-                    const targetRatio = TARGET_WIDTH / TARGET_HEIGHT;
-                    const imageRatio = img.width / img.height;
-                    let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-
-                    if (imageRatio > targetRatio) {
-                        // Image is wider than target ratio
-                        sWidth = img.height * targetRatio;
-                        sx = (img.width - sWidth) / 2;
-                    } else {
-                        // Image is taller than target ratio
-                        sHeight = img.width / targetRatio;
-                        sy = (img.height - sHeight) / 2;
-                    }
-
-                    canvas.width = TARGET_WIDTH;
-                    canvas.height = TARGET_HEIGHT;
-                    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
-
+                    let currentWidth = TARGET_WIDTH;
+                    let currentHeight = TARGET_HEIGHT;
                     let quality = 0.9; // Start with high quality
+                    let scale = 1; // Start with full target dimensions
 
                     // Function to get blob size
                     const getBlobSize = (blob) => blob.size;
 
-                    // Function to convert canvas to PNG blob
+                    // Function to convert canvas to JPEG blob
                     const getBlob = () => new Promise((res) => {
-                        canvas.toBlob((blob) => res(blob), 'image/png', quality);
+                        canvas.toBlob((blob) => res(blob), 'image/jpeg', quality);
                     });
 
-                    getBlob().then((blob) => {
+                    // Function to draw image with current dimensions
+                    const drawImage = () => {
+                        // Center crop calculation
+                        const targetRatio = currentWidth / currentHeight;
+                        const imageRatio = img.width / img.height;
+                        let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+                        if (imageRatio > targetRatio) {
+                            // Image is wider than target ratio
+                            sWidth = img.height * targetRatio;
+                            sx = (img.width - sWidth) / 2;
+                        } else {
+                            // Image is taller than target ratio
+                            sHeight = img.width / targetRatio;
+                            sy = (img.height - sHeight) / 2;
+                        }
+
+                        canvas.width = currentWidth;
+                        canvas.height = currentHeight;
+                        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+                    };
+
+                    // Compression and scaling loop
+                    const compress = async () => {
+                        drawImage();
+                        let blob = await getBlob();
                         let size = getBlobSize(blob);
 
-                        // Reduce quality if size exceeds 500KB
-                        const compress = async () => {
-                            while (size > MAX_SIZE && quality > 0.1) {
+                        // Try reducing quality first
+                        while (size > MAX_SIZE && quality > MIN_QUALITY) {
+                            quality -= 0.05;
+                            blob = await getBlob();
+                            size = getBlobSize(blob);
+                        }
+
+                        // If size is still too large, reduce dimensions
+                        while (size > MAX_SIZE && scale > MIN_SCALE) {
+                            scale *= 0.9; // Reduce dimensions by 10%
+                            currentWidth = Math.floor(TARGET_WIDTH * scale);
+                            currentHeight = Math.floor(TARGET_HEIGHT * scale);
+                            quality = 0.9; // Reset quality to try again
+                            drawImage();
+                            blob = await getBlob();
+                            size = getBlobSize(blob);
+
+                            // Try reducing quality again at new dimensions
+                            while (size > MAX_SIZE && quality > MIN_QUALITY) {
                                 quality -= 0.05;
                                 blob = await getBlob();
                                 size = getBlobSize(blob);
                             }
+                        }
 
-                            if (size > MAX_SIZE) {
-                                reject(new Error('Image could not be resized to under 500KB while maintaining good quality'));
-                                return;
-                            }
+                        if (size > MAX_SIZE) {
+                            reject(new Error('Image could not be resized to under 500KB'));
+                            return;
+                        }
 
-                            resolve({
-                                blob: blob,
-                                name: file.name.replace(/\.[^/.]+$/, '.png') // Ensure .png extension
-                            });
-                        };
+                        resolve({
+                            blob: blob,
+                            name: file.name.replace(/\.[^/.]+$/, '.jpg') // Ensure .jpg extension
+                        });
+                    };
 
-                        compress();
-                    }).catch(reject);
+                    compress().catch(reject);
                 };
                 img.onerror = reject;
             });
