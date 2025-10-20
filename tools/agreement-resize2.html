@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="https://compassoffices.github.io/img/logo/new-p1-32.png" type="image/png" />
   <title>PDF to PNG Converter (1800x2244)</title>
+
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -14,11 +16,13 @@
       padding: 2rem;
       color: #000;
     }
+
     .container {
       max-width: 800px;
       margin: 0 auto;
       padding: 50px 5%;
     }
+
     .dropzone-wrapper {
       border: 2px dashed #000;
       color: #000;
@@ -27,6 +31,7 @@
       cursor: pointer;
       background: white;
     }
+
     .dropzone-desc {
       position: absolute;
       left: 0;
@@ -35,6 +40,7 @@
       top: 50px;
       font-size: 16px;
     }
+
     .dropzone,
     .dropzone:focus {
       position: absolute;
@@ -44,14 +50,17 @@
       cursor: pointer;
       opacity: 0;
     }
+
     .dropzone-wrapper:hover,
     .dropzone-wrapper.dragover {
       background: #e0e0e0;
     }
+
     .preview-zone {
       text-align: center;
       margin-top: 2rem;
     }
+
     .card {
       background: white;
       margin: 1rem auto;
@@ -61,19 +70,22 @@
       max-width: 100%;
       border: 1px solid #000;
     }
+
     canvas {
       width: 100%;
       border-radius: 8px;
       border: 1px solid #000;
     }
+
     .info {
       font-size: 0.9rem;
       margin: 0.5rem 0;
       color: #000;
     }
+
     .download-link {
       display: inline-block;
-      margin: 0.5rem 0.5rem 0 0;
+      margin-top: 0.5rem;
       padding: 0.4rem 1.2rem;
       border-radius: 6px;
       background: #000;
@@ -81,27 +93,14 @@
       text-decoration: none;
       font-size: 0.9rem;
     }
+
     .download-link:hover {
-      background: #333;
-    }
-    .download-all {
-      display: block;
-      margin: 1rem auto;
-      padding: 0.6rem 1.5rem;
-      border-radius: 6px;
-      background: #000;
-      color: white;
-      text-decoration: none;
-      font-size: 1rem;
-      text-align: center;
-      width: fit-content;
-    }
-    .download-all:hover {
       background: #333;
     }
   </style>
 </head>
 <body>
+
 <section>
   <div class="container">
     <div class="form-group">
@@ -113,126 +112,127 @@
         <input type="file" accept="application/pdf" class="dropzone" id="upload" />
       </div>
     </div>
-    <div class="preview-zone" id="preview">
-      <a href="#" class="download-all" id="downloadAll" style="display: none;">Download All PNGs</a>
-    </div>
+
+    <div class="preview-zone" id="preview"></div>
   </div>
 </section>
+
 <script>
   const upload = document.getElementById("upload");
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
-  const downloadAllBtn = document.getElementById("downloadAll");
+
   const TARGET_WIDTH = 1800;
   const TARGET_HEIGHT = 2244;
-  const QUALITY_SCALE = 5; // Increased scale for even higher quality rendering
-  let downloadLinks = []; // Store all download link elements
+
   function formatDateTime() {
     const now = new Date();
     return now.toISOString().replace(/[:.]/g, "-");
   }
+
   async function renderPDFtoPNG(file) {
     if (!file || file.type !== "application/pdf") {
       alert("Please upload a valid PDF file.");
       return;
     }
-    preview.innerHTML = "<a href='#' class='download-all' id='downloadAll' style='display: none;'>Download All PNGs</a>";
-    downloadLinks = []; // Reset download links array
-    downloadAllBtn.style.display = "none";
+
+    preview.innerHTML = "Processing PDF...";
+
     const fileReader = new FileReader();
     fileReader.readAsArrayBuffer(file);
+
     fileReader.onload = async function () {
       const pdfData = new Uint8Array(fileReader.result);
       const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-      preview.innerHTML = "<a href='#' class='download-all' id='downloadAll' style='display: none;'>Download All PNGs</a>";
-      const newDownloadAllBtn = document.getElementById("downloadAll");
+      preview.innerHTML = "";
+
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
+
         // Get viewport at scale 1 to determine original size
         const originalViewport = page.getViewport({ scale: 1 });
         const pageWidth = originalViewport.width;
         const pageHeight = originalViewport.height;
+
         // Determine scale to fit into 1800x2244 while preserving aspect ratio
         const scaleX = TARGET_WIDTH / pageWidth;
         const scaleY = TARGET_HEIGHT / pageHeight;
-        const baseScale = Math.min(scaleX, scaleY);
-        const renderScale = baseScale * QUALITY_SCALE; // Apply higher quality scale
-        const scaledViewport = page.getViewport({ scale: renderScale });
+        const scale = Math.min(scaleX, scaleY);
+        const scaledViewport = page.getViewport({ scale });
+
         // Render original content to a temporary canvas
         const tempCanvas = document.createElement("canvas");
         tempCanvas.width = scaledViewport.width;
         tempCanvas.height = scaledViewport.height;
-        const tempCtx = tempCanvas.getContext("2d", { alpha: false, imageSmoothingQuality: "high" }); // Set high-quality rendering
+        const tempCtx = tempCanvas.getContext("2d");
         await page.render({ canvasContext: tempCtx, viewport: scaledViewport }).promise;
-        // Create two versions: Oscar (shifted up) and centered
-        const versions = [
-          { offsetYShift: -100, label: "Oscar" },
-          { offsetYShift: 0, label: "Centered" }
-        ];
-        for (const version of versions) {
-          // Create final canvas with target size and white background
-          const finalCanvas = document.createElement("canvas");
-          finalCanvas.width = TARGET_WIDTH;
-          finalCanvas.height = TARGET_HEIGHT;
-          const finalCtx = finalCanvas.getContext("2d", { alpha: false, imageSmoothingQuality: "high" }); // Set high-quality rendering
-          // Fill background white
-          finalCtx.fillStyle = "#FFFFFF";
-          finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-          // Calculate centering offsets
-          const offsetX = (TARGET_WIDTH - scaledViewport.width / QUALITY_SCALE) / 2;
-          const offsetY = ((TARGET_HEIGHT - scaledViewport.height / QUALITY_SCALE) / 2) + version.offsetYShift;
-          // Draw the PDF page on white background, scaling down to fit target size
-          finalCtx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, offsetX, offsetY, scaledViewport.width / QUALITY_SCALE, scaledViewport.height / QUALITY_SCALE);
-          // Convert to PNG blob with maximum quality
-          const blob = await new Promise((resolve) =>
-            finalCanvas.toBlob(resolve, "image/png", 1.0) // Set quality to maximum (1.0)
-          );
-          const sizeKB = Math.round(blob.size / 1024);
-          const url = URL.createObjectURL(blob);
-          const filename = `page-${pageNum}-1800x2244-${version.label}-${sizeKB}KB-${formatDateTime()}.png`;
-          // Create preview card
-          const card = document.createElement("div");
-          card.className = "card";
-          const previewCanvas = document.createElement("canvas");
-          previewCanvas.width = finalCanvas.width;
-          previewCanvas.height = finalCanvas.height;
-          const previewCtx = previewCanvas.getContext("2d", { alpha: false, imageSmoothingQuality: "high" }); // Set high-quality rendering
-          previewCtx.drawImage(finalCanvas, 0, 0);
-          const info = document.createElement("p");
-          info.className = "info";
-          info.textContent = `Page ${pageNum} (${version.label}) — 1800×2244 pixels — ${sizeKB}KB`;
-          const download = document.createElement("a");
-          download.href = url;
-          download.download = filename;
-          download.textContent = `Download PNG Page ${pageNum} (${version.label})`;
-          download.className = "download-link";
-          downloadLinks.push(download); // Store the download link
-          card.appendChild(previewCanvas);
-          card.appendChild(info);
-          card.appendChild(download);
-          preview.appendChild(card);
-        }
-      }
-      // Show Download All button and set up to trigger all downloads
-      if (downloadLinks.length > 0) {
-        newDownloadAllBtn.style.display = "block";
-        newDownloadAllBtn.onclick = (e) => {
-          e.preventDefault();
-          downloadLinks.forEach(link => link.click());
-        };
+
+        // Create final canvas with target size and white background
+        const finalCanvas = document.createElement("canvas");
+        finalCanvas.width = TARGET_WIDTH;
+        finalCanvas.height = TARGET_HEIGHT;
+        const finalCtx = finalCanvas.getContext("2d");
+
+        // Fill background white
+        finalCtx.fillStyle = "#FFFFFF";
+        finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+
+        // Calculate centering offsets, shift up by 100 pixels
+        const offsetX = (TARGET_WIDTH - tempCanvas.width) / 2;
+        const offsetY = ((TARGET_HEIGHT - tempCanvas.height) / 2) - 100;
+
+        // Draw the PDF page centered on white background with offset
+        finalCtx.drawImage(tempCanvas, offsetX, offsetY);
+
+        // Convert to PNG blob
+        const blob = await new Promise((resolve) =>
+          finalCanvas.toBlob(resolve, "image/png")
+        );
+        const sizeKB = Math.round(blob.size / 1024);
+        const url = URL.createObjectURL(blob);
+        const filename = `page-${pageNum}-1800x2244-${sizeKB}KB-${formatDateTime()}.png`;
+
+        // Create preview card
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const previewCanvas = document.createElement("canvas");
+        previewCanvas.width = finalCanvas.width;
+        previewCanvas.height = finalCanvas.height;
+        const previewCtx = previewCanvas.getContext("2d");
+        previewCtx.drawImage(finalCanvas, 0, 0);
+
+        const info = document.createElement("p");
+        info.className = "info";
+        info.textContent = `Page ${pageNum} — 1800×2244 pixels — ${sizeKB}KB`;
+
+        const download = document.createElement("a");
+        download.href = url;
+        download.download = filename;
+        download.textContent = `Download PNG Page ${pageNum}`;
+        download.className = "download-link";
+
+        card.appendChild(previewCanvas);
+        card.appendChild(info);
+        card.appendChild(download);
+        preview.appendChild(card);
       }
     };
   }
+
   upload.addEventListener("change", (e) => {
     renderPDFtoPNG(e.target.files[0]);
   });
+
   dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
     dropZone.classList.add("dragover");
   });
+
   dropZone.addEventListener("dragleave", () => {
     dropZone.classList.remove("dragover");
   });
+
   dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropZone.classList.remove("dragover");
@@ -241,5 +241,6 @@
     renderPDFtoPNG(file);
   });
 </script>
+
 </body>
 </html>
