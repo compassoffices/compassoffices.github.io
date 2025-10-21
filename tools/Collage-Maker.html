@@ -1,0 +1,1239 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collage Maker</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+        body {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #000000;
+            color: #ffffff;
+            min-height: 100%;
+        }
+
+        .header {
+            background: #000000;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #333333;
+        }
+
+        .logo {
+            height: 60px;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 120px);
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #1a1a1a;
+            padding: 20px;
+            border-right: 2px solid #333333;
+            overflow-y: auto;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ff6600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #666666;
+            border-radius: 8px;
+            padding: 30px 20px;
+            text-align: center;
+            background: #2a2a2a;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-zone:hover {
+            border-color: #ff6600;
+            background: #333333;
+        }
+
+        .upload-zone.dragover {
+            border-color: #ff6600;
+            background: #333333;
+        }
+
+        .upload-text {
+            color: #cccccc;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: #888888;
+            font-size: 0.8rem;
+        }
+
+        .image-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .image-item {
+            display: flex;
+            align-items: center;
+            background: #2a2a2a;
+            border-radius: 6px;
+            padding: 10px;
+            border: 1px solid #444444;
+        }
+
+        .image-thumb {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+        .image-name {
+            flex: 1;
+            font-size: 0.8rem;
+            color: #cccccc;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .remove-btn {
+            background: #ff6600;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+
+        .remove-btn:hover {
+            background: #e55a00;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 0.9rem;
+            color: #cccccc;
+            font-weight: 500;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #444444;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ff6600;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ff6600;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            background: #ff6600;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #e55a00;
+        }
+
+        .btn:disabled {
+            background: #666666;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #666666;
+        }
+
+        .btn-secondary:hover {
+            background: #777777;
+        }
+
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111111;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            position: relative;
+            border: 2px solid #333333;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        #collageCanvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #ff6600;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: nw-resize;
+            pointer-events: all;
+            transform: translate(-50%, -50%);
+        }
+
+        .image-box {
+            position: absolute;
+            border: 2px dashed #ff6600;
+            background: rgba(255, 102, 0, 0.1);
+            cursor: move;
+            pointer-events: all;
+        }
+
+        .image-box.selected {
+            border-color: #ff6600;
+            background: rgba(255, 102, 0, 0.2);
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 20;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 1px solid #666666;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .zoom-btn:hover {
+            background: rgba(255, 102, 0, 0.8);
+        }
+
+        .layout-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .layout-btn {
+            padding: 10px 12px;
+            background: #2a2a2a;
+            color: #cccccc;
+            border: 1px solid #444444;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .layout-btn:hover {
+            border-color: #ff6600;
+            background: #333333;
+        }
+
+        .layout-btn.active {
+            border-color: #ff6600;
+            background: #ff6600;
+            color: white;
+        }
+
+        .layout-adjustments {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444444;
+        }
+
+        .adjustment-title {
+            font-size: 0.9rem;
+            color: #ff6600;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .adjustment-control {
+            margin-bottom: 15px;
+        }
+
+        .adjustment-label {
+            font-size: 0.8rem;
+            color: #cccccc;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .adjustment-slider {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #444444;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .adjustment-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ff6600;
+            cursor: pointer;
+        }
+
+        .adjustment-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ff6600;
+            cursor: pointer;
+            border: none;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+            }
+            
+            .canvas-area {
+                height: 400px;
+            }
+        }
+    </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body>
+  <div class="header"><img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices Logo" class="logo" onerror="this.style.display='none';">
+   <h1 class="title" id="appTitle">Collage Maker</h1>
+  </div>
+  <div class="main-container">
+   <div class="sidebar">
+    <div class="section">
+     <div class="section-title">
+      Upload Images
+     </div>
+     <div class="upload-zone" id="uploadZone">
+      <div class="upload-text" id="uploadText">
+       Drop images here or click
+      </div>
+      <div class="upload-hint">
+       JPG, PNG, GIF supported
+      </div>
+     </div><input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+     <div class="image-list" id="imageList"></div><button class="btn btn-secondary" id="clearBtn" style="display: none; margin-top: 15px;"> Clear All </button>
+    </div>
+    <div class="section">
+     <div class="section-title">
+      Layout Options
+     </div>
+     <div class="layout-buttons"><button class="layout-btn active" data-layout="single">Single</button> <button class="layout-btn" data-layout="two">Two</button> <button class="layout-btn" data-layout="big-small">Big + Small</button> <button class="layout-btn" data-layout="three">Three</button> <button class="layout-btn" data-layout="four">Four</button>
+     </div>
+     <div class="layout-adjustments" id="layoutAdjustments">
+      <div class="adjustment-title">
+       Adjust Current Layout
+      </div>
+      <div id="adjustmentControls"></div>
+     </div>
+    </div>
+    <div class="section">
+     <div class="section-title">
+      Canvas Settings
+     </div>
+     <div class="controls">
+      <div class="control-group"><label class="control-label">Canvas Width: <span id="widthValue">1080</span>px</label> <input type="range" class="slider" id="widthSlider" min="400" max="2000" value="1080">
+      </div>
+      <div class="control-group"><label class="control-label">Canvas Height: <span id="heightValue">1350</span>px</label> <input type="range" class="slider" id="heightSlider" min="400" max="2000" value="1350">
+      </div><button class="btn" id="downloadBtn" disabled> <span id="downloadText">Download JPG</span> </button>
+     </div>
+    </div>
+   </div>
+   <div class="canvas-area">
+    <div class="zoom-controls"><button class="zoom-btn" id="zoomOut">−</button> <button class="zoom-btn" id="zoomIn">+</button> <button class="zoom-btn" id="resetZoom">⌂</button>
+    </div>
+    <div class="canvas-container" id="canvasContainer">
+     <canvas id="collageCanvas" width="1080" height="1350"></canvas>
+     <div class="canvas-overlay" id="canvasOverlay"></div>
+    </div>
+   </div>
+  </div>
+  <script>
+        const defaultConfig = {
+            app_title: "Collage Maker",
+            upload_text: "Drop images here or click",
+            download_button_text: "Download JPG"
+        };
+
+        let canvas, ctx, overlay;
+        let uploadedImages = [];
+        let imageBoxes = [];
+        let selectedBox = null;
+        let isDragging = false;
+        let isResizing = false;
+        let dragOffset = { x: 0, y: 0 };
+        let canvasScale = 1;
+        let canvasOffset = { x: 0, y: 0 };
+        let currentLayout = 'single';
+
+        // Layout configurations with adjustable parameters
+        const layoutConfigs = {
+            single: {
+                slots: [{ x: 0, y: 0, width: 1, height: 1 }],
+                adjustments: {}
+            },
+            two: {
+                slots: [
+                    { x: 0, y: 0, width: 1, height: 0.5 },
+                    { x: 0, y: 0.5, width: 1, height: 0.5 }
+                ],
+                adjustments: {
+                    split: { label: 'Split Position', min: 0.2, max: 0.8, value: 0.5, step: 0.01 }
+                }
+            },
+            'big-small': {
+                slots: [
+                    { x: 0, y: 0, width: 0.67, height: 1 },
+                    { x: 0.67, y: 0, width: 0.33, height: 0.5 },
+                    { x: 0.67, y: 0.5, width: 0.33, height: 0.5 }
+                ],
+                adjustments: {
+                    mainWidth: { label: 'Main Image Width', min: 0.5, max: 0.8, value: 0.67, step: 0.01 },
+                    smallSplit: { label: 'Small Images Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 }
+                }
+            },
+            three: {
+                slots: [
+                    { x: 0, y: 0, width: 1, height: 0.33 },
+                    { x: 0, y: 0.33, width: 0.5, height: 0.67 },
+                    { x: 0.5, y: 0.33, width: 0.5, height: 0.67 }
+                ],
+                adjustments: {
+                    topHeight: { label: 'Top Image Height', min: 0.2, max: 0.6, value: 0.33, step: 0.01 },
+                    bottomSplit: { label: 'Bottom Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 }
+                }
+            },
+            four: {
+                slots: [
+                    { x: 0, y: 0, width: 0.5, height: 0.5 },
+                    { x: 0.5, y: 0, width: 0.5, height: 0.5 },
+                    { x: 0, y: 0.5, width: 0.5, height: 0.5 },
+                    { x: 0.5, y: 0.5, width: 0.5, height: 0.5 }
+                ],
+                adjustments: {
+                    verticalSplit: { label: 'Vertical Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 },
+                    horizontalSplit: { label: 'Horizontal Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 }
+                }
+            }
+        };
+
+        let layoutAdjustments = {};
+
+        class ImageBox {
+            constructor(x, y, width, height, index) {
+                this.id = Date.now() + Math.random();
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.index = index;
+                this.image = null;
+                this.element = null;
+                this.resizeHandle = null;
+                this.createElements();
+            }
+
+            createElements() {
+                // Create box element
+                this.element = document.createElement('div');
+                this.element.className = 'image-box';
+                this.element.style.left = this.x + 'px';
+                this.element.style.top = this.y + 'px';
+                this.element.style.width = this.width + 'px';
+                this.element.style.height = this.height + 'px';
+
+                // Create resize handle
+                this.resizeHandle = document.createElement('div');
+                this.resizeHandle.className = 'resize-handle';
+                this.resizeHandle.style.left = this.width + 'px';
+                this.resizeHandle.style.top = this.height + 'px';
+
+                this.element.appendChild(this.resizeHandle);
+                overlay.appendChild(this.element);
+
+                this.setupEvents();
+            }
+
+            setupEvents() {
+                // Box dragging and image panning
+                this.element.addEventListener('mousedown', (e) => {
+                    if (e.target === this.resizeHandle) return;
+                    e.preventDefault();
+                    selectedBox = this;
+                    
+                    if (this.image && e.shiftKey) {
+                        // Shift + drag for image panning
+                        this.isPanning = true;
+                        this.panStartX = e.clientX - (this.panX || 0);
+                        this.panStartY = e.clientY - (this.panY || 0);
+                    } else {
+                        // Regular box dragging
+                        isDragging = true;
+                        dragOffset.x = e.clientX - this.x;
+                        dragOffset.y = e.clientY - this.y;
+                    }
+                    this.select();
+                });
+
+                // Resize handle
+                this.resizeHandle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectedBox = this;
+                    isResizing = true;
+                    this.select();
+                });
+
+                // Double click to assign image
+                this.element.addEventListener('dblclick', () => {
+                    this.assignNextImage();
+                });
+
+                // Mouse wheel for zooming
+                this.element.addEventListener('wheel', (e) => {
+                    if (!this.image) return;
+                    e.preventDefault();
+                    
+                    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                    this.zoom = Math.max(0.5, Math.min(3, (this.zoom || 1) * zoomFactor));
+                    updateCanvas();
+                });
+
+                // Right click for image controls
+                this.element.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    if (this.image) {
+                        this.showImageControls(e.clientX, e.clientY);
+                    }
+                });
+            }
+
+            select() {
+                imageBoxes.forEach(box => box.element.classList.remove('selected'));
+                this.element.classList.add('selected');
+            }
+
+            assignNextImage() {
+                if (uploadedImages[this.index]) {
+                    this.image = uploadedImages[this.index];
+                    this.zoom = 1;
+                    this.panX = 0;
+                    this.panY = 0;
+                    updateCanvas();
+                }
+            }
+
+            showImageControls(x, y) {
+                // Remove existing control menu
+                const existingMenu = document.querySelector('.image-control-menu');
+                if (existingMenu) existingMenu.remove();
+
+                const menu = document.createElement('div');
+                menu.className = 'image-control-menu';
+                menu.style.cssText = `
+                    position: fixed;
+                    left: ${x}px;
+                    top: ${y}px;
+                    background: #2a2a2a;
+                    border: 1px solid #666;
+                    border-radius: 6px;
+                    padding: 8px;
+                    z-index: 1000;
+                    display: flex;
+                    gap: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                `;
+
+                const zoomInBtn = this.createControlButton('🔍+', 'Zoom In', () => {
+                    this.zoom = Math.min(3, (this.zoom || 1) * 1.2);
+                    updateCanvas();
+                });
+
+                const zoomOutBtn = this.createControlButton('🔍-', 'Zoom Out', () => {
+                    this.zoom = Math.max(0.5, (this.zoom || 1) / 1.2);
+                    updateCanvas();
+                });
+
+                const resetBtn = this.createControlButton('⌂', 'Reset', () => {
+                    this.zoom = 1;
+                    this.panX = 0;
+                    this.panY = 0;
+                    updateCanvas();
+                });
+
+                const changeBtn = this.createControlButton('🔄', 'Change Image', () => {
+                    this.cycleImage();
+                });
+
+                menu.appendChild(zoomInBtn);
+                menu.appendChild(zoomOutBtn);
+                menu.appendChild(resetBtn);
+                menu.appendChild(changeBtn);
+
+                document.body.appendChild(menu);
+
+                // Remove menu when clicking elsewhere
+                setTimeout(() => {
+                    document.addEventListener('click', () => menu.remove(), { once: true });
+                }, 100);
+            }
+
+            createControlButton(text, title, onClick) {
+                const btn = document.createElement('button');
+                btn.textContent = text;
+                btn.title = title;
+                btn.style.cssText = `
+                    background: #ff6600;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 6px 8px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    min-width: 28px;
+                `;
+                btn.addEventListener('click', onClick);
+                btn.addEventListener('mouseenter', () => btn.style.background = '#e55a00');
+                btn.addEventListener('mouseleave', () => btn.style.background = '#ff6600');
+                return btn;
+            }
+
+            cycleImage() {
+                if (uploadedImages.length === 0) return;
+                
+                const currentIndex = uploadedImages.indexOf(this.image);
+                const nextIndex = (currentIndex + 1) % uploadedImages.length;
+                this.image = uploadedImages[nextIndex];
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                updateCanvas();
+            }
+
+            update() {
+                this.element.style.left = this.x + 'px';
+                this.element.style.top = this.y + 'px';
+                this.element.style.width = this.width + 'px';
+                this.element.style.height = this.height + 'px';
+                this.resizeHandle.style.left = this.width + 'px';
+                this.resizeHandle.style.top = this.height + 'px';
+            }
+
+            remove() {
+                if (this.element) {
+                    overlay.removeChild(this.element);
+                }
+            }
+        }
+
+        function initCanvas() {
+            canvas = document.getElementById('collageCanvas');
+            ctx = canvas.getContext('2d');
+            overlay = document.getElementById('canvasOverlay');
+            
+            // Set overlay size to match canvas
+            overlay.style.width = canvas.width + 'px';
+            overlay.style.height = canvas.height + 'px';
+            
+            clearCanvas();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function calculateLayoutSlots() {
+            const config = layoutConfigs[currentLayout];
+            const adjustments = layoutAdjustments;
+            
+            switch (currentLayout) {
+                case 'single':
+                    return [{ x: 0, y: 0, width: 1, height: 1 }];
+                    
+                case 'two':
+                    const split = adjustments.split || 0.5;
+                    return [
+                        { x: 0, y: 0, width: 1, height: split },
+                        { x: 0, y: split, width: 1, height: 1 - split }
+                    ];
+                    
+                case 'big-small':
+                    const mainWidth = adjustments.mainWidth || 0.67;
+                    const smallSplit = adjustments.smallSplit || 0.5;
+                    const sideWidth = 1 - mainWidth;
+                    return [
+                        { x: 0, y: 0, width: mainWidth, height: 1 },
+                        { x: mainWidth, y: 0, width: sideWidth, height: smallSplit },
+                        { x: mainWidth, y: smallSplit, width: sideWidth, height: 1 - smallSplit }
+                    ];
+                    
+                case 'three':
+                    const topHeight = adjustments.topHeight || 0.33;
+                    const bottomSplit = adjustments.bottomSplit || 0.5;
+                    const bottomHeight = 1 - topHeight;
+                    return [
+                        { x: 0, y: 0, width: 1, height: topHeight },
+                        { x: 0, y: topHeight, width: bottomSplit, height: bottomHeight },
+                        { x: bottomSplit, y: topHeight, width: 1 - bottomSplit, height: bottomHeight }
+                    ];
+                    
+                case 'four':
+                    const vSplit = adjustments.verticalSplit || 0.5;
+                    const hSplit = adjustments.horizontalSplit || 0.5;
+                    return [
+                        { x: 0, y: 0, width: vSplit, height: hSplit },
+                        { x: vSplit, y: 0, width: 1 - vSplit, height: hSplit },
+                        { x: 0, y: hSplit, width: vSplit, height: 1 - hSplit },
+                        { x: vSplit, y: hSplit, width: 1 - vSplit, height: 1 - hSplit }
+                    ];
+                    
+                default:
+                    return config.slots;
+            }
+        }
+
+        function createLayout() {
+            // Clear existing boxes
+            imageBoxes.forEach(box => box.remove());
+            imageBoxes = [];
+            
+            const layoutSlots = calculateLayoutSlots();
+            
+            layoutSlots.forEach((slot, index) => {
+                const x = slot.x * canvas.width;
+                const y = slot.y * canvas.height;
+                const width = slot.width * canvas.width;
+                const height = slot.height * canvas.height;
+                
+                const box = new ImageBox(x, y, width, height, index);
+                
+                // Auto-assign image if available
+                if (uploadedImages[index]) {
+                    box.image = uploadedImages[index];
+                }
+                
+                imageBoxes.push(box);
+            });
+            
+            updateCanvas();
+        }
+
+        function createAdjustmentControls() {
+            const controlsContainer = document.getElementById('adjustmentControls');
+            const config = layoutConfigs[currentLayout];
+            
+            controlsContainer.innerHTML = '';
+            
+            // Reset adjustments for new layout
+            layoutAdjustments = {};
+            
+            Object.entries(config.adjustments).forEach(([key, adjustment]) => {
+                layoutAdjustments[key] = adjustment.value;
+                
+                const controlDiv = document.createElement('div');
+                controlDiv.className = 'adjustment-control';
+                
+                const label = document.createElement('label');
+                label.className = 'adjustment-label';
+                label.textContent = `${adjustment.label}: ${Math.round(adjustment.value * 100)}%`;
+                
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.className = 'adjustment-slider';
+                slider.min = adjustment.min;
+                slider.max = adjustment.max;
+                slider.step = adjustment.step;
+                slider.value = adjustment.value;
+                
+                slider.addEventListener('input', (e) => {
+                    const value = parseFloat(e.target.value);
+                    layoutAdjustments[key] = value;
+                    label.textContent = `${adjustment.label}: ${Math.round(value * 100)}%`;
+                    createLayout();
+                });
+                
+                controlDiv.appendChild(label);
+                controlDiv.appendChild(slider);
+                controlsContainer.appendChild(controlDiv);
+            });
+            
+            // Show/hide adjustment section
+            const adjustmentSection = document.getElementById('layoutAdjustments');
+            adjustmentSection.style.display = Object.keys(config.adjustments).length > 0 ? 'block' : 'none';
+        }
+
+        function updateCanvas() {
+            clearCanvas();
+            
+            imageBoxes.forEach(box => {
+                if (box.image) {
+                    const img = box.image;
+                    
+                    // Initialize zoom and pan if not set
+                    if (!box.zoom) box.zoom = 1;
+                    if (!box.panX) box.panX = 0;
+                    if (!box.panY) box.panY = 0;
+                    
+                    // Calculate aspect ratios
+                    const imgAspect = img.width / img.height;
+                    const boxAspect = box.width / box.height;
+                    
+                    let baseWidth, baseHeight;
+                    
+                    if (imgAspect > boxAspect) {
+                        baseHeight = box.height;
+                        baseWidth = baseHeight * imgAspect;
+                    } else {
+                        baseWidth = box.width;
+                        baseHeight = baseWidth / imgAspect;
+                    }
+                    
+                    // Apply zoom
+                    const drawWidth = baseWidth * box.zoom;
+                    const drawHeight = baseHeight * box.zoom;
+                    
+                    // Calculate position with pan offset
+                    let drawX = box.x + (box.width - drawWidth) / 2 + box.panX;
+                    let drawY = box.y + (box.height - drawHeight) / 2 + box.panY;
+                    
+                    // Clip to box area
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(box.x, box.y, box.width, box.height);
+                    ctx.clip();
+                    
+                    ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+                    ctx.restore();
+                }
+            });
+            
+            // Draw white divider lines between layout sections (not on edges)
+            drawLayoutDividers();
+            
+            document.getElementById('downloadBtn').disabled = imageBoxes.length === 0 || uploadedImages.length === 0;
+        }
+
+        function drawLayoutDividers() {
+            if (imageBoxes.length <= 1) return;
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'square';
+            
+            const layoutSlots = calculateLayoutSlots();
+            
+            switch (currentLayout) {
+                case 'two':
+                    // Horizontal line between top and bottom
+                    const split = layoutAdjustments.split || 0.5;
+                    const y = split * canvas.height;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                    break;
+                    
+                case 'big-small':
+                    // Vertical line between main and side images
+                    const mainWidth = layoutAdjustments.mainWidth || 0.67;
+                    const x = mainWidth * canvas.width;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.stroke();
+                    
+                    // Horizontal line between small images
+                    const smallSplit = layoutAdjustments.smallSplit || 0.5;
+                    const smallY = smallSplit * canvas.height;
+                    ctx.beginPath();
+                    ctx.moveTo(x, smallY);
+                    ctx.lineTo(canvas.width, smallY);
+                    ctx.stroke();
+                    break;
+                    
+                case 'three':
+                    // Horizontal line between top and bottom images
+                    const topHeight = layoutAdjustments.topHeight || 0.33;
+                    const topY = topHeight * canvas.height;
+                    ctx.beginPath();
+                    ctx.moveTo(0, topY);
+                    ctx.lineTo(canvas.width, topY);
+                    ctx.stroke();
+                    
+                    // Vertical line between bottom images
+                    const bottomSplit = layoutAdjustments.bottomSplit || 0.5;
+                    const bottomX = bottomSplit * canvas.width;
+                    ctx.beginPath();
+                    ctx.moveTo(bottomX, topY);
+                    ctx.lineTo(bottomX, canvas.height);
+                    ctx.stroke();
+                    break;
+                    
+                case 'four':
+                    // Vertical line
+                    const vSplit = layoutAdjustments.verticalSplit || 0.5;
+                    const vX = vSplit * canvas.width;
+                    ctx.beginPath();
+                    ctx.moveTo(vX, 0);
+                    ctx.lineTo(vX, canvas.height);
+                    ctx.stroke();
+                    
+                    // Horizontal line
+                    const hSplit = layoutAdjustments.horizontalSplit || 0.5;
+                    const hY = hSplit * canvas.height;
+                    ctx.beginPath();
+                    ctx.moveTo(0, hY);
+                    ctx.lineTo(canvas.width, hY);
+                    ctx.stroke();
+                    break;
+            }
+        }
+
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            img.fileName = file.name;
+                            uploadedImages.push(img);
+                            updateImageList();
+                            updateCanvas();
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        function updateImageList() {
+            const imageList = document.getElementById('imageList');
+            const clearBtn = document.getElementById('clearBtn');
+            
+            imageList.innerHTML = '';
+            
+            uploadedImages.forEach((img, index) => {
+                const item = document.createElement('div');
+                item.className = 'image-item';
+                
+                const thumb = document.createElement('canvas');
+                thumb.width = 40;
+                thumb.height = 40;
+                thumb.className = 'image-thumb';
+                
+                const thumbCtx = thumb.getContext('2d');
+                const size = Math.min(img.width, img.height);
+                const sx = (img.width - size) / 2;
+                const sy = (img.height - size) / 2;
+                thumbCtx.drawImage(img, sx, sy, size, size, 0, 0, 40, 40);
+                
+                const name = document.createElement('div');
+                name.className = 'image-name';
+                name.textContent = img.fileName || `Image ${index + 1}`;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-btn';
+                removeBtn.textContent = '×';
+                removeBtn.addEventListener('click', () => {
+                    uploadedImages.splice(index, 1);
+                    // Remove image from boxes
+                    imageBoxes.forEach(box => {
+                        if (box.image === img) {
+                            box.image = null;
+                        }
+                    });
+                    updateImageList();
+                    updateCanvas();
+                });
+                
+                item.appendChild(thumb);
+                item.appendChild(name);
+                item.appendChild(removeBtn);
+                imageList.appendChild(item);
+            });
+            
+            clearBtn.style.display = uploadedImages.length > 0 ? 'block' : 'none';
+        }
+
+        function updateCanvasSize() {
+            const width = parseInt(document.getElementById('widthSlider').value);
+            const height = parseInt(document.getElementById('heightSlider').value);
+            
+            canvas.width = width;
+            canvas.height = height;
+            overlay.style.width = width + 'px';
+            overlay.style.height = height + 'px';
+            
+            document.getElementById('widthValue').textContent = width;
+            document.getElementById('heightValue').textContent = height;
+            
+            // Recreate layout with new canvas size
+            createLayout();
+        }
+
+        function downloadCollage() {
+            const link = document.createElement('a');
+            link.download = 'collage.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            initCanvas();
+            
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('fileInput');
+            
+            // Upload events
+            uploadZone.addEventListener('click', () => fileInput.click());
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+            
+            // Layout buttons
+            document.querySelectorAll('.layout-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelector('.layout-btn.active').classList.remove('active');
+                    btn.classList.add('active');
+                    currentLayout = btn.dataset.layout;
+                    createAdjustmentControls();
+                    createLayout();
+                });
+            });
+
+            // Canvas size controls
+            document.getElementById('widthSlider').addEventListener('input', updateCanvasSize);
+            document.getElementById('heightSlider').addEventListener('input', updateCanvasSize);
+            
+            // Download button
+            document.getElementById('downloadBtn').addEventListener('click', downloadCollage);
+            
+            // Clear button
+            document.getElementById('clearBtn').addEventListener('click', () => {
+                uploadedImages = [];
+                imageBoxes.forEach(box => {
+                    box.image = null;
+                });
+                updateImageList();
+                updateCanvas();
+            });
+            
+            // Mouse events for dragging, resizing, and panning
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging && selectedBox) {
+                    const rect = canvas.getBoundingClientRect();
+                    selectedBox.x = Math.max(0, Math.min(canvas.width - selectedBox.width, e.clientX - rect.left - dragOffset.x + rect.left));
+                    selectedBox.y = Math.max(0, Math.min(canvas.height - selectedBox.height, e.clientY - rect.top - dragOffset.y + rect.top));
+                    selectedBox.update();
+                    updateCanvas();
+                } else if (isResizing && selectedBox) {
+                    const rect = canvas.getBoundingClientRect();
+                    const newWidth = Math.max(50, e.clientX - rect.left - selectedBox.x);
+                    const newHeight = Math.max(50, e.clientY - rect.top - selectedBox.y);
+                    selectedBox.width = Math.min(newWidth, canvas.width - selectedBox.x);
+                    selectedBox.height = Math.min(newHeight, canvas.height - selectedBox.y);
+                    selectedBox.update();
+                    updateCanvas();
+                } else if (selectedBox && selectedBox.isPanning) {
+                    selectedBox.panX = e.clientX - selectedBox.panStartX;
+                    selectedBox.panY = e.clientY - selectedBox.panStartY;
+                    updateCanvas();
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                isResizing = false;
+                if (selectedBox) {
+                    selectedBox.isPanning = false;
+                }
+            });
+            
+            // Zoom controls
+            document.getElementById('zoomIn').addEventListener('click', () => {
+                canvasScale = Math.min(canvasScale * 1.2, 3);
+                updateCanvasTransform();
+            });
+            
+            document.getElementById('zoomOut').addEventListener('click', () => {
+                canvasScale = Math.max(canvasScale / 1.2, 0.3);
+                updateCanvasTransform();
+            });
+            
+            document.getElementById('resetZoom').addEventListener('click', () => {
+                canvasScale = 1;
+                canvasOffset = { x: 0, y: 0 };
+                updateCanvasTransform();
+            });
+            
+            // Create initial layout
+            createAdjustmentControls();
+            createLayout();
+        });
+
+        function updateCanvasTransform() {
+            const container = document.getElementById('canvasContainer');
+            container.style.transform = `scale(${canvasScale}) translate(${canvasOffset.x}px, ${canvasOffset.y}px)`;
+        }
+
+        // Element SDK implementation
+        async function render(config) {
+            const appTitle = document.getElementById('appTitle');
+            const uploadText = document.getElementById('uploadText');
+            const downloadText = document.getElementById('downloadText');
+            
+            if (appTitle) appTitle.textContent = config.app_title || defaultConfig.app_title;
+            if (uploadText) uploadText.textContent = config.upload_text || defaultConfig.upload_text;
+            if (downloadText) downloadText.textContent = config.download_button_text || defaultConfig.download_button_text;
+        }
+
+        function mapToCapabilities(config) {
+            return {
+                recolorables: [],
+                borderables: [],
+                fontEditable: undefined,
+                fontSizeable: undefined
+            };
+        }
+
+        function mapToEditPanelValues(config) {
+            return new Map([
+                ["app_title", config.app_title || defaultConfig.app_title],
+                ["upload_text", config.upload_text || defaultConfig.upload_text],
+                ["download_button_text", config.download_button_text || defaultConfig.download_button_text]
+            ]);
+        }
+
+        // Initialize Element SDK
+        if (window.elementSdk) {
+            window.elementSdk.init({
+                defaultConfig,
+                render,
+                mapToCapabilities,
+                mapToEditPanelValues
+            });
+        }
+    </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'991f8c7fa4f6b665',t:'MTc2MTAzNzA2MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
