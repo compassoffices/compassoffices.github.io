@@ -436,7 +436,7 @@
             }
         };
      
-        // Function to convert 24-hour time to 12-hour format with AM/PM
+        // Function to convert 24-hour time to 12-hour format with AM/PM for display
         function formatTimeTo12Hour(time) {
             if (!time) return 'Not provided';
             const [hours, minutes] = time.split(':').map(t => t.trim());
@@ -447,7 +447,7 @@
             return `${hour12}:${minutes.padStart(2, '0')} ${period}`;
         }
 
-        // Function to format date to YYYY-MM-DD
+        // Function to format date to YYYY-MM-DD for display
         function formatDateToTeams(dateStr) {
             if (!dateStr) return 'Not provided';
             // Try parsing common date formats
@@ -465,7 +465,31 @@
             }
             return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD
         }
-     
+
+        // Function to format time for Make.com Teams integration (ISO with timezone)
+        function formatTimeForMake(time24) {
+            if (!time24) return null;
+            const [hours, minutes] = time24.split(':').map(t => t.trim());
+            const h = parseInt(hours, 10).toString().padStart(2, '0');
+            const m = parseInt(minutes || '00', 10).toString().padStart(2, '0');
+            return `${h}:${m}:00.0000000`;
+        }
+
+        // Function to format date for Make.com Teams integration (YYYY-MM-DD)
+        function formatDateForMake(dateStr) {
+            const formatted = formatDateToTeams(dateStr);
+            if (formatted === 'Not provided' || formatted === 'Invalid date') return null;
+            return formatted;
+        }
+
+        // Function to create ISO datetime string for Graph API
+        function createISODatetime(dateStr, time24) {
+            const date = formatDateForMake(dateStr);
+            const time = formatTimeForMake(time24);
+            if (!date || !time) return null;
+            return `${date}T${time}+08:00`; // Assuming HKT timezone; adjust if needed
+        }
+
         // Function to process image to 1:1 square without cropping (letterbox with transparent padding), under 500KB
         async function processImageToSquare(file) {
             const MAX_SIZE = 500 * 1024; // 500KB
@@ -520,6 +544,7 @@
                 img.onerror = reject;
             });
         }
+
         // Initialize form interactions
         document.addEventListener('DOMContentLoaded', function() {
             const params = new URLSearchParams(window.location.search);
@@ -818,6 +843,24 @@
             formData.append('additionalLocation', additionalLocation || '');
             formData.append('formattedLocation', document.getElementById('locationPreview').textContent || '');
             formData.append('details', params.get('Details') || '');
+
+            // Add ISO datetime for Teams API
+            const dateParam = params.get('Date') || '';
+            const startDateTimeISO = createISODatetime(dateParam, startTime);
+            const endDateTimeISO = createISODatetime(dateParam, endTime);
+            if (startDateTimeISO && endDateTimeISO) {
+                formData.append('startDateTime', startDateTimeISO);
+                formData.append('endDateTime', endDateTimeISO);
+            } else {
+                // Fallback or error handling
+                console.error('Invalid date or time for ISO formatting');
+                errorText.textContent = 'Invalid date or time format provided.';
+                errorMessage.classList.remove('hidden');
+                submitText.classList.remove('hidden');
+                loadingText.classList.add('hidden');
+                submitBtn.disabled = false;
+                return;
+            }
             // Handle logo and image uploads
             const logoFile = logoUploadInput.files[0];
             const imageFile = eventImageUploadInput.files[0];
