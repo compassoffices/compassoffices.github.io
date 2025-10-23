@@ -99,6 +99,44 @@
     .download-all:hover {
       background: #333;
     }
+    .offset-control {
+      margin: 1rem auto;
+      text-align: center;
+    }
+    .offset-control label {
+      font-size: 1rem;
+      margin-right: 0.5rem;
+    }
+    .offset-control input[type="range"] {
+      width: 200px;
+      margin-right: 0.5rem;
+    }
+    .offset-control input[type="number"] {
+      width: 80px;
+      padding: 0.2rem;
+      font-size: 1rem;
+    }
+    .preloader {
+      text-align: center;
+      margin-top: 2rem;
+      display: none;
+    }
+    .preloader.active {
+      display: block;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #000;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -113,6 +151,16 @@
         <input type="file" accept="application/pdf" class="dropzone" id="upload" />
       </div>
     </div>
+    <div class="offset-control">
+      <label for="oscarOffset">Oscar Version Vertical Offset (pixels):</label>
+      <input type="range" id="oscarOffset" min="-500" max="500" value="-100" step="10" />
+      <input type="number" id="oscarOffsetNumber" min="-500" max="500" value="-100" step="10" />
+      <span id="offsetValue">-100</span>
+    </div>
+    <div class="preloader" id="preloader">
+      <div class="spinner"></div>
+      <p>Loading...</p>
+    </div>
     <div class="preview-zone" id="preview">
       <a href="#" class="download-all" id="downloadAll" style="display: none;">Download All PNGs</a>
     </div>
@@ -122,20 +170,29 @@
   const upload = document.getElementById("upload");
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
+  const preloader = document.getElementById("preloader");
   const downloadAllBtn = document.getElementById("downloadAll");
-  const TARGET_WIDTH = 3600; // Doubled for 300 DPI
-  const TARGET_HEIGHT = 4488; // Doubled for 300 DPI
+  const oscarOffsetInput = document.getElementById("oscarOffset");
+  const oscarOffsetNumberInput = document.getElementById("oscarOffsetNumber");
+  const offsetValueDisplay = document.getElementById("offsetValue");
+  const TARGET_WIDTH = 3600; // For 300 DPI
+  const TARGET_HEIGHT = 4488; // For 300 DPI
   const QUALITY_SCALE = 4; // Increased scale for higher quality rendering
   let downloadLinks = []; // Store all download link elements
+  let currentFile = null; // Store the current PDF file for re-rendering
+
   function formatDateTime() {
     const now = new Date();
     return now.toISOString().replace(/[:.]/g, "-");
   }
+
   async function renderPDFtoPNG(file) {
     if (!file || file.type !== "application/pdf") {
       alert("Please upload a valid PDF file.");
       return;
     }
+    currentFile = file; // Store the file for re-rendering
+    preloader.classList.add("active"); // Show preloader
     preview.innerHTML = "<a href='#' class='download-all' id='downloadAll' style='display: none;'>Download All PNGs</a>";
     downloadLinks = []; // Reset download links array
     downloadAllBtn.style.display = "none";
@@ -164,9 +221,9 @@
         tempCanvas.height = scaledViewport.height;
         const tempCtx = tempCanvas.getContext("2d", { alpha: false, imageSmoothingQuality: "high" }); // Set high-quality rendering
         await page.render({ canvasContext: tempCtx, viewport: scaledViewport }).promise;
-        // Create two versions: Oscar (shifted up) and centered
+        // Create two versions: Oscar (with adjustable offset) and centered
         const versions = [
-          { offsetYShift: -100, label: "Oscar" },
+          { offsetYShift: parseInt(oscarOffsetInput.value), label: "Oscar" },
           { offsetYShift: 0, label: "Centered" }
         ];
         for (const version of versions) {
@@ -221,18 +278,42 @@
           downloadLinks.forEach(link => link.click());
         };
       }
+      preloader.classList.remove("active"); // Hide preloader
     };
   }
+
+  // Synchronize range slider and number input
+  oscarOffsetInput.addEventListener("input", () => {
+    oscarOffsetNumberInput.value = oscarOffsetInput.value;
+    offsetValueDisplay.textContent = oscarOffsetInput.value;
+    if (currentFile) {
+      renderPDFtoPNG(currentFile); // Re-render with new offset
+    }
+  });
+
+  oscarOffsetNumberInput.addEventListener("input", () => {
+    const value = Math.min(Math.max(parseInt(oscarOffsetNumberInput.value) || -100, -500), 500); // Clamp between -500 and 500
+    oscarOffsetInput.value = value;
+    oscarOffsetNumberInput.value = value;
+    offsetValueDisplay.textContent = value;
+    if (currentFile) {
+      renderPDFtoPNG(currentFile); // Re-render with new offset
+    }
+  });
+
   upload.addEventListener("change", (e) => {
     renderPDFtoPNG(e.target.files[0]);
   });
+
   dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
     dropZone.classList.add("dragover");
   });
+
   dropZone.addEventListener("dragleave", () => {
     dropZone.classList.remove("dragover");
   });
+
   dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropZone.classList.remove("dragover");
