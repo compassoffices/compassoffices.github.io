@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="https://compassoffices.github.io/img/logo/new-p1-32.png" type="image/png" />
+  <!-- Removed favicon to avoid showing logo in browser tab -->
   <title>PDF to PNG Converter (1800x2244 @ 300 dpi)</title>
 
   <!-- PDF.js -->
@@ -11,19 +11,16 @@
 
   <style>
     body {
-      0
       font-family: 'Segoe UI', sans-serif;
       background: #fff;
       padding: 2rem;
       color: #000;
     }
-
     .container {
       max-width: 800px;
       margin: 0 auto;
       padding: 50px 5%;
     }
-
     .dropzone-wrapper {
       border: 2px dashed #000;
       color: #000;
@@ -32,7 +29,6 @@
       cursor: pointer;
       background: white;
     }
-
     .dropzone-desc {
       position: absolute;
       left: 0;
@@ -41,7 +37,6 @@
       top: 50px;
       font-size: 16px;
     }
-
     .dropzone,
     .dropzone:focus {
       position: absolute;
@@ -51,17 +46,14 @@
       cursor: pointer;
       opacity: 0;
     }
-
     .dropzone-wrapper:hover,
     .dropzone-wrapper.dragover {
       background: #e0e0e0;
     }
-
     .preview-zone {
       text-align: center;
       margin-top: 2rem;
     }
-
     .card {
       background: white;
       margin: 1rem auto;
@@ -71,22 +63,19 @@
       max-width: 100%;
       border: 1px solid #000;
     }
-
     canvas {
       width: 100%;
       border-radius: 8px;
       border: 1px solid #000;
     }
-
     .info {
       font-size: 0.9rem;
       margin: 0.5rem 0;
       color: #000;
     }
-
     .download-link {
       display: inline-block;
-      margin-top: 0.5rem;
+      margin: 0.5rem 0.5rem 0 0;
       padding: 0.4rem 1.2rem;
       border-radius: 6px;
       background: #000;
@@ -94,30 +83,61 @@
       text-decoration: none;
       font-size: 0.9rem;
     }
-
     .download-link:hover {
       background: #333;
     }
-
     .download-all {
       display: block;
-      margin: 2rem auto;
-      padding: 0.8rem 2rem;
-      font-size: 1rem;
+      margin: 1rem auto;
+      padding: 0.6rem 1.5rem;
+      border-radius: 6px;
       background: #000;
       color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
+      text-decoration: none;
+      font-size: 1rem;
+      text-align: center;
+      width: fit-content;
     }
-
     .download-all:hover {
       background: #333;
     }
-
-    .download-all.hidden {
+    .offset-control {
+      margin: 1rem auto;
+      text-align: center;
+    }
+    .offset-control label {
+      font-size: 1rem;
+      margin-right: 0.5rem;
+    }
+    .offset-control input[type="range"] {
+      width: 200px;
+      margin-right: 0.5rem;
+    }
+    .offset-control input[type="number"] {
+      width: 80px;
+      padding: 0.2rem;
+      font-size: 1rem;
+    }
+    .preloader {
+      text-align: center;
+      margin-top: 2rem;
       display: none;
+    }
+    .preloader.active {
+      display: block;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #000;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
@@ -135,9 +155,21 @@
       </div>
     </div>
 
-    <button id="downloadAll" class="download-all hidden">Download All PNGs (One by One)</button>
+    <div class="offset-control">
+      <label for="oscarOffset">Oscar Version Vertical Offset (pixels):</label>
+      <input type="range" id="oscarOffset" min="-500" max="500" value="-100" step="10" />
+      <input type="number" id="oscarOffsetNumber" min="-500" max="500" value="-100" step="10" />
+      <span id="offsetValue">-100</span>
+    </div>
 
-    <div class="preview-zone" id="preview"></div>
+    <div class="preloader" id="preloader">
+      <div class="spinner"></div>
+      <p>Loading...</p>
+    </div>
+
+    <div class="preview-zone" id="preview">
+      <a href="#" class="download-all" id="downloadAll" style="display: none;">Download All PNGs</a>
+    </div>
   </div>
 </section>
 
@@ -145,18 +177,42 @@
   const upload = document.getElementById("upload");
   const dropZone = document.getElementById("dropZone");
   const preview = document.getElementById("preview");
+  const preloader = document.getElementById("preloader");
   const downloadAllBtn = document.getElementById("downloadAll");
+  const oscarOffsetInput = document.getElementById("oscarOffset");
+  const oscarOffsetNumberInput = document.getElementById("oscarOffsetNumber");
+  const offsetValueDisplay = document.getElementById("offsetValue");
 
   const TARGET_WIDTH = 1800;
   const TARGET_HEIGHT = 2244;
   const DPI = 300;
+  const QUALITY_SCALE = 2;
+  const LOGO_URL = "https://compassoffices.github.io/img/logo/new-p1-32.png";
+  const LOGO_SIZE = 300;
+  const LOGO_BOTTOM_MARGIN = 100;
 
-  // Store download links for "Download All"
   let downloadLinks = [];
+  let currentFile = null;
+  let logoImg = null;
+
+  // Preload logo (still used in PNG output)
+  function loadLogo() {
+    return new Promise((resolve) => {
+      if (logoImg) return resolve();
+      logoImg = new Image();
+      logoImg.crossOrigin = "anonymous";
+      logoImg.onload = resolve;
+      logoImg.onerror = () => {
+        console.warn("Logo failed to load, skipping logo version.");
+        resolve();
+      };
+      logoImg.src = LOGO_URL;
+    });
+  }
 
   function formatDateTime() {
     const now = new Date();
-    return now.toISOString().replace(/[:.]/g, "-").split("T").join("-").slice(0, 19);
+    return now.toISOString().replace(/[:.]/g, "-");
   }
 
   async function renderPDFtoPNG(file) {
@@ -165,111 +221,141 @@
       return;
     }
 
-    preview.innerHTML = "Processing PDF...";
-    downloadAllBtn.classList.add("hidden");
+    currentFile = file;
+    preloader.classList.add("active");
+    preview.innerHTML = `<a href='#' class='download-all' id='downloadAll' style='display: none;'>Download All PNGs</a>`;
     downloadLinks = [];
+    downloadAllBtn.style.display = "none";
+
+    await loadLogo();
 
     const fileReader = new FileReader();
     fileReader.readAsArrayBuffer(file);
-
     fileReader.onload = async function () {
       const pdfData = new Uint8Array(fileReader.result);
       const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-      preview.innerHTML = "";
+      preview.innerHTML = `<a href='#' class='download-all' id='downloadAll' style='display: none;'>Download All PNGs</a>`;
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-
-        // 1. Original size in points
         const originalViewport = page.getViewport({ scale: 1 });
-        const ptWidth = originalViewport.width;
-        const ptHeight = originalViewport.height;
+        const pageWidth = originalViewport.width;
+        const pageHeight = originalViewport.height;
 
-        // 2. Convert to pixels at 300 DPI
-        const inchesWidth = ptWidth / 72;
-        const inchesHeight = ptHeight / 72;
-        const pixelWidth = Math.round(inchesWidth * DPI);
-        const pixelHeight = Math.round(inchesHeight * DPI);
+        const pixelWidth = Math.round((pageWidth / 72) * DPI);
+        const pixelHeight = Math.round((pageHeight / 72) * DPI);
 
-        // 3. Scale to fit into 1800x2244
         const scaleX = TARGET_WIDTH / pixelWidth;
         const scaleY = TARGET_HEIGHT / pixelHeight;
         const fitScale = Math.min(scaleX, scaleY);
-        const renderScale = fitScale * (DPI / 72);
+        const renderScale = fitScale * (DPI / 72) * QUALITY_SCALE;
         const viewport = page.getViewport({ scale: renderScale });
 
-        // 4. Render to temp canvas
         const tempCanvas = document.createElement("canvas");
         tempCanvas.width = viewport.width;
         tempCanvas.height = viewport.height;
-        const tempCtx = tempCanvas.getContext("2d");
+        const tempCtx = tempCanvas.getContext("2d", { alpha: false });
         await page.render({ canvasContext: tempCtx, viewport }).promise;
 
-        // 5. Final canvas with white background
-        const finalCanvas = document.createElement("canvas");
-        finalCanvas.width = TARGET_WIDTH;
-        finalCanvas.height = TARGET_HEIGHT;
-        const finalCtx = finalCanvas.getContext("2d");
-        finalCtx.fillStyle = "#FFFFFF";
-        finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+        // Two versions: Oscar (offset) and Logo (with logo)
+        const versions = [
+          { offsetYShift: parseInt(oscarOffsetInput.value), label: "Oscar", addLogo: false },
+          { offsetYShift: 0, label: "Logo", addLogo: true }
+        ];
 
-        const offsetX = (TARGET_WIDTH - tempCanvas.width) / 2;
-        const offsetY = ((TARGET_HEIGHT - tempCanvas.height) / 2) - 100;
-        finalCtx.drawImage(tempCanvas, offsetX, offsetY);
+        for (const version of versions) {
+          const finalCanvas = document.createElement("canvas");
+          finalCanvas.width = TARGET_WIDTH;
+          finalCanvas.height = TARGET_HEIGHT;
+          const finalCtx = finalCanvas.getContext("2d", { alpha: false });
 
-        // 6. Convert to Blob
-        const blob = await new Promise(resolve => finalCanvas.toBlob(resolve, "image/png"));
-        const sizeKB = Math.round(blob.size / 1024);
-        const url = URL.createObjectURL(blob);
-        const filename = `page-${pageNum}-1800x2244-${sizeKB}KB-${formatDateTime()}.png`;
+          // White background
+          finalCtx.fillStyle = "#FFFFFF";
+          finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
-        // 7. Create preview card
-        const card = document.createElement("div");
-        card.className = "card";
+          // Content
+          const contentW = viewport.width / QUALITY_SCALE;
+          const contentH = viewport.height / QUALITY_SCALE;
+          const offsetX = (TARGET_WIDTH - contentW) / 2;
+          const offsetY = ((TARGET_HEIGHT - contentH) / 2) + version.offsetYShift;
 
-        const previewCanvas = document.createElement("canvas");
-        previewCanvas.width = finalCanvas.width;
-        previewCanvas.height = finalCanvas.height;
-        const previewCtx = previewCanvas.getContext("2d");
-        previewCtx.drawImage(finalCanvas, 0, 0);
+          finalCtx.drawImage(tempCanvas, 0, 0, viewport.width, viewport.height, offsetX, offsetY, contentW, contentH);
 
-        const info = document.createElement("p");
-        info.className = "info";
-        info.textContent = `Page ${pageNum} — 1800×2244 px @ 300 dpi — ${sizeKB} KB`;
+          // Add logo only to "Logo" version
+          if (version.addLogo && logoImg) {
+            const logoX = (TARGET_WIDTH - LOGO_SIZE) / 2;
+            const logoY = TARGET_HEIGHT - LOGO_SIZE - LOGO_BOTTOM_MARGIN;
+            finalCtx.drawImage(logoImg, logoX, logoY, LOGO_SIZE, LOGO_SIZE);
+          }
 
-        const download = document.createElement("a");
-        download.href = url;
-        download.download = filename;
-        download.textContent = `Download PNG Page ${pageNum}`;
-        download.className = "download-link";
+          // Export PNG
+          const blob = await new Promise(resolve => finalCanvas.toBlob(resolve, "image/png", 1.0));
+          const sizeKB = Math.round(blob.size / 1024);
+          const url = URL.createObjectURL(blob);
+          const filename = `page-${pageNum}-1800x2244-${version.label}-${sizeKB}KB-${formatDateTime()}.png`;
 
-        // Store reference to trigger later
-        downloadLinks.push(download);
+          // Preview card
+          const card = document.createElement("div");
+          card.className = "card";
 
-        card.appendChild(previewCanvas);
-        card.appendChild(info);
-        card.appendChild(download);
-        preview.appendChild(card);
+          const previewCanvas = document.createElement("canvas");
+          previewCanvas.width = finalCanvas.width;
+          previewCanvas.height = finalCanvas.height;
+          const previewCtx = previewCanvas.getContext("2d", { alpha: false });
+          previewCtx.drawImage(finalCanvas, 0, 0);
+
+          const info = document.createElement("p");
+          info.className = "info";
+          info.textContent = `Page ${pageNum} (${version.label}) — 1800×2244 px @ 300 dpi — ${sizeKB} KB`;
+
+          const download = document.createElement("a");
+          download.href = url;
+          download.download = filename;
+          download.textContent = `Download PNG Page ${pageNum} (${version.label})`;
+          download.className = "download-link";
+
+          downloadLinks.push(download);
+
+          card.appendChild(previewCanvas);
+          card.appendChild(info);
+          card.appendChild(download);
+          preview.appendChild(card);
+        }
       }
 
-      // Show "Download All" button
-      downloadAllBtn.classList.remove("hidden");
+      // Show Download All
+      if (downloadLinks.length > 0) {
+        downloadAllBtn.style.display = "block";
+        downloadAllBtn.onclick = (e) => {
+          e.preventDefault();
+          downloadLinks.forEach((link, i) => {
+            setTimeout(() => link.click(), i * 300);
+          });
+        };
+      }
+
+      preloader.classList.remove("active");
     };
   }
 
-  // === Download All: Trigger each download link ===
-  downloadAllBtn.addEventListener("click", () => {
-    if (downloadLinks.length === 0) return;
-
-    // Trigger each download with a small delay to avoid popup blocking
-    downloadLinks.forEach((link, index) => {
-      setTimeout(() => {
-        link.click();
-      }, index * 300); // 300ms apart to ensure browser allows
-    });
+  // Sync offset controls
+  oscarOffsetInput.addEventListener("input", () => {
+    const val = oscarOffsetInput.value;
+    oscarOffsetNumberInput.value = val;
+    offsetValueDisplay.textContent = val;
+    if (currentFile) renderPDFtoPNG(currentFile);
   });
 
-  // === Input / Drag-and-Drop handlers ===
+  oscarOffsetNumberInput.addEventListener("input", () => {
+    let val = parseInt(oscarOffsetNumberInput.value) || -100;
+    val = Math.min(Math.max(val, -500), 500);
+    oscarOffsetInput.value = val;
+    oscarOffsetNumberInput.value = val;
+    offsetValueDisplay.textContent = val;
+    if (currentFile) renderPDFtoPNG(currentFile);
+  });
+
+  // Drag & Drop
   upload.addEventListener("change", e => renderPDFtoPNG(e.target.files[0]));
 
   dropZone.addEventListener("dragover", e => {
