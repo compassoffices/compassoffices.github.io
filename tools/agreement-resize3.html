@@ -4,27 +4,121 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="https://compassoffices.github.io/img/logo/new-p1-32.png" type="image/png" />
-  <title>PDF to PNG Converter (1800×2244 – 300 dpi)</title>
+  <title>PDF to PNG Converter (1800x2244 @ 300 dpi)</title>
 
-  <!-- PDF.js (latest stable) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
-    body {font-family:'Segoe UI',sans-serif;background:#fff;padding:2rem;color:#000;}
-    .container {max-width:800px;margin:0 auto;padding:50px 5%;}
-    .dropzone-wrapper {border:2px dashed #000;position:relative;height:150px;cursor:pointer;background:white;}
-    .dropzone-desc {position:absolute;left:0;right:0;text-align:center;top:50px;font-size:16px;}
-    .dropzone,.dropzone:focus {position:absolute;outline:none;width:100%;height:150px;cursor:pointer;opacity:0;}
-    .dropzone-wrapper:hover,.dropzone-wrapper.dragover {background:#e0e0e0;}
-    .preview-zone {text-align:center;margin-top:2rem;}
-    .card {background:white;margin:1rem auto;padding:1rem;border-radius:12px;
-           box-shadow:0 4px 6px rgba(0,0,0,.08);max-width:100%;border:1px solid #000;}
-    canvas {width:100%;border-radius:8px;border:1px solid #000;}
-    .info {font-size:.9rem;margin:.5rem 0;color:#000;}
-    .download-link {display:inline-block;margin-top:.5rem;padding:.4rem 1.2rem;
-                    border-radius:6px;background:#000;color:#fff;text-decoration:none;font-size:.9rem;}
-    .download-link:hover {background:#333;}
-    .progress {margin-top:1rem;font-style:italic;color:#555;}
+    body {
+      0
+      font-family: 'Segoe UI', sans-serif;
+      background: #fff;
+      padding: 2rem;
+      color: #000;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 50px 5%;
+    }
+
+    .dropzone-wrapper {
+      border: 2px dashed #000;
+      color: #000;
+      position: relative;
+      height: 150px;
+      cursor: pointer;
+      background: white;
+    }
+
+    .dropzone-desc {
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      top: 50px;
+      font-size: 16px;
+    }
+
+    .dropzone,
+    .dropzone:focus {
+      position: absolute;
+      outline: none !important;
+      width: 100%;
+      height: 150px;
+      cursor: pointer;
+      opacity: 0;
+    }
+
+    .dropzone-wrapper:hover,
+    .dropzone-wrapper.dragover {
+      background: #e0e0e0;
+    }
+
+    .preview-zone {
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    .card {
+      background: white;
+      margin: 1rem auto;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+      max-width: 100%;
+      border: 1px solid #000;
+    }
+
+    canvas {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #000;
+    }
+
+    .info {
+      font-size: 0.9rem;
+      margin: 0.5rem 0;
+      color: #000;
+    }
+
+    .download-link {
+      display: inline-block;
+      margin-top: 0.5rem;
+      padding: 0.4rem 1.2rem;
+      border-radius: 6px;
+      background: #000;
+      color: white;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    .download-link:hover {
+      background: #333;
+    }
+
+    .download-all {
+      display: block;
+      margin: 2rem auto;
+      padding: 0.8rem 2rem;
+      font-size: 1rem;
+      background: #000;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .download-all:hover {
+      background: #333;
+    }
+
+    .download-all.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -32,140 +126,164 @@
 <section>
   <div class="container">
     <div class="form-group">
-      <label class="control-label">Upload a PDF → PNG (1800×2244 px – 300 dpi – white background)</label>
+      <label class="control-label">Upload a PDF to convert to PNG (1800×2244 white background – 300 dpi)</label>
       <div class="dropzone-wrapper" id="dropZone">
-        <div class="dropzone-desc"><p>Choose a PDF file or drag it here.</p></div>
+        <div class="dropzone-desc">
+          <p>Choose a PDF file or drag it here.</p>
+        </div>
         <input type="file" accept="application/pdf" class="dropzone" id="upload" />
       </div>
     </div>
 
-    <div id="progress" class="progress"></div>
+    <button id="downloadAll" class="download-all hidden">Download All PNGs (One by One)</button>
+
     <div class="preview-zone" id="preview"></div>
   </div>
 </section>
 
 <script>
-  // -------------------------------------------------------------
-  const DPI               = 300;               // 300 dpi
-  const BASE_DPI          = 96;                // default screen DPI
-  const DPI_SCALE         = DPI / BASE_DPI;    // 3.125
-  const TARGET_WIDTH_PX   = 1800;              // visual size (px)
-  const TARGET_HEIGHT_PX  = 2244;
-  const VERTICAL_SHIFT_PX = -100;              // move content up 100 px
-  // -------------------------------------------------------------
+  const upload = document.getElementById("upload");
+  const dropZone = document.getElementById("dropZone");
+  const preview = document.getElementById("preview");
+  const downloadAllBtn = document.getElementById("downloadAll");
 
-  const upload   = document.getElementById('upload');
-  const dropZone = document.getElementById('dropZone');
-  const preview  = document.getElementById('preview');
-  const progress = document.getElementById('progress');
+  const TARGET_WIDTH = 1800;
+  const TARGET_HEIGHT = 2244;
+  const DPI = 300;
 
-  // PDF.js worker
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.js';
+  // Store download links for "Download All"
+  let downloadLinks = [];
 
   function formatDateTime() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
-         + '_' + String(d.getHours()).padStart(2,'0') + '-' + String(d.getMinutes()).padStart(2,'0') + '-' + String(d.getSeconds()).padStart(2,'0');
+    const now = new Date();
+    return now.toISOString().replace(/[:.]/g, "-").split("T").join("-").slice(0, 19);
   }
 
   async function renderPDFtoPNG(file) {
-    if (!file || file.type !== 'application/pdf') {
-      alert('Please upload a valid PDF file.');
+    if (!file || file.type !== "application/pdf") {
+      alert("Please upload a valid PDF file.");
       return;
     }
 
-    preview.innerHTML = '';
-    progress.textContent = 'Loading PDF…';
+    preview.innerHTML = "Processing PDF...";
+    downloadAllBtn.classList.add("hidden");
+    downloadLinks = [];
 
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-    progress.textContent = `PDF loaded – ${pdf.numPages} page(s). Rendering at 300 dpi…`;
+    const fileReader = new FileReader();
+    fileReader.readAsArrayBuffer(file);
 
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      progress.textContent = `Rendering page ${pageNum}/${pdf.numPages}…`;
+    fileReader.onload = async function () {
+      const pdfData = new Uint8Array(fileReader.result);
+      const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+      preview.innerHTML = "";
 
-      const page = await pdf.getPage(pageNum);
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
 
-      // ---- 1. Original page size (scale = 1) ----
-      const vp1 = page.getViewport({scale: 1});
-      const pageW = vp1.width, pageH = vp1.height;
+        // 1. Original size in points
+        const originalViewport = page.getViewport({ scale: 1 });
+        const ptWidth = originalViewport.width;
+        const ptHeight = originalViewport.height;
 
-      // ---- 2. Scale to fit inside 1800×2244 visual pixels (preserving aspect) ----
-      const visualScale = Math.min(TARGET_WIDTH_PX / pageW, TARGET_HEIGHT_PX / pageH);
-      const viewport = page.getViewport({scale: visualScale * DPI_SCALE}); // 300 dpi
+        // 2. Convert to pixels at 300 DPI
+        const inchesWidth = ptWidth / 72;
+        const inchesHeight = ptHeight / 72;
+        const pixelWidth = Math.round(inchesWidth * DPI);
+        const pixelHeight = Math.round(inchesHeight * DPI);
 
-      // ---- 3. Render page onto a temporary canvas (exact 300 dpi size) ----
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width  = viewport.width;   // already at 300 dpi
-      tempCanvas.height = viewport.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      await page.render({canvasContext: tempCtx, viewport}).promise;
+        // 3. Scale to fit into 1800x2244
+        const scaleX = TARGET_WIDTH / pixelWidth;
+        const scaleY = TARGET_HEIGHT / pixelHeight;
+        const fitScale = Math.min(scaleX, scaleY);
+        const renderScale = fitScale * (DPI / 72);
+        const viewport = page.getViewport({ scale: renderScale });
 
-      // ---- 4. Final canvas: 1800×2244 visual px → 300 dpi physical size ----
-      const finalCanvas = document.createElement('canvas');
-      const finalW = TARGET_WIDTH_PX  * DPI_SCALE;
-      const finalH = TARGET_HEIGHT_PX * DPI_SCALE;
-      finalCanvas.width  = finalW;
-      finalCanvas.height = finalH;
-      const ctx = finalCanvas.getContext('2d');
+        // 4. Render to temp canvas
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = viewport.width;
+        tempCanvas.height = viewport.height;
+        const tempCtx = tempCanvas.getContext("2d");
+        await page.render({ canvasContext: tempCtx, viewport }).promise;
 
-      // white background
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, finalW, finalH);
+        // 5. Final canvas with white background
+        const finalCanvas = document.createElement("canvas");
+        finalCanvas.width = TARGET_WIDTH;
+        finalCanvas.height = TARGET_HEIGHT;
+        const finalCtx = finalCanvas.getContext("2d");
+        finalCtx.fillStyle = "#FFFFFF";
+        finalCtx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
-      // centre + upward shift (all values already in 300 dpi pixels)
-      const offsetX = (finalW - tempCanvas.width)  / 2;
-      const offsetY = (finalH - tempCanvas.height) / 2 + VERTICAL_SHIFT_PX * DPI_SCALE;
+        const offsetX = (TARGET_WIDTH - tempCanvas.width) / 2;
+        const offsetY = ((TARGET_HEIGHT - tempCanvas.height) / 2) - 100;
+        finalCtx.drawImage(tempCanvas, offsetX, offsetY);
 
-      ctx.drawImage(tempCanvas, offsetX, offsetY);
+        // 6. Convert to Blob
+        const blob = await new Promise(resolve => finalCanvas.toBlob(resolve, "image/png"));
+        const sizeKB = Math.round(blob.size / 1024);
+        const url = URL.createObjectURL(blob);
+        const filename = `page-${pageNum}-1800x2244-${sizeKB}KB-${formatDateTime()}.png`;
 
-      // ---- 5. Export PNG (300 dpi) ----
-      const blob = await new Promise(res => finalCanvas.toBlob(res, 'image/png', 1));
-      const sizeKB = Math.round(blob.size / 1024);
-      const url = URL.createObjectURL(blob);
-      const filename = `page-${pageNum}-1800x2244-300dpi-${sizeKB}KB-${formatDateTime()}.png`;
+        // 7. Create preview card
+        const card = document.createElement("div");
+        card.className = "card";
 
-      // ---- 6. Preview card (scaled down for screen) ----
-      const card = document.createElement('div');
-      card.className = 'card';
+        const previewCanvas = document.createElement("canvas");
+        previewCanvas.width = finalCanvas.width;
+        previewCanvas.height = finalCanvas.height;
+        const previewCtx = previewCanvas.getContext("2d");
+        previewCtx.drawImage(finalCanvas, 0, 0);
 
-      const previewCanvas = document.createElement('canvas');
-      previewCanvas.width  = TARGET_WIDTH_PX;
-      previewCanvas.height = TARGET_HEIGHT_PX;
-      const pCtx = previewCanvas.getContext('2d');
-      pCtx.drawImage(finalCanvas, 0, 0, TARGET_WIDTH_PX, TARGET_HEIGHT_PX);
+        const info = document.createElement("p");
+        info.className = "info";
+        info.textContent = `Page ${pageNum} — 1800×2244 px @ 300 dpi — ${sizeKB} KB`;
 
-      const info = document.createElement('p');
-      info.className = 'info';
-      info.textContent = `Page ${pageNum} — 1800×2244 px (300 dpi) — ${sizeKB} KB`;
+        const download = document.createElement("a");
+        download.href = url;
+        download.download = filename;
+        download.textContent = `Download PNG Page ${pageNum}`;
+        download.className = "download-link";
 
-      const download = document.createElement('a');
-      download.href = url;
-      download.download = filename;
-      download.textContent = `Download PNG Page ${pageNum} (300 dpi)`;
-      download.className = 'download-link';
+        // Store reference to trigger later
+        downloadLinks.push(download);
 
-      card.appendChild(previewCanvas);
-      card.appendChild(info);
-      card.appendChild(download);
-      preview.appendChild(card);
-    }
+        card.appendChild(previewCanvas);
+        card.appendChild(info);
+        card.appendChild(download);
+        preview.appendChild(card);
+      }
 
-    progress.textContent = 'All pages rendered at 300 dpi!';
+      // Show "Download All" button
+      downloadAllBtn.classList.remove("hidden");
+    };
   }
 
-  // ---- UI events ------------------------------------------------
-  upload.addEventListener('change', e => renderPDFtoPNG(e.target.files[0]));
+  // === Download All: Trigger each download link ===
+  downloadAllBtn.addEventListener("click", () => {
+    if (downloadLinks.length === 0) return;
 
-  dropZone.addEventListener('dragover', e => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
+    // Trigger each download with a small delay to avoid popup blocking
+    downloadLinks.forEach((link, index) => {
+      setTimeout(() => {
+        link.click();
+      }, index * 300); // 300ms apart to ensure browser allows
+    });
   });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-  dropZone.addEventListener('drop', e => {
+
+  // === Input / Drag-and-Drop handlers ===
+  upload.addEventListener("change", e => renderPDFtoPNG(e.target.files[0]));
+
+  dropZone.addEventListener("dragover", e => {
     e.preventDefault();
-    dropZone.classList.remove('dragover');
+    dropZone.classList.add("dragover");
+  });
+
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+  });
+
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
     const file = e.dataTransfer.files[0];
     upload.files = e.dataTransfer.files;
     renderPDFtoPNG(file);
