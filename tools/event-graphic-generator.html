@@ -784,84 +784,153 @@
         async function downloadElement(elementId, filename) {
             try {
                 const element = document.getElementById(elementId);
-                if (!element) return;
-
-                showSuccess("Preparing high-resolution download...");
-                
-                // Create a high-resolution clone for download
-                const clone = element.cloneNode(true);
-                clone.style.position = 'absolute';
-                clone.style.left = '-9999px';
-                clone.style.top = '-9999px';
-                clone.style.transform = 'none';
-                clone.style.transformOrigin = 'top left';
-                
-                // Set high resolution dimensions
-                if (elementId === 'posterPreview') {
-                    clone.style.width = '1190px';  // 2x original 595px
-                    clone.style.height = '1684px'; // 2x original 842px
-                    clone.style.fontSize = '32px'; // Scale up fonts
-                } else if (elementId === 'bannerPreview') {
-                    clone.style.width = '1200px';  // 2x original 600px
-                    clone.style.height = '400px';  // 2x original 200px
-                    clone.style.fontSize = '32px'; // Scale up fonts
+                if (!element) {
+                    showError("Element not found for download");
+                    return;
                 }
+
+                showSuccess("Preparing high-resolution JPG download...");
                 
-                // Scale all child elements
-                const allElements = clone.querySelectorAll('*');
-                allElements.forEach(el => {
-                    const computedStyle = window.getComputedStyle(el);
-                    const fontSize = parseFloat(computedStyle.fontSize);
-                    if (fontSize) {
-                        el.style.fontSize = (fontSize * 2) + 'px';
-                    }
-                    
-                    // Scale padding and margins
-                    ['padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-                     'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft'].forEach(prop => {
-                        const value = parseFloat(computedStyle[prop]);
-                        if (value) {
-                            el.style[prop] = (value * 2) + 'px';
+                // Wait for any images to load
+                const images = element.querySelectorAll('img');
+                await Promise.all(Array.from(images).map(img => {
+                    return new Promise((resolve) => {
+                        if (img.complete) {
+                            resolve();
+                        } else {
+                            img.onload = resolve;
+                            img.onerror = resolve;
+                            setTimeout(resolve, 2000); // Timeout after 2 seconds
                         }
                     });
-                    
-                    // Scale border radius
-                    const borderRadius = parseFloat(computedStyle.borderRadius);
-                    if (borderRadius) {
-                        el.style.borderRadius = (borderRadius * 2) + 'px';
-                    }
-                });
+                }));
+
+                // Create a temporary container for high-res rendering
+                const tempContainer = document.createElement('div');
+                tempContainer.style.position = 'fixed';
+                tempContainer.style.top = '-10000px';
+                tempContainer.style.left = '-10000px';
+                tempContainer.style.zIndex = '-1000';
+                tempContainer.style.pointerEvents = 'none';
+                document.body.appendChild(tempContainer);
+
+                // Clone the element
+                const clone = element.cloneNode(true);
                 
-                document.body.appendChild(clone);
+                // Set high resolution dimensions for better quality
+                const scale = 3; // 3x scale for high resolution
+                let targetWidth, targetHeight;
                 
-                // Use higher scale and quality settings
+                if (elementId === 'posterPreview') {
+                    targetWidth = 595 * scale;   // 1785px
+                    targetHeight = 842 * scale;  // 2526px
+                    filename = filename.replace('.png', '.jpg');
+                } else if (elementId === 'bannerPreview') {
+                    targetWidth = 600 * scale;   // 1800px  
+                    targetHeight = 200 * scale;  // 600px
+                    filename = filename.replace('.png', '.jpg');
+                }
+
+                // Apply scaling to clone
+                clone.style.width = targetWidth + 'px';
+                clone.style.height = targetHeight + 'px';
+                clone.style.transform = 'none';
+                clone.style.transformOrigin = 'top left';
+                clone.style.position = 'relative';
+                clone.style.display = 'block';
+
+                // Scale all text and spacing
+                const scaleElements = (element, scaleFactor) => {
+                    const allElements = element.querySelectorAll('*');
+                    allElements.forEach(el => {
+                        const style = window.getComputedStyle(el);
+                        
+                        // Scale font sizes
+                        const fontSize = parseFloat(style.fontSize);
+                        if (fontSize && fontSize > 0) {
+                            el.style.fontSize = (fontSize * scaleFactor) + 'px';
+                        }
+                        
+                        // Scale line heights
+                        const lineHeight = parseFloat(style.lineHeight);
+                        if (lineHeight && lineHeight > 0) {
+                            el.style.lineHeight = (lineHeight * scaleFactor) + 'px';
+                        }
+                        
+                        // Scale padding
+                        ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].forEach(prop => {
+                            const value = parseFloat(style[prop]);
+                            if (value && value > 0) {
+                                el.style[prop] = (value * scaleFactor) + 'px';
+                            }
+                        });
+                        
+                        // Scale margins
+                        ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'].forEach(prop => {
+                            const value = parseFloat(style[prop]);
+                            if (value && value > 0) {
+                                el.style[prop] = (value * scaleFactor) + 'px';
+                            }
+                        });
+                        
+                        // Scale border radius
+                        const borderRadius = parseFloat(style.borderRadius);
+                        if (borderRadius && borderRadius > 0) {
+                            el.style.borderRadius = (borderRadius * scaleFactor) + 'px';
+                        }
+                        
+                        // Scale border width
+                        const borderWidth = parseFloat(style.borderWidth);
+                        if (borderWidth && borderWidth > 0) {
+                            el.style.borderWidth = (borderWidth * scaleFactor) + 'px';
+                        }
+                    });
+                };
+
+                scaleElements(clone, scale);
+                tempContainer.appendChild(clone);
+
+                // Wait a moment for rendering
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Generate canvas with optimal settings for JPG
                 const canvas = await html2canvas(clone, {
                     backgroundColor: '#ffffff',
-                    scale: 1, // Don't double scale since we already scaled the element
+                    scale: 1,
                     useCORS: true,
-                    allowTaint: true,
+                    allowTaint: false,
                     logging: false,
-                    width: elementId === 'posterPreview' ? 1190 : 1200,
-                    height: elementId === 'posterPreview' ? 1684 : 400,
+                    width: targetWidth,
+                    height: targetHeight,
                     scrollX: 0,
                     scrollY: 0,
-                    windowWidth: elementId === 'posterPreview' ? 1190 : 1200,
-                    windowHeight: elementId === 'posterPreview' ? 1684 : 400
+                    windowWidth: targetWidth,
+                    windowHeight: targetHeight,
+                    removeContainer: false,
+                    foreignObjectRendering: true,
+                    imageTimeout: 5000
                 });
 
-                // Clean up clone
-                document.body.removeChild(clone);
+                // Clean up
+                document.body.removeChild(tempContainer);
 
-                // Create high-quality PNG
+                // Convert to high-quality JPG
                 const link = document.createElement('a');
                 link.download = filename;
-                link.href = canvas.toDataURL('image/png', 1.0); // Maximum quality
-                link.click();
                 
-                showSuccess("High-resolution download completed!");
+                // Create JPG with maximum quality (0.95 for best balance of quality/size)
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                
+                // Trigger download
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showSuccess(`High-resolution JPG downloaded! (${targetWidth}x${targetHeight}px)`);
+                
             } catch (error) {
                 console.error('Download error:', error);
-                showError("Failed to download. Please try again.");
+                showError("Download failed. Please check your browser settings and try again.");
             }
         }
 
@@ -1082,5 +1151,5 @@
             setTimeout(makeDraggable, 500);
         });
     </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994f9a293144ed70',t:'MTc2MTU0MDkzNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994f9f05f7b62670',t:'MTc2MTU0MTEzNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
