@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Poster Generator</title>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://html2canvas.herokuapp.com/dist/html2canvas.min.js"></script>
+  <style>
+        body {
+            box-sizing: border-box;
+        }
+        .poster-template {
+            width: 595px;
+            height: 842px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            background: white;
+        }
+        .email-banner {
+            width: 600px;
+            height: 200px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            background: white;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .form-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .preview-section {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .layout-option {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .layout-option:hover {
+            transform: scale(1.05);
+        }
+        .layout-option.selected {
+            ring: 2px;
+            ring-color: white;
+        }
+        .download-btn {
+            background: linear-gradient(45deg, #10b981, #059669);
+        }
+        .download-btn:hover {
+            background: linear-gradient(45deg, #059669, #047857);
+        }
+    </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="min-h-full bg-gray-50">
+  <div class="min-h-full"><!-- Header -->
+   <header class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-6 py-4">
+     <h1 id="main-title" class="text-3xl font-bold text-gray-900">Event Poster Generator</h1>
+     <p class="text-gray-600 mt-2">Create stunning event posters and email banners with customizable layouts</p>
+    </div>
+   </header>
+   <div class="max-w-7xl mx-auto px-6 py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8"><!-- Event Data Input Section -->
+     <div class="form-section rounded-2xl p-8 text-white">
+      <h2 class="text-2xl font-bold mb-6">Create New Event</h2>
+      <form id="eventForm" class="space-y-6">
+       <div><label for="event_title" class="block text-sm font-medium mb-2">Event Title</label> <input type="text" id="event_title" name="event_title" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="Summer Music Festival">
+       </div>
+       <div><label for="event_date" class="block text-sm font-medium mb-2">Date</label> <input type="date" id="event_date" name="event_date" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+       </div>
+       <div class="grid grid-cols-2 gap-4">
+        <div><label for="event_time" class="block text-sm font-medium mb-2">Start Time</label> <input type="time" id="event_time" name="event_time" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+        </div>
+        <div><label for="end_time" class="block text-sm font-medium mb-2">End Time</label> <input type="time" id="end_time" name="end_time" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+        </div>
+       </div>
+       <div><label for="location" class="block text-sm font-medium mb-2">Location</label> <input type="text" id="location" name="location" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="Central Park, New York">
+       </div>
+       <div><label for="description" class="block text-sm font-medium mb-2">Description</label> <textarea id="description" name="description" rows="3" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50 resize-none" placeholder="Join us for an amazing evening of music and entertainment"></textarea>
+       </div>
+       <div><label for="image_url" class="block text-sm font-medium mb-2">Key Image URL (300x300)</label> <input type="url" id="image_url" name="image_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/key-image.jpg">
+       </div>
+       <div><label for="qr_code_url" class="block text-sm font-medium mb-2">QR Code Image URL</label> <input type="url" id="qr_code_url" name="qr_code_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/qr-code.png">
+       </div>
+       <div><label for="secondary_image_url" class="block text-sm font-medium mb-2">Secondary Image URL (Optional)</label> <input type="url" id="secondary_image_url" name="secondary_image_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/secondary-image.jpg">
+       </div>
+       <div class="grid grid-cols-3 gap-4">
+        <div><label for="background_color" class="block text-sm font-medium mb-2">Background Color</label> <select id="background_color" name="background_color" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"> <option value="#3b82f6">Blue</option> <option value="#ef4444">Red</option> <option value="#10b981">Green</option> <option value="#f59e0b">Orange</option> <option value="#8b5cf6">Purple</option> <option value="#ec4899">Pink</option> </select>
+        </div>
+        <div><label for="layout_style" class="block text-sm font-medium mb-2">Layout Style</label> <select id="layout_style" name="layout_style" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"> <option value="classic">Classic</option> <option value="modern">Modern</option> <option value="minimal">Minimal</option> </select>
+        </div>
+        <div><label for="title_font_size" class="block text-sm font-medium mb-2">Title Font Size</label> <select id="title_font_size" name="title_font_size" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"> <option value="24">Small (24px)</option> <option value="32" selected>Medium (32px)</option> <option value="40">Large (40px)</option> <option value="48">Extra Large (48px)</option> </select>
+        </div>
+       </div><button type="submit" id="submitBtn" class="w-full bg-white text-purple-600 font-semibold py-3 px-6 rounded-lg hover:bg-gray-100 transition-colors duration-200 flex items-center justify-center gap-2"> <span>Create Event Poster</span>
+        <div id="submitSpinner" class="loading-spinner hidden"></div></button>
+      </form><!-- Data Count -->
+      <div class="mt-6 p-4 bg-white/10 rounded-lg">
+       <p class="text-sm">Total events created: <span id="dataCount" class="font-bold">0</span></p>
+       <p class="text-xs text-white/70 mt-1">Maximum 999 events allowed</p>
+      </div>
+     </div><!-- Preview Section -->
+     <div class="preview-section rounded-2xl p-8 text-white">
+      <h2 class="text-2xl font-bold mb-6">Live Previews</h2>
+      <div class="space-y-8"><!-- Poster Preview -->
+       <div>
+        <div class="flex justify-between items-center mb-4">
+         <h3 class="text-lg font-semibold">Event Poster</h3><button id="downloadPoster" class="download-btn text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200"> 📥 Download Poster </button>
+        </div>
+        <div class="flex justify-center">
+         <div id="posterPreview" class="poster-template bg-blue-500 rounded-xl overflow-hidden"><!-- Poster content will be dynamically generated -->
+         </div>
+        </div>
+       </div><!-- Email Banner Preview -->
+       <div>
+        <div class="flex justify-between items-center mb-4">
+         <h3 class="text-lg font-semibold">Email Banner</h3><button id="downloadBanner" class="download-btn text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200"> 📥 Download Banner </button>
+        </div>
+        <div class="flex justify-center">
+         <div id="bannerPreview" class="email-banner bg-blue-500 rounded-xl overflow-hidden"><!-- Banner content will be dynamically generated -->
+         </div>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div><!-- Generated Events Gallery -->
+    <div class="mt-12">
+     <h2 class="text-2xl font-bold text-gray-900 mb-6">Your Event Gallery</h2>
+     <div id="eventsGallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"><!-- Events will be populated here -->
+     </div>
+     <div id="emptyState" class="text-center py-12 text-gray-500">
+      <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="currentColor" viewbox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+      </svg>
+      <p class="text-lg">No events yet</p>
+      <p class="text-sm">Create your first event poster using the form above</p>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+        // Configuration
+        const defaultConfig = {
+            default_organizer: "Your Organization",
+            contact_info: "contact@example.com",
+            website_url: "www.example.com"
+        };
+
+        let currentData = [];
+        let isLoading = false;
+
+        // Data SDK Handler
+        const dataHandler = {
+            onDataChanged(data) {
+                currentData = data;
+                updateDataCount();
+                renderEventsGallery();
+                updatePreviewWithLatest();
+            }
+        };
+
+        // Element SDK Implementation
+        const elementConfig = {
+            defaultConfig,
+            onConfigChange: async (config) => {
+                // Update form placeholders and preview with config values
+                updatePreviewWithConfig(config);
+            },
+            mapToCapabilities: (config) => ({
+                recolorables: [
+                    {
+                        get: () => config.primary_color || "#667eea",
+                        set: (value) => {
+                            config.primary_color = value;
+                            window.elementSdk.setConfig({ primary_color: value });
+                        }
+                    },
+                    {
+                        get: () => config.secondary_color || "#f093fb",
+                        set: (value) => {
+                            config.secondary_color = value;
+                            window.elementSdk.setConfig({ secondary_color: value });
+                        }
+                    }
+                ],
+                borderables: [],
+                fontEditable: {
+                    get: () => config.font_family || "Inter",
+                    set: (value) => {
+                        config.font_family = value;
+                        window.elementSdk.setConfig({ font_family: value });
+                    }
+                },
+                fontSizeable: {
+                    get: () => config.font_size || 16,
+                    set: (value) => {
+                        config.font_size = value;
+                        window.elementSdk.setConfig({ font_size: value });
+                    }
+                }
+            }),
+            mapToEditPanelValues: (config) => new Map([
+                ["default_organizer", config.default_organizer || defaultConfig.default_organizer],
+                ["contact_info", config.contact_info || defaultConfig.contact_info],
+                ["website_url", config.website_url || defaultConfig.website_url]
+            ])
+        };
+
+        // Initialize SDKs
+        async function initializeApp() {
+            try {
+                // Initialize Element SDK
+                if (window.elementSdk) {
+                    await window.elementSdk.init(elementConfig);
+                }
+
+                // Initialize Data SDK
+                if (window.dataSdk) {
+                    const result = await window.dataSdk.init(dataHandler);
+                    if (!result.isOk) {
+                        showError("Failed to initialize data storage");
+                    }
+                }
+
+                // Initialize preview with sample data
+                initializePreview();
+                
+                // Setup download handlers
+                setupDownloadHandlers();
+            } catch (error) {
+                showError("Failed to initialize application");
+            }
+        }
+
+        function initializePreview() {
+            const sampleEvent = {
+                event_title: "Summer Music Festival",
+                event_date: "2024-07-15",
+                event_time: "18:00",
+                end_time: "22:00",
+                location: "Central Park, New York",
+                description: "Join us for an amazing evening of music and entertainment under the stars. Experience live performances from top artists.",
+                background_color: "#3b82f6",
+                layout_style: "classic",
+                title_font_size: "32",
+                image_url: "",
+                qr_code_url: "",
+                secondary_image_url: ""
+            };
+            updatePreviewElements(sampleEvent);
+        }
+
+        // Form submission
+        document.getElementById('eventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (isLoading) return;
+            
+            // Check data limit
+            if (currentData.length >= 999) {
+                showError("Maximum limit of 999 events reached. Please delete some events first.");
+                return;
+            }
+
+            const formData = new FormData(e.target);
+            const eventData = {
+                id: Date.now().toString(),
+                event_title: formData.get('event_title'),
+                event_date: formData.get('event_date'),
+                event_time: formData.get('event_time'),
+                end_time: formData.get('end_time') || '',
+                location: formData.get('location'),
+                description: formData.get('description') || '',
+                image_url: formData.get('image_url') || '',
+                qr_code_url: formData.get('qr_code_url') || '',
+                secondary_image_url: formData.get('secondary_image_url') || '',
+                background_color: formData.get('background_color') || '#3b82f6',
+                layout_style: formData.get('layout_style') || 'classic',
+                title_font_size: formData.get('title_font_size') || '32',
+                created_at: new Date().toISOString()
+            };
+
+            await submitEventData(eventData);
+        });
+
+        async function submitEventData(data) {
+            if (!window.dataSdk) return;
+
+            setLoading(true);
+            
+            try {
+                const result = await window.dataSdk.create(data);
+                if (result.isOk) {
+                    document.getElementById('eventForm').reset();
+                    showSuccess("Event poster created successfully!");
+                } else {
+                    showError("Failed to save event. Please try again.");
+                }
+            } catch (error) {
+                showError("An error occurred while saving.");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function updatePreviewWithConfig(config) {
+            // Update preview elements with config values if no current data
+            if (currentData.length === 0) {
+                const sampleEvent = {
+                    event_title: "Summer Music Festival",
+                    event_date: "2024-07-15",
+                    event_time: "18:00",
+                    location: "Central Park, New York",
+                    description: "Join us for an amazing evening of music and entertainment",
+                    background_color: "#3b82f6",
+                    layout_style: "classic",
+                    image_url: ""
+                };
+                updatePreviewElements(sampleEvent, config);
+            }
+        }
+
+        function updatePreviewWithLatest() {
+            if (currentData.length > 0) {
+                const latest = currentData[currentData.length - 1];
+                updatePreviewElements(latest);
+            }
+        }
+
+        function updatePreviewElements(eventData, config = null) {
+            const currentConfig = config || (window.elementSdk?.config || defaultConfig);
+            
+            // Generate poster HTML
+            const posterHTML = generatePosterHTML(eventData, currentConfig);
+            document.getElementById('posterPreview').innerHTML = posterHTML;
+
+            // Generate banner HTML
+            const bannerHTML = generateBannerHTML(eventData, currentConfig);
+            document.getElementById('bannerPreview').innerHTML = bannerHTML;
+            
+            // Re-enable drag functionality after updating preview
+            setTimeout(makeDraggable, 100);
+        }
+
+        function generatePosterHTML(event, config) {
+            const formattedDate = formatDate(event.event_date);
+            const startTime = formatTime(event.event_time);
+            const endTime = event.end_time ? formatTime(event.end_time) : '';
+            const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
+            const titleFontSize = event.title_font_size || '32';
+            
+            return `
+                <div style="width: 595px; height: 842px; background: white; position: relative; display: flex; flex-direction: column;">
+                    <!-- Header Section (595x300) -->
+                    <div style="width: 595px; height: 300px; background-color: ${event.background_color}; display: flex; position: relative;">
+                        <!-- Event Title Area (295x300) -->
+                        <div style="width: 295px; height: 300px; display: flex; align-items: center; justify-content: center; padding: 30px; box-sizing: border-box;">
+                            <h1 style="font-size: ${titleFontSize}px; font-weight: bold; line-height: 1.2; color: white; text-align: center; margin: 0;">${event.event_title}</h1>
+                        </div>
+                        
+                        <!-- Key Image (300x300) -->
+                        <div style="width: 300px; height: 300px; background-color: rgba(255,255,255,0.2);">
+                            ${event.image_url ? 
+                                `<img src="${event.image_url}" alt="Event" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:white;\\'><svg width=\\'80\\' height=\\'80\\' fill=\\'currentColor\\' viewBox=\\'0 0 20 20\\'><path fill-rule=\\'evenodd\\' d=\\'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z\\' clip-rule=\\'evenodd\\'/></svg></div>';">` :
+                                `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:white;"><svg width="80" height="80" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg></div>`
+                            }
+                        </div>
+                    </div>
+                    
+                    <!-- Content Body (595x470) -->
+                    <div style="width: 595px; height: 470px; background: white; color: #333; position: relative; padding: 30px; box-sizing: border-box;">
+                        <!-- About This Event -->
+                        <div class="draggable" style="position: absolute; top: 30px; left: 30px; width: 535px;">
+                            <h2 style="font-size: 24px; font-weight: bold; margin-bottom: 15px; color: ${event.background_color}; margin-top: 0;">About This Event</h2>
+                            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 25px; margin-top: 0;">${event.description || 'Event description will appear here.'}</p>
+                        </div>
+                        
+                        <!-- Event Details -->
+                        <div class="draggable" style="position: absolute; top: 150px; left: 30px; width: 300px;">
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; border-left: 4px solid ${event.background_color};">
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: ${event.background_color};">📅 Date:</strong><br>
+                                    <span style="font-size: 16px;">${formattedDate}</span>
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: ${event.background_color};">🕐 Time:</strong><br>
+                                    <span style="font-size: 16px;">${timeRange}</span>
+                                </div>
+                                <div style="margin: 0;">
+                                    <strong style="color: ${event.background_color};">📍 Location:</strong><br>
+                                    <span style="font-size: 16px;">${event.location}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- QR Code -->
+                        ${event.qr_code_url ? `
+                        <div class="draggable" style="position: absolute; top: 150px; right: 30px; width: 120px; height: 120px;">
+                            <img src="${event.qr_code_url}" alt="QR Code" style="width: 100%; height: 100%; object-fit: contain; border: 2px solid ${event.background_color}; border-radius: 8px;" onerror="this.style.display='none';">
+                        </div>
+                        ` : ''}
+                        
+                        <!-- Secondary Image -->
+                        ${event.secondary_image_url ? `
+                        <div class="draggable" style="position: absolute; top: 310px; left: 30px; width: 200px; height: 120px;">
+                            <img src="${event.secondary_image_url}" alt="Secondary Image" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;" onerror="this.style.display='none';">
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="width: 595px; height: 72px; background-image: url('https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat; margin-top: auto;">
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateBannerHTML(event, config) {
+            const formattedDate = formatDate(event.event_date);
+            const startTime = formatTime(event.event_time);
+            const endTime = event.end_time ? formatTime(event.end_time) : '';
+            const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
+            const titleFontSize = Math.max(24, parseInt(event.title_font_size || '32') - 8);
+            
+            return `
+                <div style="width: 600px; height: 200px; background-color: ${event.background_color}; color: white; display: flex; align-items: center; padding: 30px; box-sizing: border-box;">
+                    <div style="flex: 1; padding-right: 30px;">
+                        <h1 style="font-size: ${titleFontSize}px; font-weight: bold; margin-bottom: 20px; line-height: 1.2; margin-top: 0;">${event.event_title}</h1>
+                        <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px; opacity: 0.9;">
+                            <span>📅 ${formattedDate}</span>
+                            <span>🕐 ${timeRange}</span>
+                            <span>📍 ${event.location}</span>
+                        </div>
+                    </div>
+                    <div style="width: 140px; height: 140px; background-color: rgba(255,255,255,0.2); border-radius: 8px; flex-shrink: 0;">
+                        ${event.image_url ? 
+                            `<img src="${event.image_url}" alt="Event" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:white;\\'><svg width=\\'60\\' height=\\'60\\' fill=\\'currentColor\\' viewBox=\\'0 0 20 20\\'><path fill-rule=\\'evenodd\\' d=\\'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z\\' clip-rule=\\'evenodd\\'/></svg></div>';">` :
+                            `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:white;"><svg width="60" height="60" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg></div>`
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+        function setupDownloadHandlers() {
+            document.getElementById('downloadPoster').addEventListener('click', () => {
+                downloadElement('posterPreview', 'event-poster.png');
+            });
+
+            document.getElementById('downloadBanner').addEventListener('click', () => {
+                downloadElement('bannerPreview', 'event-banner.png');
+            });
+        }
+
+        async function downloadElement(elementId, filename) {
+            try {
+                const element = document.getElementById(elementId);
+                if (!element) return;
+
+                showSuccess("Preparing download...");
+                
+                const canvas = await html2canvas(element, {
+                    backgroundColor: null,
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true
+                });
+
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                showSuccess("Download started!");
+            } catch (error) {
+                showError("Failed to download. Please try again.");
+            }
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'TBD';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        function formatTime(timeString) {
+            if (!timeString) return 'TBD';
+            const [hours, minutes] = timeString.split(':');
+            const date = new Date();
+            date.setHours(parseInt(hours), parseInt(minutes));
+            return date.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+            });
+        }
+
+        function setLoading(loading) {
+            isLoading = loading;
+            const submitBtn = document.getElementById('submitBtn');
+            const spinner = document.getElementById('submitSpinner');
+            
+            if (loading) {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-75');
+                spinner.classList.remove('hidden');
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-75');
+                spinner.classList.add('hidden');
+            }
+        }
+
+        function updateDataCount() {
+            document.getElementById('dataCount').textContent = currentData.length;
+        }
+
+        function renderEventsGallery() {
+            const gallery = document.getElementById('eventsGallery');
+            const emptyState = document.getElementById('emptyState');
+
+            if (currentData.length === 0) {
+                gallery.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            
+            gallery.innerHTML = currentData.map(event => {
+                const formattedDate = formatDate(event.event_date);
+                const formattedTime = formatTime(event.event_time);
+                
+                return `
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
+                        <div class="h-48 relative" style="background-color: ${event.background_color}">
+                            <div class="absolute inset-0 p-4 text-white flex flex-col justify-center">
+                                <h3 class="text-lg font-bold mb-2">${event.event_title}</h3>
+                                <div class="space-y-1 text-sm opacity-90">
+                                    <p>📅 ${formattedDate}</p>
+                                    <p>🕐 ${formattedTime}</p>
+                                    <p>📍 ${event.location}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-gray-500">${new Date(event.created_at).toLocaleDateString()}</span>
+                                <div class="flex gap-2">
+                                    <button onclick="viewEvent('${event.__backendId}')" class="text-blue-500 hover:text-blue-700 text-sm font-medium">
+                                        View
+                                    </button>
+                                    <button onclick="deleteEvent('${event.__backendId}')" class="text-red-500 hover:text-red-700 text-sm font-medium">
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function viewEvent(backendId) {
+            const event = currentData.find(e => e.__backendId === backendId);
+            if (event) {
+                updatePreviewElements(event);
+                // Scroll to preview section
+                document.querySelector('.preview-section').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        async function deleteEvent(backendId) {
+            if (!window.dataSdk) return;
+
+            const event = currentData.find(e => e.__backendId === backendId);
+            if (!event) return;
+
+            try {
+                const result = await window.dataSdk.delete(event);
+                if (result.isOk) {
+                    showSuccess("Event deleted successfully!");
+                } else {
+                    showError("Failed to delete event.");
+                }
+            } catch (error) {
+                showError("An error occurred while deleting.");
+            }
+        }
+
+        function showSuccess(message) {
+            showToast(message, 'success');
+        }
+
+        function showError(message) {
+            showToast(message, 'error');
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg text-white font-medium z-50 ${
+                type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            }`;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Drag and Drop functionality
+        function makeDraggable() {
+            const draggables = document.querySelectorAll('.draggable');
+            
+            draggables.forEach(element => {
+                let isDragging = false;
+                let startX, startY, initialLeft, initialTop;
+                
+                element.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    
+                    const rect = element.getBoundingClientRect();
+                    const parentRect = element.parentElement.getBoundingClientRect();
+                    initialLeft = rect.left - parentRect.left;
+                    initialTop = rect.top - parentRect.top;
+                    
+                    element.style.zIndex = '1000';
+                    e.preventDefault();
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    
+                    const deltaX = e.clientX - startX;
+                    const deltaY = e.clientY - startY;
+                    
+                    const newLeft = Math.max(0, Math.min(initialLeft + deltaX, element.parentElement.offsetWidth - element.offsetWidth));
+                    const newTop = Math.max(0, Math.min(initialTop + deltaY, element.parentElement.offsetHeight - element.offsetHeight));
+                    
+                    element.style.left = newLeft + 'px';
+                    element.style.top = newTop + 'px';
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        element.style.zIndex = 'auto';
+                    }
+                });
+            });
+        }
+
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeApp();
+            // Add drag functionality after a short delay to ensure elements are rendered
+            setTimeout(makeDraggable, 500);
+        });
+    </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994f01ca631ced77',t:'MTc2MTUzNDY5Ni4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
