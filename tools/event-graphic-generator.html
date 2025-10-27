@@ -200,7 +200,9 @@
        </div><!-- Email Banner Preview -->
        <div>
         <div class="flex justify-between items-center mb-4">
-         <h3 class="text-lg font-semibold">Email Banner</h3><button id="downloadBanner" class="download-btn text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200"> 📥 Download Banner </button>
+         <h3 class="text-lg font-semibold">Email Banner</h3>
+         <div class="flex gap-2"><button id="downloadBanner" class="download-btn text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200"> 📥 Download Banner </button> <button onclick="copyShareableURL()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200"> 🔗 Share URL </button>
+         </div>
         </div>
         <div class="flex justify-center">
          <div id="bannerPreview" class="email-banner bg-blue-500 overflow-hidden"><!-- Banner content will be dynamically generated -->
@@ -782,43 +784,63 @@
         }
 
         async function downloadElement(elementId, filename) {
+            const downloadBtn = elementId === 'posterPreview' ? 
+                document.getElementById('downloadPoster') : 
+                document.getElementById('downloadBanner');
+            
+            // Show loading state
+            const originalText = downloadBtn.textContent;
+            downloadBtn.innerHTML = '<div class="loading-spinner inline-block mr-2"></div>Generating...';
+            downloadBtn.disabled = true;
+            
             try {
                 const element = document.getElementById(elementId);
                 if (!element) {
-                    showError("Element not found for download");
-                    return;
+                    throw new Error("Element not found for download");
                 }
 
-                showSuccess("Preparing high-resolution JPG download...");
-                
-                // Wait for any images to load
+                // Wait for any images to load with better error handling
                 const images = element.querySelectorAll('img');
-                await Promise.all(Array.from(images).map(img => {
+                const imagePromises = Array.from(images).map(img => {
                     return new Promise((resolve) => {
-                        if (img.complete) {
+                        if (img.complete && img.naturalWidth > 0) {
                             resolve();
                         } else {
-                            img.onload = resolve;
-                            img.onerror = resolve;
-                            setTimeout(resolve, 2000); // Timeout after 2 seconds
+                            const timeout = setTimeout(() => resolve(), 3000);
+                            img.onload = () => {
+                                clearTimeout(timeout);
+                                resolve();
+                            };
+                            img.onerror = () => {
+                                clearTimeout(timeout);
+                                resolve(); // Continue even if image fails
+                            };
                         }
                     });
-                }));
+                });
+                
+                await Promise.all(imagePromises);
 
-                // Create a temporary container for high-res rendering
+                // Create a clean temporary container
                 const tempContainer = document.createElement('div');
-                tempContainer.style.position = 'fixed';
-                tempContainer.style.top = '-10000px';
-                tempContainer.style.left = '-10000px';
-                tempContainer.style.zIndex = '-1000';
-                tempContainer.style.pointerEvents = 'none';
+                tempContainer.style.cssText = `
+                    position: absolute;
+                    top: -20000px;
+                    left: -20000px;
+                    width: auto;
+                    height: auto;
+                    overflow: visible;
+                    z-index: -9999;
+                    pointer-events: none;
+                    visibility: hidden;
+                `;
                 document.body.appendChild(tempContainer);
 
-                // Clone the element
+                // Clone and prepare element
                 const clone = element.cloneNode(true);
                 
-                // Set high resolution dimensions for better quality
-                const scale = 3; // 3x scale for high resolution
+                // Set high resolution dimensions
+                const scale = 3;
                 let targetWidth, targetHeight;
                 
                 if (elementId === 'posterPreview') {
@@ -831,74 +853,82 @@
                     filename = filename.replace('.png', '.jpg');
                 }
 
-                // Apply scaling to clone
-                clone.style.width = targetWidth + 'px';
-                clone.style.height = targetHeight + 'px';
-                clone.style.transform = 'none';
-                clone.style.transformOrigin = 'top left';
-                clone.style.position = 'relative';
-                clone.style.display = 'block';
+                // Apply clean styling to clone
+                clone.style.cssText = `
+                    width: ${targetWidth}px;
+                    height: ${targetHeight}px;
+                    transform: none;
+                    position: relative;
+                    display: block;
+                    margin: 0;
+                    padding: 0;
+                    border: none;
+                    box-shadow: none;
+                    background: white;
+                    overflow: hidden;
+                `;
 
-                // Scale all text and spacing
-                const scaleElements = (element, scaleFactor) => {
-                    const allElements = element.querySelectorAll('*');
-                    allElements.forEach(el => {
-                        const style = window.getComputedStyle(el);
+                // Scale all elements proportionally
+                const scaleAllElements = (container, scaleFactor) => {
+                    const walker = document.createTreeWalker(
+                        container,
+                        NodeFilter.SHOW_ELEMENT,
+                        null,
+                        false
+                    );
+                    
+                    const elements = [container];
+                    let node;
+                    while (node = walker.nextNode()) {
+                        elements.push(node);
+                    }
+                    
+                    elements.forEach(el => {
+                        const computedStyle = window.getComputedStyle(element.querySelector(`[style*="${el.style.cssText}"]`) || el);
                         
                         // Scale font sizes
-                        const fontSize = parseFloat(style.fontSize);
-                        if (fontSize && fontSize > 0) {
-                            el.style.fontSize = (fontSize * scaleFactor) + 'px';
+                        if (el.style.fontSize) {
+                            const fontSize = parseFloat(el.style.fontSize);
+                            if (fontSize > 0) el.style.fontSize = (fontSize * scaleFactor) + 'px';
                         }
                         
-                        // Scale line heights
-                        const lineHeight = parseFloat(style.lineHeight);
-                        if (lineHeight && lineHeight > 0) {
-                            el.style.lineHeight = (lineHeight * scaleFactor) + 'px';
-                        }
-                        
-                        // Scale padding
-                        ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].forEach(prop => {
-                            const value = parseFloat(style[prop]);
-                            if (value && value > 0) {
-                                el.style[prop] = (value * scaleFactor) + 'px';
+                        // Scale dimensions and spacing
+                        ['width', 'height', 'padding', 'margin', 'borderRadius', 'borderWidth', 'top', 'left', 'right', 'bottom'].forEach(prop => {
+                            if (el.style[prop] && el.style[prop].includes('px')) {
+                                const value = parseFloat(el.style[prop]);
+                                if (value > 0) el.style[prop] = (value * scaleFactor) + 'px';
                             }
                         });
                         
-                        // Scale margins
-                        ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'].forEach(prop => {
-                            const value = parseFloat(style[prop]);
-                            if (value && value > 0) {
-                                el.style[prop] = (value * scaleFactor) + 'px';
+                        // Handle padding/margin shorthand
+                        ['padding', 'margin'].forEach(prop => {
+                            if (el.style[prop]) {
+                                const values = el.style[prop].split(' ');
+                                const scaledValues = values.map(v => {
+                                    if (v.includes('px')) {
+                                        const num = parseFloat(v);
+                                        return num > 0 ? (num * scaleFactor) + 'px' : v;
+                                    }
+                                    return v;
+                                });
+                                el.style[prop] = scaledValues.join(' ');
                             }
                         });
-                        
-                        // Scale border radius
-                        const borderRadius = parseFloat(style.borderRadius);
-                        if (borderRadius && borderRadius > 0) {
-                            el.style.borderRadius = (borderRadius * scaleFactor) + 'px';
-                        }
-                        
-                        // Scale border width
-                        const borderWidth = parseFloat(style.borderWidth);
-                        if (borderWidth && borderWidth > 0) {
-                            el.style.borderWidth = (borderWidth * scaleFactor) + 'px';
-                        }
                     });
                 };
 
-                scaleElements(clone, scale);
+                scaleAllElements(clone, scale);
                 tempContainer.appendChild(clone);
 
-                // Wait a moment for rendering
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // Wait for rendering
+                await new Promise(resolve => setTimeout(resolve, 200));
 
-                // Generate canvas with optimal settings for JPG
+                // Use more compatible html2canvas settings
                 const canvas = await html2canvas(clone, {
                     backgroundColor: '#ffffff',
                     scale: 1,
-                    useCORS: true,
-                    allowTaint: false,
+                    useCORS: false,
+                    allowTaint: true,
                     logging: false,
                     width: targetWidth,
                     height: targetHeight,
@@ -906,31 +936,124 @@
                     scrollY: 0,
                     windowWidth: targetWidth,
                     windowHeight: targetHeight,
-                    removeContainer: false,
-                    foreignObjectRendering: true,
-                    imageTimeout: 5000
+                    removeContainer: true,
+                    foreignObjectRendering: false,
+                    imageTimeout: 0,
+                    onclone: (clonedDoc) => {
+                        // Ensure all styles are inline in the cloned document
+                        const clonedElements = clonedDoc.querySelectorAll('*');
+                        clonedElements.forEach(el => {
+                            if (el.style) {
+                                el.style.boxSizing = 'border-box';
+                            }
+                        });
+                    }
                 });
 
-                // Clean up
-                document.body.removeChild(tempContainer);
+                // Clean up immediately
+                if (tempContainer.parentNode) {
+                    document.body.removeChild(tempContainer);
+                }
 
-                // Convert to high-quality JPG
-                const link = document.createElement('a');
-                link.download = filename;
+                // Create download with better browser compatibility
+                const dataURL = canvas.toDataURL('image/jpeg', 0.92);
                 
-                // Create JPG with maximum quality (0.95 for best balance of quality/size)
-                link.href = canvas.toDataURL('image/jpeg', 0.95);
-                
-                // Trigger download
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                showSuccess(`High-resolution JPG downloaded! (${targetWidth}x${targetHeight}px)`);
+                // Try multiple download methods for better compatibility
+                const downloadMethods = [
+                    // Method 1: Standard download link
+                    () => {
+                        const link = document.createElement('a');
+                        link.download = filename;
+                        link.href = dataURL;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    },
+                    
+                    // Method 2: Blob-based download
+                    () => {
+                        const byteString = atob(dataURL.split(',')[1]);
+                        const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
+                        const ab = new ArrayBuffer(byteString.length);
+                        const ia = new Uint8Array(ab);
+                        
+                        for (let i = 0; i < byteString.length; i++) {
+                            ia[i] = byteString.charCodeAt(i);
+                        }
+                        
+                        const blob = new Blob([ab], { type: mimeString });
+                        const url = URL.createObjectURL(blob);
+                        
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = filename;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Clean up object URL
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    },
+                    
+                    // Method 3: Open in new window as fallback
+                    () => {
+                        const newWindow = window.open();
+                        newWindow.document.write(`
+                            <html>
+                                <head><title>Download ${filename}</title></head>
+                                <body style="margin:0;padding:20px;text-align:center;font-family:Arial,sans-serif;">
+                                    <h3>Right-click the image below and select "Save Image As..."</h3>
+                                    <img src="${dataURL}" style="max-width:100%;height:auto;border:1px solid #ccc;" alt="Generated Image">
+                                    <p><small>Filename: ${filename}</small></p>
+                                </body>
+                            </html>
+                        `);
+                        newWindow.document.close();
+                    }
+                ];
+
+                // Try download methods in order
+                let downloadSuccess = false;
+                for (let i = 0; i < downloadMethods.length && !downloadSuccess; i++) {
+                    try {
+                        downloadMethods[i]();
+                        downloadSuccess = true;
+                        
+                        if (i === 0 || i === 1) {
+                            showSuccess(`High-resolution JPG downloaded! (${targetWidth}x${targetHeight}px)`);
+                        } else {
+                            showSuccess("Image opened in new window. Right-click to save!");
+                        }
+                    } catch (methodError) {
+                        console.warn(`Download method ${i + 1} failed:`, methodError);
+                        if (i === downloadMethods.length - 1) {
+                            throw new Error("All download methods failed");
+                        }
+                    }
+                }
                 
             } catch (error) {
                 console.error('Download error:', error);
-                showError("Download failed. Please check your browser settings and try again.");
+                
+                // Provide specific error messages
+                let errorMessage = "Download failed. ";
+                if (error.message.includes("canvas")) {
+                    errorMessage += "Try using a different browser or disable ad blockers.";
+                } else if (error.message.includes("CORS")) {
+                    errorMessage += "Image loading blocked. Try removing external images.";
+                } else if (error.message.includes("memory")) {
+                    errorMessage += "Image too large. Try reducing the scale.";
+                } else {
+                    errorMessage += "Please try again or use a different browser.";
+                }
+                
+                showError(errorMessage);
+            } finally {
+                // Restore button state
+                downloadBtn.innerHTML = originalText;
+                downloadBtn.disabled = false;
             }
         }
 
@@ -1151,5 +1274,5 @@
             setTimeout(makeDraggable, 500);
         });
     </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994f9f05f7b62670',t:'MTc2MTU0MTEzNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994fa9ec92a32670',t:'MTc2MTU0MTU4My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
