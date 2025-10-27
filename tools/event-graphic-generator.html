@@ -799,257 +799,100 @@
                     throw new Error("Element not found for download");
                 }
 
-                // Wait for any images to load with better error handling
+                // Wait for any images to load
                 const images = element.querySelectorAll('img');
-                const imagePromises = Array.from(images).map(img => {
+                await Promise.all(Array.from(images).map(img => {
                     return new Promise((resolve) => {
-                        if (img.complete && img.naturalWidth > 0) {
+                        if (img.complete) {
                             resolve();
                         } else {
-                            const timeout = setTimeout(() => resolve(), 3000);
-                            img.onload = () => {
-                                clearTimeout(timeout);
-                                resolve();
-                            };
-                            img.onerror = () => {
-                                clearTimeout(timeout);
-                                resolve(); // Continue even if image fails
-                            };
+                            img.onload = resolve;
+                            img.onerror = resolve; // Continue even if image fails
                         }
                     });
-                });
-                
-                await Promise.all(imagePromises);
+                }));
 
-                // Create a clean temporary container
-                const tempContainer = document.createElement('div');
-                tempContainer.style.cssText = `
-                    position: absolute;
-                    top: -20000px;
-                    left: -20000px;
-                    width: auto;
-                    height: auto;
-                    overflow: visible;
-                    z-index: -9999;
-                    pointer-events: none;
-                    visibility: hidden;
-                `;
-                document.body.appendChild(tempContainer);
-
-                // Clone and prepare element
-                const clone = element.cloneNode(true);
-                
-                // Set high resolution dimensions
-                const scale = 3;
+                // Simple approach - use the element directly with html2canvas
                 let targetWidth, targetHeight;
                 
                 if (elementId === 'posterPreview') {
-                    targetWidth = 595 * scale;   // 1785px
-                    targetHeight = 842 * scale;  // 2526px
+                    targetWidth = 595;
+                    targetHeight = 842;
                     filename = filename.replace('.png', '.jpg');
                 } else if (elementId === 'bannerPreview') {
-                    targetWidth = 600 * scale;   // 1800px  
-                    targetHeight = 200 * scale;  // 600px
+                    targetWidth = 600;
+                    targetHeight = 200;
                     filename = filename.replace('.png', '.jpg');
                 }
 
-                // Apply clean styling to clone
-                clone.style.cssText = `
-                    width: ${targetWidth}px;
-                    height: ${targetHeight}px;
-                    transform: none;
-                    position: relative;
-                    display: block;
-                    margin: 0;
-                    padding: 0;
-                    border: none;
-                    box-shadow: none;
-                    background: white;
-                    overflow: hidden;
-                `;
-
-                // Scale all elements proportionally
-                const scaleAllElements = (container, scaleFactor) => {
-                    const walker = document.createTreeWalker(
-                        container,
-                        NodeFilter.SHOW_ELEMENT,
-                        null,
-                        false
-                    );
-                    
-                    const elements = [container];
-                    let node;
-                    while (node = walker.nextNode()) {
-                        elements.push(node);
-                    }
-                    
-                    elements.forEach(el => {
-                        const computedStyle = window.getComputedStyle(element.querySelector(`[style*="${el.style.cssText}"]`) || el);
-                        
-                        // Scale font sizes
-                        if (el.style.fontSize) {
-                            const fontSize = parseFloat(el.style.fontSize);
-                            if (fontSize > 0) el.style.fontSize = (fontSize * scaleFactor) + 'px';
-                        }
-                        
-                        // Scale dimensions and spacing
-                        ['width', 'height', 'padding', 'margin', 'borderRadius', 'borderWidth', 'top', 'left', 'right', 'bottom'].forEach(prop => {
-                            if (el.style[prop] && el.style[prop].includes('px')) {
-                                const value = parseFloat(el.style[prop]);
-                                if (value > 0) el.style[prop] = (value * scaleFactor) + 'px';
-                            }
-                        });
-                        
-                        // Handle padding/margin shorthand
-                        ['padding', 'margin'].forEach(prop => {
-                            if (el.style[prop]) {
-                                const values = el.style[prop].split(' ');
-                                const scaledValues = values.map(v => {
-                                    if (v.includes('px')) {
-                                        const num = parseFloat(v);
-                                        return num > 0 ? (num * scaleFactor) + 'px' : v;
-                                    }
-                                    return v;
-                                });
-                                el.style[prop] = scaledValues.join(' ');
-                            }
-                        });
-                    });
-                };
-
-                scaleAllElements(clone, scale);
-                tempContainer.appendChild(clone);
-
-                // Wait for rendering
-                await new Promise(resolve => setTimeout(resolve, 200));
-
-                // Use more compatible html2canvas settings
-                const canvas = await html2canvas(clone, {
+                // Use html2canvas with simpler settings
+                const canvas = await html2canvas(element, {
                     backgroundColor: '#ffffff',
-                    scale: 1,
-                    useCORS: false,
-                    allowTaint: true,
+                    scale: 2, // 2x resolution for quality
+                    useCORS: true,
+                    allowTaint: false,
                     logging: false,
                     width: targetWidth,
                     height: targetHeight,
                     scrollX: 0,
                     scrollY: 0,
-                    windowWidth: targetWidth,
-                    windowHeight: targetHeight,
-                    removeContainer: true,
-                    foreignObjectRendering: false,
-                    imageTimeout: 0,
-                    onclone: (clonedDoc) => {
-                        // Ensure all styles are inline in the cloned document
-                        const clonedElements = clonedDoc.querySelectorAll('*');
-                        clonedElements.forEach(el => {
-                            if (el.style) {
-                                el.style.boxSizing = 'border-box';
-                            }
-                        });
-                    }
+                    foreignObjectRendering: true,
+                    removeContainer: false
                 });
 
-                // Clean up immediately
-                if (tempContainer.parentNode) {
-                    document.body.removeChild(tempContainer);
-                }
-
-                // Create download with better browser compatibility
-                const dataURL = canvas.toDataURL('image/jpeg', 0.92);
-                
-                // Try multiple download methods for better compatibility
-                const downloadMethods = [
-                    // Method 1: Standard download link
-                    () => {
-                        const link = document.createElement('a');
-                        link.download = filename;
-                        link.href = dataURL;
-                        link.style.display = 'none';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    },
-                    
-                    // Method 2: Blob-based download
-                    () => {
-                        const byteString = atob(dataURL.split(',')[1]);
-                        const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
-                        const ab = new ArrayBuffer(byteString.length);
-                        const ia = new Uint8Array(ab);
-                        
-                        for (let i = 0; i < byteString.length; i++) {
-                            ia[i] = byteString.charCodeAt(i);
-                        }
-                        
-                        const blob = new Blob([ab], { type: mimeString });
-                        const url = URL.createObjectURL(blob);
-                        
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = filename;
-                        link.style.display = 'none';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        
-                        // Clean up object URL
-                        setTimeout(() => URL.revokeObjectURL(url), 1000);
-                    },
-                    
-                    // Method 3: Open in new window as fallback
-                    () => {
-                        const newWindow = window.open();
-                        newWindow.document.write(`
-                            <html>
-                                <head><title>Download ${filename}</title></head>
-                                <body style="margin:0;padding:20px;text-align:center;font-family:Arial,sans-serif;">
-                                    <h3>Right-click the image below and select "Save Image As..."</h3>
-                                    <img src="${dataURL}" style="max-width:100%;height:auto;border:1px solid #ccc;" alt="Generated Image">
-                                    <p><small>Filename: ${filename}</small></p>
-                                </body>
-                            </html>
-                        `);
-                        newWindow.document.close();
+                // Convert to blob and download
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        throw new Error("Failed to generate image");
                     }
-                ];
-
-                // Try download methods in order
-                let downloadSuccess = false;
-                for (let i = 0; i < downloadMethods.length && !downloadSuccess; i++) {
-                    try {
-                        downloadMethods[i]();
-                        downloadSuccess = true;
-                        
-                        if (i === 0 || i === 1) {
-                            showSuccess(`High-resolution JPG downloaded! (${targetWidth}x${targetHeight}px)`);
-                        } else {
-                            showSuccess("Image opened in new window. Right-click to save!");
-                        }
-                    } catch (methodError) {
-                        console.warn(`Download method ${i + 1} failed:`, methodError);
-                        if (i === downloadMethods.length - 1) {
-                            throw new Error("All download methods failed");
-                        }
-                    }
-                }
+                    
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    link.style.display = 'none';
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Clean up
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    
+                    showSuccess(`${filename} downloaded successfully!`);
+                }, 'image/jpeg', 0.9);
                 
             } catch (error) {
                 console.error('Download error:', error);
                 
-                // Provide specific error messages
-                let errorMessage = "Download failed. ";
-                if (error.message.includes("canvas")) {
-                    errorMessage += "Try using a different browser or disable ad blockers.";
-                } else if (error.message.includes("CORS")) {
-                    errorMessage += "Image loading blocked. Try removing external images.";
-                } else if (error.message.includes("memory")) {
-                    errorMessage += "Image too large. Try reducing the scale.";
-                } else {
-                    errorMessage += "Please try again or use a different browser.";
+                // Fallback: Try to open in new window
+                try {
+                    const element = document.getElementById(elementId);
+                    const canvas = await html2canvas(element, {
+                        backgroundColor: '#ffffff',
+                        scale: 1,
+                        useCORS: true,
+                        allowTaint: true,
+                        logging: false
+                    });
+                    
+                    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                    const newWindow = window.open();
+                    newWindow.document.write(`
+                        <html>
+                            <head><title>Download ${filename}</title></head>
+                            <body style="margin:0;padding:20px;text-align:center;font-family:Arial,sans-serif;">
+                                <h3>Right-click the image below and select "Save Image As..."</h3>
+                                <img src="${dataURL}" style="max-width:100%;height:auto;border:1px solid #ccc;" alt="Generated Image">
+                                <p><small>Filename: ${filename}</small></p>
+                            </body>
+                        </html>
+                    `);
+                    newWindow.document.close();
+                    showSuccess("Image opened in new window. Right-click to save!");
+                } catch (fallbackError) {
+                    showError("Download failed. Please try using Chrome or Firefox browser.");
                 }
-                
-                showError(errorMessage);
             } finally {
                 // Restore button state
                 downloadBtn.innerHTML = originalText;
@@ -1266,13 +1109,283 @@
             });
         }
 
+        // URL Parameter Auto-Fill Functions
+        function getURLParameters() {
+            const params = new URLSearchParams(window.location.search);
+            const urlParams = {};
+            
+            // Parameter mapping - multiple names for same field
+            const paramMapping = {
+                // Event title
+                'title': 'event_title',
+                'event_title': 'event_title',
+                
+                // Date and time
+                'date': 'event_date',
+                'event_date': 'event_date',
+                'time': 'event_time',
+                'start_time': 'event_time',
+                'event_time': 'event_time',
+                'end_time': 'end_time',
+                
+                // Location and description
+                'location': 'location',
+                'description': 'description',
+                
+                // Images
+                'image': 'image_url',
+                'image_url': 'image_url',
+                'qr': 'qr_code_url',
+                'qr_code': 'qr_code_url',
+                'qr_code_url': 'qr_code_url',
+                'secondary_image': 'secondary_image_url',
+                'secondary_image_url': 'secondary_image_url',
+                
+                // Colors
+                'bg_color': 'content_background_color',
+                'background_color': 'content_background_color',
+                'content_background_color': 'content_background_color',
+                'banner_bg': 'banner_background_color',
+                'banner_background_color': 'banner_background_color',
+                
+                // Font and styling
+                'font_size': 'title_font_size',
+                'title_font_size': 'title_font_size',
+                
+                // Banner text
+                'banner_title': 'banner_title',
+                'banner_subtitle': 'banner_subtitle'
+            };
+            
+            // Process all URL parameters
+            for (const [key, value] of params.entries()) {
+                const mappedKey = paramMapping[key] || key;
+                if (value) {
+                    urlParams[mappedKey] = decodeURIComponent(value);
+                }
+            }
+            
+            return urlParams;
+        }
+
+        function autoFillFromURL() {
+            const urlParams = getURLParameters();
+            
+            if (Object.keys(urlParams).length === 0) {
+                return false; // No parameters found
+            }
+            
+            let fieldsUpdated = 0;
+            
+            // Fill regular form fields
+            Object.entries(urlParams).forEach(([key, value]) => {
+                const field = document.getElementById(key);
+                if (field && value) {
+                    field.value = value;
+                    fieldsUpdated++;
+                }
+            });
+            
+            // Handle rich text editors specially
+            if (urlParams.event_title) {
+                const titleEditor = document.getElementById('titleEditor');
+                const titleHidden = document.getElementById('event_title');
+                if (titleEditor && titleHidden) {
+                    titleEditor.innerHTML = urlParams.event_title;
+                    titleHidden.value = urlParams.event_title;
+                    fieldsUpdated++;
+                }
+            }
+            
+            if (urlParams.description) {
+                const descEditor = document.getElementById('descriptionEditor');
+                const descHidden = document.getElementById('description');
+                if (descEditor && descHidden) {
+                    descEditor.innerHTML = urlParams.description;
+                    descHidden.value = urlParams.description;
+                    fieldsUpdated++;
+                }
+            }
+            
+            // Handle time format conversion (12:00PM -> 12:00)
+            if (urlParams.event_time) {
+                const timeField = document.getElementById('event_time');
+                if (timeField) {
+                    let timeValue = urlParams.event_time;
+                    // Convert 12:00PM format to 24-hour format
+                    if (timeValue.includes('PM') || timeValue.includes('AM')) {
+                        const timeParts = timeValue.replace(/PM|AM/i, '').trim().split(':');
+                        let hours = parseInt(timeParts[0]);
+                        const minutes = timeParts[1] || '00';
+                        
+                        if (timeValue.toUpperCase().includes('PM') && hours !== 12) {
+                            hours += 12;
+                        } else if (timeValue.toUpperCase().includes('AM') && hours === 12) {
+                            hours = 0;
+                        }
+                        
+                        timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
+                    }
+                    timeField.value = timeValue;
+                }
+            }
+            
+            if (urlParams.end_time) {
+                const endTimeField = document.getElementById('end_time');
+                if (endTimeField) {
+                    let timeValue = urlParams.end_time;
+                    // Convert 6:00PM format to 24-hour format
+                    if (timeValue.includes('PM') || timeValue.includes('AM')) {
+                        const timeParts = timeValue.replace(/PM|AM/i, '').trim().split(':');
+                        let hours = parseInt(timeParts[0]);
+                        const minutes = timeParts[1] || '00';
+                        
+                        if (timeValue.toUpperCase().includes('PM') && hours !== 12) {
+                            hours += 12;
+                        } else if (timeValue.toUpperCase().includes('AM') && hours === 12) {
+                            hours = 0;
+                        }
+                        
+                        timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
+                    }
+                    endTimeField.value = timeValue;
+                }
+            }
+            
+            return fieldsUpdated > 0;
+        }
+
+        function copyShareableURL() {
+            const formData = new FormData(document.getElementById('eventForm'));
+            const baseURL = window.location.origin + window.location.pathname;
+            const params = new URLSearchParams();
+            
+            // Get current form values
+            const titleEditor = document.getElementById('titleEditor');
+            const descEditor = document.getElementById('descriptionEditor');
+            
+            // Add form data to URL parameters
+            if (titleEditor.innerHTML && titleEditor.innerHTML !== 'Summer Music Festival') {
+                params.append('title', encodeURIComponent(titleEditor.innerHTML));
+            }
+            
+            if (formData.get('event_date')) {
+                params.append('date', formData.get('event_date'));
+            }
+            
+            if (formData.get('event_time')) {
+                // Convert back to 12-hour format for URL
+                const time24 = formData.get('event_time');
+                const [hours, minutes] = time24.split(':');
+                const hour12 = parseInt(hours);
+                const ampm = hour12 >= 12 ? 'PM' : 'AM';
+                const displayHour = hour12 === 0 ? 12 : hour12 > 12 ? hour12 - 12 : hour12;
+                const time12 = `${displayHour}:${minutes}${ampm}`;
+                params.append('time', time12);
+            }
+            
+            if (formData.get('end_time')) {
+                // Convert back to 12-hour format for URL
+                const time24 = formData.get('end_time');
+                const [hours, minutes] = time24.split(':');
+                const hour12 = parseInt(hours);
+                const ampm = hour12 >= 12 ? 'PM' : 'AM';
+                const displayHour = hour12 === 0 ? 12 : hour12 > 12 ? hour12 - 12 : hour12;
+                const time12 = `${displayHour}:${minutes}${ampm}`;
+                params.append('end_time', time12);
+            }
+            
+            if (formData.get('location')) {
+                params.append('location', encodeURIComponent(formData.get('location')));
+            }
+            
+            if (descEditor.innerHTML && descEditor.innerHTML !== 'Join us for an amazing evening of music and entertainment') {
+                params.append('description', encodeURIComponent(descEditor.innerHTML));
+            }
+            
+            if (formData.get('image_url')) {
+                params.append('image', encodeURIComponent(formData.get('image_url')));
+            }
+            
+            if (formData.get('qr_code_url')) {
+                params.append('qr', encodeURIComponent(formData.get('qr_code_url')));
+            }
+            
+            if (formData.get('secondary_image_url')) {
+                params.append('secondary_image', encodeURIComponent(formData.get('secondary_image_url')));
+            }
+            
+            if (formData.get('content_background_color') && formData.get('content_background_color') !== '#f8f9fa') {
+                params.append('bg_color', formData.get('content_background_color'));
+            }
+            
+            if (formData.get('banner_background_color') && formData.get('banner_background_color') !== '#3b82f6') {
+                params.append('banner_bg', formData.get('banner_background_color'));
+            }
+            
+            if (formData.get('title_font_size') && formData.get('title_font_size') !== '32') {
+                params.append('font_size', formData.get('title_font_size'));
+            }
+            
+            if (formData.get('banner_title')) {
+                params.append('banner_title', encodeURIComponent(formData.get('banner_title')));
+            }
+            
+            if (formData.get('banner_subtitle')) {
+                params.append('banner_subtitle', encodeURIComponent(formData.get('banner_subtitle')));
+            }
+            
+            const shareableURL = params.toString() ? `${baseURL}?${params.toString()}` : baseURL;
+            
+            // Copy to clipboard
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareableURL).then(() => {
+                    showSuccess('Shareable URL copied to clipboard!');
+                }).catch(() => {
+                    fallbackCopyToClipboard(shareableURL);
+                });
+            } else {
+                fallbackCopyToClipboard(shareableURL);
+            }
+        }
+
+        function fallbackCopyToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showSuccess('Shareable URL copied to clipboard!');
+            } catch (err) {
+                showError('Could not copy URL. Please copy manually from the address bar.');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
         // Initialize app when page loads
         document.addEventListener('DOMContentLoaded', () => {
             initializeApp();
             setupRealTimePreview();
+            
+            // Auto-fill from URL parameters
+            setTimeout(() => {
+                const wasAutoFilled = autoFillFromURL();
+                if (wasAutoFilled) {
+                    showSuccess('Form auto-filled from URL parameters!');
+                    updateLivePreview(); // Update preview with auto-filled data
+                }
+            }, 500);
+            
             // Add drag functionality after a short delay to ensure elements are rendered
             setTimeout(makeDraggable, 500);
         });
     </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994fa9ec92a32670',t:'MTc2MTU0MTU4My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994fb6edf5132670',t:'MTc2MTU0MjExNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
