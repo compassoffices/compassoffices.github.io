@@ -226,1167 +226,811 @@
     </div>
    </div>
   </div>
-  <script>
-        // Configuration
-        const defaultConfig = {
-            default_organizer: "Your Organization",
-            contact_info: "contact@example.com",
-            website_url: "www.example.com"
-        };
+ <script>
+    // Configuration
+    const defaultConfig = {
+        default_organizer: "Your Organization",
+        contact_info: "contact@example.com",
+        website_url: "www.example.com"
+    };
+    let currentData = [];
+    let isLoading = false;
 
-        let currentData = [];
-        let isLoading = false;
+    // Data SDK Handler
+    const dataHandler = {
+        onDataChanged(data) {
+            currentData = data;
+            updateDataCount();
+            renderEventsGallery();
+            updatePreviewWithLatest();
+        }
+    };
 
-        // Data SDK Handler
-        const dataHandler = {
-            onDataChanged(data) {
-                currentData = data;
-                updateDataCount();
-                renderEventsGallery();
-                updatePreviewWithLatest();
-            }
-        };
-
-        // Element SDK Implementation
-        const elementConfig = {
-            defaultConfig,
-            onConfigChange: async (config) => {
-                // Update form placeholders and preview with config values
-                updatePreviewWithConfig(config);
-            },
-            mapToCapabilities: (config) => ({
-                recolorables: [
-                    {
-                        get: () => config.primary_color || "#667eea",
-                        set: (value) => {
-                            config.primary_color = value;
-                            window.elementSdk.setConfig({ primary_color: value });
-                        }
-                    },
-                    {
-                        get: () => config.secondary_color || "#f093fb",
-                        set: (value) => {
-                            config.secondary_color = value;
-                            window.elementSdk.setConfig({ secondary_color: value });
-                        }
-                    }
-                ],
-                borderables: [],
-                fontEditable: {
-                    get: () => config.font_family || "Inter",
+    // Element SDK Implementation
+    const elementConfig = {
+        defaultConfig,
+        onConfigChange: async (config) => {
+            updatePreviewWithConfig(config);
+        },
+        mapToCapabilities: (config) => ({
+            recolorables: [
+                {
+                    get: () => config.primary_color || "#667eea",
                     set: (value) => {
-                        config.font_family = value;
-                        window.elementSdk.setConfig({ font_family: value });
+                        config.primary_color = value;
+                        window.elementSdk.setConfig({ primary_color: value });
                     }
                 },
-                fontSizeable: {
-                    get: () => config.font_size || 16,
+                {
+                    get: () => config.secondary_color || "#f093fb",
                     set: (value) => {
-                        config.font_size = value;
-                        window.elementSdk.setConfig({ font_size: value });
+                        config.secondary_color = value;
+                        window.elementSdk.setConfig({ secondary_color: value });
                     }
                 }
-            }),
-            mapToEditPanelValues: (config) => new Map([
-                ["default_organizer", config.default_organizer || defaultConfig.default_organizer],
-                ["contact_info", config.contact_info || defaultConfig.contact_info],
-                ["website_url", config.website_url || defaultConfig.website_url]
-            ])
-        };
-
-        // Initialize SDKs
-        async function initializeApp() {
-            try {
-                // Initialize Element SDK
-                if (window.elementSdk) {
-                    await window.elementSdk.init(elementConfig);
+            ],
+            borderables: [],
+            fontEditable: {
+                get: () => config.font_family || "Inter",
+                set: (value) => {
+                    config.font_family = value;
+                    window.elementSdk.setConfig({ font_family: value });
                 }
-
-                // Initialize Data SDK
-                if (window.dataSdk) {
-                    const result = await window.dataSdk.init(dataHandler);
-                    if (!result.isOk) {
-                        console.warn("Data storage not available, continuing without persistence");
-                    }
+            },
+            fontSizeable: {
+                get: () => config.font_size || 16,
+                set: (value) => {
+                    config.font_size = value;
+                    window.elementSdk.setConfig({ font_size: value });
                 }
-
-                // Initialize preview with sample data
-                initializePreview();
-                
-                // Setup download handlers
-                setupDownloadHandlers();
-                
-                // Trigger initial live preview
-                setTimeout(updateLivePreview, 200);
-            } catch (error) {
-                console.error("Initialization error:", error);
-                // Continue with basic functionality even if SDKs fail
-                initializePreview();
-                setupDownloadHandlers();
-                setTimeout(updateLivePreview, 200);
             }
-        }
+        }),
+        mapToEditPanelValues: (config) => new Map([
+            ["default_organizer", config.default_organizer || defaultConfig.default_organizer],
+            ["contact_info", config.contact_info || defaultConfig.contact_info],
+            ["website_url", config.website_url || defaultConfig.website_url]
+        ])
+    };
 
-        function initializePreview() {
+    // Initialize SDKs
+    async function initializeApp() {
+        try {
+            if (window.elementSdk) {
+                await window.elementSdk.init(elementConfig);
+            }
+            if (window.dataSdk) {
+                const result = await window.dataSdk.init(dataHandler);
+                if (!result.isOk) {
+                    console.warn("Data storage not available, continuing without persistence");
+                }
+            }
+            initializePreview();
+            setupDownloadHandlers();
+            setTimeout(updateLivePreview, 200);
+        } catch (error) {
+            console.error("Initialization error:", error);
+            initializePreview();
+            setupDownloadHandlers();
+            setTimeout(updateLivePreview, 200);
+        }
+    }
+
+    function initializePreview() {
+        const sampleEvent = {
+            event_title: "Summer Music Festival",
+            event_date: "2024-07-15",
+            event_time: "18:00",
+            end_time: "22:00",
+            location: "Lee Garden 1, 24/F, Central Park",
+            description: "Join us for an amazing evening of music and entertainment under the stars. Experience live performances from top artists.",
+            background_color: "#ff6600",
+            banner_background_color: "#ff6600",
+            content_background_color: "#f8f9fa",
+            layout_style: "classic",
+            title_font_size: "32",
+            banner_title: "Join us for an amazing event",
+            banner_subtitle: "Don't miss this incredible opportunity",
+            image_url: "",
+            qr_code_url: "",
+            secondary_image_url: ""
+        };
+        updatePreviewElements(sampleEvent);
+    }
+
+    function setupRealTimePreview() {
+        const formInputs = document.querySelectorAll('#eventForm input, #eventForm select');
+        formInputs.forEach(input => {
+            input.addEventListener('input', updateLivePreview);
+            input.addEventListener('change', updateLivePreview);
+        });
+        setupRichTextEditors();
+    }
+
+    function setupRichTextEditors() {
+        const titleEditor = document.getElementById('titleEditor');
+        const titleHidden = document.getElementById('event_title');
+        const descEditor = document.getElementById('descriptionEditor');
+        const descHidden = document.getElementById('description');
+
+        titleEditor.innerHTML = 'Summer Music Festival';
+        descEditor.innerHTML = 'Join us for an amazing evening of music and entertainment';
+
+        titleEditor.addEventListener('input', () => {
+            titleHidden.value = titleEditor.innerHTML;
+            updateLivePreview();
+        });
+        descEditor.addEventListener('input', () => {
+            descHidden.value = descEditor.innerHTML;
+            updateLivePreview();
+        });
+
+        document.getElementById('titleBold').addEventListener('click', () => applyFormatting('bold', titleEditor));
+        document.getElementById('titleThin').addEventListener('click', () => {
+            applyFormatting('removeFormat', titleEditor);
+            applyFormatting('fontWeight', titleEditor, '100');
+        });
+        document.getElementById('titleClear').addEventListener('click', () => applyFormatting('removeFormat', titleEditor));
+        document.getElementById('titleSmall').addEventListener('click', () => applyFormatting('fontSize', titleEditor, '1'));
+        document.getElementById('titleLarge').addEventListener('click', () => applyFormatting('fontSize', titleEditor, '7'));
+
+        document.getElementById('descBold').addEventListener('click', () => applyFormatting('bold', descEditor));
+        document.getElementById('descItalic').addEventListener('click', () => applyFormatting('italic', descEditor));
+        document.getElementById('descBullet').addEventListener('click', () => applyFormatting('insertUnorderedList', descEditor));
+        document.getElementById('descNumber').addEventListener('click', () => applyFormatting('insertOrderedList', descEditor));
+        document.getElementById('descClear').addEventListener('click', () => applyFormatting('removeFormat', descEditor));
+
+        titleHidden.value = titleEditor.innerHTML;
+        descHidden.value = descEditor.innerHTML;
+    }
+
+    function applyFormatting(command, editor, value = null) {
+        editor.focus();
+        if (command === 'fontWeight') {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                if (!range.collapsed) {
+                    const span = document.createElement('span');
+                    span.style.fontWeight = value;
+                    try { range.surroundContents(span); }
+                    catch (e) {
+                        const contents = range.extractContents();
+                        span.appendChild(contents);
+                        range.insertNode(span);
+                    }
+                    selection.removeAllRanges();
+                }
+            }
+        } else {
+            document.execCommand(command, false, value);
+        }
+        const hiddenField = editor.id === 'titleEditor' ? document.getElementById('event_title') : document.getElementById('description');
+        hiddenField.value = editor.innerHTML;
+        updateLivePreview();
+    }
+
+    function processRichText(htmlContent) {
+        if (!htmlContent) return '';
+        let processed = htmlContent
+            .replace(/<div>/g, '<p>')
+            .replace(/<\/div>/g, '</p>')
+            .replace(/<br\s*\/?>/g, '<br>')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/<p><\/p>/g, '')
+            .replace(/<p>\s*<\/p>/g, '');
+        if (!processed.includes('<p>') && !processed.includes('<ul>') && !processed.includes('<ol>') && !processed.includes('<strong>') && !processed.includes('<em>')) {
+            processed = `<p>${processed}</p>`;
+        }
+        processed = processed
+            .replace(/<ul>/g, '<ul style="margin: 8px 0; padding-left: 20px; list-style-type: disc;">')
+            .replace(/<ol>/g, '<ol style="margin: 8px 0; padding-left: 20px; list-style-type: decimal;">')
+            .replace(/<li>/g, '<li style="margin-bottom: 4px; line-height: 1.5;">')
+            .replace(/<p>/g, '<p style="margin: 0 0 8px 0; line-height: 1.6;">')
+            .replace(/<strong>/g, '<strong style="font-weight: 700; color: #2d3748;">')
+            .replace(/<em>/g, '<em style="font-style: italic; color: #4a5568;">');
+        return processed;
+    }
+
+    function updateLivePreview() {
+        const titleEditor = document.getElementById('titleEditor');
+        const descEditor = document.getElementById('descriptionEditor');
+        const eventData = {
+            event_title: titleEditor.innerHTML || 'Summer Music Festival',
+            event_date: document.getElementById('event_date').value || '2024-07-15',
+            event_time: document.getElementById('event_time').value || '18:00',
+            end_time: document.getElementById('end_time').value || '22:00',
+            location: document.getElementById('location').value || 'Central Park, New York',
+            description: descEditor.innerHTML || 'Join us for an amazing evening of music and entertainment under the stars. Experience live performances from top artists.',
+            image_url: document.getElementById('image_url').value || '',
+            qr_code_url: document.getElementById('qr_code_url').value || '',
+            secondary_image_url: document.getElementById('secondary_image_url').value || '',
+            background_color: '#ff6600',
+            banner_background_color: document.getElementById('banner_background_color').value || '#ff6600',
+            content_background_color: document.getElementById('content_background_color').value || '#f8f9fa',
+            layout_style: 'classic',
+            title_font_size: document.getElementById('title_font_size').value || '32',
+            title_alignment: document.getElementById('title_alignment').value || 'left',
+            title_formatting: document.getElementById('title_formatting').value || '',
+            banner_title: document.getElementById('banner_title').value || 'Join us for an amazing event',
+            banner_subtitle: document.getElementById('banner_subtitle').value || 'Don\'t miss this incredible opportunity'
+        };
+        updatePreviewElements(eventData);
+    }
+
+    document.getElementById('eventForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (isLoading) return;
+        if (currentData.length >= 999) {
+            showError("Maximum limit of 999 events reached. Please delete some events first.");
+            return;
+        }
+        const formData = new FormData(e.target);
+        const eventData = {
+            id: Date.now().toString(),
+            event_title: formData.get('event_title'),
+            event_date: formData.get('event_date'),
+            event_time: formData.get('event_time'),
+            end_time: formData.get('end_time') || '',
+            location: formData.get('location'),
+            description: formData.get('description') || '',
+            image_url: formData.get('image_url') || '',
+            qr_code_url: formData.get('qr_code_url') || '',
+            secondary_image_url: formData.get('secondary_image_url') || '',
+            background_color: '#ff6600',
+            banner_background_color: formData.get('banner_background_color') || '#ff6600',
+            content_background_color: formData.get('content_background_color') || '#f8f9fa',
+            layout_style: 'classic',
+            title_font_size: formData.get('title_font_size') || '32',
+            title_alignment: formData.get('title_alignment') || 'left',
+            title_formatting: formData.get('title_formatting') || '',
+            banner_title: formData.get('banner_title') || 'Join us for an amazing event',
+            banner_subtitle: formData.get('banner_subtitle') || 'Don\'t miss this incredible opportunity',
+            created_at: new Date().toISOString()
+        };
+        await submitEventData(eventData);
+    });
+
+    async function submitEventData(data) {
+        setLoading(true);
+        try {
+            if (window.dataSdk) {
+                const result = await window.dataSdk.create(data);
+                if (result.isOk) {
+                    document.getElementById('eventForm').reset();
+                    showSuccess("Event poster created and saved successfully!");
+                    setTimeout(updateLivePreview, 100);
+                } else {
+                    showError("Failed to save event. Please try again.");
+                }
+            } else {
+                document.getElementById('eventForm').reset();
+                showSuccess("Event poster created successfully!");
+                setTimeout(updateLivePreview, 100);
+            }
+        } catch (error) {
+            showError("An error occurred while saving.");
+            console.error('Submit error:', error);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function updatePreviewWithConfig(config) {
+        if (currentData.length === 0) {
             const sampleEvent = {
                 event_title: "Summer Music Festival",
                 event_date: "2024-07-15",
                 event_time: "18:00",
-                end_time: "22:00",
-                location: "Lee Garden 1, 24/F, Central Park",
-                description: "Join us for an amazing evening of music and entertainment under the stars. Experience live performances from top artists.",
+                location: "Central Park, New York",
+                description: "Join us for an amazing evening of music and entertainment",
                 background_color: "#ff6600",
-                banner_background_color: "#ff6600",
-                content_background_color: "#f8f9fa",
                 layout_style: "classic",
-                title_font_size: "32",
-                banner_title: "Join us for an amazing event",
-                banner_subtitle: "Don't miss this incredible opportunity",
-                image_url: "",
-                qr_code_url: "",
-                secondary_image_url: ""
+                image_url: ""
             };
-            updatePreviewElements(sampleEvent);
+            updatePreviewElements(sampleEvent, config);
         }
+    }
 
-        // Real-time preview updates
-        function setupRealTimePreview() {
-            const formInputs = document.querySelectorAll('#eventForm input, #eventForm select');
-            
-            formInputs.forEach(input => {
-                input.addEventListener('input', updateLivePreview);
-                input.addEventListener('change', updateLivePreview);
-            });
-            
-            // Setup rich text editors
-            setupRichTextEditors();
+    function updatePreviewWithLatest() {
+        if (currentData.length > 0) {
+            const latest = currentData[currentData.length - 1];
+            updatePreviewElements(latest);
         }
-        
-        function setupRichTextEditors() {
-            // Setup title editor
+    }
+
+    function updatePreviewElements(eventData, config = null) {
+        const currentConfig = config || (window.elementSdk?.config || defaultConfig);
+        const posterHTML = generatePosterHTML(eventData, currentConfig);
+        document.getElementById('posterPreview').innerHTML = posterHTML;
+        const bannerHTML = generateBannerHTML(eventData, currentConfig);
+        document.getElementById('bannerPreview').innerHTML = bannerHTML;
+        setTimeout(makeDraggable, 100);
+    }
+
+    function generatePosterHTML(event, config) {
+        const formattedDate = formatDate(event.event_date);
+        const startTime = formatTime(event.event_time);
+        const endTime = event.end_time ? formatTime(event.end_time) : '';
+        const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
+        const titleFontSize = event.title_font_size || '32';
+        const alignment = event.title_alignment || 'left';
+        let titleStyle = `font-size: ${titleFontSize}px; line-height: 1.2; color: #333; text-align: ${alignment}; margin: 0; padding: 20px; word-wrap: break-word;`;
+        titleStyle += ' font-weight: 600;';
+        const qrCodeSrc = event.qr_code_url ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(event.qr_code_url)}` : '';
+
+        return `
+            <div style="width: 595px; height: 842px; background: white; position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                <div style="width: 595px; height: 300px; background: linear-gradient(135deg, #ff6600 0%, #e55a00 100%); display: flex; position: relative;">
+                    <div style="width: 297.5px; height: 300px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; background: rgba(255,255,255,0.95);">
+                        <div style="${titleStyle.replace('color: #333', 'color: #2d3748')}">${processRichText(event.event_title)}</div>
+                    </div>
+                    <div style="width: 297.5px; height: 300px; background-color: #f8f9fa; overflow: hidden; position: relative;">
+                        ${event.image_url ?
+                            `<img src="${event.image_url}" alt="Event" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#666;background:#f8f9fa;\\'><svg width=\\'80\\' height=\\'80\\' fill=\\'currentColor\\' viewBox=\\'0 0 20 20\\'><path fill-rule=\\'evenodd\\' d=\\'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z\\' clip-rule=\\'evenodd\\'/></svg></div>';">` :
+                            `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;background:#f8f9fa;"><svg width="80" height="80" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg></div>`
+                        }
+                    </div>
+                </div>
+                <div style="width: 595px; height: 472px; background: ${event.content_background_color || '#ffffff'}; color: #333; position: relative; padding: 25px; box-sizing: border-box;">
+                    <div class="draggable" style="position: absolute; top: 25px; left: 25px; width: 545px; max-height: 160px; overflow-y: auto;">
+                        <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 12px; color: #2d3748; margin-top: 0; border-bottom: 2px solid #ff6600; padding-bottom: 8px; display: inline-block;">About This Event</h2>
+                        <div style="font-size: 15px; line-height: 1.6; margin: 0; color: #4a5568; word-wrap: break-word; overflow-wrap: break-word;">${processRichText(event.description) || 'Event description will appear here...'}</div>
+                    </div>
+                    <div class="draggable" style="position: absolute; top: 180px; left: 25px; width: 350px;">
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 15px; border: 1px solid #dee2e6; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                            <div style="display: flex; align-items: center; padding: 12px 0;">
+                                <div style="width: 24px; height: 24px; margin-right: 12px; flex-shrink: 0;">
+                                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-01.svg" alt="Date" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.outerHTML='<div style=\\'width:24px;height:24px;background:#ff6600;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:bold;\\'>Date</div>';">
+                                </div>
+                                <div style="font-size: 15px; color: #2d3748; font-weight: 500;">${formattedDate}</div>
+                            </div>
+                            <div style="height: 1px; background: linear-gradient(90deg, #dee2e6 0%, #adb5bd 50%, #dee2e6 100%); margin: 0;"></div>
+                            <div style="display: flex; align-items: center; padding: 12px 0;">
+                                <div style="width: 24px; height: 24px; margin-right: 12px; flex-shrink: 0;">
+                                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-02.svg" alt="Time" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.outerHTML='<div style=\\'width:24px;height:24px;background:#ff6600;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:bold;\\'>Time</div>';">
+                                </div>
+                                <div style="font-size: 15px; color: #2d3748; font-weight: 500;">${timeRange}</div>
+                            </div>
+                            <div style="height: 1px; background: linear-gradient(90deg, #dee2e6 0%, #adb5bd 50%, #dee2e6 100%); margin: 0;"></div>
+                            <div style="display: flex; align-items: center; padding: 12px 0;">
+                                <div style="width: 24px; height: 24px; margin-right: 12px; flex-shrink: 0;">
+                                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-03.svg" alt="Location" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.outerHTML='<div style=\\'width:24px;height:24px;background:#ff6600;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:bold;\\'>Location</div>';">
+                                </div>
+                                <div style="font-size: 15px; color: #2d3748; font-weight: 500; line-height: 1.4;">${event.location}</div>
+                            </div>
+                            <div style="height: 1px; background: linear-gradient(90deg, #dee2e6 0%, #adb5bd 50%, #dee2e6 100%); margin: 0;"></div>
+                        </div>
+                    </div>
+                    ${qrCodeSrc ? `
+                    <div class="draggable" style="position: absolute; top: 180px; right: 25px; width: 140px; height: 140px;">
+                        <div style="background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #dee2e6;">
+                            <img src="${qrCodeSrc}" alt="QR Code" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.style.display='none';">
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${event.secondary_image_url ? `
+                    <div class="draggable" style="position: absolute; top: 340px; left: 25px; width: 200px; height: 100px;">
+                        <img src="${event.secondary_image_url}" alt="Secondary Image" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onerror="this.style.display='none';">
+                    </div>
+                    ` : ''}
+                </div>
+                <div style="width: 100%; height: 70px; background: white; position: absolute; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden;">
+                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-04.svg" alt="Footer" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" onerror="this.outerHTML='<div style=\\'color:#666;font-size:14px;font-weight:500;width:100%;height:100%;display:flex;align-items:center;justify-content:center;\\'>Event Poster</div>';">
+                </div>
+            </div>
+        `;
+    }
+
+    function generateBannerHTML(event, config) {
+        const formattedDate = formatDate(event.event_date);
+        const startTime = formatTime(event.event_time);
+        const endTime = event.end_time ? formatTime(event.end_time) : '';
+        const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
+        const simplifiedDate = formatSimplifiedDate(event.event_date);
+        const simplifiedTime = formatSimplifiedTime(event.event_time, event.end_time);
+        const simplifiedLocation = event.location.split(',')[0];
+        const infoText = `${simplifiedDate} | ${simplifiedTime} | ${simplifiedLocation}`;
+
+        return `
+            <div style="width: 600px; height: 200px; background-color: white; color: #333; display: flex; align-items: center; padding: 30px; box-sizing: border-box; position: relative; border: 1px solid #dee2e6;">
+                <div style="position: absolute; top: 15px; left: 30px; background: #2d3748; color: white; padding: 6px 12px; border-radius: 15px; font-size: 12px; font-weight: 500; z-index: 10;">
+                    ${infoText}
+                </div>
+                <div style="flex: 1; padding-right: 30px; margin-top: 20px;">
+                    <div style="font-size: 24px; margin-bottom: 8px; line-height: 1.2; margin-top: 0; font-weight: bold; color: #333;">${event.banner_title || event.event_title}</div>
+                    <p style="font-size: 16px; margin: 0; line-height: 1.4; color: #666;">${event.banner_subtitle || 'Join us for an amazing event'}</p>
+                </div>
+                <div style="width: 140px; height: 140px; flex-shrink: 0; background: #f8f9fa; border-radius: 8px; overflow: hidden; border: 1px solid #dee2e6;">
+                    ${event.image_url ?
+                        `<img src="${event.image_url}" alt="Event" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#666;\\'><svg width=\\'60\\' height=\\'60\\' fill=\\'currentColor\\' viewBox=\\'0 0 20 20\\'><path fill-rule=\\'evenodd\\' d=\\'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z\\' clip-rule=\\'evenodd\\'/></svg></div>';">` :
+                        `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;"><svg width="60" height="60" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg></div>`
+                    }
+                </div>
+            </div>
+        `;
+    }
+
+    // FIXED DOWNLOAD FUNCTION — HIGH-QUALITY JPG
+    async function downloadElement(elementId, filename) {
+        const downloadBtn = elementId === 'posterPreview'
+            ? document.getElementById('downloadPoster')
+            : document.getElementById('downloadBanner');
+
+        const originalText = downloadBtn.textContent;
+        downloadBtn.innerHTML = '<div class="loading-spinner inline-block mr-2"></div>Generating...';
+        downloadBtn.disabled = true;
+
+        try {
+            const element = document.getElementById(elementId);
+            if (!element) throw new Error('Element not found');
+
+            const images = element.querySelectorAll('img');
+            await Promise.all(
+                Array.from(images).map(img => new Promise(resolve => {
+                    if (img.complete) return resolve();
+                    img.onload = img.onerror = resolve;
+                }))
+            );
+
+            const isPoster = elementId === 'posterPreview';
+            const targetWidth  = isPoster ? 595 : 600;
+            const targetHeight = isPoster ? 842 : 200;
+
+            const canvas = await html2canvas(element, {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true,
+                allowTaint: false,
+                logging: false,
+                width: targetWidth,
+                height: targetHeight,
+                foreignObjectRendering: true
+            });
+
+            canvas.toBlob(blob => {
+                if (!blob) throw new Error('Blob creation failed');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename.replace(/\.png$/i, '.jpg');
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showSuccess(`${filename.replace(/\.png$/i, '.jpg')} downloaded!`);
+            }, 'image/jpeg', 0.92);
+
+        } catch (err) {
+            console.error('Download error:', err);
+            showError('Download failed – try Chrome/Firefox or check console.');
+        } finally {
+            downloadBtn.innerHTML = originalText;
+            downloadBtn.disabled = false;
+        }
+    }
+
+    function setupDownloadHandlers() {
+        document.getElementById('downloadPoster').addEventListener('click', () => {
+            downloadElement('posterPreview', 'event-poster.jpg');
+        });
+        document.getElementById('downloadBanner').addEventListener('click', () => {
+            downloadElement('bannerPreview', 'event-banner.jpg');
+        });
+    }
+
+    function formatDate(dateString) {
+        if (!dateString) return 'TBD';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function formatTime(timeString) {
+        if (!timeString) return 'TBD';
+        const [hours, minutes] = timeString.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hours), parseInt(minutes));
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+
+    function formatSimplifiedDate(dateString) {
+        if (!dateString) return 'TBD';
+        const date = new Date(dateString);
+        return `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`;
+    }
+
+    function formatSimplifiedTime(startTime, endTime) {
+        if (!startTime) return 'TBD';
+        const formatTo12Hour = (timeString) => {
+            const [hours, minutes] = timeString.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'pm' : 'am';
+            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            return minutes === '00' ? `${displayHour}${ampm}` : `${displayHour}:${minutes}${ampm}`;
+        };
+        const start = formatTo12Hour(startTime);
+        return !endTime ? start : `${start}-${formatTo12Hour(endTime)}`;
+    }
+
+    function setLoading(loading) {
+        isLoading = loading;
+        const submitBtn = document.getElementById('submitBtn');
+        const spinner = document.getElementById('submitSpinner');
+        if (loading) {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-75');
+            spinner.classList.remove('hidden');
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-75');
+            spinner.classList.add('hidden');
+        }
+    }
+
+    function updateDataCount() {
+        document.getElementById('dataCount').textContent = currentData.length;
+    }
+
+    function renderEventsGallery() {
+        const gallery = document.getElementById('eventsGallery');
+        const emptyState = document.getElementById('emptyState');
+        if (currentData.length === 0) {
+            gallery.innerHTML = '';
+            emptyState.style.display = 'block';
+            return;
+        }
+        emptyState.style.display = 'none';
+        gallery.innerHTML = currentData.map(event => {
+            const formattedDate = formatDate(event.event_date);
+            const formattedTime = formatTime(event.event_time);
+            return `
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
+                    <div class="h-48 relative" style="background-color: ${event.background_color}">
+                        <div class="absolute inset-0 p-4 text-white flex flex-col justify-center">
+                            <h3 class="text-lg font-bold mb-2">${event.event_title}</h3>
+                            <div class="space-y-1 text-sm opacity-90">
+                                <p>Date: ${formattedDate}</p>
+                                <p>Time: ${formattedTime}</p>
+                                <p>Location: ${event.location}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">${new Date(event.created_at).toLocaleDateString()}</span>
+                            <div class="flex gap-2">
+                                <button onclick="viewEvent('${event.__backendId}')" class="text-blue-500 hover:text-blue-700 text-sm font-medium">View</button>
+                                <button onclick="deleteEvent('${event.__backendId}')" class="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function viewEvent(backendId) {
+        const event = currentData.find(e => e.__backendId === backendId);
+        if (event) {
+            updatePreviewElements(event);
+            document.querySelector('.preview-section').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    async function deleteEvent(backendId) {
+        if (!window.dataSdk) return;
+        const event = currentData.find(e => e.__backendId === backendId);
+        if (!event) return;
+        try {
+            const result = await window.dataSdk.delete(event);
+            if (result.isOk) showSuccess("Event deleted successfully!");
+            else showError("Failed to delete event.");
+        } catch (error) {
+            showError("An error occurred while deleting.");
+        }
+    }
+
+    function showSuccess(message) { showToast(message, 'success'); }
+    function showError(message) { showToast(message, 'error'); }
+    function showToast(message, type) {
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg text-white font-medium z-50 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    function makeDraggable() {
+        const draggables = document.querySelectorAll('.draggable');
+        draggables.forEach(element => {
+            let isDragging = false;
+            let startX, startY, initialLeft, initialTop;
+            element.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = element.getBoundingClientRect();
+                const parentRect = element.parentElement.getBoundingClientRect();
+                initialLeft = rect.left - parentRect.left;
+                initialTop = rect.top - parentRect.top;
+                element.style.zIndex = '1000';
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                const newLeft = Math.max(0, Math.min(initialLeft + deltaX, element.parentElement.offsetWidth - element.offsetWidth));
+                const newTop = Math.max(0, Math.min(initialTop + deltaY, element.parentElement.offsetHeight - element.offsetHeight));
+                element.style.left = newLeft + 'px';
+                element.style.top = newTop + 'px';
+            });
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    element.style.zIndex = 'auto';
+                }
+            });
+        });
+    }
+
+    function getURLParameters() {
+        const params = new URLSearchParams(window.location.search);
+        const urlParams = {};
+        const paramMapping = {
+            'title': 'event_title', 'event_title': 'event_title',
+            'date': 'event_date', 'event_date': 'event_date',
+            'time': 'event_time', 'start_time': 'event_time', 'event_time': 'event_time',
+            'end_time': 'end_time',
+            'location': 'location',
+            'description': 'description',
+            'image': 'image_url', 'image_url': 'image_url',
+            'qr': 'qr_code_url', 'qr_code': 'qr_code_url', 'qr_code_url': 'qr_code_url',
+            'secondary_image': 'secondary_image_url', 'secondary_image_url': 'secondary_image_url',
+            'bg_color': 'content_background_color', 'background_color': 'content_background_color', 'content_background_color': 'content_background_color',
+            'banner_bg': 'banner_background_color', 'banner_background_color': 'banner_background_color',
+            'font_size': 'title_font_size', 'title_font_size': 'title_font_size',
+            'banner_title': 'banner_title', 'banner_subtitle': 'banner_subtitle'
+        };
+        for (const [key, value] of params.entries()) {
+            const mappedKey = paramMapping[key] || key;
+            if (value) urlParams[mappedKey] = decodeURIComponent(value);
+        }
+        return urlParams;
+    }
+
+    function autoFillFromURL() {
+        const urlParams = getURLParameters();
+        if (Object.keys(urlParams).length === 0) return false;
+        let fieldsUpdated = 0;
+        Object.entries(urlParams).forEach(([key, value]) => {
+            const field = document.getElementById(key);
+            if (field && value) { field.value = value; fieldsUpdated++; }
+        });
+        if (urlParams.event_title) {
             const titleEditor = document.getElementById('titleEditor');
             const titleHidden = document.getElementById('event_title');
-            
-            // Setup description editor
+            if (titleEditor && titleHidden) {
+                titleEditor.innerHTML = urlParams.event_title;
+                titleHidden.value = urlParams.event_title;
+                fieldsUpdated++;
+            }
+        }
+        if (urlParams.description) {
             const descEditor = document.getElementById('descriptionEditor');
             const descHidden = document.getElementById('description');
-            
-            // Initialize with sample content
-            titleEditor.innerHTML = 'Summer Music Festival';
-            descEditor.innerHTML = 'Join us for an amazing evening of music and entertainment';
-            
-            // Update hidden fields when content changes
-            titleEditor.addEventListener('input', () => {
-                titleHidden.value = titleEditor.innerHTML;
+            if (descEditor && descHidden) {
+                descEditor.innerHTML = urlParams.description;
+                descHidden.value = urlParams.description;
+                fieldsUpdated++;
+            }
+        }
+        if (urlParams.event_time) {
+            const timeField = document.getElementById('event_time');
+            if (timeField) {
+                let timeValue = urlParams.event_time;
+                if (timeValue.includes('PM') || timeValue.includes('AM')) {
+                    const timeParts = timeValue.replace(/PM|AM/i, '').trim().split(':');
+                    let hours = parseInt(timeParts[0]);
+                    const minutes = timeParts[1] || '00';
+                    if (timeValue.toUpperCase().includes('PM') && hours !== 12) hours += 12;
+                    else if (timeValue.toUpperCase().includes('AM') && hours === 12) hours = 0;
+                    timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
+                }
+                timeField.value = timeValue;
+            }
+        }
+        if (urlParams.end_time) {
+            const endTimeField = document.getElementById('end_time');
+            if (endTimeField) {
+                let timeValue = urlParams.end_time;
+                if (timeValue.includes('PM') || timeValue.includes('AM')) {
+                    const timeParts = timeValue.replace(/PM|AM/i, '').trim().split(':');
+                    let hours = parseInt(timeParts[0]);
+                    const minutes = timeParts[1] || '00';
+                    if (timeValue.toUpperCase().includes('PM') && hours !== 12) hours += 12;
+                    else if (timeValue.toUpperCase().includes('AM') && hours === 12) hours = 0;
+                    timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
+                }
+                endTimeField.value = timeValue;
+            }
+        }
+        return fieldsUpdated > 0;
+    }
+
+    function copyShareableURL() {
+        const formData = new FormData(document.getElementById('eventForm'));
+        const baseURL = window.location.origin + window.location.pathname;
+        const params = new URLSearchParams();
+        const titleEditor = document.getElementById('titleEditor');
+        const descEditor = document.getElementById('descriptionEditor');
+
+        if (titleEditor.innerHTML && titleEditor.innerHTML !== 'Summer Music Festival') params.append('title', encodeURIComponent(titleEditor.innerHTML));
+        if (formData.get('event_date')) params.append('date', formData.get('event_date'));
+        if (formData.get('event_time')) {
+            const time24 = formData.get('event_time');
+            const [hours, minutes] = time24.split(':');
+            const hour12 = parseInt(hours);
+            const ampm = hour12 >= 12 ? 'PM' : 'AM';
+            const displayHour = hour12 === 0 ? 12 : hour12 > 12 ? hour12 - 12 : hour12;
+            const time12 = `${displayHour}:${minutes}${ampm}`;
+            params.append('time', time12);
+        }
+        if (formData.get('end_time')) {
+            const time24 = formData.get('end_time');
+            const [hours, minutes] = time24.split(':');
+            const hour12 = parseInt(hours);
+            const ampm = hour12 >= 12 ? 'PM' : 'AM';
+            const displayHour = hour12 === 0 ? 12 : hour12 > 12 ? hour12 - 12 : hour12;
+            const time12 = `${displayHour}:${minutes}${ampm}`;
+            params.append('end_time', time12);
+        }
+        if (formData.get('location')) params.append('location', encodeURIComponent(formData.get('location')));
+        if (descEditor.innerHTML && descEditor.innerHTML !== 'Join us for an amazing evening of music and entertainment') params.append('description', encodeURIComponent(descEditor.innerHTML));
+        if (formData.get('image_url')) params.append('image', encodeURIComponent(formData.get('image_url')));
+        if (formData.get('qr_code_url')) params.append('qr', encodeURIComponent(formData.get('qr_code_url')));
+        if (formData.get('secondary_image_url')) params.append('secondary_image', encodeURIComponent(formData.get('secondary_image_url')));
+        if (formData.get('content_background_color') && formData.get('content_background_color') !== '#f8f9fa') params.append('bg_color', formData.get('content_background_color'));
+        if (formData.get('banner_background_color') && formData.get('banner_background_color') !== '#3b82f6') params.append('banner_bg', formData.get('banner_background_color'));
+        if (formData.get('title_font_size') && formData.get('title_font_size') !== '32') params.append('font_size', formData.get('title_font_size'));
+        if (formData.get('banner_title')) params.append('banner_title', encodeURIComponent(formData.get('banner_title')));
+        if (formData.get('banner_subtitle')) params.append('banner_subtitle', encodeURIComponent(formData.get('banner_subtitle')));
+
+        const shareableURL = params.toString() ? `${baseURL}?${params.toString()}` : baseURL;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(shareableURL).then(() => showSuccess('Shareable URL copied to clipboard!')).catch(() => fallbackCopyToClipboard(shareableURL));
+        } else {
+            fallbackCopyToClipboard(shareableURL);
+        }
+    }
+
+    function fallbackCopyToClipboard(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed'; textArea.style.left = '-999999px'; textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus(); textArea.select();
+        try {
+            document.execCommand('copy');
+            showSuccess('Shareable URL copied to clipboard!');
+        } catch (err) {
+            showError('Could not copy URL. Please copy manually from the address bar.');
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeApp();
+        setupRealTimePreview();
+        setTimeout(() => {
+            const wasAutoFilled = autoFillFromURL();
+            if (wasAutoFilled) {
+                showSuccess('Form auto-filled from URL parameters!');
                 updateLivePreview();
-            });
-            
-            descEditor.addEventListener('input', () => {
-                descHidden.value = descEditor.innerHTML;
-                updateLivePreview();
-            });
-            
-            // Title formatting controls
-            document.getElementById('titleBold').addEventListener('click', () => {
-                applyFormatting('bold', titleEditor);
-            });
-            
-            document.getElementById('titleThin').addEventListener('click', () => {
-                applyFormatting('removeFormat', titleEditor);
-                applyFormatting('fontWeight', titleEditor, '100');
-            });
-            
-            document.getElementById('titleClear').addEventListener('click', () => {
-                applyFormatting('removeFormat', titleEditor);
-            });
-            
-            document.getElementById('titleSmall').addEventListener('click', () => {
-                applyFormatting('fontSize', titleEditor, '1');
-            });
-            
-            document.getElementById('titleLarge').addEventListener('click', () => {
-                applyFormatting('fontSize', titleEditor, '7');
-            });
-            
-            // Description formatting controls
-            document.getElementById('descBold').addEventListener('click', () => {
-                applyFormatting('bold', descEditor);
-            });
-            
-            document.getElementById('descItalic').addEventListener('click', () => {
-                applyFormatting('italic', descEditor);
-            });
-            
-            document.getElementById('descBullet').addEventListener('click', () => {
-                applyFormatting('insertUnorderedList', descEditor);
-            });
-            
-            document.getElementById('descNumber').addEventListener('click', () => {
-                applyFormatting('insertOrderedList', descEditor);
-            });
-            
-            document.getElementById('descClear').addEventListener('click', () => {
-                applyFormatting('removeFormat', descEditor);
-            });
-            
-            // Update hidden fields initially
-            titleHidden.value = titleEditor.innerHTML;
-            descHidden.value = descEditor.innerHTML;
-        }
-        
-        function applyFormatting(command, editor, value = null) {
-            editor.focus();
-            
-            if (command === 'fontWeight') {
-                // Apply font weight to selection
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
-                    const range = selection.getRangeAt(0);
-                    if (!range.collapsed) {
-                        const span = document.createElement('span');
-                        span.style.fontWeight = value;
-                        try {
-                            range.surroundContents(span);
-                        } catch (e) {
-                            // If can't surround, extract and wrap
-                            const contents = range.extractContents();
-                            span.appendChild(contents);
-                            range.insertNode(span);
-                        }
-                        selection.removeAllRanges();
-                    }
-                }
-            } else {
-                document.execCommand(command, false, value);
             }
-            
-            // Update hidden field
-            const hiddenField = editor.id === 'titleEditor' ? 
-                document.getElementById('event_title') : 
-                document.getElementById('description');
-            hiddenField.value = editor.innerHTML;
-            
-            updateLivePreview();
-        }
-
-        function processRichText(htmlContent) {
-            if (!htmlContent) return '';
-            
-            // Clean up the HTML and ensure it displays properly
-            let processed = htmlContent
-                .replace(/<div>/g, '<p>')
-                .replace(/<\/div>/g, '</p>')
-                .replace(/<br\s*\/?>/g, '<br>')
-                .replace(/&nbsp;/g, ' ')
-                .replace(/<p><\/p>/g, '') // Remove empty paragraphs
-                .replace(/<p>\s*<\/p>/g, ''); // Remove paragraphs with only whitespace
-            
-            // Ensure proper paragraph structure for plain text
-            if (!processed.includes('<p>') && !processed.includes('<ul>') && !processed.includes('<ol>') && !processed.includes('<strong>') && !processed.includes('<em>')) {
-                processed = `<p>${processed}</p>`;
-            }
-            
-            // Add proper styling to lists
-            processed = processed
-                .replace(/<ul>/g, '<ul style="margin: 8px 0; padding-left: 20px; list-style-type: disc;">')
-                .replace(/<ol>/g, '<ol style="margin: 8px 0; padding-left: 20px; list-style-type: decimal;">')
-                .replace(/<li>/g, '<li style="margin-bottom: 4px; line-height: 1.5;">')
-                .replace(/<p>/g, '<p style="margin: 0 0 8px 0; line-height: 1.6;">')
-                .replace(/<strong>/g, '<strong style="font-weight: 700; color: #2d3748;">')
-                .replace(/<em>/g, '<em style="font-style: italic; color: #4a5568;">');
-            
-            return processed;
-        }
-
-        function updateLivePreview() {
-            const titleEditor = document.getElementById('titleEditor');
-            const descEditor = document.getElementById('descriptionEditor');
-            
-            const eventData = {
-                event_title: titleEditor.innerHTML || 'Summer Music Festival',
-                event_date: document.getElementById('event_date').value || '2024-07-15',
-                event_time: document.getElementById('event_time').value || '18:00',
-                end_time: document.getElementById('end_time').value || '22:00',
-                location: document.getElementById('location').value || 'Central Park, New York',
-                description: descEditor.innerHTML || 'Join us for an amazing evening of music and entertainment under the stars. Experience live performances from top artists.',
-                image_url: document.getElementById('image_url').value || '',
-                qr_code_url: document.getElementById('qr_code_url').value || '',
-                secondary_image_url: document.getElementById('secondary_image_url').value || '',
-                background_color: '#ff6600',
-                banner_background_color: document.getElementById('banner_background_color').value || '#ff6600',
-                content_background_color: document.getElementById('content_background_color').value || '#f8f9fa',
-                layout_style: 'classic',
-                title_font_size: document.getElementById('title_font_size').value || '32',
-                title_alignment: document.getElementById('title_alignment').value || 'left',
-                title_formatting: document.getElementById('title_formatting').value || '',
-                banner_title: document.getElementById('banner_title').value || 'Join us for an amazing event',
-                banner_subtitle: document.getElementById('banner_subtitle').value || 'Don\'t miss this incredible opportunity'
-            };
-            
-            updatePreviewElements(eventData);
-        }
-
-        // Form submission
-        document.getElementById('eventForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            if (isLoading) return;
-            
-            // Check data limit
-            if (currentData.length >= 999) {
-                showError("Maximum limit of 999 events reached. Please delete some events first.");
-                return;
-            }
-
-            const formData = new FormData(e.target);
-            const eventData = {
-                id: Date.now().toString(),
-                event_title: formData.get('event_title'),
-                event_date: formData.get('event_date'),
-                event_time: formData.get('event_time'),
-                end_time: formData.get('end_time') || '',
-                location: formData.get('location'),
-                description: formData.get('description') || '',
-                image_url: formData.get('image_url') || '',
-                qr_code_url: formData.get('qr_code_url') || '',
-                secondary_image_url: formData.get('secondary_image_url') || '',
-                background_color: '#ff6600',
-                banner_background_color: formData.get('banner_background_color') || '#ff6600',
-                content_background_color: formData.get('content_background_color') || '#f8f9fa',
-                layout_style: 'classic',
-                title_font_size: formData.get('title_font_size') || '32',
-                title_alignment: formData.get('title_alignment') || 'left',
-                title_formatting: formData.get('title_formatting') || '',
-                banner_title: formData.get('banner_title') || 'Join us for an amazing event',
-                banner_subtitle: formData.get('banner_subtitle') || 'Don\'t miss this incredible opportunity',
-                created_at: new Date().toISOString()
-            };
-
-            await submitEventData(eventData);
-        });
-
-        async function submitEventData(data) {
-            setLoading(true);
-            
-            try {
-                if (window.dataSdk) {
-                    const result = await window.dataSdk.create(data);
-                    if (result.isOk) {
-                        document.getElementById('eventForm').reset();
-                        showSuccess("Event poster created and saved successfully!");
-                        // Update preview with default values after reset
-                        setTimeout(updateLivePreview, 100);
-                    } else {
-                        showError("Failed to save event. Please try again.");
-                    }
-                } else {
-                    // If no data SDK, just show success for the creation
-                    document.getElementById('eventForm').reset();
-                    showSuccess("Event poster created successfully!");
-                    setTimeout(updateLivePreview, 100);
-                }
-            } catch (error) {
-                showError("An error occurred while saving.");
-                console.error('Submit error:', error);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        function updatePreviewWithConfig(config) {
-            // Update preview elements with config values if no current data
-            if (currentData.length === 0) {
-                const sampleEvent = {
-                    event_title: "Summer Music Festival",
-                    event_date: "2024-07-15",
-                    event_time: "18:00",
-                    location: "Central Park, New York",
-                    description: "Join us for an amazing evening of music and entertainment",
-                    background_color: "#ff6600",
-                    layout_style: "classic",
-                    image_url: ""
-                };
-                updatePreviewElements(sampleEvent, config);
-            }
-        }
-
-        function updatePreviewWithLatest() {
-            if (currentData.length > 0) {
-                const latest = currentData[currentData.length - 1];
-                updatePreviewElements(latest);
-            }
-        }
-
-        function updatePreviewElements(eventData, config = null) {
-            const currentConfig = config || (window.elementSdk?.config || defaultConfig);
-            
-            // Generate poster HTML
-            const posterHTML = generatePosterHTML(eventData, currentConfig);
-            document.getElementById('posterPreview').innerHTML = posterHTML;
-
-            // Generate banner HTML
-            const bannerHTML = generateBannerHTML(eventData, currentConfig);
-            document.getElementById('bannerPreview').innerHTML = bannerHTML;
-            
-            // Re-enable drag functionality after updating preview
-            setTimeout(makeDraggable, 100);
-        }
-
-        function generatePosterHTML(event, config) {
-            const formattedDate = formatDate(event.event_date);
-            const startTime = formatTime(event.event_time);
-            const endTime = event.end_time ? formatTime(event.end_time) : '';
-            const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
-            const titleFontSize = event.title_font_size || '32';
-            
-            // Process title formatting
-            const alignment = event.title_alignment || 'left';
-            const formats = event.title_formatting ? event.title_formatting.split(',') : [];
-            
-            let titleStyle = `font-size: ${titleFontSize}px; line-height: 1.2; color: #333; text-align: ${alignment}; margin: 0; padding: 20px; word-wrap: break-word;`;
-            
-            if (formats.includes('bold')) titleStyle += ' font-weight: bold;';
-            else if (formats.includes('thin')) titleStyle += ' font-weight: 100;';
-            else titleStyle += ' font-weight: 600;';
-            
-            // Generate QR code URL if provided
-            const qrCodeSrc = event.qr_code_url ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(event.qr_code_url)}` : '';
-            
-            return `
-                <div style="width: 595px; height: 842px; background: white; position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
-                    <!-- Header Section (595x300) -->
-                    <div style="width: 595px; height: 300px; background: linear-gradient(135deg, #ff6600 0%, #e55a00 100%); display: flex; position: relative;">
-                        <!-- Event Title Area (297.5x300) -->
-                        <div style="width: 297.5px; height: 300px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; background: rgba(255,255,255,0.95);">
-                            <div style="${titleStyle.replace('color: #333', 'color: #2d3748')}">${processRichText(event.event_title)}</div>
-                        </div>
-                        
-                        <!-- Key Image (297.5x300) -->
-                        <div style="width: 297.5px; height: 300px; background-color: #f8f9fa; overflow: hidden; position: relative;">
-                            ${event.image_url ? 
-                                `<img src="${event.image_url}" alt="Event" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#666;background:#f8f9fa;\\'><svg width=\\'80\\' height=\\'80\\' fill=\\'currentColor\\' viewBox=\\'0 0 20 20\\'><path fill-rule=\\'evenodd\\' d=\\'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z\\' clip-rule=\\'evenodd\\'/></svg></div>';">` :
-                                `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;background:#f8f9fa;"><svg width="80" height="80" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg></div>`
-                            }
-                        </div>
-                    </div>
-                    
-                    <!-- Content Body (595x472) -->
-                    <div style="width: 595px; height: 472px; background: ${event.content_background_color || '#ffffff'}; color: #333; position: relative; padding: 25px; box-sizing: border-box;">
-                        <!-- About This Event -->
-                        <div class="draggable" style="position: absolute; top: 25px; left: 25px; width: 545px; max-height: 160px; overflow-y: auto;">
-                            <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 12px; color: #2d3748; margin-top: 0; border-bottom: 2px solid #ff6600; padding-bottom: 8px; display: inline-block;">About This Event</h2>
-                            <div style="font-size: 15px; line-height: 1.6; margin: 0; color: #4a5568; word-wrap: break-word; overflow-wrap: break-word;">${processRichText(event.description) || 'Event description will appear here with all your formatting including <strong>bold text</strong>, <em>italic text</em>, and bullet points.'}</div>
-                        </div>
-                        
-                        <!-- Event Details with Custom Icons -->
-                        <div class="draggable" style="position: absolute; top: 180px; left: 25px; width: 350px;">
-                            <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 15px; border: 1px solid #dee2e6; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                                <!-- Date -->
-                                <div style="display: flex; align-items: center; padding: 12px 0;">
-                                    <div style="width: 24px; height: 24px; margin-right: 12px; flex-shrink: 0;">
-                                        <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-01.svg" alt="Date" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.outerHTML='<div style=\\'width:24px;height:24px;background:#ff6600;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:bold;\\'>📅</div>';">
-                                    </div>
-                                    <div style="font-size: 15px; color: #2d3748; font-weight: 500;">${formattedDate}</div>
-                                </div>
-                                
-                                <!-- Separator Line -->
-                                <div style="height: 1px; background: linear-gradient(90deg, #dee2e6 0%, #adb5bd 50%, #dee2e6 100%); margin: 0;"></div>
-                                
-                                <!-- Time -->
-                                <div style="display: flex; align-items: center; padding: 12px 0;">
-                                    <div style="width: 24px; height: 24px; margin-right: 12px; flex-shrink: 0;">
-                                        <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-02.svg" alt="Time" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.outerHTML='<div style=\\'width:24px;height:24px;background:#ff6600;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:bold;\\'>🕐</div>';">
-                                    </div>
-                                    <div style="font-size: 15px; color: #2d3748; font-weight: 500;">${timeRange}</div>
-                                </div>
-                                
-                                <!-- Separator Line -->
-                                <div style="height: 1px; background: linear-gradient(90deg, #dee2e6 0%, #adb5bd 50%, #dee2e6 100%); margin: 0;"></div>
-                                
-                                <!-- Location -->
-                                <div style="display: flex; align-items: center; padding: 12px 0;">
-                                    <div style="width: 24px; height: 24px; margin-right: 12px; flex-shrink: 0;">
-                                        <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-03.svg" alt="Location" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.outerHTML='<div style=\\'width:24px;height:24px;background:#ff6600;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:bold;\\'>📍</div>';">
-                                    </div>
-                                    <div style="font-size: 15px; color: #2d3748; font-weight: 500; line-height: 1.4;">${event.location}</div>
-                                </div>
-                                
-                                <!-- Bottom Separator Line -->
-                                <div style="height: 1px; background: linear-gradient(90deg, #dee2e6 0%, #adb5bd 50%, #dee2e6 100%); margin: 0;"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- QR Code -->
-                        ${qrCodeSrc ? `
-                        <div class="draggable" style="position: absolute; top: 180px; right: 25px; width: 140px; height: 140px;">
-                            <div style="background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #dee2e6;">
-                                <img src="${qrCodeSrc}" alt="QR Code" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.style.display='none';">
-                            </div>
-                        </div>
-                        ` : ''}
-                        
-                        <!-- Secondary Image -->
-                        ${event.secondary_image_url ? `
-                        <div class="draggable" style="position: absolute; top: 340px; left: 25px; width: 200px; height: 100px;">
-                            <img src="${event.secondary_image_url}" alt="Secondary Image" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onerror="this.style.display='none';">
-                        </div>
-                        ` : ''}
-                    </div>
-                    
-                    <!-- Footer with Custom SVG (595x70) -->
-                    <div style="width: 100%; height: 70px; background: white; position: absolute; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden;">
-                        <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-04.svg" alt="Footer" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" onerror="this.outerHTML='<div style=\\'color:#666;font-size:14px;font-weight:500;width:100%;height:100%;display:flex;align-items:center;justify-content:center;\\'>Event Poster</div>';">
-                    </div>
-                </div>
-            `;
-        }
-
-        function generateBannerHTML(event, config) {
-            const formattedDate = formatDate(event.event_date);
-            const startTime = formatTime(event.event_time);
-            const endTime = event.end_time ? formatTime(event.end_time) : '';
-            const timeRange = endTime ? `${startTime} - ${endTime}` : startTime;
-            
-            // Generate simplified date format for banner
-            const simplifiedDate = formatSimplifiedDate(event.event_date);
-            const simplifiedTime = formatSimplifiedTime(event.event_time, event.end_time);
-            const simplifiedLocation = event.location.split(',')[0];
-            const infoText = `${simplifiedDate} | ${simplifiedTime} | ${simplifiedLocation}`;
-            
-            return `
-                <div style="width: 600px; height: 200px; background-color: white; color: #333; display: flex; align-items: center; padding: 30px; box-sizing: border-box; position: relative; border: 1px solid #dee2e6;">
-                    <!-- Info Box -->
-                    <div style="position: absolute; top: 15px; left: 30px; background: #2d3748; color: white; padding: 6px 12px; border-radius: 15px; font-size: 12px; font-weight: 500; z-index: 10;">
-                        ${infoText}
-                    </div>
-                    
-                    <div style="flex: 1; padding-right: 30px; margin-top: 20px;">
-                        <div style="font-size: 24px; margin-bottom: 8px; line-height: 1.2; margin-top: 0; font-weight: bold; color: #333;">${event.banner_title || event.event_title}</div>
-                        <p style="font-size: 16px; margin: 0; line-height: 1.4; color: #666;">${event.banner_subtitle || 'Join us for an amazing event'}</p>
-                    </div>
-                    <div style="width: 140px; height: 140px; flex-shrink: 0; background: #f8f9fa; border-radius: 8px; overflow: hidden; border: 1px solid #dee2e6;">
-                        ${event.image_url ? 
-                            `<img src="${event.image_url}" alt="Event" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#666;\\'><svg width=\\'60\\' height=\\'60\\' fill=\\'currentColor\\' viewBox=\\'0 0 20 20\\'><path fill-rule=\\'evenodd\\' d=\\'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z\\' clip-rule=\\'evenodd\\'/></svg></div>';">` :
-                            `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;"><svg width="60" height="60" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg></div>`
-                        }
-                    </div>
-                </div>
-            `;
-        }
-
-        function setupDownloadHandlers() {
-            document.getElementById('downloadPoster').addEventListener('click', () => {
-                downloadElement('posterPreview', 'event-poster.png');
-            });
-
-            document.getElementById('downloadBanner').addEventListener('click', () => {
-                downloadElement('bannerPreview', 'event-banner.png');
-            });
-        }
-
-        async function downloadElement(elementId, filename) {
-            const downloadBtn = elementId === 'posterPreview' ? 
-                document.getElementById('downloadPoster') : 
-                document.getElementById('downloadBanner');
-            
-            // Show loading state
-            const originalText = downloadBtn.textContent;
-            downloadBtn.innerHTML = '<div class="loading-spinner inline-block mr-2"></div>Generating...';
-            downloadBtn.disabled = true;
-            
-            try {
-                const element = document.getElementById(elementId);
-                if (!element) {
-                    throw new Error("Element not found for download");
-                }
-
-                // Wait for any images to load
-                const images = element.querySelectorAll('img');
-                await Promise.all(Array.from(images).map(img => {
-                    return new Promise((resolve) => {
-                        if (img.complete) {
-                            resolve();
-                        } else {
-                            img.onload = resolve;
-                            img.onerror = resolve; // Continue even if image fails
-                        }
-                    });
-                }));
-
-                // Simple approach - use the element directly with html2canvas
-                let targetWidth, targetHeight;
-                
-                if (elementId === 'posterPreview') {
-                    targetWidth = 595;
-                    targetHeight = 842;
-                    filename = filename.replace('.png', '.jpg');
-                } else if (elementId === 'bannerPreview') {
-                    targetWidth = 600;
-                    targetHeight = 200;
-                    filename = filename.replace('.png', '.jpg');
-                }
-
-                // Use html2canvas with simpler settings
-                const canvas = await html2canvas(element, {
-                    backgroundColor: '#ffffff',
-                    scale: 2, // 2x resolution for quality
-                    useCORS: true,
-                    allowTaint: false,
-                    logging: false,
-                    width: targetWidth,
-                    height: targetHeight,
-                    scrollX: 0,
-                    scrollY: 0,
-                    foreignObjectRendering: true,
-                    removeContainer: false
-                });
-
-                // Convert to blob and download
-                canvas.toBlob((blob) => {
-                    if (!blob) {
-                        throw new Error("Failed to generate image");
-                    }
-                    
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = filename;
-                    link.style.display = 'none';
-                    
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    
-                    // Clean up
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                    
-                    showSuccess(`${filename} downloaded successfully!`);
-                }, 'image/jpeg', 0.9);
-                
-            } catch (error) {
-                console.error('Download error:', error);
-                
-                // Fallback: Try to open in new window
-                try {
-                    const element = document.getElementById(elementId);
-                    const canvas = await html2canvas(element, {
-                        backgroundColor: '#ffffff',
-                        scale: 1,
-                        useCORS: true,
-                        allowTaint: true,
-                        logging: false
-                    });
-                    
-                    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-                    const newWindow = window.open();
-                    newWindow.document.write(`
-                        <html>
-                            <head><title>Download ${filename}</title></head>
-                            <body style="margin:0;padding:20px;text-align:center;font-family:Arial,sans-serif;">
-                                <h3>Right-click the image below and select "Save Image As..."</h3>
-                                <img src="${dataURL}" style="max-width:100%;height:auto;border:1px solid #ccc;" alt="Generated Image">
-                                <p><small>Filename: ${filename}</small></p>
-                            </body>
-                        </html>
-                    `);
-                    newWindow.document.close();
-                    showSuccess("Image opened in new window. Right-click to save!");
-                } catch (fallbackError) {
-                    showError("Download failed. Please try using Chrome or Firefox browser.");
-                }
-            } finally {
-                // Restore button state
-                downloadBtn.innerHTML = originalText;
-                downloadBtn.disabled = false;
-            }
-        }
-
-        function formatDate(dateString) {
-            if (!dateString) return 'TBD';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', { 
-                weekday: 'short', 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
-            });
-        }
-
-        function formatTime(timeString) {
-            if (!timeString) return 'TBD';
-            const [hours, minutes] = timeString.split(':');
-            const date = new Date();
-            date.setHours(parseInt(hours), parseInt(minutes));
-            return date.toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit',
-                hour12: true 
-            });
-        }
-
-        function formatSimplifiedDate(dateString) {
-            if (!dateString) return 'TBD';
-            const date = new Date(dateString);
-            const day = date.getDate();
-            const month = date.getMonth() + 1;
-            const year = date.getFullYear();
-            return `${day}.${month}.${year}`;
-        }
-
-        function formatSimplifiedTime(startTime, endTime) {
-            if (!startTime) return 'TBD';
-            
-            const formatTo12Hour = (timeString) => {
-                const [hours, minutes] = timeString.split(':');
-                const hour = parseInt(hours);
-                const ampm = hour >= 12 ? 'pm' : 'am';
-                const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-                return minutes === '00' ? `${displayHour}${ampm}` : `${displayHour}:${minutes}${ampm}`;
-            };
-
-            const start = formatTo12Hour(startTime);
-            if (!endTime) return start;
-            
-            const end = formatTo12Hour(endTime);
-            return `${start}-${end}`;
-        }
-
-        function setLoading(loading) {
-            isLoading = loading;
-            const submitBtn = document.getElementById('submitBtn');
-            const spinner = document.getElementById('submitSpinner');
-            
-            if (loading) {
-                submitBtn.disabled = true;
-                submitBtn.classList.add('opacity-75');
-                spinner.classList.remove('hidden');
-            } else {
-                submitBtn.disabled = false;
-                submitBtn.classList.remove('opacity-75');
-                spinner.classList.add('hidden');
-            }
-        }
-
-        function updateDataCount() {
-            document.getElementById('dataCount').textContent = currentData.length;
-        }
-
-        function renderEventsGallery() {
-            const gallery = document.getElementById('eventsGallery');
-            const emptyState = document.getElementById('emptyState');
-
-            if (currentData.length === 0) {
-                gallery.innerHTML = '';
-                emptyState.style.display = 'block';
-                return;
-            }
-
-            emptyState.style.display = 'none';
-            
-            gallery.innerHTML = currentData.map(event => {
-                const formattedDate = formatDate(event.event_date);
-                const formattedTime = formatTime(event.event_time);
-                
-                return `
-                    <div class="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200">
-                        <div class="h-48 relative" style="background-color: ${event.background_color}">
-                            <div class="absolute inset-0 p-4 text-white flex flex-col justify-center">
-                                <h3 class="text-lg font-bold mb-2">${event.event_title}</h3>
-                                <div class="space-y-1 text-sm opacity-90">
-                                    <p>📅 ${formattedDate}</p>
-                                    <p>🕐 ${formattedTime}</p>
-                                    <p>📍 ${event.location}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="p-4">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs text-gray-500">${new Date(event.created_at).toLocaleDateString()}</span>
-                                <div class="flex gap-2">
-                                    <button onclick="viewEvent('${event.__backendId}')" class="text-blue-500 hover:text-blue-700 text-sm font-medium">
-                                        View
-                                    </button>
-                                    <button onclick="deleteEvent('${event.__backendId}')" class="text-red-500 hover:text-red-700 text-sm font-medium">
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function viewEvent(backendId) {
-            const event = currentData.find(e => e.__backendId === backendId);
-            if (event) {
-                updatePreviewElements(event);
-                // Scroll to preview section
-                document.querySelector('.preview-section').scrollIntoView({ behavior: 'smooth' });
-            }
-        }
-
-        async function deleteEvent(backendId) {
-            if (!window.dataSdk) return;
-
-            const event = currentData.find(e => e.__backendId === backendId);
-            if (!event) return;
-
-            try {
-                const result = await window.dataSdk.delete(event);
-                if (result.isOk) {
-                    showSuccess("Event deleted successfully!");
-                } else {
-                    showError("Failed to delete event.");
-                }
-            } catch (error) {
-                showError("An error occurred while deleting.");
-            }
-        }
-
-        function showSuccess(message) {
-            showToast(message, 'success');
-        }
-
-        function showError(message) {
-            showToast(message, 'error');
-        }
-
-        function showToast(message, type) {
-            const toast = document.createElement('div');
-            toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg text-white font-medium z-50 ${
-                type === 'success' ? 'bg-green-500' : 'bg-red-500'
-            }`;
-            toast.textContent = message;
-            
-            document.body.appendChild(toast);
-            
-            setTimeout(() => {
-                toast.remove();
-            }, 3000);
-        }
-
-        // Drag and Drop functionality
-        function makeDraggable() {
-            const draggables = document.querySelectorAll('.draggable');
-            
-            draggables.forEach(element => {
-                let isDragging = false;
-                let startX, startY, initialLeft, initialTop;
-                
-                element.addEventListener('mousedown', (e) => {
-                    isDragging = true;
-                    startX = e.clientX;
-                    startY = e.clientY;
-                    
-                    const rect = element.getBoundingClientRect();
-                    const parentRect = element.parentElement.getBoundingClientRect();
-                    initialLeft = rect.left - parentRect.left;
-                    initialTop = rect.top - parentRect.top;
-                    
-                    element.style.zIndex = '1000';
-                    e.preventDefault();
-                });
-                
-                document.addEventListener('mousemove', (e) => {
-                    if (!isDragging) return;
-                    
-                    const deltaX = e.clientX - startX;
-                    const deltaY = e.clientY - startY;
-                    
-                    const newLeft = Math.max(0, Math.min(initialLeft + deltaX, element.parentElement.offsetWidth - element.offsetWidth));
-                    const newTop = Math.max(0, Math.min(initialTop + deltaY, element.parentElement.offsetHeight - element.offsetHeight));
-                    
-                    element.style.left = newLeft + 'px';
-                    element.style.top = newTop + 'px';
-                });
-                
-                document.addEventListener('mouseup', () => {
-                    if (isDragging) {
-                        isDragging = false;
-                        element.style.zIndex = 'auto';
-                    }
-                });
-            });
-        }
-
-        // URL Parameter Auto-Fill Functions
-        function getURLParameters() {
-            const params = new URLSearchParams(window.location.search);
-            const urlParams = {};
-            
-            // Parameter mapping - multiple names for same field
-            const paramMapping = {
-                // Event title
-                'title': 'event_title',
-                'event_title': 'event_title',
-                
-                // Date and time
-                'date': 'event_date',
-                'event_date': 'event_date',
-                'time': 'event_time',
-                'start_time': 'event_time',
-                'event_time': 'event_time',
-                'end_time': 'end_time',
-                
-                // Location and description
-                'location': 'location',
-                'description': 'description',
-                
-                // Images
-                'image': 'image_url',
-                'image_url': 'image_url',
-                'qr': 'qr_code_url',
-                'qr_code': 'qr_code_url',
-                'qr_code_url': 'qr_code_url',
-                'secondary_image': 'secondary_image_url',
-                'secondary_image_url': 'secondary_image_url',
-                
-                // Colors
-                'bg_color': 'content_background_color',
-                'background_color': 'content_background_color',
-                'content_background_color': 'content_background_color',
-                'banner_bg': 'banner_background_color',
-                'banner_background_color': 'banner_background_color',
-                
-                // Font and styling
-                'font_size': 'title_font_size',
-                'title_font_size': 'title_font_size',
-                
-                // Banner text
-                'banner_title': 'banner_title',
-                'banner_subtitle': 'banner_subtitle'
-            };
-            
-            // Process all URL parameters
-            for (const [key, value] of params.entries()) {
-                const mappedKey = paramMapping[key] || key;
-                if (value) {
-                    urlParams[mappedKey] = decodeURIComponent(value);
-                }
-            }
-            
-            return urlParams;
-        }
-
-        function autoFillFromURL() {
-            const urlParams = getURLParameters();
-            
-            if (Object.keys(urlParams).length === 0) {
-                return false; // No parameters found
-            }
-            
-            let fieldsUpdated = 0;
-            
-            // Fill regular form fields
-            Object.entries(urlParams).forEach(([key, value]) => {
-                const field = document.getElementById(key);
-                if (field && value) {
-                    field.value = value;
-                    fieldsUpdated++;
-                }
-            });
-            
-            // Handle rich text editors specially
-            if (urlParams.event_title) {
-                const titleEditor = document.getElementById('titleEditor');
-                const titleHidden = document.getElementById('event_title');
-                if (titleEditor && titleHidden) {
-                    titleEditor.innerHTML = urlParams.event_title;
-                    titleHidden.value = urlParams.event_title;
-                    fieldsUpdated++;
-                }
-            }
-            
-            if (urlParams.description) {
-                const descEditor = document.getElementById('descriptionEditor');
-                const descHidden = document.getElementById('description');
-                if (descEditor && descHidden) {
-                    descEditor.innerHTML = urlParams.description;
-                    descHidden.value = urlParams.description;
-                    fieldsUpdated++;
-                }
-            }
-            
-            // Handle time format conversion (12:00PM -> 12:00)
-            if (urlParams.event_time) {
-                const timeField = document.getElementById('event_time');
-                if (timeField) {
-                    let timeValue = urlParams.event_time;
-                    // Convert 12:00PM format to 24-hour format
-                    if (timeValue.includes('PM') || timeValue.includes('AM')) {
-                        const timeParts = timeValue.replace(/PM|AM/i, '').trim().split(':');
-                        let hours = parseInt(timeParts[0]);
-                        const minutes = timeParts[1] || '00';
-                        
-                        if (timeValue.toUpperCase().includes('PM') && hours !== 12) {
-                            hours += 12;
-                        } else if (timeValue.toUpperCase().includes('AM') && hours === 12) {
-                            hours = 0;
-                        }
-                        
-                        timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
-                    }
-                    timeField.value = timeValue;
-                }
-            }
-            
-            if (urlParams.end_time) {
-                const endTimeField = document.getElementById('end_time');
-                if (endTimeField) {
-                    let timeValue = urlParams.end_time;
-                    // Convert 6:00PM format to 24-hour format
-                    if (timeValue.includes('PM') || timeValue.includes('AM')) {
-                        const timeParts = timeValue.replace(/PM|AM/i, '').trim().split(':');
-                        let hours = parseInt(timeParts[0]);
-                        const minutes = timeParts[1] || '00';
-                        
-                        if (timeValue.toUpperCase().includes('PM') && hours !== 12) {
-                            hours += 12;
-                        } else if (timeValue.toUpperCase().includes('AM') && hours === 12) {
-                            hours = 0;
-                        }
-                        
-                        timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
-                    }
-                    endTimeField.value = timeValue;
-                }
-            }
-            
-            return fieldsUpdated > 0;
-        }
-
-        function copyShareableURL() {
-            const formData = new FormData(document.getElementById('eventForm'));
-            const baseURL = window.location.origin + window.location.pathname;
-            const params = new URLSearchParams();
-            
-            // Get current form values
-            const titleEditor = document.getElementById('titleEditor');
-            const descEditor = document.getElementById('descriptionEditor');
-            
-            // Add form data to URL parameters
-            if (titleEditor.innerHTML && titleEditor.innerHTML !== 'Summer Music Festival') {
-                params.append('title', encodeURIComponent(titleEditor.innerHTML));
-            }
-            
-            if (formData.get('event_date')) {
-                params.append('date', formData.get('event_date'));
-            }
-            
-            if (formData.get('event_time')) {
-                // Convert back to 12-hour format for URL
-                const time24 = formData.get('event_time');
-                const [hours, minutes] = time24.split(':');
-                const hour12 = parseInt(hours);
-                const ampm = hour12 >= 12 ? 'PM' : 'AM';
-                const displayHour = hour12 === 0 ? 12 : hour12 > 12 ? hour12 - 12 : hour12;
-                const time12 = `${displayHour}:${minutes}${ampm}`;
-                params.append('time', time12);
-            }
-            
-            if (formData.get('end_time')) {
-                // Convert back to 12-hour format for URL
-                const time24 = formData.get('end_time');
-                const [hours, minutes] = time24.split(':');
-                const hour12 = parseInt(hours);
-                const ampm = hour12 >= 12 ? 'PM' : 'AM';
-                const displayHour = hour12 === 0 ? 12 : hour12 > 12 ? hour12 - 12 : hour12;
-                const time12 = `${displayHour}:${minutes}${ampm}`;
-                params.append('end_time', time12);
-            }
-            
-            if (formData.get('location')) {
-                params.append('location', encodeURIComponent(formData.get('location')));
-            }
-            
-            if (descEditor.innerHTML && descEditor.innerHTML !== 'Join us for an amazing evening of music and entertainment') {
-                params.append('description', encodeURIComponent(descEditor.innerHTML));
-            }
-            
-            if (formData.get('image_url')) {
-                params.append('image', encodeURIComponent(formData.get('image_url')));
-            }
-            
-            if (formData.get('qr_code_url')) {
-                params.append('qr', encodeURIComponent(formData.get('qr_code_url')));
-            }
-            
-            if (formData.get('secondary_image_url')) {
-                params.append('secondary_image', encodeURIComponent(formData.get('secondary_image_url')));
-            }
-            
-            if (formData.get('content_background_color') && formData.get('content_background_color') !== '#f8f9fa') {
-                params.append('bg_color', formData.get('content_background_color'));
-            }
-            
-            if (formData.get('banner_background_color') && formData.get('banner_background_color') !== '#3b82f6') {
-                params.append('banner_bg', formData.get('banner_background_color'));
-            }
-            
-            if (formData.get('title_font_size') && formData.get('title_font_size') !== '32') {
-                params.append('font_size', formData.get('title_font_size'));
-            }
-            
-            if (formData.get('banner_title')) {
-                params.append('banner_title', encodeURIComponent(formData.get('banner_title')));
-            }
-            
-            if (formData.get('banner_subtitle')) {
-                params.append('banner_subtitle', encodeURIComponent(formData.get('banner_subtitle')));
-            }
-            
-            const shareableURL = params.toString() ? `${baseURL}?${params.toString()}` : baseURL;
-            
-            // Copy to clipboard
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(shareableURL).then(() => {
-                    showSuccess('Shareable URL copied to clipboard!');
-                }).catch(() => {
-                    fallbackCopyToClipboard(shareableURL);
-                });
-            } else {
-                fallbackCopyToClipboard(shareableURL);
-            }
-        }
-
-        function fallbackCopyToClipboard(text) {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-999999px';
-            textArea.style.top = '-999999px';
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
-            try {
-                document.execCommand('copy');
-                showSuccess('Shareable URL copied to clipboard!');
-            } catch (err) {
-                showError('Could not copy URL. Please copy manually from the address bar.');
-            } finally {
-                document.body.removeChild(textArea);
-            }
-        }
-
-        // Initialize app when page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeApp();
-            setupRealTimePreview();
-            
-            // Auto-fill from URL parameters
-            setTimeout(() => {
-                const wasAutoFilled = autoFillFromURL();
-                if (wasAutoFilled) {
-                    showSuccess('Form auto-filled from URL parameters!');
-                    updateLivePreview(); // Update preview with auto-filled data
-                }
-            }, 500);
-            
-            // Add drag functionality after a short delay to ensure elements are rendered
-            setTimeout(makeDraggable, 500);
-        });
-    </script>
+        }, 500);
+        setTimeout(makeDraggable, 500);
+    });
+</script>
  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'994fb6edf5132670',t:'MTc2MTU0MjExNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
