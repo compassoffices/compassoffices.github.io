@@ -79,7 +79,7 @@
      <div class="form-section rounded-2xl p-8 text-white lg:col-span-2">
       <h2 class="text-2xl font-bold mb-6">Create New Event</h2>
       <form id="eventForm" class="space-y-6">
-       <!-- [Form fields - same as before, omitted for brevity] -->
+       <!-- [Form fields - same as before] -->
        <div><label for="event_title" class="block text-sm font-medium mb-2">Event Title</label>
         <div class="space-y-3">
          <div class="relative">
@@ -177,13 +177,20 @@
   </div>
 
   <script>
-    // CONFIG & SDK
-    const defaultConfig = { default_organizer: "Your Organization", contact_info: "contact@example.com", website_url: "www.example.com" };
+    // === INLINE SVG ICONS (NO EXTERNAL FETCH) ===
+    const svgIcons = {
+        calendar: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`,
+        clock: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+        location: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`,
+        footerLogo: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 100" fill="#ff6600"><text x="50" y="65" font-family="Arial, sans-serif" font-size="48" font-weight="bold">COMPASS</text><text x="300" y="65" font-family="Arial, sans-serif" font-size="36" fill="#2d3748">OFFICES</text></svg>`
+    };
+
+    // CONFIG
     let currentData = [], isLoading = false;
 
     async function initializeApp(){
         try{
-            if(window.elementSdk) await window.elementSdk.init({ defaultConfig, onConfigChange: async c=>{}, mapToCapabilities:c=>({}), mapToEditPanelValues:c=>new Map() });
+            if(window.elementSdk) await window.elementSdk.init({ defaultConfig:{}, onConfigChange:c=>{}, mapToCapabilities:c=>({}), mapToEditPanelValues:c=>new Map() });
             if(window.dataSdk){ const r=await window.dataSdk.init({ onDataChanged(d){} }); if(!r.isOk) console.warn("Data storage not available");}
             initializePreview(); setupDownloadHandlers(); setTimeout(updateLivePreview,200);
         }catch(e){ console.error(e); initializePreview(); setupDownloadHandlers(); setTimeout(updateLivePreview,200);}
@@ -230,7 +237,7 @@
                 const range=sel.getRangeAt(0);
                 if(!range.collapsed){
                     const span=document.createElement('span');
-                    span.style.fontWeight=val;
+                    span,span.style.fontWeight=val;
                     try{range.surroundContents(span);}catch{const c=range.extractContents();span.appendChild(c);range.insertNode(span);}
                     sel.removeAllRanges();
                 }
@@ -290,7 +297,7 @@
                         <div style="font-size:${titleFontSize}px;line-height:1.2;color:#2d3748;text-align:left;margin:0;padding:20px;word-wrap:break-word;font-weight:600;">${processRichText(event.event_title)}</div>
                     </div>
                     <div style="width:297.5px;height:300px;background:#f8f9fa;overflow:hidden;">
-                        ${event.image_url?`<img src="${event.image_url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;"><svg width=80 height=80 fill=currentColor viewBox='0 0 20 20'><path d='M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z'/></svg></div>`}
+                        ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.parentNode.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#666;\\'>\\u{1F5BC}\\uFE0F</div>'">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">Image</div>`}
                     </div>
                 </div>
 
@@ -308,24 +315,33 @@
                     <div class="draggable" style="position:absolute;top:180px;left:25px;width:350px;">
                         <div class="drag-handle"></div>
                         <div style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);padding:20px;border-radius:15px;border:1px solid #dee2e6;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
-                            <div style="display:flex;align-items:center;padding:12px 0;"><div style="width:24px;height:24px;margin-right:12px;"><img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-01.svg" style="width:100%;height:100%;"></div><div style="font-size:15px;color:#2d3748;font-weight:500;">${formattedDate}</div></div>
+                            <div style="display:flex;align-items:center;padding:12px 0;">
+                                <div style="width:24px;height:24px;margin-right:12px;color:#ff6600;">${svgIcons.calendar}</div>
+                                <div style="font-size:15px;color:#2d3748;font-weight:500;">${formattedDate}</div>
+                            </div>
                             <div style="height:1px;background:linear-gradient(90deg,#dee2e6 0%,#adb5bd 50%,#dee2e6 100%);"></div>
-                            <div style="display:flex;align-items:center;padding:12px 0;"><div style="width:24px;height:24px;margin-right:12px;"><img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-02.svg" style="width:100%;height:100%;"></div><div style="font-size:15px;color:#2d3748;font-weight:500;">${timeRange}</div></div>
+                            <div style="display:flex;align-items:center;padding:12px 0;">
+                                <div style="width:24px;height:24px;margin-right:12px;color:#ff6600;">${svgIcons.clock}</div>
+                                <div style="font-size:15px;color:#2d3748;font-weight:500;">${timeRange}</div>
+                            </div>
                             <div style="height:1px;background:linear-gradient(90deg,#dee2e6 0%,#adb5bd 50%,#dee2e6 100%);"></div>
-                            <div style="display:flex;align-items:center;padding:12px 0;"><div style="width:24px;height:24px;margin-right:12px;"><img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-03.svg" style="width:100%;height:100%;"></div><div style="font-size:15px;color:#2d3748;font-weight:500;line-height:1.4;">${event.location}</div></div>
+                            <div style="display:flex;align-items:center;padding:12px 0;">
+                                <div style="width:24px;height:24px;margin-right:12px;color:#ff6600;">${svgIcons.location}</div>
+                                <div style="font-size:15px;color:#2d3748;font-weight:500;line-height:1.4;">${event.location}</div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- QR -->
-                    ${qrSrc?`<div class="draggable" style="position:absolute;top:180px;right:25px;width:140px;height:140px;"><div class="drag-handle"></div><div style="background:white;padding:10px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid #dee2e6;"><img src="${qrSrc}" style="width:100%;height:100%;object-fit:contain;"></div></div>`:''}
+                    ${qrSrc?`<div class="draggable" style="position:absolute;top:180px;right:25px;width:140px;height:140px;"><div class="drag-handle"></div><div style="background:white;padding:10px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid #dee2e6;"><img src="${qrSrc}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'"></div></div>`:''}
 
                     <!-- Secondary -->
-                    ${event.secondary_image_url?`<div class="draggable" style="position:absolute;top:340px;left:25px;width:200px;height:100px;"><div class="drag-handle"></div><img src="${event.secondary_image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);"></div>`:''}
+                    ${event.secondary_image_url?`<div class="draggable" style="position:absolute;top:340px;left:25px;width:200px;height:100px;"><div class="drag-handle"></div><img src="${event.secondary_image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onerror="this.style.display='none'"></div>`:''}
                 </div>
 
-                <!-- FOOTER LOGO -->
+                <!-- FOOTER LOGO (INLINE SVG) -->
                 <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-04.svg" style="width:100%;height:100%;object-fit:cover;object-position:center;">
+                    ${svgIcons.footerLogo}
                 </div>
             </div>`;
     }
@@ -340,7 +356,7 @@
                     <p style="font-size:16px;margin:0;line-height:1.4;color:#666;">${event.banner_subtitle||'Join us for an amazing event'}</p>
                 </div>
                 <div style="width:140px;height:140px;background:#f8f9fa;border-radius:8px;overflow:hidden;border:1px solid #dee2e6;">
-                    ${event.image_url?`<img src="${event.image_url}" style="width:100%;height:100%;object-fit:cover;">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;"><svg width=60 height=60 fill=currentColor viewBox='0 0 20 20'><path d='M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z'/></svg></div>`}
+                    ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">Image</div>`}
                 </div>
             </div>`;
     }
@@ -414,25 +430,28 @@
             const originalTransform = el.style.transform;
             el.style.transform = 'none';
 
-            // Wait for all images
-            await Promise.all([...el.querySelectorAll('img')].map(img => 
-                new Promise(resolve => {
-                    if (img.complete && img.naturalWidth !== 0) resolve();
-                    else { img.onload = img.onerror = resolve; }
+            // Wait for ALL images (including QR, secondary, key)
+            const images = [...el.querySelectorAll('img')];
+            await Promise.all(images.map(img => 
+                new Promise((resolve) => {
+                    if (img.complete && img.naturalWidth > 0) return resolve();
+                    img.onload = () => resolve();
+                    img.onerror = () => { img.style.display = 'none'; resolve(); };
                 })
             ));
 
-            // Render at 300 DPI for poster, 1:1 for banner
-            const scale = isPoster ? 4.1667 : 1; // 300 DPI / 72 DPI
+            const scale = isPoster ? 4.1667 : 1; // 300 DPI
             const canvas = await html2canvas(el, {
                 backgroundColor: '#ffffff',
                 scale: scale,
                 useCORS: true,
+                allowTaint: false,
+                foreignObjectRendering: false,
                 width: width,
                 height: height,
                 logging: false,
-                windowWidth: width * scale,
-                windowHeight: height * scale
+                imageTimeout: 15000,
+                removeContainer: true
             });
 
             canvas.toBlob(blob => {
@@ -447,8 +466,8 @@
 
             el.style.transform = originalTransform;
         } catch (err) {
-            console.error(err);
-            showError('Download failed.');
+            console.error("Download failed:", err);
+            showError('Download failed. Check image URLs.');
         } finally {
             btn.innerHTML = orig;
             btn.disabled = false;
@@ -470,7 +489,10 @@
             el.style.transform = 'none';
 
             await Promise.all([...el.querySelectorAll('img')].map(img => 
-                new Promise(resolve => { if (img.complete) resolve(); else img.onload = img.onerror = resolve; })
+                new Promise(resolve => { 
+                    if (img.complete) resolve(); 
+                    else { img.onload = img.onerror = resolve; }
+                })
             ));
 
             const scale = isPoster ? 4.1667 : 1;
