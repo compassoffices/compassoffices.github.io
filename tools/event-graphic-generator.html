@@ -365,7 +365,7 @@
         const timeRange=event.end_time?`${formatTime(event.event_time)} - ${formatTime(event.end_time)}`:formatTime(event.event_time);
 
         return `
-            <div id="posterRoot" style="width:595px;height:843px;background:white;position:relative;overflow:visible;font-family:sans-serif;">
+            <div id="posterRoot" style="width:595px;height:842px;background:white;position:relative;overflow:visible;font-family:sans-serif;">
                 <div class="grid-overlay"></div>
                 <!-- Header -->
                 <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;">
@@ -542,10 +542,18 @@
 
         try {
             const el = document.getElementById(id);
-            const root = el.querySelector('#posterRoot') || el;
-            const width = isPoster ? 595 : 600;
-            const height = isPoster ? 843 : 200;
+            const clone = el.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.left = '-99999px';
+            clone.style.top = '0';
+            clone.style.transform = 'none';
+            clone.style.margin = '0';
+            clone.style.boxShadow = 'none';
+            document.body.appendChild(clone);
 
+            const root = clone.querySelector('#posterRoot') || clone;
+            const width = isPoster ? 595 : 600;
+            const height = isPoster ? 842 : 200;
             root.style.width = width + 'px';
             root.style.height = height + 'px';
             root.style.overflow = 'visible';
@@ -553,7 +561,7 @@
             const images = root.querySelectorAll('img');
             await Promise.all(Array.from(images).map(img => preloadImage(img.src)));
 
-            const scale = isPoster ? 3.5433 : 3;
+            const scale = isPoster ? (300 / 72) : 3;
             const canvas = await html2canvas(root, {
                 scale, width, height, useCORS: true, allowTaint: false,
                 backgroundColor: '#ffffff', logging: false, imageTimeout: 30000
@@ -566,6 +574,8 @@
                 URL.revokeObjectURL(url);
                 showSuccess('Downloaded!');
             }, 'image/jpeg', 0.98);
+
+            document.body.removeChild(clone);
         } catch (err) {
             console.error(err);
             showError('Download failed. Use public image URLs.');
@@ -582,16 +592,40 @@
         btn.disabled = true;
         try {
             const el = document.getElementById(id);
-            const root = el.querySelector('#posterRoot') || el;
+            const clone = el.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.left = '-99999px';
+            clone.style.top = '0';
+            clone.style.transform = 'none';
+            clone.style.margin = '0';
+            clone.style.boxShadow = 'none';
+            document.body.appendChild(clone);
+
+            const root = clone.querySelector('#posterRoot') || clone;
             const width = isPoster ? 595 : 600;
-            const height = isPoster ? 843 : 200;
+            const height = isPoster ? 842 : 200;
+            root.style.width = width + 'px';
+            root.style.height = height + 'px';
+            root.style.overflow = 'visible';
+
             await Promise.all(Array.from(root.querySelectorAll('img')).map(img => preloadImage(img.src)));
-            const canvas = await html2canvas(root, { scale: 3.5433, useCORS: true, width, height, backgroundColor: '#fff' });
+
+            const scale = isPoster ? (300 / 72) : 3;
+            const canvas = await html2canvas(root, { scale, useCORS: true, width, height, backgroundColor: '#fff' });
+
             const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ orientation: isPoster ? 'p' : 'l', unit: 'px', format: [width, height] });
-            pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, width, height);
+            let pdf;
+            if (isPoster) {
+                pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+                pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 210, 297);
+            } else {
+                pdf = new jsPDF({ orientation: 'l', unit: 'px', format: [600, 200] });
+                pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 600, 200);
+            }
             pdf.save(name);
             showSuccess('PDF downloaded!');
+
+            document.body.removeChild(clone);
         } catch (err) {
             console.error(err);
             showError('PDF export failed.');
