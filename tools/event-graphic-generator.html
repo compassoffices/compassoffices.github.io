@@ -274,7 +274,7 @@
         const titleFontSize=event.title_font_size||'32';
         const qrSrc=event.qr_code_url?`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(event.qr_code_url)}`:'';
         return `
-            <div style="width:595px;height:842px;background:white;position:relative;overflow:hidden;font-family:sans-serif;">
+            <div id="posterRoot" style="width:595px;height:842px;background:white;position:relative;overflow:visible;font-family:sans-serif;">
                 <!-- Header -->
                 <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;">
                     <div style="width:297.5px;height:300px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.95);">
@@ -315,15 +315,16 @@
                     </div>
                     <!-- QR -->
                     ${qrSrc?`<div class="draggable" style="position:absolute;top:180px;right:25px;width:140px;height:140px;"><div class="drag-handle"></div><div style="background:white;padding:10px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid #dee2e6;"><img src="${qrSrc}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'"></div></div>`:''}
-                    <!-- Secondary Image (Resizable) -->
+                    <!-- Secondary Image -->
                     ${event.secondary_image_url?`<div id="secondaryImageBox" class="draggable resizable" style="position:absolute;top:340px;left:25px;width:200px;height:150px;overflow:hidden;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);"><div class="drag-handle"></div><div class="resize-handle"></div><img src="${event.secondary_image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.parentNode.innerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#999;background:#f3f4f6;\\'>No Image</div>'"></div>`:''}
                 </div>
-                <!-- FOOTER – FULL EDGE-TO-EDGE WIDTH -->
+                <!-- FOOTER – FULL EDGE-TO-EDGE + EXPORT-SAFE -->
                 <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0;">
                     <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/compassoffices-poster-04.svg"
                          alt="Compass Offices"
-                         style="width:100%;height:auto;max-height:100%;object-fit:contain;object-position:center;"
+                         style="width:100%;height:auto;max-height:100%;object-fit:contain;object-position:center;opacity:0;"
                          crossorigin="anonymous"
+                         onload="this.style.opacity=1"
                          onerror="this.style.display='none'">
                 </div>
             </div>`;
@@ -400,7 +401,7 @@
         setTimeout(makeDraggableAndResizable, 100);
     }
 
-    // === DOWNLOAD ===
+    // === DOWNLOAD (JPG) – FULLY SAFE ===
     async function downloadElement(id, name, isPoster = false) {
         const btn = isPoster ? document.getElementById('downloadPoster') : document.getElementById('downloadBanner');
         const orig = btn.textContent;
@@ -408,31 +409,40 @@
         btn.disabled = true;
         try {
             const el = document.getElementById(id);
+            const root = el.querySelector('#posterRoot') || el;
+
+            // Fix: Prevent clipping
+            const originalHeight = root.style.height;
+            const originalOverflow = root.style.overflow;
+            if (isPoster) {
+                root.style.height = '843px';  // +1px to avoid cutoff
+                root.style.overflow = 'visible';
+            }
+
+            // Wait for ALL images including SVG
+            const images = [...root.querySelectorAll('img')];
+            await Promise.all(images.map(img => new Promise(resolve => {
+                if (img.complete && img.naturalWidth > 0) return resolve();
+                img.onload = () => { img.style.opacity = '1'; resolve(); };
+                img.onerror = () => { img.style.display = 'none'; resolve(); };
+            })));
+
             const width = isPoster ? 595 : 600;
-            const height = isPoster ? 842 : 200;
-            const originalTransform = el.style.transform;
-            el.style.transform = 'none';
-            const images = [...el.querySelectorAll('img')];
-            await Promise.all(images.map(img =>
-                new Promise((resolve) => {
-                    if (img.complete && img.naturalWidth > 0) return resolve();
-                    img.onload = () => resolve();
-                    img.onerror = () => { img.style.display = 'none'; resolve(); };
-                })
-            ));
+            const height = isPoster ? 843 : 200;
             const scale = isPoster ? 4.1667 : 1;
-            const canvas = await html2canvas(el, {
+
+            const canvas = await html2canvas(root, {
                 backgroundColor: '#ffffff',
                 scale: scale,
                 useCORS: true,
                 allowTaint: false,
-                foreignObjectRendering: false,
                 width: width,
                 height: height,
                 logging: false,
-                imageTimeout: 15000,
+                imageTimeout: 20000,
                 removeContainer: true
             });
+
             canvas.toBlob(blob => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -442,7 +452,12 @@
                 URL.revokeObjectURL(url);
                 showSuccess('Downloaded!');
             }, 'image/jpeg', 0.98);
-            el.style.transform = originalTransform;
+
+            // Restore
+            if (isPoster) {
+                root.style.height = originalHeight;
+                root.style.overflow = originalOverflow;
+            }
         } catch (err) {
             console.error("Download failed:", err);
             showError('Download failed. Check image URLs.');
@@ -452,6 +467,7 @@
         }
     }
 
+    // === PDF EXPORT – FULLY SAFE ===
     async function exportToPDF(id, name, isPoster = false) {
         const btn = isPoster ? document.getElementById('downloadPosterPDF') : document.getElementById('downloadBannerPDF');
         const orig = btn.textContent;
@@ -459,18 +475,27 @@
         btn.disabled = true;
         try {
             const el = document.getElementById(id);
-            const width = isPoster ? 595 : 600;
-            const height = isPoster ? 842 : 200;
-            const originalTransform = el.style.transform;
-            el.style.transform = 'none';
-            await Promise.all([...el.querySelectorAll('img')].map(img =>
+            const root = el.querySelector('#posterRoot') || el;
+
+            const originalHeight = root.style.height;
+            const originalOverflow = root.style.overflow;
+            if (isPoster) {
+                root.style.height = '843px';
+                root.style.overflow = 'visible';
+            }
+
+            await Promise.all([...root.querySelectorAll('img')].map(img => 
                 new Promise(resolve => {
                     if (img.complete) resolve();
                     else { img.onload = img.onerror = resolve; }
                 })
             ));
+
+            const width = isPoster ? 595 : 600;
+            const height = isPoster ? 843 : 200;
             const scale = isPoster ? 4.1667 : 1;
-            const canvas = await html2canvas(el, { scale, useCORS: true, width, height, backgroundColor: '#fff' });
+
+            const canvas = await html2canvas(root, { scale, useCORS: true, width, height, backgroundColor: '#fff', logging: false });
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({
                 orientation: isPoster ? 'portrait' : 'landscape',
@@ -479,7 +504,11 @@
             });
             pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, width, height);
             pdf.save(name);
-            el.style.transform = originalTransform;
+
+            if (isPoster) {
+                root.style.height = originalHeight;
+                root.style.overflow = originalOverflow;
+            }
             showSuccess('PDF downloaded!');
         } catch (err) {
             console.error(err);
