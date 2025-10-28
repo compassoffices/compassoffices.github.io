@@ -365,7 +365,7 @@
         const timeRange=event.end_time?`${formatTime(event.event_time)} - ${formatTime(event.end_time)}`:formatTime(event.event_time);
 
         return `
-            <div id="posterRoot" style="width:595px;height:842px;background:white;position:relative;overflow:visible;font-family:sans-serif;">
+            <div id="posterRoot" style="width:595px;height:843px;background:white;position:relative;overflow:visible;font-family:sans-serif;">
                 <div class="grid-overlay"></div>
                 <!-- Header -->
                 <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;">
@@ -524,14 +524,17 @@
     }
 
     // === DOWNLOAD ===
-    async function preloadImage(src) {
-        return new Promise(resolve => {
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = () => resolve(true);
-            img.onerror = () => resolve(false);
-            img.src = src;
-        });
+    async function waitForImages(root) {
+        const images = Array.from(root.querySelectorAll('img'));
+        return Promise.all(images.map(img => new Promise((resolve) => {
+            if (img.complete) {
+                resolve(true);
+            } else {
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.src = img.src; // Trigger load
+            }
+        })));
     }
 
     async function captureElement(id, name, isPoster = false) {
@@ -549,17 +552,17 @@
             clone.style.transform = 'none';
             clone.style.margin = '0';
             clone.style.boxShadow = 'none';
+            clone.querySelectorAll('.grid-overlay, .drag-handle, .resize-handle, .pixel-indicator').forEach(el => el.style.display = 'none');
             document.body.appendChild(clone);
 
             const root = clone.querySelector('#posterRoot') || clone;
             const width = isPoster ? 595 : 600;
-            const height = isPoster ? 842 : 200;
+            const height = isPoster ? 843 : 200;
             root.style.width = width + 'px';
             root.style.height = height + 'px';
             root.style.overflow = 'visible';
 
-            const images = root.querySelectorAll('img');
-            await Promise.all(Array.from(images).map(img => preloadImage(img.src)));
+            await waitForImages(root);
 
             const scale = isPoster ? (300 / 72) : 3;
             const canvas = await html2canvas(root, {
@@ -599,16 +602,17 @@
             clone.style.transform = 'none';
             clone.style.margin = '0';
             clone.style.boxShadow = 'none';
+            clone.querySelectorAll('.grid-overlay, .drag-handle, .resize-handle, .pixel-indicator').forEach(el => el.style.display = 'none');
             document.body.appendChild(clone);
 
             const root = clone.querySelector('#posterRoot') || clone;
             const width = isPoster ? 595 : 600;
-            const height = isPoster ? 842 : 200;
+            const height = isPoster ? 843 : 200;
             root.style.width = width + 'px';
             root.style.height = height + 'px';
             root.style.overflow = 'visible';
 
-            await Promise.all(Array.from(root.querySelectorAll('img')).map(img => preloadImage(img.src)));
+            await waitForImages(root);
 
             const scale = isPoster ? (300 / 72) : 3;
             const canvas = await html2canvas(root, { scale, useCORS: true, width, height, backgroundColor: '#fff' });
@@ -619,8 +623,8 @@
                 pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
                 pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 210, 297);
             } else {
-                pdf = new jsPDF({ orientation: 'l', unit: 'px', format: [600, 200] });
-                pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, 600, 200);
+                pdf = new jsPDF({ orientation: 'l', unit: 'px', format: [width, height] });
+                pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, width, height);
             }
             pdf.save(name);
             showSuccess('PDF downloaded!');
