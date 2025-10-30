@@ -556,10 +556,10 @@
         let logoHTML = '';
         const hasCustom = event.custom_logo_url;
         if (event.logo_mode === 'both' || (event.logo_mode === 'custom' && hasCustom)) {
-            logoHTML += `<img src="${event.custom_logo_url}" style="width:${event.logo_width};height:${event.logo_height};object-fit:contain;" onerror="this.style.display='none'">`;
+            logoHTML += `<img src="${event.custom_logo_url}" crossorigin="anonymous" style="width:${event.logo_width};height:${event.logo_height};object-fit:contain;" onerror="this.style.display='none'">`;
         }
         if (event.logo_mode === 'both') {
-            logoHTML += `<img src="https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png" style="width:${event.logo_width};height:${event.logo_height};object-fit:contain;">`;
+            logoHTML += `<img src="https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png" crossorigin="anonymous" style="width:${event.logo_width};height:${event.logo_height};object-fit:contain;">`;
         }
 
         return `
@@ -574,7 +574,7 @@
                         </div>` : ''}
                     </div>
                     <div style="width:297.5px;height:300px;background:#f8f9fa;overflow:hidden;">
-                        ${event.image_url ? `<img src="${event.image_url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">Key Image</div>`}
+                        ${event.image_url ? `<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;object-position:center;" onerror="this.style.display='none'">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">Key Image</div>`}
                     </div>
                 </div>
                 <div id="contentArea" style="width:595px;height:473px;background:${event.content_background_gradient};padding:25px;box-sizing:border-box;position:relative;">
@@ -594,16 +594,16 @@
                     ${qrSrc ? `<div class="draggable qr-box" style="position:absolute;top:308px;right:25px;width:140px;height:140px;">
                         <div class="drag-handle"></div><div class="pixel-indicator"></div>
                         <div style="background:white;padding:10px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid #dee2e6;">
-                            <img src="${qrSrc}" style="width:100%;height:100%;object-fit:contain;">
+                            <img src="${qrSrc}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;">
                         </div>
                     </div>` : ''}
                     ${event.secondary_image_url ? `<div class="draggable resizable sec-box" style="position:absolute;top:308px;right:175px;width:140px;height:140px;overflow:hidden;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);">
                         <div class="drag-handle"></div><div class="resize-handle"></div><div class="pixel-indicator"></div>
-                        <img src="${event.secondary_image_url}" style="width:100%;height:100%;object-fit:contain;">
+                        <img src="${event.secondary_image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;">
                     </div>` : ''}
                 </div>
                 <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0;">
-                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg" style="width:100%;height:auto;max-height:100%;object-fit:contain;">
+                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg" crossorigin="anonymous" style="width:100%;height:auto;max-height:100%;object-fit:contain;">
                 </div>
             </div>`;
     }
@@ -619,12 +619,12 @@
                     <p style="font-size:16px;margin:0;line-height:1.4;color:#666;">${event.banner_subtitle||'Join us for an amazing event'}</p>
                 </div>
                 <div style="width:140px;height:140px;background:#f8f9fa;border-radius:8px;overflow:hidden;border:1px solid #dee2e6;">
-                    ${event.image_url ? `<img src="${event.image_url}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">Image</div>`}
+                    ${event.image_url ? `<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">Image</div>`}
                 </div>
             </div>`;
     }
 
-    // === DRAG, RESIZE, SAVE, DOWNLOAD (unchanged but included) ===
+    // === DRAG, RESIZE, SAVE, DOWNLOAD (FIXED IMAGE LOADING) ===
     const GRID_SIZE = 10;
     function snapToGrid(v) { return Math.round(v / GRID_SIZE) * GRID_SIZE; }
     function saveLayout() {
@@ -669,32 +669,78 @@
         setTimeout(() => { makeDraggableAndResizable(); applySavedLayout(); }, 100);
     }
 
+    // === FIXED: IMAGE LOADING FOR DOWNLOAD ===
     async function waitForImages(root) {
         const images = Array.from(root.querySelectorAll('img'));
-        return Promise.all(images.map(img => new Promise(resolve => {
-            if (img.complete && img.naturalWidth > 0) resolve(true);
-            else { img.onload = () => resolve(true); img.onerror = () => { img.style.display = 'none'; resolve(false); }; setTimeout(() => resolve(false), 5000); }
-        })));
+        const promises = images.map(img => new Promise((resolve) => {
+            if (img.complete && img.naturalWidth > 0) {
+                resolve(true);
+            } else {
+                const timeout = setTimeout(() => {
+                    console.warn('Image load timeout:', img.src);
+                    resolve(false);
+                }, 8000);
+
+                img.onload = () => { clearTimeout(timeout); resolve(true); };
+                img.onerror = () => { clearTimeout(timeout); resolve(false); };
+
+                // Force reload data URLs
+                if (img.src.startsWith('data:')) {
+                    img.src = img.src; // Re-trigger load
+                }
+            }
+        }));
+        return Promise.all(promises);
     }
 
     async function captureElement(id, name, isPoster = false) {
         const btn = isPoster ? document.getElementById('downloadPoster') : document.getElementById('downloadBanner');
         const orig = btn.innerHTML;
         btn.innerHTML = '<div class="loading-spinner inline-block mr-2"></div>Generating...'; btn.disabled = true;
+
         try {
             const el = document.getElementById(id);
             const clone = el.cloneNode(true);
-            clone.style.position = 'absolute'; clone.style.left = '-99999px'; clone.style.top = '0'; clone.style.transform = 'none'; clone.style.margin = '0'; clone.style.boxShadow = 'none';
+            clone.style.position = 'absolute';
+            clone.style.left = '-99999px';
+            clone.style.top = '0';
+            clone.style.transform = 'none';
+            clone.style.margin = '0';
+            clone.style.boxShadow = 'none';
             clone.querySelectorAll('.grid-overlay, .drag-handle, .resize-handle, .pixel-indicator').forEach(el => el.style.display = 'none');
             document.body.appendChild(clone);
+
             const root = clone.querySelector('#posterRoot') || clone;
             const width = isPoster ? 595 : 600;
             const height = isPoster ? 843 : 200;
-            root.style.width = width + 'px'; root.style.height = height + 'px'; root.style.overflow = 'visible';
-            clone.querySelectorAll('img').forEach(img => { if (img.src.startsWith('data:')) img.src = img.src; });
+            root.style.width = width + 'px';
+            root.style.height = height + 'px';
+            root.style.overflow = 'visible';
+
+            // Critical: Re-inject data URLs to ensure rendering
+            clone.querySelectorAll('img').forEach(img => {
+                if (img.src.startsWith('data:')) {
+                    img.src = img.src;
+                }
+                img.crossOrigin = 'anonymous';
+            });
+
+            // Wait for ALL images to load
             await waitForImages(root);
+
             const scale = isPoster ? (300 / 72) : 4;
-            const canvas = await html2canvas(root, { scale, width, height, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, imageTimeout: 30000 });
+            const canvas = await html2canvas(root, {
+                scale,
+                width,
+                height,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                imageTimeout: 15000,
+                removeContainer: false
+            });
+
             canvas.toBlob(blob => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -702,9 +748,15 @@
                 URL.revokeObjectURL(url);
                 showSuccess('Downloaded!');
             }, 'image/jpeg', 0.98);
+
             document.body.removeChild(clone);
-        } catch (err) { console.error(err); showError('Download failed. Use public URLs.'); }
-        finally { btn.innerHTML = orig; btn.disabled = false; }
+        } catch (err) {
+            console.error('Capture failed:', err);
+            showError('Download failed. Try using public image URLs.');
+        } finally {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+        }
     }
 
     function setupDownloadHandlers(){
