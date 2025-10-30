@@ -333,6 +333,36 @@
     .export-button:hover {
       background: #e65c00;
     }
+    .location-group {
+      margin-bottom: 30px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .location-header {
+      background: #ff6600;
+      color: #fff;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    .location-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .location-table th,
+    .location-table td {
+      border: 1px solid #ddd;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .location-table th {
+      background: #f0f0f0;
+      font-weight: 600;
+    }
+    .location-table tr:nth-child(even) {
+      background: #f9f9f9;
+    }
     @media (max-width: 900px) {
       .container { padding-bottom: 15px; }
       .events-container { padding: 16px; }
@@ -511,6 +541,11 @@
         day: 'numeric'
       });
     }
+    function extractBaseLocation(location) {
+      if (!location) return 'Unknown';
+      const parts = location.split(',');
+      return parts[0].trim();
+    }
     function createEventCard(event, eventDate) {
       const todayClass = isToday(eventDate) ? 'today' : (isUpcoming(eventDate) ? 'upcoming' : '');
       const dateLabel = isToday(eventDate) ? 'Today' : formatDate(eventDate);
@@ -597,11 +632,11 @@
           } catch (e) {}
         }
         if (!success) {
-          csvText = `Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details,Trigger,Confirmed,Quarter
-10:00 AM,12/25/2024,ABC Corp,Hong Kong,Annual Conference,Central Plaza,Yes,Year-end meeting,Email,Yes,Q4
-2:00 PM,12/26/2024,XYZ Ltd,Hong Kong,Product Launch,Tsim Sha Tsui,No,New product reveal,Phone,Yes,Q4
-9:00 AM,12/27/2024,Tech Solutions,Hong Kong,Workshop,Wan Chai,Yes,Training session,Online,Yes,Q4
-3:00 PM,12/28/2024,Global Inc,Hong Kong,Networking Event,Admiralty,Yes,Business networking,Email,Yes,Q4`;
+          csvText = `Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details, trigger,Confirmed,Quarter
+10:00 AM,12/25/2024,ABC Corp,Hong Kong,Annual Conference,Lee Garden 2, 16/F, Meeting room,Yes,Year-end meeting,Email,Yes,Q4
+2:00 PM,12/26/2024,XYZ Ltd,Hong Kong,Product Launch,Lee Garden 2, 16/F, Lounge area,No,New product reveal,Phone,Yes,Q4
+9:00 AM,12/27/2024,Tech Solutions,Hong Kong,Workshop,Lee Garden 2, 16/F, Meeting room,Yes,Training session,Online,Yes,Q4
+3:00 PM,12/28/2024,Global Inc,Hong Kong,Networking Event,Central Plaza, 18/F,Yes,Business networking,Email,Yes,Q4`;
           showSampleDataNotice();
         }
         const allEvents = parseCSV(csvText);
@@ -705,13 +740,47 @@
         `;
         return;
       }
-      let tableHTML = '<table style="width:100%; border-collapse: collapse; background: #f7f7f7; border-radius: 14px; overflow: hidden;">';
-      tableHTML += '<thead><tr style="background: #ff6600; color: #fff;"><th style="border:1px solid #ddd; padding:12px; text-align: left;">Date</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Time</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Event Name</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Client Name</th><th style="border:1px solid #ddd; padding:12px; text-align: left;">Location</th></tr></thead>';
-      tableHTML += '<tbody>';
+      const grouped = {};
       events.forEach(event => {
-        tableHTML += `<tr style="background: #fff;"><td style="border:1px solid #ddd; padding:12px;">${formatDate(event.parsedDate)}</td><td style="border:1px solid #ddd; padding:12px;">${event.Time || ''}</td><td style="border:1px solid #ddd; padding:12px;">${event['Event-Name'] || ''}</td><td style="border:1px solid #ddd; padding:12px;">${event['Client-Name'] || ''}</td><td style="border:1px solid #ddd; padding:12px;">${event.Location || ''}</td></tr>`;
+        const baseLoc = extractBaseLocation(event.Location);
+        if (!grouped[baseLoc]) grouped[baseLoc] = [];
+        grouped[baseLoc].push(event);
       });
-      tableHTML += '</tbody></table>';
+      let tableHTML = '';
+      Object.keys(grouped).sort().forEach(baseLoc => {
+        const groupEvents = grouped[baseLoc];
+        tableHTML += `
+          <div class="location-group">
+            <div class="location-header">${baseLoc}</div>
+            <table class="location-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Event Name</th>
+                  <th>Client Name</th>
+                  <th>Full Location</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        groupEvents.forEach(event => {
+          tableHTML += `
+            <tr>
+              <td>${formatDate(event.parsedDate)}</td>
+              <td>${event.Time || ''}</td>
+              <td>${event['Event-Name'] || ''}</td>
+              <td>${event['Client-Name'] || ''}</td>
+              <td>${event.Location || ''}</td>
+            </tr>
+          `;
+        });
+        tableHTML += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
       listEl.innerHTML = tableHTML;
     }
     function exportToEmail() {
@@ -726,26 +795,29 @@
         filteredEvents = filteredEvents.filter(event => event.Location === selectedLocation);
       }
       const monthName = selectedMonth === 'all' ? 'All Months' : new Date(0, selectedMonth).toLocaleString('en-US', { month: 'long' });
-      const uniqueLocations = [...new Set(filteredEvents.map(e => e.Location).filter(l => l))].sort();
+      const grouped = {};
+      filteredEvents.forEach(event => {
+        const baseLoc = extractBaseLocation(event.Location);
+        if (!grouped[baseLoc]) grouped[baseLoc] = [];
+        grouped[baseLoc].push(event);
+      });
       let emailContent = `<h2>Hong Kong Events for ${monthName}</h2>`;
-      uniqueLocations.forEach(location => {
-        const locationEvents = filteredEvents.filter(event => event.Location === location);
-        if (locationEvents.length > 0) {
-          emailContent += `<h3>${location}</h3>`;
-          emailContent += '<table style="width:100%; border-collapse: collapse; border: 1px solid #ddd; margin-bottom: 20px;">';
-          emailContent += '<thead><tr style="background: #ff6600; color: #fff;"><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Date</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Time</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Event Name</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Client Name</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Location</th></tr></thead>';
-          emailContent += '<tbody>';
-          locationEvents.forEach(event => {
-            emailContent += `<tr><td style="border: 1px solid #ddd; padding: 12px;">${formatDate(event.parsedDate)}</td><td style="border: 1px solid #ddd; padding: 12px;">${event.Time || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event['Event-Name'] || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event['Client-Name'] || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event.Location || ''}</td></tr>`;
-          });
-          emailContent += '</tbody></table>';
-        }
+      Object.keys(grouped).sort().forEach(baseLoc => {
+        const groupEvents = grouped[baseLoc];
+        emailContent += `<h3>${baseLoc}</h3>`;
+        emailContent += '<table style="width:100%; border-collapse: collapse; border: 1px solid #ddd; margin-bottom: 20px;">';
+        emailContent += '<thead><tr style="background: #ff6600; color: #fff;"><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Date</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Time</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Event Name</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Client Name</th><th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Full Location</th></tr></thead>';
+        emailContent += '<tbody>';
+        groupEvents.forEach(event => {
+          emailContent += `<tr><td style="border: 1px solid #ddd; padding: 12px;">${formatDate(event.parsedDate)}</td><td style="border: 1px solid #ddd; padding: 12px;">${event.Time || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event['Event-Name'] || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event['Client-Name'] || ''}</td><td style="border: 1px solid #ddd; padding: 12px;">${event.Location || ''}</td></tr>`;
+        });
+        emailContent += '</tbody></table>';
       });
-      navigator.clipboard.writeText(emailContent).then(() => {
-        alert('Table copied to clipboard! You can paste it into an email.');
-      }).catch(err => {
-        alert('Failed to copy table to clipboard: ' + err);
-      });
+      const mailtoLink = `mailto:?subject=Hong Kong Events - ${monthName}&body=${encodeURIComponent(emailContent.replace(/<\/?[^>]+(>|$)/g, ""))}`;
+      window.location.href = mailtoLink;
+      setTimeout(() => {
+        alert('Email client opened! You can now paste the formatted table into your email body.');
+      }, 500);
     }
     function displayCalendar(events, calendarMonth) {
       document.getElementById('loading').style.display = 'none';
