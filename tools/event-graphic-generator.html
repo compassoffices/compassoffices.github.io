@@ -74,6 +74,57 @@
         .grid-enabled .grid-overlay{display:block;}
         /* Logo group */
         .logo-group { display: flex; align-items: center; gap: 12px; }
+        .drop-zone {
+            border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.1);
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.8);
+        }
+        .drop-zone p { margin: 0; font-size: 14px; color: rgba(255,255,255,0.8); }
+        .preview-img {
+            max-height: 60px;
+            max-width: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        /* Key image upload */
+        .key-drop-zone {
+            border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.1);
+        }
+        .key-drop-zone:hover, .key-drop-zone.dragover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.8);
+        }
+        .key-drop-zone p { margin: 0; font-size: 14px; color: rgba(255,255,255,0.8); }
+        .key-preview-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        .key-preview-container {
+            width: 120px;
+            height: 120px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 8px;
+            display: none;
+        }
     </style>
  </head>
  <body class="min-h-full bg-gray-100">
@@ -134,10 +185,42 @@
         </div>
        </div>
 
-       <!-- LOGO UPLOAD -->
-       <div><label for="custom_logo_url" class="block text-sm font-medium mb-2">Custom Logo (Optional)</label>
-        <input type="url" id="custom_logo_url" name="custom_logo_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/logo.png">
-        <p class="text-xs text-white/70 mt-1">Leave empty to hide. Default Compass logo always shows.</p>
+       <!-- LOGO UPLOAD & OPTIONS -->
+       <div>
+        <label class="block text-sm font-medium mb-2">Custom Logo (Drag & Drop or Click)</label>
+        <div id="logoDropZone" class="drop-zone">
+         <p>Drop logo here or click to upload</p>
+         <input type="file" id="logoFileInput" accept="image/*" style="display:none;">
+         <div id="logoPreview" class="mt-2 hidden">
+          <img id="logoPreviewImg" class="preview-img" src="" alt="Logo preview">
+         </div>
+        </div>
+        <div class="mt-3 space-y-2">
+         <label class="flex items-center text-sm">
+          <input type="radio" name="logoMode" value="both" id="logoBoth" class="mr-2" checked>
+          Show both custom + Compass logo
+         </label>
+         <label class="flex items-center text-sm">
+          <input type="radio" name="logoMode" value="custom" id="logoCustom" class="mr-2">
+          Show only custom logo
+         </label>
+         <label class="flex items-center text-sm">
+          <input type="radio" name="logoMode" value="none" id="logoNone" class="mr-2">
+          Hide all logos
+         </label>
+        </div>
+       </div>
+
+       <!-- KEY IMAGE UPLOAD -->
+       <div>
+        <label class="block text-sm font-medium mb-2">Key Image (300x300) - Drag & Drop</label>
+        <div id="keyDropZone" class="key-drop-zone">
+         <p>Drop image here or click</p>
+         <input type="file" id="keyFileInput" accept="image/*" style="display:none;">
+         <div id="keyPreviewContainer" class="key-preview-container">
+          <img id="keyPreviewImg" class="key-preview-img" src="" alt="Key image preview">
+         </div>
+        </div>
        </div>
 
        <div><label for="event_date" class="block text-sm font-medium mb-2">Date</label> <input type="date" id="event_date" name="event_date" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"></div>
@@ -160,7 +243,6 @@
          </div>
         </div>
        </div>
-       <div><label for="image_url" class="block text-sm font-medium mb-2">Key Image URL (300x300)</label> <input type="url" id="image_url" name="image_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/key-image.jpg"></div>
        <div><label for="qr_code_url" class="block text-sm font-medium mb-2">QR Code URL (Auto-Generate)</label> <input type="url" id="qr_code_url" name="qr_code_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/event-page"><p class="text-xs text-white/70 mt-1">Enter any URL to auto-generate QR code</p></div>
        <div><label for="secondary_image_url" class="block text-sm font-medium mb-2">Secondary Image URL (Optional, PNG OK)</label> <input type="url" id="secondary_image_url" name="secondary_image_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/logo.png"></div>
        <div><label for="content_background_color" class="block text-sm font-medium mb-2">Content Background</label> 
@@ -228,13 +310,15 @@
     };
 
     let currentData = [], isLoading = false;
+    let logoUrl = '', logoMode = 'both';
+    let keyImageUrl = '';
 
     async function initializeApp(){
         try{
             if(window.elementSdk) await window.elementSdk.init({ defaultConfig:{}, onConfigChange:c=>{}, mapToCapabilities:c=>({}), mapToEditPanelValues:c=>new Map() });
             if(window.dataSdk){ const r=await window.dataSdk.init({ onDataChanged(d){} }); if(!r.isOk) console.warn("Data storage not available");}
-            initializePreview(); setupDownloadHandlers(); setupSaveLayout(); setupGradientButtons(); setTimeout(updateLivePreview,200);
-        }catch(e){ console.error(e); initializePreview(); setupDownloadHandlers(); setupSaveLayout(); setupGradientButtons(); setTimeout(updateLivePreview,200);}
+            initializePreview(); setupDownloadHandlers(); setupSaveLayout(); setupGradientButtons(); setupLogoUpload(); setupKeyImageUpload(); setTimeout(updateLivePreview,200);
+        }catch(e){ console.error(e); initializePreview(); setupDownloadHandlers(); setupSaveLayout(); setupGradientButtons(); setupLogoUpload(); setupKeyImageUpload(); setTimeout(updateLivePreview,200);}
     }
 
     function initializePreview(){
@@ -327,10 +411,11 @@
             end_time:document.getElementById('end_time').value||'22:00',
             location:document.getElementById('location').value||'Central Park, New York',
             description:descEditor.innerHTML||'Join us...',
-            image_url:document.getElementById('image_url').value||'',
+            image_url: keyImageUrl,
             qr_code_url:document.getElementById('qr_code_url').value||'',
             secondary_image_url:document.getElementById('secondary_image_url').value||'',
-            custom_logo_url:document.getElementById('custom_logo_url').value||'',
+            custom_logo_url: logoUrl,
+            logo_mode: logoMode,
             content_background_color:document.getElementById('content_background_color').value||'#f8f9fa',
             content_background_gradient:document.getElementById('content_background_color').dataset.gradient || '',
             title_font_size:document.getElementById('title_font_size').value||'32',
@@ -340,6 +425,119 @@
             banner_subtitle:document.getElementById('banner_subtitle').value||'Don\'t miss this incredible opportunity'
         };
         updatePreviewElements(eventData);
+    }
+
+    // === LOGO UPLOAD ===
+    function setupLogoUpload() {
+        const dropZone = document.getElementById('logoDropZone');
+        const fileInput = document.getElementById('logoFileInput');
+        const preview = document.getElementById('logoPreview');
+        const previewImg = document.getElementById('logoPreviewImg');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleLogoFile(file);
+        });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length) handleLogoFile(files[0]);
+        });
+
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+        function handleLogoFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload an image file.');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                logoUrl = e.target.result;
+                previewImg.src = logoUrl;
+                preview.classList.remove('hidden');
+                document.getElementById('logoBoth').checked = true;
+                logoMode = 'both';
+                updateLivePreview();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        document.querySelectorAll('input[name="logoMode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                logoMode = radio.value;
+                updateLivePreview();
+            });
+        });
+
+        document.getElementById('logoNone').addEventListener('change', () => {
+            logoUrl = '';
+            preview.classList.add('hidden');
+            updateLivePreview();
+        });
+    }
+
+    // === KEY IMAGE UPLOAD ===
+    function setupKeyImageUpload() {
+        const dropZone = document.getElementById('keyDropZone');
+        const fileInput = document.getElementById('keyFileInput');
+        const previewContainer = document.getElementById('keyPreviewContainer');
+        const previewImg = document.getElementById('keyPreviewImg');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleKeyImageFile(file);
+        });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length) handleKeyImageFile(files[0]);
+        });
+
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+        function handleKeyImageFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload an image file.');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                keyImageUrl = e.target.result;
+                previewImg.src = keyImageUrl;
+                previewContainer.style.display = 'block';
+                updateLivePreview();
+            };
+            reader.readAsDataURL(file);
+        }
     }
 
     // === SAVE LAYOUT ===
@@ -360,13 +558,9 @@
             }
         });
         const qr = document.querySelector('.qr-box');
-        if (qr) {
-            positions['qrBox'] = { top: qr.style.top, right: qr.style.right };
-        }
+        if (qr) positions['qrBox'] = { top: qr.style.top, right: qr.style.right };
         const sec = document.querySelector('.sec-box');
-        if (sec) {
-            positions['secBox'] = { top: sec.style.top, right: sec.style.right, width: sec.style.width, height: sec.style.height };
-        }
+        if (sec) positions['secBox'] = { top: sec.style.top, right: sec.style.right, width: sec.style.width, height: sec.style.height };
         localStorage.setItem('posterLayout', JSON.stringify(positions));
         showSuccess('Layout saved!');
     }
@@ -421,7 +615,20 @@
         const formattedDate=formatDate(event.event_date);
         const timeRange=event.end_time?`${formatTime(event.event_time)} - ${formatTime(event.end_time)}`:formatTime(event.event_time);
         const bgStyle = event.content_background_gradient || event.content_background_color;
-        const hasCustomLogo = event.custom_logo_url && event.custom_logo_url.trim() !== '';
+
+        // Logo logic
+        let logoHTML = '';
+        const hasCustom = event.custom_logo_url && event.custom_logo_url.trim() !== '';
+        if (event.logo_mode === 'none') {
+            // Show nothing
+        } else if (event.logo_mode === 'custom' && hasCustom) {
+            logoHTML = `<img src="${event.custom_logo_url}" crossorigin="anonymous" style="height:100%;width:auto;max-width:120px;object-fit:contain;" onerror="this.style.display='none'">`;
+        } else if (event.logo_mode === 'both') {
+            if (hasCustom) {
+                logoHTML = `<img src="${event.custom_logo_url}" crossorigin="anonymous" style="height:100%;width:auto;max-width:120px;object-fit:contain;" onerror="this.style.display='none'">`;
+            }
+            logoHTML += `<img src="https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png" crossorigin="anonymous" style="height:100%;width:auto;max-width:120px;object-fit:contain;">`;
+        }
 
         return `
             <div id="posterRoot" style="width:595px;height:843px;background:white;position:relative;overflow:visible;font-family:sans-serif;">
@@ -433,16 +640,17 @@
                         <div style="font-size:${subtitleFontSize}px;line-height:1.2;color:#4a5568;text-align:left;margin-top:8px;word-wrap:break-word;font-weight:400;width:100%;">${processRichText(event.event_subtitle)}</div>
                         
                         <!-- LOGO GROUP -->
+                        ${logoHTML ? `
                         <div id="logoBox" class="draggable resizable logo-group" style="position:relative;top:12px;left:0;width:257px;height:50px;margin-top:12px;display:flex;align-items:center;gap:12px;">
                             <div class="drag-handle"></div>
                             <div class="resize-handle"></div>
                             <div class="pixel-indicator"></div>
-                            ${hasCustomLogo ? `<img src="${event.custom_logo_url}" crossorigin="anonymous" style="height:100%;width:auto;max-width:120px;object-fit:contain;" onerror="this.style.display='none'">` : ''}
-                            <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png" crossorigin="anonymous" style="height:100%;width:auto;max-width:120px;object-fit:contain;">
-                        </div>
+                            ${logoHTML}
+                        </div>` : ''}
                     </div>
+                    <!-- Key Image - Fixed 297.5x300px, object-cover -->
                     <div style="width:297.5px;height:300px;background:#f8f9fa;overflow:hidden;">
-                        ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">Image</div>`}
+                        ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;object-position:center;" onerror="this.style.display='none'">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">Key Image</div>`}
                     </div>
                 </div>
                 <!-- Content -->
@@ -502,7 +710,7 @@
                     <p style="font-size:16px;margin:0;line-height:1.4;color:#666;">${event.banner_subtitle||'Join us for an amazing event'}</p>
                 </div>
                 <div style="width:140px;height:140px;background:#f8f9fa;border-radius:8px;overflow:hidden;border:1px solid #dee2e6;">
-                    ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">Image</div>`}
+                    ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;object-position:center;" onerror="this.style.display='none'">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">Image</div>`}
                 </div>
             </div>`;
     }
@@ -599,12 +807,12 @@
     async function waitForImages(root) {
         const images = Array.from(root.querySelectorAll('img'));
         return Promise.all(images.map(img => new Promise((resolve) => {
-            if (img.complete) {
+            if (img.complete && img.naturalWidth > 0) {
                 resolve(true);
             } else {
                 img.onload = () => resolve(true);
-                img.onerror = () => resolve(false);
-                img.src = img.src;
+                img.onerror = () => { img.style.display = 'none'; resolve(false); };
+                setTimeout(() => resolve(false), 5000);
             }
         })));
     }
@@ -634,11 +842,18 @@
             root.style.height = height + 'px';
             root.style.overflow = 'visible';
 
+            // Force image reload for data URLs
+            clone.querySelectorAll('img').forEach(img => {
+                if (img.src.startsWith('data:')) {
+                    img.src = img.src;
+                }
+            });
+
             await waitForImages(root);
 
             const scale = isPoster ? (300 / 72) : 4;
             const canvas = await html2canvas(root, {
-                scale, width, height, useCORS: true, allowTaint: false,
+                scale, width, height, useCORS: true, allowTaint: true,
                 backgroundColor: '#ffffff', logging: false, imageTimeout: 30000
             });
 
@@ -653,7 +868,7 @@
             document.body.removeChild(clone);
         } catch (err) {
             console.error(err);
-            showError('Download failed. Use public image URLs.');
+            showError('Download failed. Try using public image URLs or refresh.');
         } finally {
             btn.innerHTML = orig;
             btn.disabled = false;
