@@ -2,282 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Compass Offices - Event Calendar Manager</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        :root {
-            --bg: #000000;
-            --text: #000000;
-            --accent: #ff6600;
-            --card-bg: #ffffff;
-            --border: #cccccc;
-            --btn-hover: #e65c00;
-            --delete-bg: #333333;
-            --delete-hover: #555555;
-            --header-bg: #000000;
-        }
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Sheet Data Display</title>
+<style>
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
+            background-color: black;
             margin: 0;
             padding: 0;
-            line-height: 1.6;
-        }
-        a { color: var(--accent); text-decoration: none; }
-        a:hover { text-decoration: underline; }
-
-        .container { max-width: 1100px; margin: auto; padding: 0 1.5rem; }
-
-        .header {
-            background: var(--header-bg);
-            padding: 2rem 0;
-            text-align: center;
-        }
-        .logo img {
-            height: 70px;
-            width: auto;
-        }
-
-        h1 {
-            text-align: center;
-            color: #ffffff;
-            margin: 1.5rem 0;
-            font-size: 1.9rem;
-            font-weight: 600;
-        }
-
-        .controls {
-            text-align: center;
-            margin: 1.5rem 0;
-        }
-        select {
-            padding: 0.7rem 1.2rem;
-            font-size: 1rem;
-            border: 2.5px solid var(--accent);
-            border-radius: 6px;
-            background: #222;
-            color: #fff;
-            min-width: 240px;
-        }
-        select:focus {
-            outline: none;
-            border-color: var(--btn-hover);
-            box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.3);
-        }
-
-        #events { margin-top: 1rem; }
-
-        .event {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
             display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-            transition: all 0.2s ease;
-        }
-        .event:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-            border-color: var(--accent);
-        }
-        .event > div { flex: 1 1 220px; }
-        .event .title {
-            font-weight: 700;
-            font-size: 1.25rem;
-            color: var(--accent);
-            margin-bottom: 0.4rem;
-        }
-        .event strong {
-            color: var(--accent);
-            font-weight: 600;
-        }
-        .event .full-address,
-        .event .plain-email {
-            font-size: 0.95rem;
-            color: #333;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            max-width: 100%;
-            font-family: 'Courier New', monospace;
-            font-weight: 500;
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 0.7rem 1.4rem;
-            border-radius: 6px;
-            font-weight: 600;
-            text-align: center;
-            text-decoration: none;
-            transition: all 0.2s;
-            min-width: 150px;
-            font-size: 0.95rem;
-        }
-        .submit {
-            background: var(--accent);
+            flex-direction: column;
+            align-items: center;
             color: white;
+            font-family: Arial, sans-serif;
         }
-        .submit:hover { background: var(--btn-hover); }
-        .delete {
-            background: var(--delete-bg);
-            color: white;
+        .logo {
+            margin: 20px 0;
+            width: 200px;
+            height: auto;
         }
-        .delete:hover { background: var(--delete-hover); }
-
-        @media (max-width: 600px) {
-            .event { flex-direction: column; align-items: stretch; }
-            .btn { width: 100%; margin-top: 0.5rem; }
-            .logo img { height: 55px; }
+        #filter {
+            margin: 10px 0;
+        }
+        table {
+            width: 90%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid white;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+        }
+        a {
+            color: lightblue;
         }
     </style>
 </head>
 <body>
-
-<div class="header">
-    <div class="container">
-        <div class="logo">
-            <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices Logo">
-        </div>
-    </div>
-</div>
-
-<div class="container">
-    <h1>Event Calendar Manager</h1>
-
-    <div class="controls">
-        <label for="monthFilter"><strong style="color:#fff;">Filter by Month:</strong></label><br>
-        <select id="monthFilter">
-            <option value="">All Months</option>
-        </select>
-    </div>
-
-    <div id="events"></div>
-</div>
-
-<script>
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=79425155&single=true&output=csv';
-
-// Function to parse CSV line handling quotes and commas inside
-function parseCSVLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === '"' && (i === 0 || line[i-1] !== '\\')) {
-      inQuotes = !inQuotes;
-    } else if (line[i] === ',' && !inQuotes) {
-      values.push(current.trim());
-      current = '';
-    } else {
-      current += line[i];
-    }
-  }
-  values.push(current.trim());
-  return values.map(v => v.replace(/^"|"$/g, ''));
-}
-
-const today = new Date();
-const currentYear = today.getFullYear();
-const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
-const currentMonthKey = `${currentYear}-${currentMonth}`;
-
-fetch(CSV_URL)
-  .then(r => r.text())
-  .then(text => {
-    const lines = text.trim().split('\n');
-    const headers = parseCSVLine(lines.shift());
-
-    const timeIdx = headers.indexOf('Time');
-    const dateIdx = headers.indexOf('Data');
-    const clientIdx = headers.indexOf('Client');
-    const eventIdx = headers.indexOf('Event');
-    const addressIdx = headers.indexOf('Address');
-    const emailIdx = headers.indexOf('Email');
-    const submitIdx = headers.indexOf('Submit link');
-    const deleteIdx = headers.indexOf('Delete link');
-
-    if (timeIdx === -1 || dateIdx === -1 || clientIdx === -1 || eventIdx === -1 || addressIdx === -1 || emailIdx === -1 || submitIdx === -1 || deleteIdx === -1) {
-      throw new Error('Missing required column in sheet');
-    }
-
-    const container = document.getElementById('events');
-    const monthSelect = document.getElementById('monthFilter');
-
-    const monthMap = new Map();
-    const events = [];
-
-    lines.forEach(line => {
-      const row = parseCSVLine(line);
-      if (row.length < 9) return;
-      const dateStr = row[dateIdx];
-      if (!dateStr || !dateStr.match(/\d{4}-\d{2}-\d{2}/)) return;
-
-      const [y, m] = dateStr.split('-');
-      const key = `${y}-${m}`;
-      const name = new Date(dateStr).toLocaleString('default', { month: 'long', year: 'numeric' });
-
-      if (!monthMap.has(key)) monthMap.set(key, name);
-
-      events.push({ row, dateStr, monthKey: key });
-    });
-
-    const sorted = Array.from(monthMap.entries()).sort((a,b) => a[0].localeCompare(b[0]));
-    sorted.forEach(([k, n]) => {
-      const opt = new Option(n, k);
-      if (k === currentMonthKey) opt.selected = true;
-      monthSelect.appendChild(opt);
-    });
-
-    function render(filter = currentMonthKey) {
-      container.innerHTML = '';
-      const list = filter ? events.filter(e => e.monthKey === filter) : events;
-
-      list.forEach(({ row }) => {
-        const time = row[timeIdx];
-        const date = row[dateIdx];
-        const client = row[clientIdx];
-        const eventType = row[eventIdx];
-        const fullAddress = row[addressIdx];
-        const rawEmail = row[emailIdx];
-        const submitUrl = row[submitIdx] || '#';
-        const deleteUrl = row[deleteIdx] || '#';
-
-        const card = document.createElement('div');
-        card.className = 'event';
-
-        card.innerHTML = `
-          <div class="title">${client}</div>
-          <div><strong>Time:</strong> ${time}</div>
-          <div><strong>Date:</strong> ${date}</div>
-          <div><strong>Location:</strong> ${eventType || '-'}</div>
-          <div><strong>Address:</strong><br>
-              <span class="full-address">${fullAddress || '-'}</span>
-          </div>
-          <div class="plain-email">${rawEmail || '-'}</div>
-          <div><a href="${submitUrl}" target="_blank" class="btn submit">Submit to Calendar</a></div>
-          <div><a href="${deleteUrl}" target="_blank" class="btn delete">Delete from Calendar</a></div>
-        `;
-
-        container.appendChild(card);
-      });
-    }
-
-    render(currentMonthKey);
-    monthSelect.addEventListener('change', e => render(e.target.value));
-  })
-  .catch(err => {
-    document.getElementById('events').innerHTML = `
-      <p style="color:#ff6600;text-align:center;font-weight:600;padding:2rem;">
-        Error: ${err.message}
-      </p>`;
-  });
-</script>
+    <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices Logo" class="logo">
+    <iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pubhtml?gid=79425155&single=true&widget=true&headers=false"></iframe>
 </body>
 </html>
