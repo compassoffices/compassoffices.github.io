@@ -666,5 +666,94 @@
         setTimeout(makeDraggableAndResizable,500);
     });
   </script>
+  <script>
+    /* -------------------------------------------------------------
+       1. READ URL PARAMETERS AND FILL THE FORM
+       ------------------------------------------------------------- */
+    function fillFormFromURL() {
+        const params = new URLSearchParams(location.search);
+        if (!params.toString()) return;                     // no query string → nothing to do
+
+        const fieldMap = {
+            event_title:            ['event_title'],
+            event_subtitle:         ['event_subtitle'],
+            event_date:             ['event_date'],
+            event_time:             ['event_time'],
+            end_time:               ['end_time'],
+            location:               ['location'],
+            description:            ['description'],
+            image_url:              ['image_url'],
+            qr_code_url:            ['qr_code_url'],
+            secondary_image_url:    ['secondary_image_url'],
+            content_background_color:['content_background_color'],
+            title_font_size:        ['title_font_size'],
+            title_line_height:      ['title_line_height'],
+            subtitle_font_size:     ['subtitle_font_size'],
+            banner_title:           ['banner_title'],
+            banner_subtitle:        ['banner_subtitle']
+        };
+
+        // ---- 1. Fill normal inputs / selects --------------------
+        for (const [fieldId, paramNames] of Object.entries(fieldMap)) {
+            const el = document.getElementById(fieldId);
+            if (!el) continue;
+
+            for (const p of paramNames) {
+                if (params.has(p)) {
+                    const val = params.get(p);
+                    if (el.type === 'checkbox' || el.type === 'radio') {
+                        el.checked = true;
+                    } else if (el.tagName === 'SELECT') {
+                        el.value = val;
+                    } else {
+                        el.value = val;
+                    }
+                    break;
+                }
+            }
+        }
+
+        // ---- 2. Fill rich‑text editors -------------------------
+        const richMap = {
+            event_title:    'titleEditor',
+            event_subtitle: 'subtitleEditor',
+            description:    'descriptionEditor'
+        };
+        for (const [param, editorId] of Object.entries(richMap)) {
+            if (params.has(param)) {
+                const editor = document.getElementById(editorId);
+                const hidden = document.getElementById(param);
+                if (editor && hidden) {
+                    const raw = params.get(param);
+                    editor.innerHTML = raw.replace(/\n/g, '<br>'); // keep line‑breaks
+                    hidden.value = editor.innerHTML;
+                }
+            }
+        }
+
+        // ---- 3. Trigger live preview ---------------------------
+        updateLivePreview();
+    }
+
+    /* -------------------------------------------------------------
+       2. CALL IT AFTER THE APP IS READY
+       ------------------------------------------------------------- */
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeApp();
+        setupRichTextEditors();
+
+        // existing listeners
+        document.querySelectorAll('#eventForm input, #eventForm select')
+                .forEach(i => {
+                    i.addEventListener('input', updateLivePreview);
+                    i.addEventListener('change', updateLivePreview);
+                });
+
+        setTimeout(makeDraggableAndResizable, 500);
+
+        // <<< NEW >>>  read URL and pre‑fill
+        fillFormFromURL();
+    });
+</script>
  </body>
 </html>
