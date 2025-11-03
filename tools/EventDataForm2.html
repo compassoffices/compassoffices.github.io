@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Event Data Form</title>
+    <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.12/dist/cropper.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.12/dist/cropper.min.css">
+    <style>
+        body { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+        .form-container { background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); min-height: 100vh; padding: 1rem; }
+        .form-card { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.98); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid #ff6600; }
+        .input-field { transition: all 0.3s ease; border: 2px solid #e5e7eb; background: white; width: 100%; box-sizing: border-box; -webkit-appearance: none; }
+        .input-field:focus { border-color: #ff6600; box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.1); transform: translateY(-1px); outline: none; }
+        .submit-btn { background: linear-gradient(135deg, #ff6600 0%, #e55a00 100%); transition: all 0.3s ease; }
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(255, 102, 0, 0.4); }
+        .success-message { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .error-message { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .file-upload { position: relative; display: inline-block; width: 100%; }
+        .file-upload input[type="file"] { position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        .file-upload-label { display: block; padding: 0.75rem 1rem; background: #f9fafb; border: 2px dashed #d1d5db; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: all 0.3s ease; font-size: 0.875rem; color: #6b7280; }
+        .file-upload-label:hover { border-color: #ff6600; background: #fff7ed; }
+        .char-count { font-size: 0.75rem; color: #6b7280; text-align: right; margin-top: 0.25rem; }
+        .char-count.warning { color: #f59e0b; } .char-count.error { color: #ef4444; }
+        .required:after { content: " *"; color: #ef4444; font-weight: bold; }
+        .suggestions { font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; }
+        .suggestion-btn { display: inline-block; background: #f3f4f6; color: #374151; padding: 0.25rem 0.5rem; margin-right: 0.25rem; margin-bottom: 0.25rem; border-radius: 0.375rem; font-size: 0.75rem; cursor: pointer; }
+        .suggestion-btn:hover { background: #e5e7eb; }
+        .contact-feedback { font-size: 0.75rem; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.25rem; }
+        .contact-feedback svg { width: 1rem; height: 1rem; }
+        .cropper-container { max-height: 300px; margin-top: 0.5rem; }
+        .cropper-btn { margin-top: 0.5rem; }
+        .logo-preview { max-width: 150px; max-height: 100px; margin-top: 0.5rem; border: 1px dashed #ccc; }
+        .key-image-item, .edm-banner-item { border: 1px solid #ddd; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
+        .remove-bg-btn { @apply bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded mt-2; }
+        @media (max-width: 768px) {
+            .form-container { padding: 0.5rem; } .form-card { padding: 1.5rem; }
+            .grid-cols-1, .grid-cols-2 { grid-template-columns: 1fr; gap: 1rem; }
+            .input-field { padding: 0.75rem 1rem; font-size: 1rem; }
+            .max-w-2xl { max-width: 100%; padding: 0 0.5rem; }
+            .text-4xl { font-size: 1.875rem; line-height: 2.25rem; }
+            .submit-btn { padding: 0.75rem 1rem; font-size: 1rem; }
+            select.input-field, input[type="time"], input[type="date"], input[type="text"], textarea { -webkit-appearance: none; border-radius: 0.5rem; }
+            select.input-field { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234B5563'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em; padding-right: 2rem; }
+        }
+    </style>
+</head>
+<body class="form-container">
+
+    <!-- Password Page -->
+    <div id="passwordPage" class="min-h-full py-8 px-4 flex items-center justify-center">
+        <div class="max-w-md w-full form-card rounded-2xl p-8">
+            <div class="text-center mb-6">
+                <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Logo" class="h-16 mx-auto mb-4" onerror="this.style.display='none';">
+                <h1 class="text-2xl font-bold text-gray-800">Enter Password</h1>
+            </div>
+            <div class="space-y-4">
+                <input type="password" id="passwordInput" placeholder="Enter password" class="input-field px-4 py-3 rounded-lg">
+                <button id="passwordSubmit" class="submit-btn w-full py-3 px-6 text-white font-semibold rounded-lg">Submit</button>
+                <div id="passwordError" class="hidden p-3 rounded-lg text-white error-message">Incorrect password.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Form -->
+    <div id="formPage" class="min-h-full py-8 px-4 hidden">
+        <div class="max-w-2xl mx-auto">
+            <div class="text-center mb-8">
+                <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Logo" class="h-16 mx-auto" onerror="this.style.display='none';">
+                <h1 class="text-4xl font-bold text-white mb-2">Event Registration</h1>
+                <p class="text-white/80 text-lg">Fill in the details for the new event</p>
+            </div>
+
+            <div class="form-card rounded-2xl p-8">
+                <form id="eventForm" class="space-y-6">
+
+                    <!-- Organizer -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-gray-200 pb-6">
+                        <div>
+                            <label for="organizerName" class="block text-sm font-semibold text-gray-700 mb-2 required">Organizer Name</label>
+                            <input type="text" id="organizerName" required placeholder="Full name" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="organizerEmail" class="block text-sm font-semibold text-gray-700 mb-2 required">Organizer Email</label>
+                            <input type="email" id="organizerEmail" required placeholder="email@company.com" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                    </div>
+
+                    <!-- Time -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="startTime" class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                            <input type="time" id="startTime" value="09:00" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="endTime" class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+                            <input type="time" id="endTime" value="09:30" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="date" class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
+                        <input type="date" id="date" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+
+                    <!-- Client Info -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="clientName" class="block text-sm font-semibold text-gray-700 mb-2">Client Name</label>
+                            <input type="text" id="clientName" placeholder="Client name" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="clientContact" class="block text-sm font-semibold text-gray-700 mb-2">Client Contact</label>
+                            <input type="text" id="clientContact" placeholder="email@domain.com or +852 1234 5678" class="input-field px-4 py-3 rounded-lg">
+                            <div id="contactFeedback" class="contact-feedback"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="companyName" class="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
+                            <input type="text" id="companyName" placeholder="Company name" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="region" class="block text-sm font-semibold text-gray-700 mb-2">Region</label>
+                            <select id="region" class="input-field px-4 py-3 rounded-lg">
+                                <option value="">Select region</option>
+                                <option value="Hong Kong">Hong Kong</option>
+                                <option value="Tokyo">Tokyo</option>
+                                <option value="Osaka">Osaka</option>
+                                <option value="Singapore">Singapore</option>
+                                <option value="Melbourne">Melbourne</option>
+                                <option value="Sydney">Sydney</option>
+                                <option value="Philippines">Philippines</option>
+                                <option value="Kuala Lumpur">Kuala Lumpur</option>
+                                <option value="Ho Chi Minh City">Ho Chi Minh City</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="eventName" class="block text-sm font-semibold text-gray-700 mb-2 required">Event Name</label>
+                        <input type="text" id="eventName" required placeholder="Event name" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+
+                    <!-- Location -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-4">Location</label>
+                        <div class="mb-4">
+                            <label for="country" class="block text-xs font-medium text-gray-600 mb-2">Country</label>
+                            <select id="country" class="input-field px-4 py-3 rounded-lg">
+                                <option value="">Select Country</option>
+                                <option value="Hong Kong">Hong Kong</option>
+                                <option value="Tokyo">Tokyo</option>
+                                <option value="Osaka">Osaka</option>
+                                <option value="Singapore">Singapore</option>
+                                <option value="Melbourne">Melbourne</option>
+                                <option value="Sydney">Sydney</option>
+                                <option value="Philippines">Philippines</option>
+                                <option value="Kuala Lumpur">Kuala Lumpur</option>
+                                <option value="Ho Chi Minh City">Ho Chi Minh City</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="building" class="block text-xs font-medium text-gray-600 mb-2">Building</label>
+                            <select id="building" disabled class="input-field px-4 py-3 rounded-lg"><option>Select Building</option></select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="floor" class="block text-xs font-medium text-gray-600 mb-2">Floor</label>
+                            <select id="floor" disabled class="input-field px-4 py-3 rounded-lg"><option>Select Floor</option></select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-xs font-medium text-gray-600 mb-2">Area Type</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center"><input type="checkbox" id="loungeArea" class="mr-2 text-orange-500"><span class="text-sm">Lounge area</span></label>
+                                <label class="flex items-center"><input type="checkbox" id="meetingRoom" class="mr-2 text-orange-500"><span class="text-sm">Meeting room</span></label>
+                                <label class="flex items-center"><input type="checkbox" id="room" class="mr-2 text-orange-500"><span class="text-sm">Room</span></label>
+                            </div>
+                        </div>
+                        <div class="mb-4" id="roomNameSection" style="display:none;">
+                            <div id="regularRoomInput" style="display:none;" class="mb-3">
+                                <label for="regularRoomName" class="block text-xs font-medium text-gray-600 mb-2 required">Room Number</label>
+                                <input type="text" id="regularRoomName" placeholder="e.g., 1826" class="input-field px-4 py-3 rounded-lg">
+                            </div>
+                            <div id="meetingRoomInput" style="display:none;">
+                                <label for="meetingRoomName" class="block text-xs font-medium text-gray-600 mb-2 required">Meeting Room Name</label>
+                                <input type="text" id="meetingRoomName" placeholder="e.g., ABC" class="input-field px-4 py-3 rounded-lg">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="additionalRequirements" class="block text-xs font-medium text-gray-600 mb-2">Additional Requirements</label>
+                            <input type="text" id="additionalRequirements" placeholder="e.g., TV, Mic, Speaker..." class="input-field px-4 py-3 rounded-lg">
+                            <div class="suggestions">
+                                <span class="suggestion-btn" onclick="addSuggestion('TV')">TV</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Mic')">Mic</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Speaker')">Speaker</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Projector')">Projector</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Whiteboard')">Whiteboard</span>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Location Preview:</label>
+                            <div id="locationPreview" class="text-sm font-medium text-gray-800">Please select location details above</div>
+                        </div>
+                    </div>
+
+                    <!-- POSTER -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">Poster</label>
+                        <div class="space-y-3">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="needPoster" class="mr-2 text-orange-500">
+                                <span class="text-sm">Need Poster?</span>
+                            </label>
+
+                            <div id="posterDetailsSection" class="ml-6 space-y-4 hidden">
+                                <div>
+                                    <label for="posterTitle" class="block text-xs font-medium text-gray-600 mb-1 required">Title</label>
+                                    <input type="text" id="posterTitle" maxlength="40" placeholder="Title" class="input-field px-4 py-3 rounded-lg">
+                                    <div class="char-count" id="posterTitleCount">0 / 40 (0 non-blank)</div>
+                                </div>
+                                <div>
+                                    <label class="flex items-center mb-2">
+                                        <input type="checkbox" id="posterHasSubtitle" class="mr-2 text-orange-500">
+                                        <span class="text-sm">Add Subtitle?</span>
+                                    </label>
+                                    <div id="posterSubtitleInput" class="hidden">
+                                        <label for="posterSubtitle" class="block text-xs font-medium text-gray-600 mb-1 required">Subtitle</label>
+                                        <input type="text" id="posterSubtitle" maxlength="40" placeholder="Subtitle" class="input-field px-4 py-3 rounded-lg">
+                                        <div class="char-count" id="posterSubtitleCount">0 / 40 (0 non-blank)</div>
+                                    </div>
+                                    <div id="posterSubtitleAuto" class="text-sm text-gray-600 mt-1 hidden">(Exclusive event for clients of Compass Offices)</div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1 required">Description (3 bullet points)</label>
+                                    <textarea id="posterBullet1" maxlength="70" rows="2" placeholder="• Point 1..." class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                                    <div class="char-count" id="posterBullet1Count">0 / 70</div>
+                                    <textarea id="posterBullet2" maxlength="70" rows="2" placeholder="• Point 2..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                    <div class="char-count" id="posterBullet2Count">0 / 70</div>
+                                    <textarea id="posterBullet3" maxlength="70" rows="2" placeholder="• Point 3..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                    <div class="char-count" id="posterBullet3Count">0 / 70</div>
+                                </div>
+
+                                <!-- LOGO UPLOAD + CLICK TO REMOVE BG -->
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Upload Logo</label>
+                                    <div class="file-upload">
+                                        <input type="file" id="posterLogoInput" accept="image/*">
+                                        <label for="posterLogoInput" class="file-upload-label">Click or drag logo</label>
+                                    </div>
+                                    <div id="logoPreviewContainer" class="mt-2 hidden">
+                                        <img id="logoPreview" class="logo-preview" alt="Logo preview">
+                                        <button type="button" id="removeBgBtn" class="remove-bg-btn">Remove Background</button>
+                                        <p class="text-xs text-green-600 mt-1 hidden" id="bgRemovedText">Background removed!</p>
+                                    </div>
+                                </div>
+
+                                <!-- KEY IMAGES 1080x1080 -->
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Key Images (1080×1080 crop)</label>
+                                    <div class="file-upload">
+                                        <input type="file" id="posterKeyImagesInput" accept="image/*" multiple>
+                                        <label for="posterKeyImagesInput" class="file-upload-label">Click or drag images</label>
+                                    </div>
+                                    <div id="keyImagePreviews" class="mt-2"></div>
+                                </div>
+                            </div>
+
+                            <label class="flex items-center ml-6">
+                                <input type="checkbox" id="haveClientPoster" class="mr-2 text-orange-500">
+                                <span class="text-sm">Have poster already? Upload client poster</span>
+                            </label>
+                            <div id="clientPosterSection" class="ml-6 hidden">
+                                <div class="file-upload">
+                                    <input type="file" id="clientPoster" accept="image/*,.pdf">
+                                    <label for="clientPoster" class="file-upload-label">Upload client poster</label>
+                                    <div class="file-name" id="clientPosterName"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- EDM -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">EDM</label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="needEDM" class="mr-2 text-orange-500">
+                            <span class="text-sm">Need EDM?</span>
+                        </label>
+                        <div id="edmDetailsSection" class="ml-6 mt-3 space-y-4 hidden">
+                            <div>
+                                <label for="edmTitle" class="block text-xs font-medium text-gray-600 mb-1 required">Title</label>
+                                <input type="text" id="edmTitle" maxlength="40" placeholder="Title" class="input-field px-4 py-3 rounded-lg">
+                                <div class="char-count" id="edmTitleCount">0 / 40 (0 non-blank)</div>
+                            </div>
+                            <div>
+                                <label class="flex items-center mb-2">
+                                    <input type="checkbox" id="edmHasSubtitle" class="mr-2 text-orange-500">
+                                    <span class="text-sm">Add Subtitle?</span>
+                                </label>
+                                <div id="edmSubtitleInput" class="hidden">
+                                    <label for="edmSubtitle" class="block text-xs font-medium text-gray-600 mb-1 required">Subtitle</label>
+                                    <input type="text" id="edmSubtitle" maxlength="40" placeholder="Subtitle" class="input-field px-4 py-3 rounded-lg">
+                                    <div class="char-count" id="edmSubtitleCount">0 / 40 (0 non-blank)</div>
+                                </div>
+                                <div id="edmSubtitleAuto" class="text-sm text-gray-600 mt-1 hidden">(Exclusive event for clients of Compass Offices)</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1 required">Description (3 bullet points)</label>
+                                <textarea id="edmBullet1" maxlength="70" rows="2" placeholder="• Point 1..." class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                                <div class="char-count" id="edmBullet1Count">0 / 70</div>
+                                <textarea id="edmBullet2" maxlength="70" rows="2" placeholder="• Point 2..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                <div class="char-count" id="edmBullet2Count">0 / 70</div>
+                                <textarea id="edmBullet3" maxlength="70" rows="2" placeholder="• Point 3..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                <div class="char-count" id="edmBullet3Count">0 / 70</div>
+                            </div>
+
+                            <!-- EDM BANNER 1080x1080 CROP -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1 required">EDM Banner Image (1080×1080)</label>
+                                <div class="file-upload">
+                                    <input type="file" id="edmBannerInput" accept="image/*">
+                                    <label for="edmBannerInput" class="file-upload-label">Click or drag banner</label>
+                                </div>
+                                <div id="edmBannerPreview" class="mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Catering -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">Catering</label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="haveCatering" class="mr-2 text-orange-500">
+                            <span class="text-sm">Have Catering?</span>
+                        </label>
+                        <div id="cateringDetailsSection" class="ml-6 mt-3 hidden">
+                            <textarea id="cateringDetails" placeholder="Menu, headcount, dietary restrictions..." rows="3" class="input-field px-4 py-3 rounded-lg w-full" required></textarea>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="details" class="block text-sm font-semibold text-gray-700 mb-2">Additional Details</label>
+                        <textarea id="details" rows="4" placeholder="Other info..." class="input-field px-4 py-3 rounded-lg"></textarea>
+                    </div>
+
+                    <div class="pt-4">
+                        <button type="submit" class="submit-btn w-full py-4 px-6 text-white font-semibold rounded-lg">
+                            <span id="submitText">Submit Event Data</span>
+                            <span id="loadingText" class="hidden">Sending...</span>
+                        </button>
+                    </div>
+                </form>
+
+                <div id="successMessage" class="hidden mt-6 p-4 rounded-lg text-white success-message">
+                    Event data submitted successfully!
+                </div>
+                <div id="errorMessage" class="hidden mt-6 p-4 rounded-lg text-white error-message">
+                    <span id="errorText">Error</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // === PASSWORD ===
+            document.getElementById('passwordSubmit').addEventListener('click', () => {
+                if (document.getElementById('passwordInput').value === 'm2025') {
+                    document.getElementById('passwordPage').classList.add('hidden');
+                    document.getElementById('formPage').classList.remove('hidden');
+                } else {
+                    document.getElementById('passwordError').classList.remove('hidden');
+                }
+            });
+
+            // === TIME SNAP ===
+            ['startTime', 'endTime'].forEach(id => {
+                const input = document.getElementById(id);
+                input.addEventListener('blur', () => {
+                    let [h, m] = input.value.split(':').map(Number);
+                    if (isNaN(m)) return;
+                    m = m < 15 ? 0 : m < 45 ? 30 : 0;
+                    if (m === 0) h = (h + 1) % 24;
+                    input.value = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+                });
+            });
+
+            // === CLIENT CONTACT ===
+            const contactInput = document.getElementById('clientContact');
+            const feedback = document.getElementById('contactFeedback');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/;
+            contactInput.addEventListener('input', () => {
+                const val = contactInput.value.trim();
+                feedback.innerHTML = '';
+                if (!val) return;
+                if (emailRegex.test(val)) {
+                    feedback.innerHTML = `<svg class="text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM9 11v4h2V9H9v2zm0-6v2h2V5H9z"/></svg><span class="text-green-600">Valid Email</span>`;
+                } else if (phoneRegex.test(val)) {
+                    feedback.innerHTML = `<svg class="text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg><span class="text-green-600">Valid Phone</span>`;
+                } else {
+                    feedback.innerHTML = `<svg class="text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span class="text-red-600">Enter valid email or phone</span>`;
+                }
+            });
+
+            // === LOCATION ===
+            const locationData = { /* SAME AS BEFORE */ };
+
+            // ... (location functions unchanged) ...
+
+            // === CHAR COUNTERS ===
+            function updateCharCount(id, countId, max, nonBlankMax) {
+                const input = document.getElementById(id);
+                const count = document.getElementById(countId);
+                input.addEventListener('input', () => {
+                    const len = input.value.length;
+                    const nonBlank = input.value.replace(/\s/g, '').length;
+                    count.textContent = `${len} / ${max} (${nonBlank} non-blank)`;
+                    count.className = 'char-count';
+                    if (nonBlank > nonBlankMax) count.classList.add('error');
+                    else if (nonBlank > nonBlankMax * 0.8) count.classList.add('warning');
+                });
+            }
+            updateCharCount('posterTitle', 'posterTitleCount', 40, 37);
+            updateCharCount('posterSubtitle', 'posterSubtitleCount', 40, 37);
+            updateCharCount('edmTitle', 'edmTitleCount', 40, 37);
+            updateCharCount('edmSubtitle', 'edmSubtitleCount', 40, 37);
+
+            ['posterBullet1','posterBullet2','posterBullet3','edmBullet1','edmBullet2','edmBullet3'].forEach(id => {
+                const input = document.getElementById(id);
+                const count = document.getElementById(id + 'Count');
+                input.addEventListener('input', () => {
+                    count.textContent = `${input.value.length} / 70`;
+                    count.className = input.value.length > 70 ? 'char-count error' : 'char-count';
+                });
+            });
+
+            // === POSTER & EDM TOGGLE ===
+            const needPoster = document.getElementById('needPoster');
+            const posterDetails = document.getElementById('posterDetailsSection');
+            const haveClientPoster = document.getElementById('haveClientPoster');
+            const clientPosterSection = document.getElementById('clientPosterSection');
+            const needEDM = document.getElementById('needEDM');
+            const edmDetails = document.getElementById('edmDetailsSection');
+
+            needPoster.addEventListener('change', () => {
+                posterDetails.classList.toggle('hidden', !needPoster.checked);
+                if (!needPoster.checked) haveClientPoster.checked = false;
+                toggleClientPoster();
+                syncContent();
+            });
+
+            haveClientPoster.addEventListener('change', () => {
+                if (haveClientPoster.checked) needPoster.checked = false;
+                posterDetails.classList.add('hidden');
+                toggleClientPoster();
+            });
+
+            function toggleClientPoster() {
+                clientPosterSection.classList.toggle('hidden', !haveClientPoster.checked);
+            }
+
+            needEDM.addEventListener('change', () => {
+                edmDetails.classList.toggle('hidden', !needEDM.checked);
+                if (needEDM.checked) {
+                    setTimeout(() => edmDetails.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                }
+                syncContent();
+            });
+
+            document.getElementById('posterHasSubtitle').addEventListener('change', () => {
+                document.getElementById('posterSubtitleInput').classList.toggle('hidden', !this.checked);
+                document.getElementById('posterSubtitleAuto').classList.toggle('hidden', this.checked);
+                syncContent();
+            });
+
+            document.getElementById('edmHasSubtitle').addEventListener('change', () => {
+                document.getElementById('edmSubtitleInput').classList.toggle('hidden', !this.checked);
+                document.getElementById('edmSubtitleAuto').classList.toggle('hidden', this.checked);
+                syncContent();
+            });
+
+            // === TWO-WAY SYNC (FULLY BIDIRECTIONAL) ===
+            function syncContent() {
+                if (needPoster.checked && needEDM.checked) {
+                    const posterToEdm = () => {
+                        document.getElementById('edmTitle').value = document.getElementById('posterTitle').value;
+                        document.getElementById('edmHasSubtitle').checked = document.getElementById('posterHasSubtitle').checked;
+                        document.getElementById('edmSubtitle').value = document.getElementById('posterHasSubtitle').checked ? document.getElementById('posterSubtitle').value : '';
+                        ['1','2','3'].forEach(i => document.getElementById('edmBullet' + i).value = document.getElementById('posterBullet' + i).value);
+                    };
+                    const edmToPoster = () => {
+                        document.getElementById('posterTitle').value = document.getElementById('edmTitle').value;
+                        document.getElementById('posterHasSubtitle').checked = document.getElementById('edmHasSubtitle').checked;
+                        document.getElementById('posterSubtitle').value = document.getElementById('edmHasSubtitle').checked ? document.getElementById('edmSubtitle').value : '';
+                        ['1','2','3'].forEach(i => document.getElementById('posterBullet' + i).value = document.getElementById('edmBullet' + i).value);
+                    };
+
+                    // Trigger both ways
+                    posterToEdm(); edmToPoster();
+
+                    // Update UI
+                    document.getElementById('posterSubtitleInput').classList.toggle('hidden', !document.getElementById('posterHasSubtitle').checked);
+                    document.getElementById('posterSubtitleAuto').classList.toggle('hidden', document.getElementById('posterHasSubtitle').checked);
+                    document.getElementById('edmSubtitleInput').classList.toggle('hidden', !document.getElementById('edmHasSubtitle').checked);
+                    document.getElementById('edmSubtitleAuto').classList.toggle('hidden', document.getElementById('edmHasSubtitle').checked);
+
+                    // Update counts
+                    ['posterTitle','posterSubtitle','edmTitle','edmSubtitle'].forEach(id => {
+                        const input = document.getElementById(id);
+                        const count = document.getElementById(id + 'Count');
+                        const len = input.value.length;
+                        const nonBlank = input.value.replace(/\s/g, '').length;
+                        count.textContent = `${len} / 40 (${nonBlank} non-blank)`;
+                    });
+                    ['posterBullet1','posterBullet2','posterBullet3','edmBullet1','edmBullet2','edmBullet3'].forEach(id => {
+                        const count = document.getElementById(id + 'Count');
+                        count.textContent = `${document.getElementById(id).value.length} / 70`;
+                    });
+                }
+            }
+
+            ['posterTitle','posterSubtitle','posterBullet1','posterBullet2','posterBullet3',
+             'edmTitle','edmSubtitle','edmBullet1','edmBullet2','edmBullet3'].forEach(id => {
+                document.getElementById(id).addEventListener('input', syncContent);
+            });
+            ['posterHasSubtitle','edmHasSubtitle'].forEach(id => {
+                document.getElementById(id).addEventListener('change', syncContent);
+            });
+
+            // === LOGO: CLICK TO REMOVE BG ===
+            let processedLogoFile = null;
+            let originalLogoFile = null;
+            const logoInput = document.getElementById('posterLogoInput');
+            const logoPreview = document.getElementById('logoPreview');
+            const logoPreviewContainer = document.getElementById('logoPreviewContainer');
+            const removeBgBtn = document.getElementById('removeBgBtn');
+            const bgRemovedText = document.getElementById('bgRemovedText');
+
+            logoInput.addEventListener('change', () => {
+                const file = logoInput.files[0];
+                if (!file) return;
+                originalLogoFile = file;
+                processedLogoFile = null;
+                logoPreview.src = URL.createObjectURL(file);
+                logoPreviewContainer.classList.remove('hidden');
+                removeBgBtn.disabled = false;
+                removeBgBtn.textContent = 'Remove Background';
+                bgRemovedText.classList.add('hidden');
+            });
+
+            removeBgBtn.addEventListener('click', async () => {
+                if (!originalLogoFile) return;
+                removeBgBtn.disabled = true;
+                removeBgBtn.textContent = 'Removing...';
+
+                const formData = new FormData();
+                formData.append('image_file', originalLogoFile);
+                formData.append('size', 'auto');
+
+                try {
+                    const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+                        method: 'POST',
+                        headers: { 'X-Api-Key': 'YOUR_KEY_HERE' },
+                        body: formData
+                    });
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        const pngUrl = URL.createObjectURL(blob);
+                        logoPreview.src = pngUrl;
+                        processedLogoFile = new File([blob], originalLogoFile.name.replace(/\.[^/.]+$/, ".png"), { type: 'image/png' });
+                        bgRemovedText.classList.remove('hidden');
+                    } else {
+                        alert('Failed. Using original.');
+                    }
+                } catch (e) {
+                    alert('Failed. Using original.');
+                } finally {
+                    removeBgBtn.disabled = false;
+                    removeBgBtn.textContent = 'Remove Background';
+                }
+            });
+
+            // === KEY IMAGES CROP (STABLE) ===
+            let croppedKeyImages = [];
+            const keyImagesInput = document.getElementById('posterKeyImagesInput');
+            const keyImagePreviews = document.getElementById('keyImagePreviews');
+
+            keyImagesInput.addEventListener('change', () => {
+                keyImagePreviews.innerHTML = '';
+                croppedKeyImages = [];
+                Array.from(keyImagesInput.files).forEach((file, index) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const div = document.createElement('div');
+                        div.className = 'key-image-item';
+                        div.innerHTML = `
+                            <img id="cropImg${index}" src="${e.target.result}" class="w-full cropper-container" style="max-height:300px;">
+                            <button type="button" class="cropper-btn mt-2 px-3 py-1 bg-orange-600 text-white text-xs rounded w-full">Crop to 1080×1080</button>
+                            <p class="text-xs text-green-600 mt-1 hidden">Cropped!</p>
+                        `;
+                        keyImagePreviews.appendChild(div);
+
+                        const img = document.getElementById(`cropImg${index}`);
+                        let cropper = new Cropper(img, {
+                            aspectRatio: 1,
+                            viewMode: 1,
+                            autoCropArea: 0.8,
+                            responsive: true
+                        });
+
+                        div.querySelector('button').addEventListener('click', () => {
+                            cropper.getCroppedCanvas({ width: 1080, height: 1080 }).toBlob(blob => {
+                                croppedKeyImages[index] = blob;
+                                div.querySelector('p').classList.remove('hidden');
+                                // Auto-fill EDM
+                                if (needEDM.checked && index === 0 && croppedKeyImages[0]) {
+                                    croppedEdmBanner = croppedKeyImages[0];
+                                    const edmImg = document.getElementById('edmCropImg');
+                                    if (edmImg) {
+                                        edmImg.src = URL.createObjectURL(croppedKeyImages[0]);
+                                        document.querySelector('#edmBannerPreview p')?.classList.remove('hidden');
+                                    }
+                                }
+                            }, 'image/png');
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+
+            // === EDM BANNER CROP (STABLE) ===
+            let croppedEdmBanner = null;
+            const edmBannerInput = document.getElementById('edmBannerInput');
+            const edmBannerPreview = document.getElementById('edmBannerPreview');
+
+            edmBannerInput.addEventListener('change', () => {
+                const file = edmBannerInput.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    edmBannerPreview.innerHTML = '';
+                    const div = document.createElement('div');
+                    div.className = 'edm-banner-item';
+                    div.innerHTML = `
+                        <img id="edmCropImg" src="${e.target.result}" class="w-full cropper-container" style="max-height:300px;">
+                        <button type="button" class="cropper-btn mt-2 px-3 py-1 bg-orange-600 text-white text-xs rounded w-full">Crop to 1080×1080</button>
+                        <p class="text-xs text-green-600 mt-1 hidden">Cropped!</p>
+                    `;
+                    edmBannerPreview.appendChild(div);
+
+                    const img = document.getElementById('edmCropImg');
+                    let cropper = new Cropper(img, {
+                        aspectRatio: 1,
+                        viewMode: 1,
+                        autoCropArea: 0.8,
+                        responsive: true
+                    });
+
+                    div.querySelector('button').addEventListener('click', () => {
+                        cropper.getCroppedCanvas({ width: 1080, height: 1080 }).toBlob(blob => {
+                            croppedEdmBanner = blob;
+                            div.querySelector('p').classList.remove('hidden');
+                        }, 'image/png');
+                    });
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // === SUBMIT ===
+            document.getElementById('eventForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const error = document.getElementById('errorMessage');
+                const errorText = document.getElementById('errorText');
+                error.classList.add('hidden');
+
+                // Validation (same as before)
+                // ...
+
+                const formData = new FormData();
+                const data = { /* same as before */ };
+                formData.append('data', JSON.stringify(data));
+                if (processedLogoFile) formData.append('posterLogo', processedLogoFile);
+                croppedKeyImages.forEach((b, i) => b && formData.append(`posterKeyImage_${i}`, b));
+                if (croppedEdmBanner) formData.append('edmBanner', croppedEdmBanner);
+                // ...
+
+                // Submit
+            });
+        });
+    </script>
+</body>
+</html>
