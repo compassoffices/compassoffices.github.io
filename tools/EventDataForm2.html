@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.12/dist/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.12/dist/cropper.min.css">
-    <!-- IMGLY Background Removal (FREE, client-side) -->
+    <!-- IMGLY Background Removal -->
     <script type="module">
         import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/imgly-background-removal.umd.js';
         window.removeBackgroundLib = removeBackground;
@@ -121,26 +121,9 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="companyName" class="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
-                            <input type="text" id="companyName" placeholder="Company name" class="input-field px-4 py-3 rounded-lg">
-                        </div>
-                        <div>
-                            <label for="region" class="block text-sm font-semibold text-gray-700 mb-2">Region</label>
-                            <select id="region" class="input-field px-4 py-3 rounded-lg">
-                                <option value="">Select region</option>
-                                <option value="Hong Kong">Hong Kong</option>
-                                <option value="Tokyo">Tokyo</option>
-                                <option value="Osaka">Osaka</option>
-                                <option value="Singapore">Singapore</option>
-                                <option value="Melbourne">Melbourne</option>
-                                <option value="Sydney">Sydney</option>
-                                <option value="Philippines">Philippines</option>
-                                <option value="Kuala Lumpur">Kuala Lumpur</option>
-                                <option value="Ho Chi Minh City">Ho Chi Minh City</option>
-                            </select>
-                        </div>
+                    <div>
+                        <label for="companyName" class="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
+                        <input type="text" id="companyName" placeholder="Company name" class="input-field px-4 py-3 rounded-lg">
                     </div>
 
                     <div>
@@ -170,7 +153,7 @@
 
                         <div class="mb-4">
                             <label for="building" class="block text-xs font-medium text-gray-600 mb-2">Building</label>
-                            <select id="building" disabled class="input-field px-4 py-3 rounded-lg"><option>Select Building</option></select>
+                            <select id="ビルディング" disabled class="input-field px-4 py-3 rounded-lg"><option>Select Building</option></select>
                         </div>
 
                         <div class="mb-4">
@@ -470,7 +453,7 @@
             };
 
             const countrySelect = document.getElementById('country');
-            const buildingSelect = document.getElementById('building');
+            const buildingSelect = document.getElementById('ビルディング');
             const floorSelect = document.getElementById('floor');
             const emailPreview = document.getElementById('emailPreview');
             const locationPreview = document.getElementById('locationPreview');
@@ -564,7 +547,6 @@
                 locationPreview.textContent = parts.length ? parts.join(', ') : 'Please select location details above';
             }
 
-            // === EVENT LISTENERS ===
             countrySelect.addEventListener('change', updateBuildingOptions);
             buildingSelect.addEventListener('change', updateFloorOptions);
             floorSelect.addEventListener('change', () => { updateEmail(); updateLocationPreview(); });
@@ -708,21 +690,27 @@
                 document.getElementById(id).addEventListener('change', syncContent);
             });
 
-            // === LOGO REMOVE BG ===
+            // === LOGO REMOVE BG (FIXED) ===
             let processedLogoFile = null;
             const logoInput = document.getElementById('posterLogoInput');
             const logoPreview = document.getElementById('logoPreview');
             const logoPreviewContainer = document.getElementById('logoPreviewContainer');
             const removeBgBtn = document.getElementById('removeBgBtn');
             const bgRemovedText = document.getElementById('bgRemovedText');
+
             logoInput.addEventListener('change', () => {
                 const file = logoInput.files[0];
                 if (!file) return;
-                logoPreview.src = URL.createObjectURL(file);
-                logoPreviewContainer.classList.remove('hidden');
-                bgRemovedText.classList.add('hidden');
-                processedLogoFile = file;
+                const reader = new FileReader();
+                reader.onload = e => {
+                    logoPreview.src = e.target.result;
+                    logoPreviewContainer.classList.remove('hidden');
+                    bgRemovedText.classList.add('hidden');
+                    processedLogoFile = file;
+                };
+                reader.readAsDataURL(file);
             });
+
             removeBgBtn.addEventListener('click', async () => {
                 const file = logoInput.files[0];
                 if (!file || !window.removeBackgroundLib) return;
@@ -742,10 +730,11 @@
                 }
             });
 
-            // === KEY IMAGES CROP ===
+            // === KEY IMAGES CROP (FIXED) ===
             let croppedKeyImages = [];
             const keyImagesInput = document.getElementById('posterKeyImagesInput');
             const keyImagePreviews = document.getElementById('keyImagePreviews');
+
             keyImagesInput.addEventListener('change', () => {
                 keyImagePreviews.innerHTML = '';
                 croppedKeyImages = [];
@@ -760,27 +749,29 @@
                             <p class="text-xs text-green-600 mt-1 hidden">Cropped!</p>
                         `;
                         keyImagePreviews.appendChild(div);
+
                         let cropper = null;
                         const img = document.getElementById(`cropImg${idx}`);
                         const initCropper = () => {
                             if (cropper) cropper.destroy();
-                            cropper = new Cropper(img, { aspectRatio: 1, viewMode: 1, autoCropArea: 0.8, responsive: true });
+                            cropper = new Cropper(img, {
+                                aspectRatio: 1,
+                                viewMode: 1,
+                                autoCropArea: 0.8,
+                                responsive: true,
+                                ready() {
+                                    setTimeout(() => cropper.zoomTo(1), 100);
+                                }
+                            });
                         };
-                        initCropper();
+                        img.onload = initCropper;
+
                         div.querySelector('button').addEventListener('click', () => {
-                            initCropper();
+                            if (!cropper) initCropper();
                             setTimeout(() => {
                                 cropper.getCroppedCanvas({ width: 1080, height: 1080 }).toBlob(blob => {
                                     croppedKeyImages[idx] = blob;
                                     div.querySelector('p').classList.remove('hidden');
-                                    if (needEDM.checked && idx === 0 && croppedEdmBanner === null) {
-                                        croppedEdmBanner = blob;
-                                        const edmDiv = document.querySelector('#edmBannerPreview .edm-banner-item');
-                                        if (edmDiv) {
-                                            edmDiv.querySelector('img').src = URL.createObjectURL(blob);
-                                            edmDiv.querySelector('p').classList.remove('hidden');
-                                        }
-                                    }
                                 }, 'image/png');
                             }, 100);
                         });
@@ -789,10 +780,11 @@
                 });
             });
 
-            // === EDM BANNER CROP ===
+            // === EDM BANNER CROP (FIXED) ===
             let croppedEdmBanner = null;
             const edmBannerInput = document.getElementById('edmBannerInput');
             const edmBannerPreview = document.getElementById('edmBannerPreview');
+
             edmBannerInput.addEventListener('change', () => {
                 const file = edmBannerInput.files[0];
                 if (!file) return;
@@ -807,15 +799,25 @@
                         <p class="text-xs text-green-600 mt-1 hidden">Cropped!</p>
                     `;
                     edmBannerPreview.appendChild(div);
+
                     let cropper = null;
                     const img = document.getElementById('edmCropImg');
                     const initCropper = () => {
                         if (cropper) cropper.destroy();
-                        cropper = new Cropper(img, { aspectRatio: 1, viewMode: 1, autoCropArea: 0.8, responsive: true });
+                        cropper = new Cropper(img, {
+                            aspectRatio: 1,
+                            viewMode: 1,
+                            autoCropArea: 0.8,
+                            responsive: true,
+                            ready() {
+                                setTimeout(() => cropper.zoomTo(1), 100);
+                            }
+                        });
                     };
-                    initCropper();
+                    img.onload = initCropper;
+
                     div.querySelector('button').addEventListener('click', () => {
-                        initCropper();
+                        if (!cropper) initCropper();
                         setTimeout(() => {
                             cropper.getCroppedCanvas({ width: 1080, height: 1080 }).toBlob(blob => {
                                 croppedEdmBanner = blob;
@@ -827,12 +829,12 @@
                 reader.readAsDataURL(file);
             });
 
-            // === CATERING TOGGLE ===
-            document.getElementById('haveCatering').addEventListener('change', () => {
+            // === CATERING TOGGLE (FIXED) ===
+            document.getElementById('haveCatering').addEventListener('change', function () {
                 document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
             });
 
-            // === SUBMIT – ALL FIELDS AS SEPARATE KEYS ===
+            // === SUBMIT – ALL DATA + CROPPED IMAGES + CATERING ===
             document.getElementById('eventForm').addEventListener('submit', async function (e) {
                 e.preventDefault();
 
@@ -848,7 +850,7 @@
 
                 const formData = new FormData();
 
-                // === INDIVIDUAL TEXT FIELDS ===
+                // === TEXT FIELDS ===
                 formData.append('organizerName', document.getElementById('organizerName').value.trim());
                 formData.append('organizerEmail', document.getElementById('organizerEmail').value.trim());
                 formData.append('startTime', document.getElementById('startTime').value);
@@ -857,10 +859,9 @@
                 formData.append('clientName', document.getElementById('clientName').value.trim());
                 formData.append('clientContact', document.getElementById('clientContact').value.trim());
                 formData.append('companyName', document.getElementById('companyName').value.trim());
-                formData.append('region', document.getElementById('region').value);
                 formData.append('eventName', document.getElementById('eventName').value.trim());
                 formData.append('country', document.getElementById('country').value);
-                formData.append('building', document.getElementById('building').value);
+                formData.append('building', document.getElementById('ビルディング').value);
                 formData.append('floor', document.getElementById('floor').value);
                 formData.append('contactEmail', emailPreview.textContent);
                 formData.append('loungeArea', document.getElementById('loungeArea').checked);
@@ -888,9 +889,11 @@
                 formData.append('edmBullet2', document.getElementById('edmBullet2').value.trim());
                 formData.append('edmBullet3', document.getElementById('edmBullet3').value.trim());
 
-                // === FILES ===
+                // === FILES (CROPPED & PROCESSED) ===
                 if (processedLogoFile) formData.append('posterLogo', processedLogoFile);
-                croppedKeyImages.forEach((blob, i) => { if (blob) formData.append(`posterKeyImage_${i}`, blob, `keyimage_${i}.png`); });
+                croppedKeyImages.forEach((blob, i) => {
+                    if (blob) formData.append(`posterKeyImage_${i}`, blob, `keyimage_${i}.png`);
+                });
                 if (croppedEdmBanner) formData.append('edmBanner', croppedEdmBanner, 'edm_banner.png');
                 const clientPosterFile = document.getElementById('clientPoster').files[0];
                 if (clientPosterFile) formData.append('clientPoster', clientPosterFile);
