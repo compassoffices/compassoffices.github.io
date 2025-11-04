@@ -210,7 +210,7 @@
                             </div>
                         </div>
 
-                        <!-- Location Preview (now includes Room Name & Additional Requirements) -->
+                        <!-- Location Preview -->
                         <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Location Preview:</label>
                             <div id="locationPreview" class="text-sm font-medium text-gray-800">Please select location details above</div>
@@ -569,12 +569,10 @@
             buildingSelect.addEventListener('change', updateFloorOptions);
             floorSelect.addEventListener('change', () => { updateEmail(); updateLocationPreview(); });
 
-            // Area type checkboxes
             ['loungeArea', 'meetingRoom', 'room'].forEach(id => {
                 document.getElementById(id).addEventListener('change', updateLocationPreview);
             });
 
-            // Room name inputs
             ['regularRoomName', 'meetingRoomName', 'additionalRequirements'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('input', updateLocationPreview);
@@ -834,7 +832,7 @@
                 document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
             });
 
-            // === SUBMIT ===
+            // === SUBMIT – ALL DATA INCLUDED ===
             document.getElementById('eventForm').addEventListener('submit', async function (e) {
                 e.preventDefault();
                 const error = document.getElementById('errorMessage');
@@ -848,17 +846,28 @@
                 }
 
                 const formData = new FormData();
+
+                // === ALL TEXT DATA ===
                 const data = {
+                    // Organizer
                     organizerName: document.getElementById('organizerName').value,
                     organizerEmail: document.getElementById('organizerEmail').value,
+
+                    // Time & Date
                     startTime: document.getElementById('startTime').value,
                     endTime: document.getElementById('endTime').value,
                     date: document.getElementById('date').value,
+
+                    // Client Info
                     clientName: document.getElementById('clientName').value,
                     clientContact: document.getElementById('clientContact').value,
                     companyName: document.getElementById('companyName').value,
                     region: document.getElementById('region').value,
+
+                    // Event
                     eventName: document.getElementById('eventName').value,
+
+                    // Location
                     country: document.getElementById('country').value,
                     building: document.getElementById('building').value,
                     floor: document.getElementById('floor').value,
@@ -869,46 +878,56 @@
                     regularRoomName: document.getElementById('regularRoomName').value,
                     meetingRoomName: document.getElementById('meetingRoomName').value,
                     additionalRequirements: document.getElementById('additionalRequirements').value,
+
+                    // Poster / EDM
                     needPoster: needPoster.checked,
                     haveClientPoster: haveClientPoster.checked,
                     needEDM: needEDM.checked,
+
+                    // Catering
                     haveCatering: document.getElementById('haveCatering').checked,
-                    details: document.getElementById('details').value
+
+                    // Additional
+                    details: document.getElementById('details').value,
+
+                    // Poster Details
+                    posterTitle: document.getElementById('posterTitle').value,
+                    posterHasSubtitle: document.getElementById('posterHasSubtitle').checked,
+                    posterSubtitle: document.getElementById('posterSubtitle').value,
+                    posterBullet1: document.getElementById('posterBullet1').value,
+                    posterBullet2: document.getElementById('posterBullet2').value,
+                    posterBullet3: document.getElementById('posterBullet3').value,
+
+                    // EDM Details
+                    edmTitle: document.getElementById('edmTitle').value,
+                    edmHasSubtitle: document.getElementById('edmHasSubtitle').checked,
+                    edmSubtitle: document.getElementById('edmSubtitle').value,
+                    edmBullet1: document.getElementById('edmBullet1').value,
+                    edmBullet2: document.getElementById('edmBullet2').value,
+                    edmBullet3: document.getElementById('edmBullet3').value,
+
+                    // Catering Details
+                    cateringDetails: document.getElementById('cateringDetails').value
                 };
 
-                if (needPoster.checked) {
-                    data.posterTitle = document.getElementById('posterTitle').value;
-                    data.posterHasSubtitle = document.getElementById('posterHasSubtitle').checked;
-                    data.posterSubtitle = document.getElementById('posterSubtitle').value;
-                    data.posterBullet1 = document.getElementById('posterBullet1').value;
-                    data.posterBullet2 = document.getElementById('posterBullet2').value;
-                    data.posterBullet3 = document.getElementById('posterBullet3').value;
-                }
-                if (needEDM.checked) {
-                    data.edmTitle = document.getElementById('edmTitle').value;
-                    data.edmHasSubtitle = document.getElementById('edmHasSubtitle').checked;
-                    data.edmSubtitle = document.getElementById('edmSubtitle').value;
-                    data.edmBullet1 = document.getElementById('edmBullet1').value;
-                    data.edmBullet2 = document.getElementById('edmBullet2').value;
-                    data.edmBullet3 = document.getElementById('edmBullet3').value;
-                }
-                if (document.getElementById('haveCatering').checked) {
-                    data.cateringDetails = document.getElementById('cateringDetails').value;
-                }
-
                 formData.append('data', JSON.stringify(data));
+
+                // === FILES ===
                 if (processedLogoFile) formData.append('posterLogo', processedLogoFile);
-                croppedKeyImages.forEach((b, i) => b && formData.append(`posterKeyImage_${i}`, b));
+                croppedKeyImages.forEach((blob, i) => blob && formData.append(`posterKeyImage_${i}`, blob));
                 if (croppedEdmBanner) formData.append('edmBanner', croppedEdmBanner);
                 if (document.getElementById('clientPoster').files[0]) formData.append('clientPoster', document.getElementById('clientPoster').files[0]);
 
+                // === SEND TO MAKE.COM ===
                 document.getElementById('submitText').classList.add('hidden');
                 document.getElementById('loadingText').classList.remove('hidden');
+
                 try {
                     const res = await fetch('https://hook.eu2.make.com/i2pvup7yc0fc8uj38wts4j2sqvsmty88', {
                         method: 'POST',
                         body: formData
                     });
+
                     if (res.ok) {
                         document.getElementById('successMessage').classList.remove('hidden');
                         e.target.reset();
@@ -919,9 +938,11 @@
                         croppedEdmBanner = null;
                         processedLogoFile = null;
                         updateBuildingOptions();
+                    } else {
+                        throw new Error('Server error');
                     }
                 } catch (err) {
-                    errorText.textContent = 'Submission failed.';
+                    errorText.textContent = 'Submission failed. Please try again.';
                     error.classList.remove('hidden');
                 } finally {
                     document.getElementById('submitText').classList.remove('hidden');
