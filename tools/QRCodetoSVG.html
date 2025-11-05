@@ -1,145 +1,434 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>QR Code Generator – Excel Style</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QR Code Generator - Excel Style</title>
+
+  <!-- QR Code Library -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <!-- JSZip for ZIP download -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
   <style>
-    body{font-family:Arial,sans-serif;margin:2rem auto;max-width:900px;background:#fafafa;color:#333}
-    h1{margin-bottom:.5rem}
-    table{width:100%;border-collapse:collapse;margin-bottom:1rem;background:#fff}
-    th,td{border:1px solid #ddd;padding:8px;text-align:left}
-    th{background:#007bff;color:#fff}
-    input{width:100%;border:none;padding:4px;font-size:14px}
-    input:focus{outline:2px solid #007bff}
-    button{background:#28a745;color:#fff;border:none;padding:8px 12px;margin:4px;border-radius:4px;cursor:pointer}
-    button:hover{background:#218838}
-    .remove{background:#dc3545}
-    .remove:hover{background:#c82333}
-    #output{margin-top:2rem}
-    .qr-item{display:inline-block;margin:10px;text-align:center}
-    .qr-item svg{width:120px;height:120px;background:#fff;padding:5px;border:1px solid #eee;border-radius:6px}
-    .download{display:block;margin-top:4px;font-size:12px;color:#007bff}
-    .zip-btn{margin:20px 0;padding:12px 20px;background:#007bff;color:#fff}
+    :root {
+      --primary: #4361ee;
+      --success: #06d6a0;
+      --danger: #ef476f;
+      --gray: #f8f9fa;
+      --dark: #343a40;
+      --light: #ffffff;
+      --border: #dee2e6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      color: var(--dark);
+      line-height: 1.6;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: var(--light);
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+    }
+
+    header p {
+      opacity: 0.9;
+      font-size: 0.95rem;
+      margin-top: 0.3rem;
+    }
+
+    .content {
+      padding: 2rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-add {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-add:hover {
+      background: #05b589;
+      transform: translateY(-1px);
+    }
+
+    .btn-generate {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-generate:hover {
+      background: #3a56d4;
+      transform: translateY(-1px);
+    }
+
+    .btn-remove {
+      background: var(--danger);
+      color: white;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+
+    .btn-remove:hover {
+      background: #d63a5f;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-bottom: 1rem;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    th {
+      background: #f1f3f5;
+      color: var(--dark);
+      font-weight: 600;
+      text-align: left;
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    td {
+      padding: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td input {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      font-size: 0.95rem;
+      background: transparent;
+      transition: background 0.2s;
+    }
+
+    td input:focus {
+      outline: none;
+      background: #e3f2fd;
+    }
+
+    td input::placeholder {
+      color: #999;
+    }
+
+    tr:hover td input {
+      background: #f5f7fa;
+    }
+
+    .remove-cell {
+      text-align: center;
+      padding: 8px !important;
+    }
+
+    #output {
+      margin-top: 2rem;
+    }
+
+    .qr-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .qr-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      transition: transform 0.2s;
+    }
+
+    .qr-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    }
+
+    .qr-card svg {
+      width: 100%;
+      height: auto;
+      max-height: 140px;
+      background: white;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+    }
+
+    .qr-name {
+      margin: 12px 0 8px;
+      font-weight: 600;
+      color: var(--dark);
+      font-size: 0.95rem;
+      word-break: break-all;
+    }
+
+    .download-link {
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .download-link:hover {
+      text-decoration: underline;
+    }
+
+    .zip-container {
+      text-align: center;
+      margin: 2rem 0;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #888;
+      font-style: italic;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: #777;
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .controls {
+        flex-direction: column;
+      }
+      button {
+        width: 100%;
+        justify-content: center;
+      }
+      .qr-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
   </style>
 </head>
 <body>
 
-<h1>QR Code Generator – Excel Style</h1>
+<div class="container">
+  <header>
+    <h1>QR Code Generator</h1>
+    <p>Excel-style • SVG Vector • Transparent Background</p>
+  </header>
 
-<table id="dataTable">
-  <thead>
-    <tr>
-      <th style="width:35%">Name (file name)</th>
-      <th style="width:55%">URL</th>
-      <th style="width:10%"></th>
-    </tr>
-  </thead>
-  <tbody>
-    <!-- rows added by JS -->
-  </tbody>
-</table>
+  <div class="content">
+    <div class="controls">
+      <button class="btn-add" onclick="addRow()">
+        Add Row
+      </button>
+      <button class="btn-generate" onclick="generateAll()">
+        Generate All QR Codes
+      </button>
+    </div>
 
-<button onclick="addRow()">+ Add Row</button>
-<button onclick="generateAll()">Generate All QR Codes</button>
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>Name (File Name)</th>
+          <th>URL</th>
+          <th style="width: 60px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Rows added dynamically -->
+      </tbody>
+    </table>
 
-<div id="output"></div>
+    <div id="output">
+      <div class="empty-state">
+        Click "Generate All QR Codes" to create your SVGs
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    100% offline after load • SVG opens in Illustrator, Inkscape, Figma
+  </footer>
+</div>
 
 <script>
-// ---------- Table handling ----------
-const tbody = document.querySelector('#dataTable tbody');
-
-function addRow(name = '', url = '') {
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input type="text" value="${name}" placeholder="MySite"></td>
-    <td><input type="text" value="${url}" placeholder="https://example.com"></td>
-    <td style="text-align:center"><button class="remove" onclick="this.parentElement.parentElement.remove()">X</button></td>
-  `;
-  tbody.appendChild(tr);
-}
-
-// start with one empty row
-addRow();
-
-// ---------- QR generation ----------
-let zip = null;
-if (typeof JSZip !== 'undefined') zip = new JSZip();
-const zipScript = document.createElement('script');
-zipScript.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
-document.head.appendChild(zipScript);
-
-function sanitizeFileName(str) {
-  return str.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'qr';
-}
-
-function generateAll() {
-  const rows = tbody.querySelectorAll('tr');
+  const tbody = document.querySelector('#dataTable tbody');
   const output = document.getElementById('output');
-  output.innerHTML = '';
-  if (!zip) zip = new JSZip();
+  let zip = new JSZip();
 
-  let processed = 0;
-  const total = rows.length;
+  // Add initial row
+  addRow();
 
-  rows.forEach((row, idx) => {
-    const inputs = row.querySelectorAll('input');
-    const nameRaw = inputs[0].value.trim();
-    const url = inputs[1].value.trim();
+  function addRow(name = '', url = '') {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${name}" placeholder="My Website" /></td>
+      <td><input type="text" value="${url}" placeholder="https://example.com" /></td>
+      <td class="remove-cell">
+        <button class="btn-remove" onclick="this.closest('tr').remove()">X</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
 
-    if (!nameRaw || !url) {
-      processed++;
-      if (processed === total) finalizeZip();
-      return; // skip empty rows
-    }
+  function sanitizeFileName(str) {
+    return str.trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .substring(0, 50) || 'qr_code';
+  }
 
-    const filename = sanitizeFileName(nameRaw) + '.svg';
+  function generateAll() {
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length === 0) return alert('Add at least one row.');
 
-    QRCode.toString(url, {
-      type: 'svg',
-      width: 512,
-      margin: 1,
-      color: { dark: '#000000', light: '#00000000' }, // black + transparent
-      errorCorrectionLevel: 'H'
-    }, (err, svg) => {
-      if (err) throw err;
+    output.innerHTML = '<div class="qr-grid" id="qrGrid"></div><div class="zip-container" id="zipContainer"></div>';
+    const qrGrid = document.getElementById('qrGrid');
+    const zipContainer = document.getElementById('zipContainer');
+    zip = new JSZip();
+    let processed = 0;
+    let validCount = 0;
 
-      // preview
-      const div = document.createElement('div');
-      div.className = 'qr-item';
-      div.innerHTML = `
-        <div>${svg}</div>
-        <strong>${nameRaw}</strong><br>
-        <a class="download" href="#" download="${filename}">Download SVG</a>
-      `;
-      output.appendChild(div);
+    rows.forEach((row, index) => {
+      const inputs = row.querySelectorAll('input');
+      const nameRaw = inputs[0].value.trim();
+      const url = inputs[1].value.trim();
 
-      // download link
-      const blob = new Blob([svg], {type: 'image/svg+xml'});
-      const objUrl = URL.createObjectURL(blob);
-      div.querySelector('.download').href = objUrl;
+      if (!nameRaw || !url) {
+        processed++;
+        return;
+      }
 
-      // add to zip
-      zip.file(filename, svg);
+      if (!/^https?:\/\//i.test(url)) {
+        alert(`Invalid URL in row ${index + 1}: ${url}\nPlease include http:// or https://`);
+        return;
+      }
 
-      processed++;
-      if (processed === total) finalizeZip();
+      validCount++;
+      const filename = sanitizeFileName(nameRaw) + '.svg';
+
+      QRCode.toString(url, {
+        type: 'svg',
+        width: 512,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#00000000' // Transparent
+        },
+        errorCorrectionLevel: 'H'
+      }, (err, svg) => {
+        if (err) {
+          console.error(err);
+          processed++;
+          return;
+        }
+
+        // Create card
+        const card = document.createElement('div');
+        card.className = 'qr-card';
+        card.innerHTML = `
+          ${svg}
+          <div class="qr-name">${nameRaw}</div>
+          <a href="#" class="download-link" data-filename="${filename}">Download SVG</a>
+        `;
+        qrGrid.appendChild(card);
+
+        // Setup download
+        const link = card.querySelector('.download-link');
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = filename;
+
+        // Add to ZIP
+        zip.file(filename, svg);
+
+        processed++;
+        if (processed === rows.length && validCount > 0) {
+          // Add ZIP download
+          zip.generateAsync({ type: 'blob' }).then(blob => {
+            const zipUrl = URL.createObjectURL(blob);
+            zipContainer.innerHTML = `
+              <a href="${zipUrl}" download="qr-codes.zip">
+                <button style="background:var(--primary);color:white;padding:14px 28px;font-size:1rem;border-radius:12px;">
+                  Download All ${validCount} QR Codes as ZIP
+                </button>
+              </a>
+            `;
+          });
+        }
+      });
     });
-  });
-}
 
-function finalizeZip() {
-  if (Object.keys(zip.files).length === 0) return;
+    if (validCount === 0) {
+      output.innerHTML = '<div class="empty-state">No valid entries found. Check Name and URL.</div>';
+    }
+  }
 
-  zip.generateAsync({type:'blob'}).then(blob => {
-    const url = URL.createObjectURL(blob);
-    const btn = document.createElement('a');
-    btn.href = url;
-    btn.download = 'qr-codes.zip';
-    btn.innerHTML = '<button class="zip-btn">Download All as ZIP</button>';
-    document.getElementById('output').appendChild(btn);
+  // Allow pressing Enter to add row
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.closest('table')) {
+      e.preventDefault();
+      const row = e.target.closest('tr');
+      const nextRow = row.nextElementSibling;
+      if (nextRow) {
+        nextRow.querySelector('input').focus();
+      } else {
+        addRow();
+        setTimeout(() => tbody.lastElementChild.querySelector('input').focus(), 0);
+      }
+    }
   });
-}
 </script>
 
 </body>
