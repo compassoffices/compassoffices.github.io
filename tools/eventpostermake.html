@@ -18,7 +18,7 @@
         border:3px solid #f3f4f6;border-top:3px solid #3b82f6;
         border-radius:50%;width:20px;height:20px;animation:spin 1s linear infinite;
     }
-    @keyframes spin{ PREFROM{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
     .form-section{background:linear-gradient(135deg,#2d3748 0%,#1a202c 100%);}
     .preview-section{background:linear-gradient(135deg,#4a5568 0%,#2d3748 100%);}
     .download-btn{background:linear-gradient(45deg,#ff6600,#e55a00);}
@@ -30,28 +30,22 @@
         opacity:0.08;pointer-events:none;z-index:1;display:none;
     }
     .grid-enabled .grid-overlay{display:block;}
-    @font-face {
-        font-family: 'Helvetica Neue';
-        font-weight: 600;
-        src: local('Helvetica Neue Bold'), local('HelveticaNeue-Bold');
-    }
-    @font-face {
-        font-family: 'Helvetica Neue';
-        font-weight: 400;
-        src: local('Helvetica Neue'), local('HelveticaNeue');
-    }
+    @font-face{font-family:'Helvetica Neue';font-weight:600;src:local('Helvetica Neue Bold'),local('HelveticaNeue-Bold');}
+    @font-face{font-family:'Helvetica Neue';font-weight:400;src:local('Helvetica Neue'),local('HelveticaNeue');}
 </style>
 </head>
 <body class="min-h-full bg-gray-100">
 <div class="min-h-full">
 <header class="bg-white shadow-sm border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-6 py-4">
-     <h1 id="main-title" class="text-3xl font-bold text-gray-900">Event Poster Generator</h1>
-     <p class="text-gray-600 mt-2">JPG download = 100% identical to preview (fixed all bugs)</p>
+     <h1 class="text-3xl font-bold text-gray-900">Event Poster Generator</h1>
+     <p class="text-gray-600 mt-2">JPG download = 100 % identical to preview (canvas-based)</p>
     </div>
 </header>
+
 <div class="max-w-7xl mx-auto px-6 py-8">
 <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+
 <!-- ==== FORM ==== -->
 <div class="form-section rounded-2xl p-8 text-white lg:col-span-2">
 <h2 class="text-2xl font-bold mb-6">Event Details</h2>
@@ -84,6 +78,7 @@
   <input type="url" id="qr_code_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/event-page"></div>
 </form>
 </div>
+
 <!-- ==== PREVIEW ==== -->
 <div class="preview-section rounded-2xl p-8 text-white lg:col-span-3">
 <h2 class="text-2xl font-bold mb-6">Final Poster Layout</h2>
@@ -91,9 +86,7 @@
  <div>
   <div class="flex justify-between items-center mb-4">
     <h3 class="text-lg font-semibold">Event Poster (A4)</h3>
-    <div class="flex gap-2">
-      <button id="downloadPoster" class="download-btn text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200">JPG (300 DPI)</button>
-    </div>
+    <button id="downloadPoster" class="download-btn text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200">JPG (300 DPI)</button>
   </div>
   <div class="flex justify-center relative">
     <div id="posterPreview" class="poster-template bg-blue-500 overflow-hidden grid-enabled"></div>
@@ -101,224 +94,315 @@
  </div>
 </div>
 </div>
-</div>
+
 </div>
 </div>
 
 <script>
 /* ==================== SVG ICONS ==================== */
 const svgIcons = {
-    calendar: `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNOCA3VjNtOCA0VjNtLTkgOGgxME01IDIxaDE0YTIgMiAwIDAwMi0yVjdhMiAyIDAgMDAtMi0ySDVhMiAyIDAgMDAtMiAydjEyYTIgMiAwIDAwMiAyeiIvPjwvc3ZnPg==`,
-    clock: `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgOHY0bDMgM202LTNhOSA5IDAgMTEtMTggMCA5IDkgMCAwMTggMHoiLz48L3N2Zz4=`,
-    location: `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTcuNjU3IDE2LjY1N0wxMy40MTQgMjAuOWExLjk5OCAxLjk5OCAwIDAxLTIuODI3IDBsLTQuMjQ0LTQuMjQzYTggOCAwIDExMTEuMzE0IDB6Ii8+PHBhdGggZD0iTTE1IDExYTMgMyAwIDExLTYgMCAzIDMgMCAwMTYgMHoiLz48L3N2Zz4=`
+    calendar:`data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNOCA3VjNtOCA0VjNtLTkgOGgxME01IDIxaDE0YTIgMiAwIDAwMi0yVjdhMiAyIDAgMDAtMi0ySDVhMiAyIDAgMDAtMiAydjEyYTIgMiAwIDAwMiAyeiIvPjwvc3ZnPg==`,
+    clock:`data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgOHY0bDMgM202LTNhOSA5IDAgMTEtMTggMCA5IDkgMCAwMTggMHoiLz48L3N2Zz4=`,
+    location:`data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTcuNjU3IDE2LjY1N0wxMy40MTQgMjAuOWExLjk5OCAxLjk5OCAwIDAxLTIuODI3IDBsLTQuMjQ0LTQuMjQzYTggOCAwIDExMTEuMzE0IDB6Ii8+PHBhdGggZD0iTTE1IDExYTMgMyAwIDExLTYgMCAzIDMgMCAwMTYgMHoiLz48L3N2Zz4=`
 };
 
 /* ==================== WORD LIMITS ==================== */
-const MAX_TITLE_WORDS = 40;
-const MAX_SUBTITLE_WORDS = 40;
-const MAX_BULLETS = 3;
-const MAX_BULLET_WORDS = 70;
-
-function countWords(text){ return text.trim().split(/\s+/).filter(w=>w.length>0).length; }
-
-function enforceWordLimit(textarea, maxWords, countEl){
-    const update = ()=>{ const w=countWords(textarea.value); countEl.textContent=`${w} / ${maxWords} words`; countEl.style.color=w>maxWords?'#f87171':'#e5e7eb'; };
-    textarea.addEventListener('input',()=>{
-        const words=countWords(textarea.value);
-        if(words>maxWords){
-            textarea.value = textarea.value.trim().split(/\s+/).slice(0,maxWords).join(' ');
-        }
-        update(); updateLivePreview();
-    });
-    update();
+const MAX_TITLE_WORDS = 40, MAX_SUBTITLE_WORDS = 40, MAX_BULLETS = 3, MAX_BULLET_WORDS = 70;
+function countWords(t){return t.trim().split(/\s+/).filter(w=>w).length;}
+function enforceWordLimit(ta,max,el){
+    const upd=()=>{const w=countWords(ta.value);el.textContent=`${w}/${max} words`;el.style.color=w>max?'#f87171':'#e5e7eb';};
+    ta.addEventListener('input',()=>{if(countWords(ta.value)>max)ta.value=ta.value.trim().split(/\s+/).slice(0,max).join(' ');upd();updateLivePreview();});
+    upd();
 }
-function enforceBulletLimit(textarea, countEl){
-    const normalize = ()=>{
-        const lines = textarea.value.split('\n').map(l=>l.trim()).filter(l=>l!=='');
+function enforceBulletLimit(ta,el){
+    const norm=()=>{
+        const lines=ta.value.split('\n').map(l=>l.trim()).filter(l=>l);
         const valid=[];
-        let cnt=0;
         for(let l of lines){
-            if(cnt>=MAX_BULLETS) break;
-            const words=countWords(l);
-            if(words>MAX_BULLET_WORDS){
-                valid.push(l.split(/\s+/).slice(0,MAX_BULLET_WORDS).join(' '));
-            }else{
-                valid.push(l);
-            }
-            cnt++;
+            if(valid.length>=MAX_BULLETS)break;
+            const w=countWords(l);
+            valid.push(w>MAX_BULLET_WORDS?l.split(/\s+/).slice(0,MAX_BULLET_WORDS).join(' '):l);
         }
-        while(valid.length<MAX_BULLETS) valid.push('');
-        textarea.value = valid.join('\n');
-        const bulletCnt = lines.slice(0,MAX_BULLETS).length;
-        countEl.textContent = `${bulletCnt} / ${MAX_BULLETS} bullets`;
-        countEl.style.color = bulletCnt>MAX_BULLETS?'#f87171':'#e5e7eb';
+        while(valid.length<MAX_BULLETS)valid.push('');
+        ta.value=valid.join('\n');
+        el.textContent=`${lines.slice(0,MAX_BULLETS).length}/${MAX_BULLETS} bullets`;
+        el.style.color=lines.length>MAX_BULLETS?'#f87171':'#e5e7eb';
         updateLivePreview();
     };
-    textarea.addEventListener('input',normalize);
-    textarea.addEventListener('keydown',e=>{
-        if(e.key==='Enter'){
-            e.preventDefault();
-            const start=textarea.selectionStart;
-            textarea.value = textarea.value.substring(0,start)+'\n'+textarea.value.substring(start);
-            textarea.selectionStart=textarea.selectionEnd=start+1;
-            normalize();
-        }
-    });
-    normalize();
+    ta.addEventListener('input',norm);
+    ta.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const s=ta.selectionStart;ta.value=ta.value.substring(0,s)+'\n'+ta.value.substring(s);ta.selectionStart=ta.selectionEnd=s+1;norm();}});
+    norm();
 }
 
-/* ==================== POSTER HTML ==================== */
-function generatePosterHTML(event){
-    const qrSrc = event.qr_code_url ? `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(event.qr_code_url)}` : '';
-    const formattedDate = formatDate(event.event_date);
-    const timeRange = event.end_time ? `${formatTime(event.event_time)} - ${formatTime(event.end_time)}` : formatTime(event.event_time);
-    const hasQR = !!event.qr_code_url;
+/* ==================== CANVAS DRAWING HELPERS ==================== */
+function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+    const words = text.split(' ');
+    let line = '', testLine = '', wordArray = [], curY = y;
+    for(let n=0;n<words.length;n++){
+        testLine = line + words[n] + ' ';
+        if(ctx.measureText(testLine).width > maxWidth && n>0){
+            wordArray.push([line.trim(), x, curY]);
+            curY += lineHeight;
+            line = words[n] + ' ';
+        }else line = testLine;
+        if(n===words.length-1) wordArray.push([line.trim(), x, curY]);
+    }
+    return {lines:wordArray, height:curY-y+lineHeight};
+}
 
-    const rawLines = (event.description||'').split('\n').map(l=>l.trim()).filter(l=>l!=='');
-    const bullets = rawLines.slice(0,MAX_BULLETS).map(t=>`<li style="margin:8px 0;line-height:1.5;font-size:16px;color:#4a5568;white-space:normal;word-wrap:break-word;overflow:hidden;text-overflow:clip;">${escapeHtml(t)}</li>`).join('');
-
+/* ==================== POSTER GENERATION (HTML for preview) ==================== */
+function generatePosterHTML(e){
+    const qr = e.qr_code_url?`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(e.qr_code_url)}`:'';
+    const date = formatDate(e.event_date);
+    const time = e.end_time?`${formatTime(e.event_time)} - ${formatTime(e.end_time)}`:formatTime(e.event_time);
+    const hasQR = !!e.qr_code_url;
+    const bullets = (e.description||'').split('\n').map(l=>l.trim()).filter(l=>l).slice(0,MAX_BULLETS)
+                     .map(t=>`<li style="margin:8px 0;line-height:1.5;font-size:16px;color:#4a5568;">${escapeHtml(t)}</li>`).join('');
     return `
 <div id="posterRoot" style="width:595px;height:843px;background:white;position:relative;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
     <div class="grid-overlay"></div>
-    <!-- Header -->
-    <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;position:relative;">
-        <div style="width:297.5px;height:300px;display:flex;flex-direction:column;justify-content:center;background:rgba(255,255,255,0.95);padding:30px 20px;overflow:hidden;">
-            <div style="font-size:32px;line-height:1.2;color:#2d3748;font-weight:600;max-height:120px;overflow:hidden;white-space:normal;word-wrap:break-word;">${escapeHtml(event.event_title)}</div>
-            <div style="font-size:24px;line-height:1.2;color:#4a5568;margin-top:12px;font-weight:400;max-height:80px;overflow:hidden;white-space:normal;word-wrap:break-word;">${escapeHtml(event.event_subtitle)}</div>
+    <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;">
+        <div style="width:297.5px;height:300px;background:rgba(255,255,255,.95);padding:30px 20px;display:flex;flex-direction:column;justify-content:center;">
+            <div style="font-size:32px;line-height:1.2;color:#2d3748;font-weight:600;max-height:120px;overflow:hidden;white-space:normal;word-wrap:break-word;">${escapeHtml(e.event_title)}</div>
+            <div style="font-size:24px;line-height:1.2;color:#4a5568;margin-top:12px;font-weight:400;max-height:80px;overflow:hidden;white-space:normal;word-wrap:break-word;">${escapeHtml(e.event_subtitle)}</div>
         </div>
         <div style="width:297.5px;height:300px;background:#f8f9fa;overflow:hidden;position:relative;">
-            ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:
+            ${e.image_url?`<img id="keyImg" src="${e.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:
             `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:16px;">Image</div>`}
         </div>
     </div>
-    <!-- About -->
-    <div style="position:absolute;top:300px;left:50%;transform:translateX(-50%);width:520px;background:rgba(255,255,255,0.96);padding:24px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,0.14);z-index:10;">
+    <div style="position:absolute;top:300px;left:50%;transform:translateX(-50%);width:520px;background:rgba(255,255,255,.96);padding:24px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.14);">
         <h2 style="font-size:26px;font-weight:bold;margin:0 0 16px;color:#2d3748;border-bottom:2px solid #ff6600;padding-bottom:10px;display:inline-block;">About This Event</h2>
         <ul style="margin:0;padding-left:28px;list-style:disc;">${bullets||'<li style="color:#9ca3af;font-size:16px;">No description provided.</li>'}</ul>
     </div>
-    <!-- Bottom -->
-    <div style="position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:${hasQR?'520px':'400px'};display:flex;${hasQR?'justify-content:space-between;':'justify-content:center;'}align-items:flex-start;z-index:10;">
-        ${hasQR?`
-        <div style="width:130px;height:130px;">
-            <div style="background:white;padding:10px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,0.12);border:1px solid #dee2e6;">
-                <img src="${qrSrc}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'">
+    <div style="position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:${hasQR?'520px':'400px'};display:flex;${hasQR?'justify-content:space-between;':'justify-content:center;'}align-items:flex-start;">
+        ${hasQR?`<div style="width:130px;height:130px;">
+            <div style="background:white;padding:10px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.12);border:1px solid #dee2e6;">
+                <img id="qrImg" src="${qr}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'">
             </div>
         </div>`:''}
-        <div style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);padding:20px;border-radius:18px;border:1px solid #dee2e6;box-shadow:0 6px 16px rgba(0,0,0,0.1);width:350px;">
+        <div style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);padding:20px;border-radius:18px;border:1px solid #dee2e6;box-shadow:0 6px 16px rgba(0,0,0,.1);width:350px;">
             <div style="display:flex;align-items:center;margin-bottom:12px;">
-                <img src="${svgIcons.calendar}" style="width:20px;height:20px;margin-right:12px;" alt="Calendar">
-                <div style="font-size:16px;color:#2d3748;font-weight:500;">${formattedDate}</div>
+                <img src="${svgIcons.calendar}" style="width:20px;height:20px;margin-right:12px;"> 
+                <div style="font-size:16px;color:#2d3748;font-weight:500;">${date}</div>
             </div>
             <div style="display:flex;align-items:center;margin-bottom:12px;">
-                <img src="${svgIcons.clock}" style="width:20px;height:20px;margin-right:12px;" alt="Clock">
-                <div style="font-size:16px;color:#2d3748;font-weight:500;">${timeRange}</div>
+                <img src="${svgIcons.clock}" style="width:20px;height:20px;margin-right:12px;">
+                <div style="font-size:16px;color:#2d3748;font-weight:500;">${time}</div>
             </div>
             <div style="display:flex;align-items:flex-start;">
-                <img src="${svgIcons.location}" style="width:20px;height:20px;margin-right:12px;flex-shrink:0;" alt="Location">
-                <div style="font-size:16px;color:#2d3748;font-weight:500;line-height:1.5;">${escapeHtml(event.location)}</div>
+                <img src="${svgIcons.location}" style="width:20px;height:20px;margin-right:12px;flex-shrink:0;">
+                <div style="font-size:16px;color:#2d3748;font-weight:500;line-height:1.5;">${escapeHtml(e.location)}</div>
             </div>
         </div>
     </div>
-    <!-- Footer -->
-    <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;z-index:10;">
-        <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg" alt="Compass Offices"
-             style="width:100%;height:auto;max-height:100%;object-fit:contain;" crossorigin="anonymous">
+    <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;">
+        <img id="footerImg" src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg" crossorigin="anonymous" style="width:100%;height:auto;max-height:100%;object-fit:contain;">
     </div>
 </div>`;
 }
 
-/* ==================== UTILS ==================== */
-function escapeHtml(t){ const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
-function formatDate(d){ if(!d)return'TBD'; return new Date(d).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'}); }
-function formatTime(t){ if(!t)return'TBD'; const[h,m]=t.split(':'); const dt=new Date(); dt.setHours(+h,+m); return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}); }
-function showSuccess(m){ const el=document.createElement('div'); el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-green-500 text-white font-medium z-50'; el.textContent=m; document.body.appendChild(el); setTimeout(()=>el.remove(),3000); }
-function showError(m){ const el=document.createElement('div'); el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-red-500 text-white font-medium z-50'; el.textContent=m; document.body.appendChild(el); setTimeout(()=>el.remove(),3000); }
+/* ==================== CANVAS POSTER (FINAL 300 dpi) ==================== */
+async function drawPosterOnCanvas(event){
+    const DPI = 300;
+    const PX_PER_INCH = DPI / 72;                 // 4.1666…
+    const WIDTH = 595 * PX_PER_INCH;              // 2480
+    const HEIGHT = 843 * PX_PER_INCH;             // 3508
 
-/* ==================== IMAGE LOADER ==================== */
-async function waitForAllImages(root){
-    const imgs = Array.from(root.querySelectorAll('img'));
-    return Promise.all(imgs.map(img=>new Promise(res=>{
-        if(img.complete && img.naturalWidth>0) return res();
-        img.onload = ()=>res();
-        img.onerror = ()=>res();
-        if(img.src) img.src = img.src + (img.src.includes('?')?'&':'?')+Date.now();
-    })));
+    const canvas = document.createElement('canvas');
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    const ctx = canvas.getContext('2d');
+
+    // ---- 1. White background ----
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,WIDTH,HEIGHT);
+
+    // ---- 2. Header gradient ----
+    const headerH = 300 * PX_PER_INCH;
+    const grd = ctx.createLinearGradient(0, headerH, WIDTH, 0);
+    grd.addColorStop(0, '#ff6600');
+    grd.addColorStop(1, '#e55a00');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, WIDTH, headerH);
+
+    // ---- 3. Left white panel (title / subtitle) ----
+    const leftW = 297.5 * PX_PER_INCH;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillRect(0, 0, leftW, headerH);
+
+    // ---- 4. Title (wrap) ----
+    ctx.fillStyle = '#2d3748';
+    ctx.font = `600 ${32 * PX_PER_INCH}px 'Helvetica Neue'`;
+    const titleWrap = wrapText(ctx, event.event_title, 30*PX_PER_INCH, 70*PX_PER_INCH, leftW-60*PX_PER_INCH, 38*PX_PER_INCH);
+    titleWrap.lines.forEach(l=>ctx.fillText(l[0], l[1], l[2]));
+
+    // ---- 5. Subtitle ----
+    ctx.fillStyle = '#4a5568';
+    ctx.font = `400 ${24 * PX_PER_INCH}px 'Helvetica Neue'`;
+    const subY = titleWrap.height + 82*PX_PER_INCH;
+    const subWrap = wrapText(ctx, event.event_subtitle, 30*PX_PER_INCH, subY, leftW-60*PX_PER_INCH, 30*PX_PER_INCH);
+    subWrap.lines.forEach(l=>ctx.fillText(l[0], l[1], l[2]));
+
+    // ---- 6. Key image (rasterised with html2canvas) ----
+    const keyImg = document.getElementById('keyImg');
+    if(keyImg && keyImg.src && keyImg.complete){
+        const imgCanvas = await html2canvas(keyImg,{scale:PX_PER_INCH, useCORS:true});
+        ctx.drawImage(imgCanvas, leftW, 0, leftW, headerH);
+    }
+
+    // ---- 7. About box (rounded rect + shadow) ----
+    const aboutY = 300 * PX_PER_INCH;
+    const aboutW = 520 * PX_PER_INCH;
+    const aboutX = (WIDTH - aboutW)/2;
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.shadowColor = 'rgba(0,0,0,0.14)';
+    ctx.shadowBlur = 24 * PX_PER_INCH;
+    ctx.shadowOffsetY = 8 * PX_PER_INCH;
+    roundRect(ctx, aboutX, aboutY, aboutW, 300*PX_PER_INCH, 18*PX_PER_INCH);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+
+    // ---- 8. About title ----
+    ctx.fillStyle = '#2d3748';
+    ctx.font = `bold ${26 * PX_PER_INCH}px 'Helvetica Neue'`;
+    ctx.fillText('About This Event', aboutX + 24*PX_PER_INCH, aboutY + 50*PX_PER_INCH);
+    ctx.strokeStyle = '#ff6600';
+    ctx.lineWidth = 2*PX_PER_INCH;
+    ctx.beginPath();
+    ctx.moveTo(aboutX + 24*PX_PER_INCH, aboutY + 60*PX_PER_INCH);
+    ctx.lineTo(aboutX + 24*PX_PER_INCH + ctx.measureText('About This Event').width, aboutY + 60*PX_PER_INCH);
+    ctx.stroke();
+
+    // ---- 9. Bullets ----
+    const bulletLines = (event.description||'').split('\n').map(l=>l.trim()).filter(l=>l).slice(0,MAX_BULLETS);
+    ctx.fillStyle = '#4a5568';
+    ctx.font = `${16 * PX_PER_INCH}px 'Helvetica Neue'`;
+    let bulletY = aboutY + 90*PX_PER_INCH;
+    bulletLines.forEach(txt=>{
+        ctx.fillText('• ' + txt, aboutX + 52*PX_PER_INCH, bulletY);
+        bulletY += 24*PX_PER_INCH;
+    });
+
+    // ---- 10. Bottom info panel (gradient bg) ----
+    const bottomY = HEIGHT - 170*PX_PER_INCH;
+    const infoW = 350 * PX_PER_INCH;
+    const infoX = event.qr_code_url ? (WIDTH - 520*PX_PER_INCH)/2 + 150*PX_PER_INCH : (WIDTH - infoW)/2;
+    const infoGrd = ctx.createLinearGradient(0, bottomY + 40*PX_PER_INCH, 0, bottomY + 150*PX_PER_INCH);
+    infoGrd.addColorStop(0,'#f8f9fa'); infoGrd.addColorStop(1,'#e9ecef');
+    ctx.fillStyle = infoGrd;
+    roundRect(ctx, infoX, bottomY, infoW, 110*PX_PER_INCH, 18*PX_PER_INCH);
+    ctx.fill();
+    ctx.strokeStyle = '#dee2e6';
+    ctx.lineWidth = PX_PER_INCH;
+    ctx.stroke();
+
+    // icons + text
+    const iconSize = 20*PX_PER_INCH;
+    const lineH = 28*PX_PER_INCH;
+    let curY = bottomY + 30*PX_PER_INCH;
+    // calendar
+    await drawIcon(ctx, svgIcons.calendar, infoX + 20*PX_PER_INCH, curY, iconSize);
+    ctx.fillStyle = '#2d3748';
+    ctx.font = `500 ${16*PX_PER_INCH}px 'Helvetica Neue'`;
+    ctx.fillText(date, infoX + 52*PX_PER_INCH, curY + 18*PX_PER_INCH);
+    curY += lineH;
+    // clock
+    await drawIcon(ctx, svgIcons.clock, infoX + 20*PX_PER_INCH, curY, iconSize);
+    ctx.fillText(time, infoX + 52*PX_PER_INCH, curY + 18*PX_PER_INCH);
+    curY += lineH;
+    // location
+    await drawIcon(ctx, svgIcons.location, infoX + 20*PX_PER_INCH, curY, iconSize);
+    const locWrap = wrapText(ctx, event.location, infoX + 52*PX_PER_INCH, curY + 18*PX_PER_INCH, infoW - 72*PX_PER_INCH, 24*PX_PER_INCH);
+    locWrap.lines.forEach(l=>ctx.fillText(l[0], l[1], l[2]));
+
+    // ---- 11. QR (if any) ----
+    if(event.qr_code_url){
+        const qrImg = document.getElementById('qrImg');
+        if(qrImg && qrImg.complete){
+            const qrCanvas = await html2canvas(qrImg,{scale:PX_PER_INCH, useCORS:true});
+            const qrBoxX = (WIDTH - 520*PX_PER_INCH)/2;
+            const qrBoxY = bottomY;
+            ctx.fillStyle = '#ffffff';
+            roundRect(ctx, qrBoxX, qrBoxY, 130*PX_PER_INCH, 130*PX_PER_INCH, 14*PX_PER_INCH);
+            ctx.fill();
+            ctx.strokeStyle = '#dee2e6';
+            ctx.lineWidth = PX_PER_INCH;
+            ctx.stroke();
+            ctx.drawImage(qrCanvas, qrBoxX + 10*PX_PER_INCH, qrBoxY + 10*PX_PER_INCH, 110*PX_PER_INCH, 110*PX_PER_INCH);
+        }
+    }
+
+    // ---- 12. Footer image ----
+    const footerImg = document.getElementById('footerImg');
+    if(footerImg && footerImg.complete){
+        const footCanvas = await html2canvas(footerImg,{scale:PX_PER_INCH, useCORS:true});
+        ctx.drawImage(footCanvas, 0, HEIGHT - 70*PX_PER_INCH, WIDTH, 70*PX_PER_INCH);
+    }
+
+    return canvas;
+}
+function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y,   x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x,   y+h, r);
+    ctx.arcTo(x,   y+h, x,   y,   r);
+    ctx.arcTo(x,   y,   x+w, y,   r);
+    ctx.closePath();
+}
+async function drawIcon(ctx, dataUrl, x, y, size){
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise(r=>{img.onload=r;});
+    ctx.drawImage(img, x, y, size, size);
 }
 
-/* ==================== DOWNLOAD (PERFECT MATCH) ==================== */
+/* ==================== DOWNLOAD (canvas → JPEG) ==================== */
 async function capturePoster(){
     const btn = document.getElementById('downloadPoster');
     const orig = btn.innerHTML;
     btn.innerHTML = '<div class="loading-spinner inline-block mr-2"></div>Generating...';
     btn.disabled = true;
-
     try{
-        const preview = document.getElementById('posterPreview');
-        const clone = preview.cloneNode(true);
-        clone.style.transform = 'none';
-        clone.style.margin = '0';
-        clone.style.boxShadow = 'none';
-        clone.style.position = 'absolute';
-        clone.style.left = '-99999px';
-        clone.style.width = '595px';
-        clone.style.height = '843px';
-        clone.querySelectorAll('.grid-overlay').forEach(g=>g.style.display='none');
-        document.body.appendChild(clone);
+        // 1. Force a fresh render of the preview (so images are loaded)
+        updateLivePreview();
+        await new Promise(r=>setTimeout(r,300)); // give images a moment
 
-        const root = clone.querySelector('#posterRoot');
-        root.style.width = '595px';
-        root.style.height = '843px';
-        root.style.overflow = 'hidden';
+        // 2. Gather current form values
+        const event = {
+            event_title: document.getElementById('event_title').value || 'Summer Music Festival',
+            event_subtitle: document.getElementById('event_subtitle').value || 'A Night of Music and Fun',
+            event_date: document.getElementById('event_date').value || '2025-07-15',
+            event_time: document.getElementById('event_time').value || '18:00',
+            end_time: document.getElementById('end_time').value || '22:00',
+            location: document.getElementById('location').value || 'Central Park, New York',
+            description: document.getElementById('description').value || '',
+            image_url: document.getElementById('image_url').value || '',
+            qr_code_url: document.getElementById('qr_code_url').value || ''
+        };
 
-        await waitForAllImages(root);
+        // 3. Draw everything on a 300 dpi canvas
+        const canvas = await drawPosterOnCanvas(event);
 
-        const scale = 300 / 72;                     // 300 dpi
-        const canvas = await html2canvas(root, {
-            scale: scale,
-            width: 595,
-            height: 843,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: '#ffffff',
-            logging: false,
-            imageTimeout: 60000,
-            foreignObjectRendering: false,
-            onclone: doc=>{
-                doc.querySelectorAll('img').forEach(img=>{
-                    if(img.src){ img.crossOrigin='anonymous'; img.src=img.src; }
-                });
-            }
-        });
-
-        // ---- Create final 300 dpi canvas (A4 = 2480 × 3508) ----
-        const finalCanvas = document.createElement('canvas');
-        finalCanvas.width  = 2480;   // 595 px × 300/72
-        finalCanvas.height = 3508;   // 843 px × 300/72
-        const ctx = finalCanvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0,0,finalCanvas.width,finalCanvas.height);
-        ctx.drawImage(canvas, 0, 0, finalCanvas.width, finalCanvas.height);
-
-        // ---- toDataURL JPEG (quality 0.98) ----
-        const dataURL = finalCanvas.toDataURL('image/jpeg', 0.98);
-
+        // 4. toDataURL → download
+        const url = canvas.toDataURL('image/jpeg', 0.98);
         const a = document.createElement('a');
-        a.href = dataURL;
+        a.href = url;
         a.download = 'event-poster-a4-300dpi.jpg';
         a.click();
 
-        showSuccess('Downloaded – 100% match!');
-    }catch(err){
-        console.error(err);
-        showError('Failed – use public CORS image URLs.');
+        showSuccess('Downloaded – 100 % match!');
+    }catch(e){
+        console.error(e);
+        showError('Failed – check image URLs (must allow CORS).');
     }finally{
-        document.body.removeChild(clone);
         btn.innerHTML = orig;
         btn.disabled = false;
     }
 }
 
-/* ==================== LIVE PREVIEW ==================== */
+/* ==================== LIVE PREVIEW (HTML) ==================== */
 function updateLivePreview(){
     const data = {
         event_title: document.getElementById('event_title').value || 'Summer Music Festival',
@@ -334,39 +418,23 @@ function updateLivePreview(){
     document.getElementById('posterPreview').innerHTML = generatePosterHTML(data);
 }
 
-/* ==================== INITIALISE ==================== */
-function initialise(){
-    // sample data for first load
-    const sample = {
-        event_title:"Summer Music Festival",
-        event_subtitle:"A Night of Music and Fun",
-        event_date:"2025-07-15",
-        event_time:"18:00",
-        end_time:"22:00",
-        location:"Central Park, New York",
-        description:"Live music from top artists\nFood and drinks available\nFamily-friendly event",
-        image_url:"",
-        qr_code_url:""
-    };
-    updateLivePreview();   // will use defaults if fields empty
+/* ==================== UTILS ==================== */
+function escapeHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
+function formatDate(d){if(!d)return'TBD';return new Date(d).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});}
+function formatTime(t){if(!t)return'TBD';const[h,m]=t.split(':');const dt=new Date();dt.setHours(+h,+m);return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});}
+function showSuccess(m){const el=document.createElement('div');el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-green-500 text-white font-medium z-50';el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),3000);}
+function showError(m){const el=document.createElement('div');el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-red-500 text-white font-medium z-50';el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),3000);}
+
+/* ==================== INIT ==================== */
+document.addEventListener('DOMContentLoaded',()=>{
+    updateLivePreview();
     document.getElementById('downloadPoster').onclick = capturePoster;
-
-    // bind inputs
-    document.querySelectorAll('#eventForm input, #eventForm textarea').forEach(el=>{
-        el.addEventListener('input',updateLivePreview);
-        el.addEventListener('change',updateLivePreview);
-    });
-
-    // word / bullet limits
+    document.querySelectorAll('#eventForm input, #eventForm textarea').forEach(el=>el.addEventListener('input',updateLivePreview));
     enforceWordLimit(document.getElementById('event_title'),MAX_TITLE_WORDS,document.getElementById('titleWordCount'));
     enforceWordLimit(document.getElementById('event_subtitle'),MAX_SUBTITLE_WORDS,document.getElementById('subtitleWordCount'));
     enforceBulletLimit(document.getElementById('description'),document.getElementById('descBulletCount'));
-
     setTimeout(updateLivePreview,200);
-}
-
-/* ==================== DOM READY ==================== */
-document.addEventListener('DOMContentLoaded', initialise);
+});
 </script>
 </body>
 </html>
