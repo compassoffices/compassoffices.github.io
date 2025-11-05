@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QR Code to Black Transparent SVG</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f4f4f4;
+      color: #333;
+    }
+    h1 { text-align: center; color: #222; }
+    .upload-area {
+      border: 3px dashed #aaa;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      background: #fff;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .upload-area:hover { border-color: #007bff; }
+    .upload-area.dragover { border-color: #007bff; background: #e7f0ff; }
+    input[type="file"] { display: none; }
+    button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .preview { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .preview img { max-width: 100px; max-height: 100px; border: 1px solid #ddd; border-radius: 6px; }
+    .status { margin-top: 15px; font-weight: bold; color: #007bff; }
+    .download-all { margin-top: 20px; display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>QR Code → Black Transparent SVG</h1>
+  <p style="text-align:center;">Upload QR codes (PNG/JPG/SVG) → Get clean black SVGs with transparent background</p>
+
+  <div class="upload-area" id="dropArea">
+    <p>Drag & drop QR code images here or click to select</p>
+    <input type="file" id="fileInput" accept="image/*" multiple />
+  </div>
+
+  <button id="processBtn" disabled>Process & Download SVGs</button>
+  <button id="downloadAllBtn" class="download-all">Download All as ZIP</button>
+
+  <div class="preview" id="preview"></div>
+  <div class="status" id="status"></div>
+
+  <!-- JSZip for ZIP download -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <script>
+    const dropArea = document.getElementById('dropArea');
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const processBtn = document.getElementById('processBtn');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const status = document.getElementById('status');
+
+    let files = [];
+    let processedSVGs = [];
+
+    // Trigger file input
+    dropArea.addEventListener('click', () => fileInput.click());
+
+    // Drag & drop
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
+    });
+
+    dropArea.addEventListener('drop', handleDrop, false);
+    fileInput.addEventListener('change', handleFiles, false);
+
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const newFiles = dt.files;
+      handleFiles({ target: { files: newFiles } });
+    }
+
+    function handleFiles(e) {
+      files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+      renderPreview();
+      processBtn.disabled = files.length === 0;
+      downloadAllBtn.style.display = 'none';
+      processedSVGs = [];
+    }
+
+    function renderPreview() {
+      preview.innerHTML = '';
+      files.forEach(file => {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.title = file.name;
+        preview.appendChild(img);
+      });
+    }
+
+    processBtn.addEventListener('click', processQRCodes);
+
+    async function processQRCodes() {
+      status.textContent = 'Processing...';
+      processedSVGs = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          const svg = await imageToBlackSVG(file);
+          const blob = new Blob([svg], { type: 'image/svg+xml' });
+          const url = URL.createObjectURL(blob);
+
+          const newName = file.name.replace(/\.[^/.]+$/, '') + '.svg';
+          processedSVGs.push({ name: newName, blob, url });
+
+          // Auto download single file
+          if (files.length === 1) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = newName;
+            a.click();
+          }
+        } catch (err) {
+          console.error(`Failed to process ${file.name}:`, err);
+        }
+      }
+
+      if (files.length > 1) {
+        downloadAllBtn.style.display = 'inline-block';
+      }
+
+      status.textContent = `Done! ${processedSVGs.length} SVG(s) generated.`;
+    }
+
+    downloadAllBtn.addEventListener('click', () => {
+      const zip = new JSZip();
+      processedSVGs.forEach(f => zip.file(f.name, f.blob));
+      zip.generateAsync({ type: 'blob' }).then(blob => {
+        saveAs(blob, 'qr-codes-svg.zip');
+      });
+    });
+
+    // Main function: Convert any QR image to black & transparent SVG
+    async function imageToBlackSVG(file) {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // Convert to black where dark, transparent elsewhere
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        const brightness = (r + g + b) / 3;
+        if (brightness < 200) { // Dark pixel → black
+          data[i] = 0; data[i+1] = 0; data[i+2] = 0; data[i+3] = 255;
+        } else { // Light → transparent
+          data[i+3] = 0;
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Convert canvas to SVG via base64 PNG then trace (simple but effective)
+      const pngDataUrl = canvas.toDataURL('image/png');
+
+      // Create SVG with embedded filtered image
+      const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}" viewBox="0 0 ${canvas.width} ${canvas.height}">
+  <defs>
+    <filter id="blacken">
+      <feColorMatrix type="matrix" values="
+        0 0 0 0 0
+        0 0 0 0 0
+        0 0 0 0 0
+        1 0 0 0 0"/>
+    </filter>
+    <filter id="threshold">
+      <feComponentTransfer>
+        <feFuncA type="discrete" tableValues="0 1"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  <image href="${pngDataUrl}" width="${canvas.width}" height="${canvas.height}" filter="url(#threshold) url(#blacken)"/>
+</svg>`.trim();
+
+      URL.revokeObjectURL(img.src);
+      return svg;
+    }
+  </script>
+</body>
+</html>
