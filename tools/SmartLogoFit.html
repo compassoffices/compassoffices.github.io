@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Logo Fit – 1080×1080 or 1080×500 (No Crop)</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      min-height: 100vh;
+      display: flex;
+
+
+      align-items: center;
+      justify-content: center;
+      padding: 15px;
+    }
+    .card {
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+      width: 100%;
+      max-width: 560px;
+      overflow: hidden;
+    }
+    .header {
+      background: #1e40af;
+      color: white;
+      padding: 28px;
+      text-align: center;
+    }
+    .header h1 { font-size: 1.75rem; font-weight: 700; }
+    .header p { font-size: 0.98rem; opacity: 0.92; margin-top: 8px; }
+    .content { padding: 32px; }
+    .upload-area {
+      border: 3px dashed #94a3b8;
+      border-radius: 18px;
+      padding: 45px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #f8fafc;
+    }
+    .upload-area:hover { border-color: #1e40af; background: #eef2ff; }
+    .upload-area.dragover { border-color: #1e40af; background: #dbeafe; }
+    .upload-area i { font-size: 50px; color: #64748b; margin-bottom: 14px; display: block; }
+    .upload-area input { display: none; }
+    .preview-box { margin: 22px 0; text-align: center; }
+    .preview-box p { font-weight: 600; margin-bottom: 10px; color: #1f2937; }
+    .preview-box img, .preview-box canvas {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
+    .info {
+      background: #f0f9ff;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 0.94rem;
+      color: #0c4a6e;
+      margin: 18px 0;
+      border-left: 4px solid #0ea5e9;
+    }
+    .btn {
+      background: #1e40af;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 12px;
+      transition: 0.3s;
+    }
+    .btn:hover { background: #1e3a8a; }
+    .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+    .loader {
+      display: inline-block;
+      width: 22px;
+      height: 22px;
+      border: 3px solid #fff;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <h1>Smart Logo Fit</h1>
+    <p>Full logo preserved • Auto background remove • Fit to 1080×1080 or 1080×500</p>
+  </div>
+
+  <div class="content">
+    <div class="upload-area" id="dropZone">
+      <i class="fas fa-cloud-upload-alt"></i>
+      <p><strong>Click or drag & drop</strong> your logo</p>
+      <p style="font-size:0.85rem;color:#64748b;margin-top:6px;">JPG, PNG, WebP, GIF – any size</p>
+      <input type="file" id="fileInput" accept="image/*"/>
+    </div>
+
+    <div id="status" class="info hidden"></div>
+
+    <div class="preview-box hidden" id="originalBox">
+      <p>Original Image</p>
+      <img id="originalImg" alt="Original"/>
+    </div>
+
+    <div class="preview-box hidden" id="resultBox">
+      <p>Final Transparent Logo (No Crop)</p>
+      <canvas id="resultCanvas"></canvas>
+    </div>
+
+    <button class="btn hidden" id="downloadBtn">
+      <span class="loader hidden" id="loader"></span>
+      <span id="btnText">Download Transparent PNG</span>
+    </button>
+  </div>
+</div>
+
+<script>
+// ====================== DOM Elements ======================
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const status = document.getElementById('status');
+const originalBox = document.getElementById('originalBox');
+const originalImg = document.getElementById('originalImg');
+const resultBox = document.getElementById('resultBox');
+const resultCanvas = document.getElementById('resultCanvas');
+const downloadBtn = document.getElementById('downloadBtn');
+const loader = document.getElementById('loader');
+const btnText = document.getElementById('btnText');
+
+let finalBlob = null;
+
+// ====================== Drag & Drop ======================
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropZone.addEventListener(eventName, preventDefaults, false);
+});
+function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+['dragenter', 'dragover'].forEach(eventName => {
+  dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+});
+['dragleave', 'drop'].forEach(eventName => {
+  dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+});
+dropZone.addEventListener('drop', handleDrop, false);
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) processFile(fileInput.files[0]); });
+
+function handleDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  if (files.length) processFile(files[0]);
+}
+
+// ====================== Main Processing ======================
+async function processFile(file) {
+  resetUI();
+  showStatus('Analyzing image...', 'info');
+
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = async () => {
+    URL.revokeObjectURL(url);
+    originalImg.src = img.src;
+    originalBox.classList.remove('hidden');
+    await fitAndConvert(img);
+  };
+  img.src = url;
+}
+
+async function fitAndConvert(img) {
+  showStatus('Removing background & detecting shape...', 'info');
+  toggleLoader(true);
+
+  // Step 1: Draw original
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  // Step 2: Remove white/light background
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+    const isLight = r > 220 && g > 220 && b > 220;
+    if (a > 200 && isLight) {
+      data[i+3] = 0; // transparent
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  // Step 3: Find bounding box of actual content
+  const box = getContentBoundingBox(ctx, canvas.width, canvas.height);
+  if (!box || box.w < 30 || box.h < 30) {
+    showStatus('No logo detected. Try a clearer image.', 'error');
+    toggleLoader(false);
+    return;
+  }
+
+  // Step 4: Determine target size based on aspect
+  const aspect = box.w / box.h;
+  const isSquare = aspect >= 0.75 && aspect <= 1.4;
+  const targetW = 1080;
+  const targetH = isSquare ? 1080 : 500;
+
+  showStatus(`Detected <strong>${isSquare ? 'square' : 'horizontal'}</strong> logo → ${targetW}×${targetH} PNG (100% preserved)`, 'success');
+
+  // Step 5: Fit full logo into target canvas (scale down only)
+  resultCanvas.width = targetW;
+  resultCanvas.height = targetH;
+  const rctx = resultCanvas.getContext('2d');
+  rctx.clearRect(0, 0, targetW, targetH);
+
+  // Scale to fit within target (never crop)
+  const scale = Math.min(targetW / box.w, targetH / box.h);
+  const drawW = box.w * scale;
+  const drawH = box.h * scale;
+  const dx = (targetW - drawW) / 2;
+  const dy = (targetH - drawH) / 2;
+
+  rctx.drawImage(canvas, box.x, box.y, box.w, box.h, dx, dy, drawW, drawH);
+
+  resultBox.classList.remove('hidden');
+
+  // Step 6: Export transparent PNG
+  resultCanvas.toBlob(blob => {
+    finalBlob = blob;
+    downloadBtn.classList.remove('hidden');
+    toggleLoader(false);
+  }, 'image/png');
+}
+
+// ====================== Bounding Box ======================
+function getContentBoundingBox(ctx, width, height) {
+  const imageData = ctx.getImageData(0, 0, width, height).data;
+  let minX = width, minY = height, maxX = 0, maxY = 0;
+  let found = false;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const a = imageData[i + 3];
+      if (a > 60) { // has visible content
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        found = true;
+      }
+    }
+  }
+
+  return found ? { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } : null;
+}
+
+// ====================== UI Helpers ======================
+function showStatus(msg, type = 'info') {
+  status.innerHTML = msg;
+  status.className = 'info';
+  if (type === 'error') status.style.background = '#fee2e2', status.style.color = '#991b1b';
+  if (type === 'success') status.style.background = '#ecfdf5', status.style.color = '#166534';
+  status.classList.remove('hidden');
+}
+
+function toggleLoader(show) {
+  loader.classList.toggle('hidden', !show);
+  btnText.textContent = show ? 'Processing...' : 'Download Transparent PNG';
+  downloadBtn.disabled = show;
+}
+
+function resetUI() {
+  [originalBox, resultBox, downloadBtn, status].forEach(el => el.classList.add('hidden'));
+  finalBlob = null;
+  toggleLoader(false);
+}
+
+// ====================== Download ======================
+downloadBtn.addEventListener('click', () => {
+  if (!finalBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(finalBlob);
+  a.download = `logo-full-fit-${Date.now()}.png`;
+  a.click();
+});
+</script>
+
+</body>
+</html>
