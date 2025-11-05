@@ -39,7 +39,7 @@
 <header class="bg-white shadow-sm border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-6 py-4">
      <h1 class="text-3xl font-bold text-gray-900">Event Poster Generator</h1>
-     <p class="text-gray-600 mt-2">JPG download = 100 % identical to preview (canvas-based)</p>
+     <p class="text-gray-600 mt-2">JPG download = 100% identical to preview (CORS fixed!)</p>
     </div>
 </header>
 
@@ -72,10 +72,10 @@
   <textarea id="description" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50 resize-none min-h-[100px]" placeholder="Line 1 will become bullet 1&#10;Line 2 will become bullet 2&#10;Line 3 will become bullet 3"></textarea>
   <div class="text-xs text-white/70 mt-1 text-right" id="descBulletCount">0 / 3 bullets</div>
  </div>
- <div><label for="image_url" class="block text-sm font-medium mb-2">Key Image URL (300x300)</label>
-  <input type="url" id="image_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/key-image.jpg"></div>
+ <div><label for="image_url" class="block text-sm font-medium mb-2">Key Image URL (any public image)</label>
+  <input type="url" id="image_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/image.jpg"></div>
  <div><label for="qr_code_url" class="block text-sm font-medium mb-2">QR Code URL (Optional)</label>
-  <input type="url" id="qr_code_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/event-page"></div>
+  <input type="url" id="qr_code_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/event"></div>
 </form>
 </div>
 
@@ -99,14 +99,14 @@
 </div>
 
 <script>
-/* ==================== SVG ICONS ==================== */
+// ==================== SVG ICONS ====================
 const svgIcons = {
     calendar:`data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNOCA3VjNtOCA0VjNtLTkgOGgxME01IDIxaDE0YTIgMiAwIDAwMi0yVjdhMiAyIDAgMDAtMi0ySDVhMiAyIDAgMDAtMiAydjEyYTIgMiAwIDAwMiAyeiIvPjwvc3ZnPg==`,
     clock:`data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgOHY0bDMgM202LTNhOSA5IDAgMTEtMTggMCA5IDkgMCAwMTggMHoiLz48L3N2Zz4=`,
     location:`data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGU9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjZmY2NjAwIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTcuNjU3IDE2LjY1N0wxMy40MTQgMjAuOWExLjk5OCAxLjk5OCAwIDAxLTIuODI3IDBsLTQuMjQ0LTQuMjQzYTggOCAwIDExMTEuMzE0IDB6Ii8+PHBhdGggZD0iTTE1IDExYTMgMyAwIDExLTYgMCAzIDMgMCAwMTYgMHoiLz48L3N2Zz4=`
 };
 
-/* ==================== WORD LIMITS ==================== */
+// ==================== WORD LIMITS ====================
 const MAX_TITLE_WORDS = 40, MAX_SUBTITLE_WORDS = 40, MAX_BULLETS = 3, MAX_BULLET_WORDS = 70;
 function countWords(t){return t.trim().split(/\s+/).filter(w=>w).length;}
 function enforceWordLimit(ta,max,el){
@@ -134,242 +134,215 @@ function enforceBulletLimit(ta,el){
     norm();
 }
 
-/* ==================== CANVAS DRAWING HELPERS ==================== */
-function wrapText(ctx, text, x, y, maxWidth, lineHeight){
-    const words = text.split(' ');
-    let line = '', testLine = '', wordArray = [], curY = y;
-    for(let n=0;n<words.length;n++){
-        testLine = line + words[n] + ' ';
-        if(ctx.measureText(testLine).width > maxWidth && n>0){
-            wordArray.push([line.trim(), x, curY]);
-            curY += lineHeight;
-            line = words[n] + ' ';
-        }else line = testLine;
-        if(n===words.length-1) wordArray.push([line.trim(), x, curY]);
+// ==================== CORS-FREE IMAGE LOADER ====================
+async function loadImageAsBase64(url) {
+    if (!url) return null;
+    try {
+        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxy);
+        const data = await res.json();
+        return data.contents; // base64 string
+    } catch (e) {
+        console.warn("Image load failed:", url);
+        return null;
     }
-    return {lines:wordArray, height:curY-y+lineHeight};
 }
 
-/* ==================== POSTER GENERATION (HTML for preview) ==================== */
-function generatePosterHTML(e){
-    const qr = e.qr_code_url?`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(e.qr_code_url)}`:'';
-    const date = formatDate(e.event_date);
-    const time = e.end_time?`${formatTime(e.event_time)} - ${formatTime(e.end_time)}`:formatTime(e.event_time);
-    const hasQR = !!e.qr_code_url;
-    const bullets = (e.description||'').split('\n').map(l=>l.trim()).filter(l=>l).slice(0,MAX_BULLETS)
-                     .map(t=>`<li style="margin:8px 0;line-height:1.5;font-size:16px;color:#4a5568;">${escapeHtml(t)}</li>`).join('');
-    return `
-<div id="posterRoot" style="width:595px;height:843px;background:white;position:relative;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
-    <div class="grid-overlay"></div>
-    <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;">
-        <div style="width:297.5px;height:300px;background:rgba(255,255,255,.95);padding:30px 20px;display:flex;flex-direction:column;justify-content:center;">
-            <div style="font-size:32px;line-height:1.2;color:#2d3748;font-weight:600;max-height:120px;overflow:hidden;white-space:normal;word-wrap:break-word;">${escapeHtml(e.event_title)}</div>
-            <div style="font-size:24px;line-height:1.2;color:#4a5568;margin-top:12px;font-weight:400;max-height:80px;overflow:hidden;white-space:normal;word-wrap:break-word;">${escapeHtml(e.event_subtitle)}</div>
-        </div>
-        <div style="width:297.5px;height:300px;background:#f8f9fa;overflow:hidden;position:relative;">
-            ${e.image_url?`<img id="keyImg" src="${e.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:
-            `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:16px;">Image</div>`}
-        </div>
-    </div>
-    <div style="position:absolute;top:300px;left:50%;transform:translateX(-50%);width:520px;background:rgba(255,255,255,.96);padding:24px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.14);">
-        <h2 style="font-size:26px;font-weight:bold;margin:0 0 16px;color:#2d3748;border-bottom:2px solid #ff6600;padding-bottom:10px;display:inline-block;">About This Event</h2>
-        <ul style="margin:0;padding-left:28px;list-style:disc;">${bullets||'<li style="color:#9ca3af;font-size:16px;">No description provided.</li>'}</ul>
-    </div>
-    <div style="position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:${hasQR?'520px':'400px'};display:flex;${hasQR?'justify-content:space-between;':'justify-content:center;'}align-items:flex-start;">
-        ${hasQR?`<div style="width:130px;height:130px;">
-            <div style="background:white;padding:10px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.12);border:1px solid #dee2e6;">
-                <img id="qrImg" src="${qr}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'">
-            </div>
-        </div>`:''}
-        <div style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);padding:20px;border-radius:18px;border:1px solid #dee2e6;box-shadow:0 6px 16px rgba(0,0,0,.1);width:350px;">
-            <div style="display:flex;align-items:center;margin-bottom:12px;">
-                <img src="${svgIcons.calendar}" style="width:20px;height:20px;margin-right:12px;"> 
-                <div style="font-size:16px;color:#2d3748;font-weight:500;">${date}</div>
-            </div>
-            <div style="display:flex;align-items:center;margin-bottom:12px;">
-                <img src="${svgIcons.clock}" style="width:20px;height:20px;margin-right:12px;">
-                <div style="font-size:16px;color:#2d3748;font-weight:500;">${time}</div>
-            </div>
-            <div style="display:flex;align-items:flex-start;">
-                <img src="${svgIcons.location}" style="width:20px;height:20px;margin-right:12px;flex-shrink:0;">
-                <div style="font-size:16px;color:#2d3748;font-weight:500;line-height:1.5;">${escapeHtml(e.location)}</div>
-            </div>
-        </div>
-    </div>
-    <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;">
-        <img id="footerImg" src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg" crossorigin="anonymous" style="width:100%;height:auto;max-height:100%;object-fit:contain;">
-    </div>
-</div>`;
-}
-
-/* ==================== CANVAS POSTER (FINAL 300 dpi) ==================== */
-async function drawPosterOnCanvas(event){
+// ==================== CANVAS POSTER (300 DPI) ====================
+async function drawPosterOnCanvas(event) {
     const DPI = 300;
-    const PX_PER_INCH = DPI / 72;                 // 4.1666…
-    const WIDTH = 595 * PX_PER_INCH;              // 2480
-    const HEIGHT = 843 * PX_PER_INCH;             // 3508
+    const SCALE = DPI / 72;
+    const WIDTH = 595 * SCALE;   // 2480
+    const HEIGHT = 843 * SCALE;  // 3508
 
     const canvas = document.createElement('canvas');
     canvas.width = WIDTH;
     canvas.height = HEIGHT;
     const ctx = canvas.getContext('2d');
 
-    // ---- 1. White background ----
+    // White background
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0,0,WIDTH,HEIGHT);
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // ---- 2. Header gradient ----
-    const headerH = 300 * PX_PER_INCH;
+    // Header gradient
+    const headerH = 300 * SCALE;
     const grd = ctx.createLinearGradient(0, headerH, WIDTH, 0);
     grd.addColorStop(0, '#ff6600');
     grd.addColorStop(1, '#e55a00');
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, WIDTH, headerH);
 
-    // ---- 3. Left white panel (title / subtitle) ----
-    const leftW = 297.5 * PX_PER_INCH;
+    // Left panel
+    const leftW = 297.5 * SCALE;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.fillRect(0, 0, leftW, headerH);
 
-    // ---- 4. Title (wrap) ----
+    // Title
     ctx.fillStyle = '#2d3748';
-    ctx.font = `600 ${32 * PX_PER_INCH}px 'Helvetica Neue'`;
-    const titleWrap = wrapText(ctx, event.event_title, 30*PX_PER_INCH, 70*PX_PER_INCH, leftW-60*PX_PER_INCH, 38*PX_PER_INCH);
-    titleWrap.lines.forEach(l=>ctx.fillText(l[0], l[1], l[2]));
+    ctx.font = `600 ${32 * SCALE}px 'Helvetica Neue'`;
+    const titleWrap = wrapText(ctx, event.event_title, 30*SCALE, 70*SCALE, leftW-60*SCALE, 38*SCALE);
+    titleWrap.lines.forEach(l => ctx.fillText(l[0], l[1], l[2]));
 
-    // ---- 5. Subtitle ----
+    // Subtitle
     ctx.fillStyle = '#4a5568';
-    ctx.font = `400 ${24 * PX_PER_INCH}px 'Helvetica Neue'`;
-    const subY = titleWrap.height + 82*PX_PER_INCH;
-    const subWrap = wrapText(ctx, event.event_subtitle, 30*PX_PER_INCH, subY, leftW-60*PX_PER_INCH, 30*PX_PER_INCH);
-    subWrap.lines.forEach(l=>ctx.fillText(l[0], l[1], l[2]));
+    ctx.font = `400 ${24 * SCALE}px 'Helvetica Neue'`;
+    const subY = titleWrap.height + 82*SCALE;
+    const subWrap = wrapText(ctx, event.event_subtitle, 30*SCALE, subY, leftW-60*SCALE, 30*SCALE);
+    subWrap.lines.forEach(l => ctx.fillText(l[0], l[1], l[2]));
 
-    // ---- 6. Key image (rasterised with html2canvas) ----
-    const keyImg = document.getElementById('keyImg');
-    if(keyImg && keyImg.src && keyImg.complete){
-        const imgCanvas = await html2canvas(keyImg,{scale:PX_PER_INCH, useCORS:true});
-        ctx.drawImage(imgCanvas, leftW, 0, leftW, headerH);
-    }
-
-    // ---- 7. About box (rounded rect + shadow) ----
-    const aboutY = 300 * PX_PER_INCH;
-    const aboutW = 520 * PX_PER_INCH;
-    const aboutX = (WIDTH - aboutW)/2;
-    ctx.fillStyle = 'rgba(255,255,255,0.96)';
-    ctx.shadowColor = 'rgba(0,0,0,0.14)';
-    ctx.shadowBlur = 24 * PX_PER_INCH;
-    ctx.shadowOffsetY = 8 * PX_PER_INCH;
-    roundRect(ctx, aboutX, aboutY, aboutW, 300*PX_PER_INCH, 18*PX_PER_INCH);
-    ctx.fill();
-    ctx.shadowColor = 'transparent';
-
-    // ---- 8. About title ----
-    ctx.fillStyle = '#2d3748';
-    ctx.font = `bold ${26 * PX_PER_INCH}px 'Helvetica Neue'`;
-    ctx.fillText('About This Event', aboutX + 24*PX_PER_INCH, aboutY + 50*PX_PER_INCH);
-    ctx.strokeStyle = '#ff6600';
-    ctx.lineWidth = 2*PX_PER_INCH;
-    ctx.beginPath();
-    ctx.moveTo(aboutX + 24*PX_PER_INCH, aboutY + 60*PX_PER_INCH);
-    ctx.lineTo(aboutX + 24*PX_PER_INCH + ctx.measureText('About This Event').width, aboutY + 60*PX_PER_INCH);
-    ctx.stroke();
-
-    // ---- 9. Bullets ----
-    const bulletLines = (event.description||'').split('\n').map(l=>l.trim()).filter(l=>l).slice(0,MAX_BULLETS);
-    ctx.fillStyle = '#4a5568';
-    ctx.font = `${16 * PX_PER_INCH}px 'Helvetica Neue'`;
-    let bulletY = aboutY + 90*PX_PER_INCH;
-    bulletLines.forEach(txt=>{
-        ctx.fillText('• ' + txt, aboutX + 52*PX_PER_INCH, bulletY);
-        bulletY += 24*PX_PER_INCH;
-    });
-
-    // ---- 10. Bottom info panel (gradient bg) ----
-    const bottomY = HEIGHT - 170*PX_PER_INCH;
-    const infoW = 350 * PX_PER_INCH;
-    const infoX = event.qr_code_url ? (WIDTH - 520*PX_PER_INCH)/2 + 150*PX_PER_INCH : (WIDTH - infoW)/2;
-    const infoGrd = ctx.createLinearGradient(0, bottomY + 40*PX_PER_INCH, 0, bottomY + 150*PX_PER_INCH);
-    infoGrd.addColorStop(0,'#f8f9fa'); infoGrd.addColorStop(1,'#e9ecef');
-    ctx.fillStyle = infoGrd;
-    roundRect(ctx, infoX, bottomY, infoW, 110*PX_PER_INCH, 18*PX_PER_INCH);
-    ctx.fill();
-    ctx.strokeStyle = '#dee2e6';
-    ctx.lineWidth = PX_PER_INCH;
-    ctx.stroke();
-
-    // icons + text
-    const iconSize = 20*PX_PER_INCH;
-    const lineH = 28*PX_PER_INCH;
-    let curY = bottomY + 30*PX_PER_INCH;
-    // calendar
-    await drawIcon(ctx, svgIcons.calendar, infoX + 20*PX_PER_INCH, curY, iconSize);
-    ctx.fillStyle = '#2d3748';
-    ctx.font = `500 ${16*PX_PER_INCH}px 'Helvetica Neue'`;
-    ctx.fillText(date, infoX + 52*PX_PER_INCH, curY + 18*PX_PER_INCH);
-    curY += lineH;
-    // clock
-    await drawIcon(ctx, svgIcons.clock, infoX + 20*PX_PER_INCH, curY, iconSize);
-    ctx.fillText(time, infoX + 52*PX_PER_INCH, curY + 18*PX_PER_INCH);
-    curY += lineH;
-    // location
-    await drawIcon(ctx, svgIcons.location, infoX + 20*PX_PER_INCH, curY, iconSize);
-    const locWrap = wrapText(ctx, event.location, infoX + 52*PX_PER_INCH, curY + 18*PX_PER_INCH, infoW - 72*PX_PER_INCH, 24*PX_PER_INCH);
-    locWrap.lines.forEach(l=>ctx.fillText(l[0], l[1], l[2]));
-
-    // ---- 11. QR (if any) ----
-    if(event.qr_code_url){
-        const qrImg = document.getElementById('qrImg');
-        if(qrImg && qrImg.complete){
-            const qrCanvas = await html2canvas(qrImg,{scale:PX_PER_INCH, useCORS:true});
-            const qrBoxX = (WIDTH - 520*PX_PER_INCH)/2;
-            const qrBoxY = bottomY;
-            ctx.fillStyle = '#ffffff';
-            roundRect(ctx, qrBoxX, qrBoxY, 130*PX_PER_INCH, 130*PX_PER_INCH, 14*PX_PER_INCH);
-            ctx.fill();
-            ctx.strokeStyle = '#dee2e6';
-            ctx.lineWidth = PX_PER_INCH;
-            ctx.stroke();
-            ctx.drawImage(qrCanvas, qrBoxX + 10*PX_PER_INCH, qrBoxY + 10*PX_PER_INCH, 110*PX_PER_INCH, 110*PX_PER_INCH);
+    // Key Image
+    if (event.image_url) {
+        const b64 = await loadImageAsBase64(event.image_url);
+        if (b64) {
+            const img = new Image();
+            img.src = b64;
+            await new Promise(r => img.onload = r);
+            ctx.drawImage(img, leftW, 0, leftW, headerH);
         }
     }
 
-    // ---- 12. Footer image ----
-    const footerImg = document.getElementById('footerImg');
-    if(footerImg && footerImg.complete){
-        const footCanvas = await html2canvas(footerImg,{scale:PX_PER_INCH, useCORS:true});
-        ctx.drawImage(footCanvas, 0, HEIGHT - 70*PX_PER_INCH, WIDTH, 70*PX_PER_INCH);
+    // About Box
+    const aboutY = 300 * SCALE;
+    const aboutW = 520 * SCALE;
+    const aboutX = (WIDTH - aboutW) / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.shadowColor = 'rgba(0,0,0,0.14)';
+    ctx.shadowBlur = 24 * SCALE;
+    ctx.shadowOffsetY = 8 * SCALE;
+    roundRect(ctx, aboutX, aboutY, aboutW, 300*SCALE, 18*SCALE);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+
+    // About Title
+    ctx.fillStyle = '#2d3748';
+    ctx.font = `bold ${26 * SCALE}px 'Helvetica Neue'`;
+    ctx.fillText('About This Event', aboutX + 24*SCALE, aboutY + 50*SCALE);
+    ctx.strokeStyle = '#ff6600';
+    ctx.lineWidth = 2*SCALE;
+    ctx.beginPath();
+    ctx.moveTo(aboutX + 24*SCALE, aboutY + 60*SCALE);
+    ctx.lineTo(aboutX + 24*SCALE + ctx.measureText('About This Event').width, aboutY + 60*SCALE);
+    ctx.stroke();
+
+    // Bullets
+    const bullets = (event.description||'').split('\n').map(l=>l.trim()).filter(l=>l).slice(0,3);
+    ctx.fillStyle = '#4a5568';
+    ctx.font = `${16 * SCALE}px 'Helvetica Neue'`;
+    let bulletY = aboutY + 90*SCALE;
+    bullets.forEach(txt => {
+        ctx.fillText('• ' + txt, aboutX + 52*SCALE, bulletY);
+        bulletY += 24*SCALE;
+    });
+
+    // Bottom Panel
+    const bottomY = HEIGHT - 170*SCALE;
+    const infoW = 350 * SCALE;
+    const infoX = event.qr_code_url ? (WIDTH - 520*SCALE)/2 + 150*SCALE : (WIDTH - infoW)/2;
+    const infoGrd = ctx.createLinearGradient(0, bottomY + 40*SCALE, 0, bottomY + 150*SCALE);
+    infoGrd.addColorStop(0, '#f8f9fa'); infoGrd.addColorStop(1, '#e9ecef');
+    ctx.fillStyle = infoGrd;
+    roundRect(ctx, infoX, bottomY, infoW, 110*SCALE, 18*SCALE);
+    ctx.fill();
+    ctx.strokeStyle = '#dee2e6';
+    ctx.lineWidth = SCALE;
+    ctx.stroke();
+
+    // Icons + text
+    const iconSize = 20*SCALE;
+    let curY = bottomY + 30*SCALE;
+    await drawIcon(ctx, svgIcons.calendar, infoX + 20*SCALE, curY, iconSize);
+    ctx.fillStyle = '#2d3748';
+    ctx.font = `500 ${16*SCALE}px 'Helvetica Neue'`;
+    ctx.fillText(formatDate(event.event_date), infoX + 52*SCALE, curY + 18*SCALE);
+    curY += 28*SCALE;
+
+    await drawIcon(ctx, svgIcons.clock, infoX + 20*SCALE, curY, iconSize);
+    const time = event.end_time ? `${formatTime(event.event_time)} - ${formatTime(event.end_time)}` : formatTime(event.event_time);
+    ctx.fillText(time, infoX + 52*SCALE, curY + 18*SCALE);
+    curY += 28*SCALE;
+
+    await drawIcon(ctx, svgIcons.location, infoX + 20*SCALE, curY, iconSize);
+    const locWrap = wrapText(ctx, event.location, infoX + 52*SCALE, curY + 18*SCALE, infoW - 72*SCALE, 24*SCALE);
+    locWrap.lines.forEach(l => ctx.fillText(l[0], l[1], l[2]));
+
+    // QR Code
+    if (event.qr_code_url) {
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(event.qr_code_url)}`;
+        const b64 = await loadImageAsBase64(qrUrl);
+        if (b64) {
+            const img = new Image();
+            img.src = b64;
+            await new Promise(r => img.onload = r);
+            const qrX = (WIDTH - 520*SCALE)/2;
+            ctx.fillStyle = '#ffffff';
+            roundRect(ctx, qrX, bottomY, 130*SCALE, 130*SCALE, 14*SCALE);
+            ctx.fill();
+            ctx.strokeStyle = '#dee2e6';
+            ctx.lineWidth = SCALE;
+            ctx.stroke();
+            ctx.drawImage(img, qrX + 10*SCALE, bottomY + 10*SCALE, 110*SCALE, 110*SCALE);
+        }
+    }
+
+    // Footer
+    const footerUrl = "https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg";
+    const footerB64 = await loadImageAsBase64(footerUrl);
+    if (footerB64) {
+        const img = new Image();
+        img.src = footerB64;
+        await new Promise(r => img.onload = r);
+        ctx.drawImage(img, 0, HEIGHT - 70*SCALE, WIDTH, 70*SCALE);
     }
 
     return canvas;
 }
-function roundRect(ctx,x,y,w,h,r){
+
+// Helpers
+function wrapText(ctx, text, x, y, maxW, lineH) {
+    const words = text.split(' ');
+    let line = '', lines = [], curY = y;
+    for (let w of words) {
+        const test = line + w + ' ';
+        if (ctx.measureText(test).width > maxW && line) {
+            lines.push([line.trim(), x, curY]);
+            curY += lineH;
+            line = w + ' ';
+        } else line = test;
+    }
+    if (line) lines.push([line.trim(), x, curY]);
+    return {lines, height: curY - y + lineH};
+}
+function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
-    ctx.moveTo(x+r, y);
-    ctx.arcTo(x+w, y,   x+w, y+h, r);
-    ctx.arcTo(x+w, y+h, x,   y+h, r);
-    ctx.arcTo(x,   y+h, x,   y,   r);
-    ctx.arcTo(x,   y,   x+w, y,   r);
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
 }
-async function drawIcon(ctx, dataUrl, x, y, size){
+async function drawIcon(ctx, url, x, y, size) {
     const img = new Image();
-    img.src = dataUrl;
-    await new Promise(r=>{img.onload=r;});
+    img.src = url;
+    await new Promise(r => img.onload = r);
     ctx.drawImage(img, x, y, size, size);
 }
+function formatDate(d){if(!d)return'TBD';return new Date(d).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});}
+function formatTime(t){if(!t)return'TBD';const[h,m]=t.split(':');const dt=new Date();dt.setHours(+h,+m);return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});}
+function showSuccess(m){const el=document.createElement('div');el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-green-500 text-white font-medium z-50';el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),3000);}
+function showError(m){const el=document.createElement('div');el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-red-500 text-white font-medium z-50';el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),3000);}
 
-/* ==================== DOWNLOAD (canvas → JPEG) ==================== */
-async function capturePoster(){
+// ==================== DOWNLOAD ====================
+async function capturePoster() {
     const btn = document.getElementById('downloadPoster');
     const orig = btn.innerHTML;
     btn.innerHTML = '<div class="loading-spinner inline-block mr-2"></div>Generating...';
     btn.disabled = true;
-    try{
-        // 1. Force a fresh render of the preview (so images are loaded)
-        updateLivePreview();
-        await new Promise(r=>setTimeout(r,300)); // give images a moment
 
-        // 2. Gather current form values
+    try {
+        updateLivePreview();
+        await new Promise(r => setTimeout(r, 500));
+
         const event = {
             event_title: document.getElementById('event_title').value || 'Summer Music Festival',
             event_subtitle: document.getElementById('event_subtitle').value || 'A Night of Music and Fun',
@@ -382,28 +355,25 @@ async function capturePoster(){
             qr_code_url: document.getElementById('qr_code_url').value || ''
         };
 
-        // 3. Draw everything on a 300 dpi canvas
         const canvas = await drawPosterOnCanvas(event);
-
-        // 4. toDataURL → download
         const url = canvas.toDataURL('image/jpeg', 0.98);
         const a = document.createElement('a');
         a.href = url;
         a.download = 'event-poster-a4-300dpi.jpg';
         a.click();
 
-        showSuccess('Downloaded – 100 % match!');
-    }catch(e){
+        showSuccess('Downloaded – 100% match!');
+    } catch (e) {
         console.error(e);
-        showError('Failed – check image URLs (must allow CORS).');
-    }finally{
+        showError('Download failed. Try again.');
+    } finally {
         btn.innerHTML = orig;
         btn.disabled = false;
     }
 }
 
-/* ==================== LIVE PREVIEW (HTML) ==================== */
-function updateLivePreview(){
+// ==================== LIVE PREVIEW ====================
+function updateLivePreview() {
     const data = {
         event_title: document.getElementById('event_title').value || 'Summer Music Festival',
         event_subtitle: document.getElementById('event_subtitle').value || 'A Night of Music and Fun',
@@ -415,25 +385,61 @@ function updateLivePreview(){
         image_url: document.getElementById('image_url').value || '',
         qr_code_url: document.getElementById('qr_code_url').value || ''
     };
-    document.getElementById('posterPreview').innerHTML = generatePosterHTML(data);
+    const qr = data.qr_code_url ? `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(data.qr_code_url)}` : '';
+    const bullets = (data.description||'').split('\n').map(l=>l.trim()).filter(l=>l).slice(0,3)
+                     .map(t=>`<li style="margin:8px 0;line-height:1.5;font-size:16px;color:#4a5568;">${escapeHtml(t)}</li>`).join('');
+    document.getElementById('posterPreview').innerHTML = `
+<div id="posterRoot" style="width:595px;height:843px;background:white;position:relative;overflow:hidden;font-family:'Helvetica Neue';">
+    <div class="grid-overlay"></div>
+    <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;">
+        <div style="width:297.5px;height:300px;background:rgba(255,255,255,.95);padding:30px 20px;display:flex;flex-direction:column;justify-content:center;">
+            <div style="font-size:32px;line-height:1.2;color:#2d3748;font-weight:600;max-height:120px;overflow:hidden;">${escapeHtml(data.event_title)}</div>
+            <div style="font-size:24px;line-height:1.2;color:#4a5568;margin-top:12px;font-weight:400;max-height:80px;overflow:hidden;">${escapeHtml(data.event_subtitle)}</div>
+        </div>
+        <div style="width:297.5px;height:300px;background:#f8f9fa;overflow:hidden;">
+            ${data.image_url?`<img src="${data.image_url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:
+            `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:16px;">Image</div>`}
+        </div>
+    </div>
+    <div style="position:absolute;top:300px;left:50%;transform:translateX(-50%);width:520px;background:rgba(255,255,255,.96);padding:24px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.14);">
+        <h2 style="font-size:26px;font-weight:bold;margin:0 0 16px;color:#2d3748;border-bottom:2px solid #ff6600;padding-bottom:10px;display:inline-block;">About This Event</h2>
+        <ul style="margin:0;padding-left:28px;list-style:disc;">${bullets||'<li style="color:#9ca3af;font-size:16px;">No description provided.</li>'}</ul>
+    </div>
+    <div style="position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:${data.qr_code_url?'520px':'400px'};display:flex;${data.qr_code_url?'justify-content:space-between;':'justify-content:center;'}align-items:flex-start;">
+        ${data.qr_code_url?`<div style="width:130px;height:130px;background:white;padding:10px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.12);border:1px solid #dee2e6;">
+            <img src="${qr}" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'">
+        </div>`:''}
+        <div style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);padding:20px;border-radius:18px;border:1px solid #dee2e6;box-shadow:0 6px 16px rgba(0,0,0,.1);width:350px;">
+            <div style="display:flex;align-items:center;margin-bottom:12px;">
+                <img src="${svgIcons.calendar}" style="width:20px;height:20px;margin-right:12px;">
+                <div style="font-size:16px;color:#2d3748;font-weight:500;">${formatDate(data.event_date)}</div>
+            </div>
+            <div style="display:flex;align-items:center;margin-bottom:12px;">
+                <img src="${svgIcons.clock}" style="width:20px;height:20px;margin-right:12px;">
+                <div style="font-size:16px;color:#2d3748;font-weight:500;">${data.end_time?`${formatTime(data.event_time)} - ${formatTime(data.end_time)}`:formatTime(data.event_time)}</div>
+            </div>
+            <div style="display:flex;align-items:flex-start;">
+                <img src="${svgIcons.location}" style="width:20px;height:20px;margin-right:12px;">
+                <div style="font-size:16px;color:#2d3748;font-weight:500;line-height:1.5;">${escapeHtml(data.location)}</div>
+            </div>
+        </div>
+    </div>
+    <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;">
+        <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg" style="width:100%;height:auto;max-height:100%;object-fit:contain;">
+    </div>
+</div>`;
 }
-
-/* ==================== UTILS ==================== */
 function escapeHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
-function formatDate(d){if(!d)return'TBD';return new Date(d).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});}
-function formatTime(t){if(!t)return'TBD';const[h,m]=t.split(':');const dt=new Date();dt.setHours(+h,+m);return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});}
-function showSuccess(m){const el=document.createElement('div');el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-green-500 text-white font-medium z-50';el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),3000);}
-function showError(m){const el=document.createElement('div');el.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-red-500 text-white font-medium z-50';el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),3000);}
 
-/* ==================== INIT ==================== */
-document.addEventListener('DOMContentLoaded',()=>{
+// ==================== INIT ====================
+document.addEventListener('DOMContentLoaded', () => {
     updateLivePreview();
     document.getElementById('downloadPoster').onclick = capturePoster;
-    document.querySelectorAll('#eventForm input, #eventForm textarea').forEach(el=>el.addEventListener('input',updateLivePreview));
-    enforceWordLimit(document.getElementById('event_title'),MAX_TITLE_WORDS,document.getElementById('titleWordCount'));
-    enforceWordLimit(document.getElementById('event_subtitle'),MAX_SUBTITLE_WORDS,document.getElementById('subtitleWordCount'));
-    enforceBulletLimit(document.getElementById('description'),document.getElementById('descBulletCount'));
-    setTimeout(updateLivePreview,200);
+    document.querySelectorAll('#eventForm input, #eventForm textarea').forEach(el => el.addEventListener('input', updateLivePreview));
+    enforceWordLimit(document.getElementById('event_title'), MAX_TITLE_WORDS, document.getElementById('titleWordCount'));
+    enforceWordLimit(document.getElementById('event_subtitle'), MAX_SUBTITLE_WORDS, document.getElementById('subtitleWordCount'));
+    enforceBulletLimit(document.getElementById('description'), document.getElementById('descBulletCount'));
+    setTimeout(updateLivePreview, 200);
 });
 </script>
 </body>
