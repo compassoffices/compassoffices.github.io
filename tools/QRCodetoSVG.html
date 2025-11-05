@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>QR Code Generator - Excel Style</title>
+  <title>QR Code Generator - Excel Style (Fixed Downloads)</title>
 
-  <!-- Load Libraries First -->
+  <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
@@ -79,12 +79,11 @@
     .btn-remove { background: var(--danger); color: white; padding: 6px 10px; font-size: 0.8rem; }
     .btn-remove:hover { background: #d63a5f; }
 
-    .btn-download {
-      background: #28a745;
-      color: white;
-      font-size: 0.8rem;
-      padding: 6px 12px;
-      margin-top: 8px;
+    .btn-auto-download {
+      background: #ffc107;
+      color: #000;
+      font-weight: bold;
+      margin-left: 10px;
     }
 
     table {
@@ -157,6 +156,16 @@
       word-break: break-all;
     }
 
+    .status {
+      text-align: center;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+      background: #d4edda;
+      color: #155724;
+      font-weight: bold;
+    }
+
     .zip-container { text-align: center; margin: 2rem 0; }
     .empty-state { text-align: center; padding: 3rem; color: #888; font-style: italic; }
 
@@ -181,13 +190,13 @@
 <div class="container">
   <header>
     <h1>QR Code Generator</h1>
-    <p>Excel-style • SVG Vector • Instant Download</p>
+    <p>Excel-style • SVG Vector • Auto-Download Fixed</p>
   </header>
 
   <div class="content">
     <div class="controls">
       <button class="btn-add" onclick="addRow()">Add Row</button>
-      <button class="btn-generate" onclick="generateAll()">Generate All QR Codes</button>
+      <button class="btn-generate" onclick="generateAll()">Generate & Auto-Download All SVGs</button>
     </div>
 
     <table id="dataTable">
@@ -202,19 +211,22 @@
     </table>
 
     <div id="output">
-      <div class="empty-state">Click "Generate All QR Codes" to start</div>
+      <div class="empty-state">Fill rows and click Generate to auto-download SVGs</div>
     </div>
   </div>
 
   <footer>
-    100% offline • SVG opens in Illustrator • Instant Download
+    Downloads start automatically • Black on Transparent • Illustrator-ready
   </footer>
 </div>
 
 <script>
-  // Wait for full load
+  // Global for ZIP data
+  let generatedQRs = [];
+
+  // Wait for load
   window.addEventListener('load', () => {
-    addRow(); // Start with one row
+    addRow();
   });
 
   const tbody = document.querySelector('#dataTable tbody');
@@ -238,11 +250,33 @@
       .substring(0, 100) || 'qr_code';
   }
 
+  function forceDownload(filename, content, type = 'image/svg+xml') {
+    try {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log(`Downloaded: ${filename}`);
+      return true;
+    } catch (e) {
+      console.error('Download failed:', e);
+      alert(`Download failed for ${filename}. Check console.`);
+      return false;
+    }
+  }
+
   function generateAll() {
     const rows = Array.from(tbody.querySelectorAll('tr'));
     if (rows.length === 0) return alert('Add at least one row.');
 
+    generatedQRs = []; // Reset
     output.innerHTML = `
+      <div class="status">Generating and downloading QR codes...</div>
       <div class="qr-grid" id="qrGrid"></div>
       <div class="zip-container" id="zipContainer"></div>
     `;
@@ -274,25 +308,34 @@
         errorCorrectionLevel: 'H'
       }, (err, svg) => {
         if (err) {
-          console.error(err);
+          console.error('QR Generation Error:', err);
           completed++;
           checkDone();
           return;
         }
 
         valid++;
+        console.log(`Generated QR for ${nameRaw}`);
 
-        // Create QR Card
+        // Store for ZIP
+        generatedQRs.push({ filename, svg });
+
+        // Create preview card
         const card = document.createElement('div');
         card.className = 'qr-card';
         card.innerHTML = `
           ${svg}
           <div class="qr-name">${nameRaw}</div>
-          <button class="btn-download" onclick="downloadSVG('${filename.replace(/'/g, "\\'")}', \`${svg}\`)">
-            Download SVG
+          <button class="btn-download" onclick="forceDownload('${filename.replace(/'/g, "\\'")}', \`${svg.replace(/`/g, '\\`')}\`)">
+            Re-Download SVG
           </button>
         `;
         qrGrid.appendChild(card);
+
+        // AUTO-DOWNLOAD immediately
+        setTimeout(() => {
+          forceDownload(filename, svg);
+        }, i * 500); // Stagger to avoid browser overload
 
         // Add to ZIP
         zip.file(filename, svg);
@@ -310,32 +353,25 @@
         return;
       }
 
-      zip.generateAsync({ type: 'blob' }).then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'qr-codes.zip';
-        a.innerHTML = `
-          <button style="background:var(--primary);color:white;padding:14px 28px;font-size:1rem;border-radius:12px;border:none;cursor:pointer;">
-            Download All ${valid} QR Codes as ZIP
-          </button>
-        `;
-        zipContainer.appendChild(a);
-      });
-    }
-  }
+      // Generate ZIP after all downloads
+      setTimeout(() => {
+        zip.generateAsync({ type: 'blob' }).then(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'qr-codes.zip';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          console.log('ZIP downloaded');
+        }).catch(e => {
+          console.error('ZIP Error:', e);
+        });
 
-  // Force download SVG
-  function downloadSVG(filename, svgContent) {
-    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+        document.querySelector('.status').innerHTML = `Downloaded ${valid} SVGs + ZIP ready!`;
+      }, valid * 500 + 1000);
+    }
   }
 
   // Enter to add row
