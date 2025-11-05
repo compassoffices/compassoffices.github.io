@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Poster Generator</title>
+  <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+        body {box-sizing:border-box;}
+        .poster-template{
+            width:595px;height:842px;position:relative;overflow:hidden;
+            box-shadow:0 8px 32px rgba(0,0,0,0.1);background:white;
+            transform:scale(0.85);transform-origin:top center;margin-bottom:-126px;
+        }
+        .loading-spinner{
+            border:3px solid #f3f4f6;border-top:3px solid #3b82f6;
+            border-radius:50%;width:20px;height:20px;animation:spin 1s linear infinite;
+        }
+        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+        .form-section{background:linear-gradient(135deg,#2d3748 0%,#1a202c 100%);}
+        .preview-section{background:linear-gradient(135deg,#4a5568 0%,#2d3748 100%);}
+        .download-btn{background:linear-gradient(45deg,#ff6600,#e55a00);}
+        .download-btn:hover{background:linear-gradient(45deg,#e55a00,#cc4f00);}
+        /* Grid */
+        .grid-overlay{
+            position:absolute;top:0;left:0;width:100%;height:100%;
+            background:repeating-linear-gradient(0deg,transparent,transparent 9px,#f0f0f0 10px),
+                        repeating-linear-gradient(90deg,transparent,transparent 9px,#f0f0f0 10px);
+            opacity:0.08;pointer-events:none;z-index:1;
+            display:none;
+        }
+        .grid-enabled .grid-overlay{display:block;}
+    </style>
+ </head>
+ <body class="min-h-full bg-gray-100">
+  <div class="min-h-full">
+   <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-6 py-4">
+     <h1 id="main-title" class="text-3xl font-bold text-gray-900">Event Poster Generator</h1>
+     <p class="text-gray-600 mt-2">Auto-bullet on new line, max 3 bullets</p>
+    </div>
+   </header>
+   <div class="max-w-7xl mx-auto px-6 py-8">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+     <!-- ==== FORM ==== -->
+     <div class="form-section rounded-2xl p-8 text-white lg:col-span-2">
+      <h2 class="text-2xl font-bold mb-6">Event Details</h2>
+      <form id="eventForm" class="space-y-6">
+       <div><label for="event_title" class="block text-sm font-medium mb-2">Event Title (max 40 words)</label>
+        <textarea id="event_title" name="event_title" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50 resize-none min-h-[60px]" placeholder="Summer Music Festival" maxlength="400"></textarea>
+        <div class="text-xs text-white/70 mt-1 text-right" id="titleWordCount">0 / 40 words</div>
+       </div>
+       <div><label for="event_subtitle" class="block text-sm font-medium mb-2">Event Subtitle (max 40 words)</label>
+        <textarea id="event_subtitle" name="event_subtitle" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50 resize-none min-h-[60px]" placeholder="A Night of Music and Fun" maxlength="400"></textarea>
+        <div class="text-xs text-white/70 mt-1 text-right" id="subtitleWordCount">0 / 40 words</div>
+       </div>
+       <div><label for="event_date" class="block text-sm font-medium mb-2">Date</label> <input type="date" id="event_date" name="event_date" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"></div>
+       <div class="grid grid-cols-2 gap-4">
+        <div><label for="event_time" class="block text-sm font-medium mb-2">Start Time</label> <input type="time" id="event_time" name="event_time" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"></div>
+        <div><label for="end_time" class="block text-sm font-medium mb-2">End Time</label> <input type="time" id="end_time" name="end_time" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50"></div>
+       </div>
+       <div><label for="location" class="block text-sm font-medium mb-2">Location</label> <input type="text" id="location" name="location" required class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="Central Park, New York"></div>
+       <div><label for="description" class="block text-sm font-medium mb-2">Description (max 3 bullets, 70 words each)</label>
+        <textarea id="description" name="description" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50 resize-none min-h-[100px]" placeholder="Line 1 will become bullet 1&#10;Line 2 will become bullet 2&#10;Line 3 will become bullet 3"></textarea>
+        <div class="text-xs text-white/70 mt-1 text-right" id="descBulletCount">0 / 3 bullets</div>
+       </div>
+       <div><label for="image_url" class="block text-sm font-medium mb-2">Key Image URL (300x300)</label> <input type="url" id="image_url" name="image_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/key-image.jpg"></div>
+       <div><label for="qr_code_url" class="block text-sm font-medium mb-2">QR Code URL (Optional)</label> <input type="url" id="qr_code_url" name="qr_code_url" class="w-full px-4 py-3 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="https://example.com/event-page"></div>
+      </form>
+     </div>
+     <!-- ==== PREVIEW ==== -->
+     <div class="preview-section rounded-2xl p-8 text-white lg:col-span-3">
+      <h2 class="text-2xl font-bold mb-6">Final Poster Layout</h2>
+      <div class="space-y-8">
+       <!-- Poster -->
+       <div>
+        <div class="flex justify-between items-center mb-4">
+         <h3 class="text-lg font-semibold">Event Poster (A4)</h3>
+         <div class="flex gap-2">
+          <button id="downloadPoster" class="download-btn text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200">JPG (300 DPI)</button>
+         </div>
+        </div>
+        <div class="flex justify-center relative">
+         <div id="posterPreview" class="poster-template bg-blue-500 overflow-hidden grid-enabled"></div>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+    // === SVG ICONS ===
+    const svgIcons = {
+        calendar: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`,
+        clock: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+        location: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`
+    };
+
+    // === WORD LIMITS ===
+    const MAX_TITLE_WORDS = 40;
+    const MAX_SUBTITLE_WORDS = 40;
+    const MAX_BULLETS = 3;
+    const MAX_BULLET_WORDS = 70;
+
+    function countWords(text) {
+        return text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    }
+
+    function enforceWordLimit(textarea, maxWords, countEl) {
+        const updateCount = () => {
+            const words = countWords(textarea.value);
+            countEl.textContent = `${words} / ${maxWords} words`;
+            countEl.style.color = words > maxWords ? '#f87171' : '#e5e7eb';
+        };
+        textarea.addEventListener('input', () => {
+            const words = countWords(textarea.value);
+            if (words > maxWords) {
+                const text = textarea.value.trim().split(/\s+/).slice(0, maxWords).join(' ');
+                textarea.value = text;
+            }
+            updateCount();
+            updateLivePreview();
+        });
+        updateCount();
+    }
+
+    function enforceBulletLimit(textarea, countEl) {
+        const updateCount = () => {
+            const lines = textarea.value.split('\n').map(l => l.trim()).filter(l => l !== '');
+            const bulletCount = lines.length;
+            countEl.textContent = `${bulletCount} / ${MAX_BULLETS} bullets`;
+            countEl.style.color = bulletCount > MAX_BULLETS ? '#f87171' : '#e5e7eb';
+        };
+
+        const normalizeBullets = () => {
+            const lines = textarea.value.split('\n');
+            const validLines = [];
+            let bulletCount = 0;
+
+            for (let line of lines) {
+                const trimmed = line.trim();
+                if (trimmed === '') continue;
+
+                const words = countWords(trimmed);
+                if (bulletCount < MAX_BULLETS && words <= MAX_BULLET_WORDS) {
+                    validLines.push(trimmed);
+                    bulletCount++;
+                } else if (words > MAX_BULLET_WORDS) {
+                    // Truncate this line
+                    const truncated = trimmed.split(/\s+/).slice(0, MAX_BULLET_WORDS).join(' ');
+                    validLines.push(truncated);
+                    bulletCount++;
+                }
+                if (bulletCount >= MAX_BULLETS) break;
+            }
+
+            // Add empty line for next input if under limit
+            if (bulletCount < MAX_BULLETS) {
+                validLines.push('');
+            }
+
+            textarea.value = validLines.join('\n');
+            updateCount();
+            updateLivePreview();
+        };
+
+        textarea.addEventListener('input', normalizeBullets);
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const value = textarea.value;
+                const before = value.substring(0, start);
+                const after = value.substring(end);
+                const newLines = before.split('\n');
+                const currentLine = newLines[newLines.length - 1].trim();
+                const wordCount = countWords(currentLine);
+
+                if (wordCount === 0 || newLines.length > MAX_BULLETS) {
+                    return; // prevent new line
+                }
+
+                textarea.value = before + '\n' + after;
+                textarea.selectionStart = textarea.selectionEnd = start + 1;
+                normalizeBullets();
+            }
+        });
+
+        normalizeBullets();
+    }
+
+    // === INITIALIZE ===
+    function initializeApp(){
+        initializePreview();
+        setupDownloadHandlers();
+        setTimeout(updateLivePreview,200);
+    }
+
+    function initializePreview(){
+        const sample = {
+            event_title:"Summer Music Festival",
+            event_subtitle:"A Night of Music and Fun",
+            event_date:"2025-07-15",
+            event_time:"18:00",
+            end_time:"22:00",
+            location:"Lee Garden 1, 24/F, Central Park",
+            description:"Live music from top artists\nFood and drinks available\nFamily-friendly event",
+            image_url:"",
+            qr_code_url:""
+        };
+        updatePreviewElements(sample);
+    }
+
+    // === POSTER GENERATION ===
+    function generatePosterHTML(event){
+        const qrSrc = event.qr_code_url ? `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(event.qr_code_url)}` : '';
+        const formattedDate = formatDate(event.event_date);
+        const timeRange = event.end_time ? `${formatTime(event.event_time)} - ${formatTime(event.end_time)}` : formatTime(event.event_time);
+        const hasQR = !!event.qr_code_url;
+
+        // Process bullets: each non-empty line = 1 bullet
+        const rawLines = (event.description || '').split('\n').map(l => l.trim()).filter(l => l !== '');
+        const bulletLines = rawLines.slice(0, MAX_BULLETS);
+        const bullets = bulletLines.map(text => 
+            `<li style="margin:8px 0;line-height:1.5;font-size:16px;color:#4a5568;">${escapeHtml(text)}</li>`
+        ).join('');
+
+        return `
+            <div id="posterRoot" style="width:595px;height:843px;background:white;position:relative;overflow:hidden;font-family:sans-serif;">
+                <div class="grid-overlay"></div>
+                <!-- Header -->
+                <div style="width:595px;height:300px;background:linear-gradient(135deg,#ff6600 0%,#e55a00 100%);display:flex;">
+                    <div style="width:297.5px;height:300px;display:flex;flex-direction:column;justify-content:center;background:rgba(255,255,255,0.95);padding:30px 20px;">
+                        <div style="font-size:32px;line-height:1.2;color:#2d3748;text-align:left;word-wrap:break-word;font-weight:600;width:100%;max-height:120px;overflow:hidden;">${escapeHtml(event.event_title)}</div>
+                        <div style="font-size:24px;line-height:1.2;color:#4a5568;text-align:left;margin-top:12px;word-wrap:break-word;font-weight:400;width:100%;max-height:80px;overflow:hidden;">${escapeHtml(event.event_subtitle)}</div>
+                    </div>
+                    <div style="width:297.5px;height:300px;background:#f8f9fa;overflow:hidden;">
+                        ${event.image_url?`<img src="${event.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`:`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:16px;">Image</div>`}
+                    </div>
+                </div>
+                <!-- About This Event - Centered -->
+                <div style="position:absolute;top:340px;left:50%;transform:translateX(-50%);width:520px;background:rgba(255,255,255,0.96);padding:24px;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,0.14);">
+                    <h2 style="font-size:26px;font-weight:bold;margin:0 0 16px;color:#2d3748;text-align:left;border-bottom:2px solid #ff6600;padding-bottom:10px;display:inline-block;">About This Event</h2>
+                    <ul style="margin:0;padding-left:28px;list-style:disc;text-align:left;">${bullets || '<li style="color:#9ca3af;font-size:16px;">No description provided.</li>'}</ul>
+                </div>
+                <!-- Bottom Section -->
+                <div style="position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:${hasQR?'520px':'400px'};display:flex;${hasQR?'justify-content:space-between;':'justify-content:center;'}align-items:flex-start;">
+                    ${hasQR?`
+                    <div style="width:130px;height:130px;">
+                        <div style="background:white;padding:10px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,0.12);border:1px solid #dee2e6;">
+                            <img src="${qrSrc}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none'">
+                        </div>
+                    </div>`:''}
+                    <div style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);padding:20px;border-radius:18px;border:1px solid #dee2e6;box-shadow:0 6px 16px rgba(0,0,0,0.1);width:350px;">
+                        <div style="display:flex;align-items:center;margin-bottom:12px;"><div style="width:20px;height:20px;margin-right:12px;color:#ff6600;">${svgIcons.calendar}</div><div style="font-size:16px;color:#2d3748;font-weight:500;">${formattedDate}</div></div>
+                        <div style="display:flex;align-items:center;margin-bottom:12px;"><div style="width:20px;height:20px;margin-right:12px;color:#ff6600;">${svgIcons.clock}</div><div style="font-size:16px;color:#2d3748;font-weight:500;">${timeRange}</div></div>
+                        <div style="display:flex;align-items:flex-start;"><div style="width:20px;height:20px;margin-right:12px;color:#ff6600;flex-shrink:0;">${svgIcons.location}</div><div style="font-size:16px;color:#2d3748;font-weight:500;line-height:1.5;">${escapeHtml(event.location)}</div></div>
+                    </div>
+                </div>
+                <!-- Footer -->
+                <div style="position:absolute;bottom:0;left:0;width:595px;height:70px;background:white;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0;">
+                    <img src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg"
+                         alt="Compass Offices"
+                         style="width:100%;height:auto;max-height:100%;object-fit:contain;"
+                         crossorigin="anonymous">
+                </div>
+            </div>`;
+    }
+
+    function updatePreviewElements(eventData){
+        document.getElementById('posterPreview').innerHTML = generatePosterHTML(eventData);
+    }
+
+    // === UTILS ===
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatDate(d){if(!d)return'TBD';return new Date(d).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});}
+    function formatTime(t){if(!t)return'TBD';const[h,m]=t.split(':');const dt=new Date();dt.setHours(+h,+m);return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});}
+    function showSuccess(m){const d=document.createElement('div');d.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-green-500 text-white font-medium z-50';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),3000);}
+    function showError(m){const d=document.createElement('div');d.className='fixed top-4 right-4 px-6 py-3 rounded-lg bg-red-500 text-white font-medium z-50';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),3000);}
+
+    // === DOWNLOAD ===
+    async function waitForImages(root) {
+        const images = Array.from(root.querySelectorAll('img'));
+        return Promise.all(images.map(img => new Promise((resolve) => {
+            if (img.complete && img.naturalWidth > 0) resolve(true);
+            else { img.onload = () => resolve(true); img.onerror = () => resolve(false); }
+        })));
+    }
+
+    async function capturePoster() {
+        const btn = document.getElementById('downloadPoster');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner inline-block mr-2"></div>Generating...';
+        btn.disabled = true;
+        try {
+            const el = document.getElementById('posterPreview');
+            const clone = el.cloneNode(true);
+            clone.style.position = 'absolute'; clone.style.left = '-99999px'; clone.style.top = '0';
+            clone.style.transform = 'none'; clone.style.margin = '0'; clone.style.boxShadow = 'none';
+            clone.querySelectorAll('.grid-overlay').forEach(g => g.style.display = 'none');
+            document.body.appendChild(clone);
+
+            const root = clone.querySelector('#posterRoot') || clone;
+            root.style.width = '595px'; root.style.height = '843px'; root.style.overflow = 'hidden';
+
+            await waitForImages(root);
+            const canvas = await html2canvas(root, {
+                scale: 300 / 72, width: 595, height: 843, useCORS: true, allowTaint: false,
+                backgroundColor: '#ffffff', logging: false, imageTimeout: 30000
+            });
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'event-poster-a4-300dpi.jpg'; a.click();
+                URL.revokeObjectURL(url);
+                showSuccess('Downloaded!');
+            }, 'image/jpeg', 0.98);
+            document.body.removeChild(clone);
+        } catch (err) {
+            console.error(err);
+            showError('Download failed. Use public CORS-enabled image URLs.');
+        } finally {
+            btn.innerHTML = orig; btn.disabled = false;
+        }
+    }
+
+    function setupDownloadHandlers(){
+        document.getElementById('downloadPoster').onclick = capturePoster;
+    }
+
+    // === LIVE UPDATE ===
+    function updateLivePreview(){
+        const eventData={
+            event_title: document.getElementById('event_title').value || 'Summer Music Festival',
+            event_subtitle: document.getElementById('event_subtitle').value || 'A Night of Music and Fun',
+            event_date: document.getElementById('event_date').value || '2025-07-15',
+            event_time: document.getElementById('event_time').value || '18:00',
+            end_time: document.getElementById('end_time').value || '22:00',
+            location: document.getElementById('location').value || 'Central Park, New York',
+            description: document.getElementById('description').value || '',
+            image_url: document.getElementById('image_url').value || '',
+            qr_code_url: document.getElementById('qr_code_url').value || ''
+        };
+        updatePreviewElements(eventData);
+    }
+
+    // === DOM READY ===
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeApp();
+
+        // Attach live update to all inputs
+        document.querySelectorAll('#eventForm input, #eventForm textarea').forEach(el => {
+            el.addEventListener('input', updateLivePreview);
+            el.addEventListener('change', updateLivePreview);
+        });
+
+        // Enforce limits with live preview
+        enforceWordLimit(document.getElementById('event_title'), MAX_TITLE_WORDS, document.getElementById('titleWordCount'));
+        enforceWordLimit(document.getElementById('event_subtitle'), MAX_SUBTITLE_WORDS, document.getElementById('subtitleWordCount'));
+        enforceBulletLimit(document.getElementById('description'), document.getElementById('descBulletCount'));
+
+        // Initialize preview
+        updateLivePreview();
+    });
+  </script>
+ </body>
+</html>
