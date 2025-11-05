@@ -1,168 +1,880 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>A4 Event Poster Creator</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f0f0f0;
-    margin: 0;
-    padding: 20px;
-  }
-  h1 {
-    text-align: center;
-  }
-  .container {
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  .editor, .preview {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  }
-  .editor {
-    width: 300px;
-  }
-  .editor input, .editor textarea {
-    width: 100%;
-    margin-bottom: 10px;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-  }
-  .poster {
-    width: 794px; /* A4 width at 96dpi */
-    height: 1123px; /* A4 height at 96dpi */
-    border: 1px solid #ccc;
-    padding: 30px;
-    background: white;
-    position: relative;
-    box-sizing: border-box;
-  }
-  .poster h2 {
-    font-size: 32px;
-    margin-bottom: 10px;
-  }
-  .poster h3 {
-    font-size: 20px;
-    color: #555;
-    margin-bottom: 20px;
-  }
-  .poster img {
-    max-width: 100%;
-    height: auto;
-    margin-bottom: 15px;
-  }
-  .poster table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
-  }
-  .poster table, .poster th, .poster td {
-    border: 1px solid #ccc;
-    padding: 8px;
-  }
-  .poster ul {
-    margin: 0;
-    padding-left: 20px;
-  }
-  .qr {
-    position: absolute;
-    bottom: 30px;
-    right: 30px;
-    width: 100px;
-    height: 100px;
-  }
-  button {
-    padding: 10px 20px;
-    background: #0073e6;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-right: 10px;
-  }
-  button:hover {
-    background: #005bb5;
-  }
-</style>
-</head>
-<body>
-
-<h1>A4 Event Poster Creator</h1>
-
-<div class="container">
-  <div class="editor">
-    <h3>Editor</h3>
-    <input type="text" id="title" placeholder="Event Title">
-    <input type="text" id="subtitle" placeholder="Subtitle">
-    <input type="text" id="url" placeholder="Event URL">
-    <input type="text" id="imageUrl" placeholder="Image URL">
-    <input type="text" id="qrUrl" placeholder="QR Code Image URL">
-    <input type="text" id="date" placeholder="Date">
-    <input type="text" id="time" placeholder="Time">
-    <input type="text" id="location" placeholder="Location">
-    <textarea id="about1" placeholder="About point 1"></textarea>
-    <textarea id="about2" placeholder="About point 2"></textarea>
-    <textarea id="about3" placeholder="About point 3"></textarea>
-    <button onclick="updatePreview()">Preview</button>
-    <button onclick="downloadPoster()">Download as JPG</button>
-  </div>
-
-  <div class="preview">
-    <h3>Preview</h3>
-    <div id="poster" class="poster">
-      <h2 id="pTitle">Event Title</h2>
-      <h3 id="pSubtitle">Subtitle</h3>
-      <img id="pImage" src="" alt="">
-      <table>
-        <tr><th>Date</th><td id="pDate"></td></tr>
-        <tr><th>Time</th><td id="pTime"></td></tr>
-        <tr><th>Location</th><td id="pLocation"></td></tr>
-      </table>
-      <h3>About This Event</h3>
-      <ul>
-        <li id="pAbout1"></li>
-        <li id="pAbout2"></li>
-        <li id="pAbout3"></li>
-      </ul>
-      <p id="pUrl"></p>
-      <img id="pQR" class="qr" src="" alt="QR Code">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Poster Editor</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 20px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100%;
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 30px;
+      align-items: start;
+    }
+    
+    .editor-panel {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      position: sticky;
+      top: 20px;
+      max-height: calc(100% - 40px);
+      overflow-y: auto;
+    }
+    
+    .editor-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a202c;
+      margin: 0 0 24px 0;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-input,
+    .form-textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    
+    .form-input:focus,
+    .form-textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .form-textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    
+    .download-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 24px;
+    }
+    
+    .download-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+    
+    .download-btn:active {
+      transform: translateY(0);
+    }
+    
+    .poster-container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .poster {
+      width: 794px;
+      height: 1123px;
+      background: white;
+      position: relative;
+      margin: 0 auto;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    
+    .poster-content {
+      padding: 60px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .poster-header {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 40px;
+      margin-bottom: 50px;
+      min-height: 280px;
+      align-items: start;
+      overflow: hidden;
+    }
+    
+    .poster-title-section {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+      overflow: hidden;
+    }
+    
+    .poster-title {
+      font-size: 48px;
+      font-weight: 800;
+      color: #1a202c;
+      line-height: 1.2;
+      margin: 0 0 16px 0;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: none;
+      text-align: left;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+    
+    .poster-subtitle {
+      font-size: 24px;
+      font-weight: 400;
+      color: #4a5568;
+      line-height: 1.4;
+      margin: 0 0 20px 0;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: none;
+      text-align: left;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    
+    .logo-section {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      margin-top: 20px;
+    }
+    
+    .logo-container {
+      height: 60px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .partner-logo {
+      max-height: 60px;
+      max-width: 120px;
+      object-fit: contain;
+    }
+    
+    .compass-logo {
+      max-height: 60px;
+      max-width: 120px;
+      object-fit: contain;
+    }
+    
+    .poster-image-container {
+      width: 280px;
+      height: 280px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f7fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    .poster-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .poster-image-placeholder {
+      color: #cbd5e0;
+      font-size: 18px;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    .poster-details {
+      background: #f7fafc;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 40px;
+    }
+    
+    .detail-row {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .detail-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .detail-icon {
+      width: 24px;
+      height: 24px;
+      color: #ff6600;
+      flex-shrink: 0;
+    }
+    
+    .detail-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      min-width: 80px;
+    }
+    
+    .detail-value {
+      font-size: 18px;
+      font-weight: 500;
+      color: #1a202c;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: none;
+      flex: 1;
+    }
+    
+    .poster-description {
+      flex: 1;
+      margin-bottom: 40px;
+    }
+    
+    .description-item {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      align-items: flex-start;
+    }
+    
+    .description-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .bullet {
+      width: 8px;
+      height: 8px;
+      background: #ff6600;
+      border-radius: 50%;
+      margin-top: 8px;
+      flex-shrink: 0;
+    }
+    
+    .description-text {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #2d3748;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: none;
+      margin: 0;
+      text-align: justify;
+    }
+    
+    .about-event-header {
+      display: flex;
+      justify-content: flex-start;
+      margin-bottom: 30px;
+    }
+    
+    .about-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a202c;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      text-align: left;
+      border-bottom: 2px solid #ff6600;
+      padding-bottom: 8px;
+    }
+    
+    .qr-code-section {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 30px;
+      margin-top: auto;
+    }
+    
+    .qr-code-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .qr-code-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #4a5568;
+      margin: 0;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .poster-footer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      margin: 0 -60px -60px -60px;
+      padding: 40px 60px;
+      background: white;
+    }
+    
+    .footer-image {
+      height: 80px;
+      width: 100%;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .qr-code-container {
+      width: 120px;
+      height: 120px;
+      background: white;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+    
+    #qrcode {
+      width: 100%;
+      height: 100%;
+    }
+    
+    #qrcode canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    
+    @media (max-width: 1200px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+      
+      .editor-panel {
+        position: relative;
+        top: 0;
+        max-height: none;
+      }
+      
+      .poster {
+        transform: scale(0.7);
+        transform-origin: top center;
+      }
+      
+      .poster-container {
+        overflow-x: auto;
+      }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body>
+  <div class="container">
+   <div class="editor-panel">
+    <h1 class="editor-title">Event Poster Editor</h1>
+    <div class="form-group"><label for="eventTitle" class="form-label">Event Title (max 40 words)</label> <input type="text" id="eventTitle" class="form-input" placeholder="Enter event title">
     </div>
+    <div class="form-group"><label for="eventSubtitle" class="form-label">Event Subtitle (max 40 words)</label> <input type="text" id="eventSubtitle" class="form-input" placeholder="Enter event subtitle">
+    </div>
+    <div class="form-group"><label for="eventDate" class="form-label">Date</label> <input type="date" id="eventDate" class="form-input">
+    </div>
+    <div class="form-row">
+     <div class="form-group"><label for="startTime" class="form-label">Start Time</label> <input type="time" id="startTime" class="form-input">
+     </div>
+     <div class="form-group"><label for="endTime" class="form-label">End Time</label> <input type="time" id="endTime" class="form-input">
+     </div>
+    </div>
+    <div class="form-group"><label for="location" class="form-label">Location</label> <input type="text" id="location" class="form-input" placeholder="Enter location">
+    </div>
+    <div class="form-group"><label for="description1" class="form-label">Description Point 1 (max 70 words)</label> <textarea id="description1" class="form-textarea" placeholder="Enter first description point"></textarea>
+    </div>
+    <div class="form-group"><label for="description2" class="form-label">Description Point 2 (max 70 words)</label> <textarea id="description2" class="form-textarea" placeholder="Enter second description point"></textarea>
+    </div>
+    <div class="form-group"><label for="description3" class="form-label">Description Point 3 (max 70 words)</label> <textarea id="description3" class="form-textarea" placeholder="Enter third description point"></textarea>
+    </div>
+    <div class="form-group"><label for="partnerLogo" class="form-label">Partner Logo URL</label> <input type="url" id="partnerLogo" class="form-input" placeholder="https://example.com/logo.jpg">
+    </div>
+    <div class="form-group"><label for="keyImage" class="form-label">Key Image URL</label> <input type="url" id="keyImage" class="form-input" placeholder="https://example.com/image.jpg">
+    </div>
+    <div class="form-group"><label for="qrCodeUrl" class="form-label">QR Code URL</label> <input type="url" id="qrCodeUrl" class="form-input" placeholder="https://example.com">
+    </div><button class="download-btn" id="downloadBtn">Download as JPG</button>
+   </div>
+   <div class="poster-container">
+    <div class="poster" id="poster">
+     <div class="poster-content">
+      <div class="poster-header">
+       <div class="poster-title-section">
+        <h1 class="poster-title" id="displayTitle">Your Event Title Here</h1>
+        <p class="poster-subtitle" id="displaySubtitle">Your event subtitle goes here</p>
+        <div class="logo-section" id="logoSection" style="display: none;">
+         <div class="logo-container"><img id="partnerLogoImg" class="partner-logo" alt="Partner logo">
+         </div>
+         <div class="logo-container"><img src="https://compassoffices.github.io/img/poster-compass-logo.png" class="compass-logo" alt="Compass logo" onerror="this.style.display='none';">
+         </div>
+        </div>
+       </div>
+       <div class="poster-image-container"><img id="displayImage" class="poster-image" style="display: none;" alt="Event image">
+        <div id="imagePlaceholder" class="poster-image-placeholder">
+         Add an image URL
+        </div>
+       </div>
+      </div>
+      <div class="poster-details">
+       <div class="detail-row">
+        <svg class="detail-icon" fill="currentColor" viewbox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z" />
+        </svg><span class="detail-label">Date</span> <span class="detail-value" id="displayDate">Select a date</span>
+       </div>
+       <div class="detail-row">
+        <svg class="detail-icon" fill="currentColor" viewbox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" /> <path d="m12.5 7-1 0v6l5.25 3.15.75-1.23-4.5-2.67z" />
+        </svg><span class="detail-label">Time</span> <span class="detail-value" id="displayTime">Select times</span>
+       </div>
+       <div class="detail-row">
+        <svg class="detail-icon" fill="currentColor" viewbox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+        </svg><span class="detail-label">Location</span> <span class="detail-value" id="displayLocation">Enter location</span>
+       </div>
+      </div>
+      <div class="poster-description">
+       <div class="about-event-header">
+        <h3 class="about-title">About This Event</h3>
+       </div>
+       <div class="description-item" id="desc1Container" style="display: none;">
+        <div class="bullet"></div>
+        <p class="description-text" id="displayDesc1"></p>
+       </div>
+       <div class="description-item" id="desc2Container" style="display: none;">
+        <div class="bullet"></div>
+        <p class="description-text" id="displayDesc2"></p>
+       </div>
+       <div class="description-item" id="desc3Container" style="display: none;">
+        <div class="bullet"></div>
+        <p class="description-text" id="displayDesc3"></p>
+       </div>
+      </div>
+      <div class="qr-code-section">
+       <div class="qr-code-wrapper">
+        <p class="qr-code-label">Scan to<br>
+         Join Us</p>
+        <div class="qr-code-container">
+         <div id="qrcode"></div>
+        </div>
+       </div>
+      </div>
+      <div class="poster-footer"><img src="https://www.compassoffices.com/wp-content/uploads/2025/10/poster-footer-1.jpg" alt="Footer" class="footer-image" onerror="this.style.display='none';">
+      </div>
+     </div>
+    </div>
+   </div>
   </div>
-</div>
+  <script>
+    const defaultConfig = {
+      editor_title: "Event Poster Editor"
+    };
 
-<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-<script>
-function updatePreview() {
-  document.getElementById('pTitle').innerText = document.getElementById('title').value;
-  document.getElementById('pSubtitle').innerText = document.getElementById('subtitle').value;
-  document.getElementById('pUrl').innerText = document.getElementById('url').value;
-  document.getElementById('pImage').src = document.getElementById('imageUrl').value;
-  document.getElementById('pQR').src = document.getElementById('qrUrl').value;
-  document.getElementById('pDate').innerText = document.getElementById('date').value;
-  document.getElementById('pTime').innerText = document.getElementById('time').value;
-  document.getElementById('pLocation').innerText = document.getElementById('location').value;
-  document.getElementById('pAbout1').innerText = document.getElementById('about1').value;
-  document.getElementById('pAbout2').innerText = document.getElementById('about2').value;
-  document.getElementById('pAbout3').innerText = document.getElementById('about3').value;
-}
+    let qrCodeInstance = null;
 
-function downloadPoster() {
-  html2canvas(document.getElementById('poster'), {scale: 2}).then(canvas => {
-    const link = document.createElement('a');
-    link.download = 'event-poster.jpg';
-    link.href = canvas.toDataURL('image/jpeg', 1.0);
-    link.click();
-  });
-}
-</script>
+    function adjustFontSize(element, text, maxSize, minSize) {
+      const wordCount = text.trim().split(/\s+/).length;
+      let fontSize = maxSize;
+      
+      if (wordCount > 8) {
+        fontSize = Math.max(minSize, maxSize - (wordCount - 8) * 2);
+      } else if (wordCount > 5) {
+        fontSize = Math.max(minSize + 4, maxSize - (wordCount - 5) * 1);
+      }
+      
+      element.style.fontSize = fontSize + 'px';
+    }
 
-</body>
+    function updatePoster() {
+      const title = document.getElementById('eventTitle').value || 'Your Event Title Here';
+      const subtitle = document.getElementById('eventSubtitle').value || 'Your event subtitle goes here';
+      const date = document.getElementById('eventDate').value;
+      const startTime = document.getElementById('startTime').value;
+      const endTime = document.getElementById('endTime').value;
+      const location = document.getElementById('location').value || 'Enter location';
+      const desc1 = document.getElementById('description1').value;
+      const desc2 = document.getElementById('description2').value;
+      const desc3 = document.getElementById('description3').value;
+      const imageUrl = document.getElementById('keyImage').value;
+      const qrUrl = document.getElementById('qrCodeUrl').value;
+      const partnerLogoUrl = document.getElementById('partnerLogo').value;
+
+      const titleElement = document.getElementById('displayTitle');
+      const subtitleElement = document.getElementById('displaySubtitle');
+      
+      titleElement.textContent = title;
+      subtitleElement.textContent = subtitle;
+      document.getElementById('displayLocation').textContent = location;
+      
+      // Auto-adjust font sizes based on text length
+      adjustFontSize(titleElement, title, 48, 28);
+      adjustFontSize(subtitleElement, subtitle, 24, 16);
+
+      if (date) {
+        const dateObj = new Date(date);
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('displayDate').textContent = dateObj.toLocaleDateString('en-US', options);
+      } else {
+        document.getElementById('displayDate').textContent = 'Select a date';
+      }
+
+      if (startTime && endTime) {
+        document.getElementById('displayTime').textContent = `${startTime} - ${endTime}`;
+      } else if (startTime) {
+        document.getElementById('displayTime').textContent = startTime;
+      } else {
+        document.getElementById('displayTime').textContent = 'Select times';
+      }
+
+      const displayImage = document.getElementById('displayImage');
+      const imagePlaceholder = document.getElementById('imagePlaceholder');
+      if (imageUrl) {
+        displayImage.src = imageUrl;
+        displayImage.style.display = 'block';
+        imagePlaceholder.style.display = 'none';
+      } else {
+        displayImage.style.display = 'none';
+        imagePlaceholder.style.display = 'flex';
+      }
+
+      // Handle partner logo display
+      const logoSection = document.getElementById('logoSection');
+      const partnerLogoImg = document.getElementById('partnerLogoImg');
+      
+      if (partnerLogoUrl) {
+        partnerLogoImg.src = partnerLogoUrl;
+        logoSection.style.display = 'flex';
+      } else {
+        logoSection.style.display = 'none';
+      }
+
+      updateDescription('desc1Container', 'displayDesc1', desc1);
+      updateDescription('desc2Container', 'displayDesc2', desc2);
+      updateDescription('desc3Container', 'displayDesc3', desc3);
+
+      if (qrUrl) {
+        generateQRCode(qrUrl);
+      }
+    }
+
+    function updateDescription(containerId, textId, text) {
+      const container = document.getElementById(containerId);
+      const textElement = document.getElementById(textId);
+      
+      if (text.trim()) {
+        textElement.textContent = text;
+        container.style.display = 'flex';
+      } else {
+        container.style.display = 'none';
+      }
+    }
+
+    function generateQRCode(url) {
+      const qrContainer = document.getElementById('qrcode');
+      qrContainer.innerHTML = '';
+      
+      if (!url || url.trim() === '') {
+        qrContainer.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #cbd5e0; font-size: 12px; text-align: center;">Enter QR URL</div>';
+        return;
+      }
+      
+      try {
+        // Try using QRCode library
+        if (window.QRCode && typeof window.QRCode === 'function') {
+          qrCodeInstance = new window.QRCode(qrContainer, {
+            text: url,
+            width: 104,
+            height: 104,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: window.QRCode.CorrectLevel ? window.QRCode.CorrectLevel.H : 0
+          });
+        } else if (window.QRCode && window.QRCode.toCanvas) {
+          // Alternative method using toCanvas
+          const canvas = document.createElement('canvas');
+          canvas.width = 104;
+          canvas.height = 104;
+          qrContainer.appendChild(canvas);
+          window.QRCode.toCanvas(canvas, url, { 
+            width: 104, 
+            margin: 1,
+            color: {
+              dark: '#000000',
+              light: '#ffffff'
+            }
+          });
+        } else {
+          // Fallback: use Google Charts API
+          const qrImg = document.createElement('img');
+          qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=104x104&data=${encodeURIComponent(url)}`;
+          qrImg.style.width = '100%';
+          qrImg.style.height = '100%';
+          qrImg.onerror = function() {
+            qrContainer.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #e53e3e; font-size: 10px; text-align: center;">QR Error</div>';
+          };
+          qrContainer.appendChild(qrImg);
+        }
+      } catch (error) {
+        console.error('QR Code generation failed:', error);
+        // Final fallback
+        const qrImg = document.createElement('img');
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=104x104&data=${encodeURIComponent(url)}`;
+        qrImg.style.width = '100%';
+        qrImg.style.height = '100%';
+        qrImg.onerror = function() {
+          qrContainer.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #e53e3e; font-size: 10px; text-align: center;">QR Error</div>';
+        };
+        qrContainer.appendChild(qrImg);
+      }
+    }
+
+    // Make.com Integration Functions
+    function populateFromMakeData(data) {
+      if (data.eventTitle) document.getElementById('eventTitle').value = data.eventTitle;
+      if (data.eventSubtitle) document.getElementById('eventSubtitle').value = data.eventSubtitle;
+      if (data.eventDate) document.getElementById('eventDate').value = data.eventDate;
+      if (data.startTime) document.getElementById('startTime').value = data.startTime;
+      if (data.endTime) document.getElementById('endTime').value = data.endTime;
+      if (data.location) document.getElementById('location').value = data.location;
+      if (data.description1) document.getElementById('description1').value = data.description1;
+      if (data.description2) document.getElementById('description2').value = data.description2;
+      if (data.description3) document.getElementById('description3').value = data.description3;
+      if (data.partnerLogo) document.getElementById('partnerLogo').value = data.partnerLogo;
+      if (data.keyImage) document.getElementById('keyImage').value = data.keyImage;
+      if (data.qrCodeUrl) document.getElementById('qrCodeUrl').value = data.qrCodeUrl;
+      
+      updatePoster();
+      
+      // Auto-download if requested
+      if (data.autoDownload === true || data.autoDownload === 'true') {
+        setTimeout(() => {
+          downloadPoster(true);
+        }, 2000); // Wait 2 seconds for QR code to generate
+      }
+    }
+
+    async function downloadPoster(isMakeIntegration = false) {
+      const button = document.getElementById('downloadBtn');
+      const originalText = button.textContent;
+      button.textContent = 'Generating...';
+      button.disabled = true;
+
+      try {
+        const poster = document.getElementById('poster');
+        const canvas = await html2canvas(poster, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false
+        });
+
+        return new Promise((resolve) => {
+          canvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            
+            if (isMakeIntegration) {
+              // For Make.com integration, send data back
+              const posterData = {
+                success: true,
+                downloadUrl: url,
+                posterData: {
+                  eventTitle: document.getElementById('eventTitle').value,
+                  eventSubtitle: document.getElementById('eventSubtitle').value,
+                  eventDate: document.getElementById('eventDate').value,
+                  startTime: document.getElementById('startTime').value,
+                  endTime: document.getElementById('endTime').value,
+                  location: document.getElementById('location').value,
+                  description1: document.getElementById('description1').value,
+                  description2: document.getElementById('description2').value,
+                  description3: document.getElementById('description3').value,
+                  partnerLogo: document.getElementById('partnerLogo').value,
+                  keyImage: document.getElementById('keyImage').value,
+                  qrCodeUrl: document.getElementById('qrCodeUrl').value
+                },
+                timestamp: new Date().toISOString(),
+                fileSize: blob.size
+              };
+              
+              // Send to parent window or Make.com webhook
+              if (window.parent !== window) {
+                window.parent.postMessage(posterData, '*');
+              }
+              
+              // Also trigger download
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `event-poster-${Date.now()}.jpg`;
+              link.click();
+              
+              resolve(posterData);
+            } else {
+              // Regular download
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = 'event-poster.jpg';
+              link.click();
+              resolve({ success: true });
+            }
+            
+            URL.revokeObjectURL(url);
+            button.textContent = originalText;
+            button.disabled = false;
+          }, 'image/jpeg', 0.95);
+        });
+      } catch (error) {
+        console.error('Download failed:', error);
+        button.textContent = originalText;
+        button.disabled = false;
+        
+        const errorData = {
+          success: false,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        };
+        
+        if (isMakeIntegration && window.parent !== window) {
+          window.parent.postMessage(errorData, '*');
+        }
+        
+        return errorData;
+      }
+    }
+
+    // Listen for Make.com data
+    window.addEventListener('message', function(event) {
+      if (event.data && typeof event.data === 'object') {
+        if (event.data.type === 'POPULATE_POSTER') {
+          populateFromMakeData(event.data.data);
+        }
+      }
+    });
+
+    // Check URL parameters for Make.com data
+    function checkUrlParams() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const makeData = {};
+      
+      // Map URL parameters to form fields
+      if (urlParams.get('eventTitle')) makeData.eventTitle = urlParams.get('eventTitle');
+      if (urlParams.get('eventSubtitle')) makeData.eventSubtitle = urlParams.get('eventSubtitle');
+      if (urlParams.get('eventDate')) makeData.eventDate = urlParams.get('eventDate');
+      if (urlParams.get('startTime')) makeData.startTime = urlParams.get('startTime');
+      if (urlParams.get('endTime')) makeData.endTime = urlParams.get('endTime');
+      if (urlParams.get('location')) makeData.location = urlParams.get('location');
+      if (urlParams.get('description1')) makeData.description1 = urlParams.get('description1');
+      if (urlParams.get('description2')) makeData.description2 = urlParams.get('description2');
+      if (urlParams.get('description3')) makeData.description3 = urlParams.get('description3');
+      if (urlParams.get('partnerLogo')) makeData.partnerLogo = urlParams.get('partnerLogo');
+      if (urlParams.get('keyImage')) makeData.keyImage = urlParams.get('keyImage');
+      if (urlParams.get('qrCodeUrl')) makeData.qrCodeUrl = urlParams.get('qrCodeUrl');
+      if (urlParams.get('autoDownload')) makeData.autoDownload = urlParams.get('autoDownload');
+      
+      if (Object.keys(makeData).length > 0) {
+        populateFromMakeData(makeData);
+      }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      checkUrlParams();
+    });
+
+    document.getElementById('eventTitle').addEventListener('input', updatePoster);
+    document.getElementById('eventSubtitle').addEventListener('input', updatePoster);
+    document.getElementById('eventDate').addEventListener('input', updatePoster);
+    document.getElementById('startTime').addEventListener('input', updatePoster);
+    document.getElementById('endTime').addEventListener('input', updatePoster);
+    document.getElementById('location').addEventListener('input', updatePoster);
+    document.getElementById('description1').addEventListener('input', updatePoster);
+    document.getElementById('description2').addEventListener('input', updatePoster);
+    document.getElementById('description3').addEventListener('input', updatePoster);
+    document.getElementById('partnerLogo').addEventListener('input', updatePoster);
+    document.getElementById('keyImage').addEventListener('input', updatePoster);
+    document.getElementById('qrCodeUrl').addEventListener('input', updatePoster);
+
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+      downloadPoster(false);
+    });
+
+    async function onConfigChange(config) {
+      const editorTitle = document.querySelector('.editor-title');
+      editorTitle.textContent = config.editor_title || defaultConfig.editor_title;
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [],
+          borderables: [],
+          fontEditable: undefined,
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ["editor_title", config.editor_title || defaultConfig.editor_title]
+        ])
+      });
+    }
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'999d17fe346ecffa',t:'MTc2MjM1MzQ5NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
