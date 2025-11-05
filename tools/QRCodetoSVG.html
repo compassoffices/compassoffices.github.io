@@ -1,266 +1,146 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>QR Code → Vector SVG (Illustrator Ready)</title>
+  <meta charset="UTF-8">
+  <title>QR Code Generator – Excel Style</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      max-width: 900px;
-      margin: 40px auto;
-      padding: 20px;
-      background: #f8f9fa;
-      color: #333;
-    }
-    h1 { text-align: center; color: #1a1a1a; margin-bottom: 8px; }
-    p { text-align: center; color: #555; }
-    .upload-area {
-      border: 3px dashed #007bff;
-      border-radius: 16px;
-      padding: 50px;
-      text-align: center;
-      background: #fff;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      margin: 20px 0;
-    }
-    .upload-area:hover { border-color: #0056b3; background: #f0f8ff; }
-    .upload-area.dragover { border-color: #0056b3; background: #e6f3ff; transform: scale(1.02); }
-    input[type="file"] { display: none; }
-    button {
-      display: block;
-      width: 100%;
-      padding: 14px;
-      margin: 15px 0;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    button:hover:not(:disabled) { background: #0056b3; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    .download-all { background: #28a745; display: none; }
-    .download-all:hover { background: #218838; }
-    .preview {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-      justify-content: center;
-      margin: 20px 0;
-      padding: 15px;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .preview-item {
-      text-align: center;
-      max-width: 120px;
-    }
-    .preview-item img { width: 100px; height: 100px; border: 1px solid #ddd; border-radius: 8px; }
-    .preview-item p { margin: 5px 0 0; font-size: 12px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .status {
-      text-align: center;
-      padding: 12px;
-      font-weight: bold;
-      border-radius: 6px;
-      margin: 15px 0;
-    }
-    .success { background: #d4edda; color: #155724; }
-    .error { background: #f8d7da; color: #721c24; }
+    body{font-family:Arial,sans-serif;margin:2rem auto;max-width:900px;background:#fafafa;color:#333}
+    h1{margin-bottom:.5rem}
+    table{width:100%;border-collapse:collapse;margin-bottom:1rem;background:#fff}
+    th,td{border:1px solid #ddd;padding:8px;text-align:left}
+    th{background:#007bff;color:#fff}
+    input{width:100%;border:none;padding:4px;font-size:14px}
+    input:focus{outline:2px solid #007bff}
+    button{background:#28a745;color:#fff;border:none;padding:8px 12px;margin:4px;border-radius:4px;cursor:pointer}
+    button:hover{background:#218838}
+    .remove{background:#dc3545}
+    .remove:hover{background:#c82333}
+    #output{margin-top:2rem}
+    .qr-item{display:inline-block;margin:10px;text-align:center}
+    .qr-item svg{width:120px;height:120px;background:#fff;padding:5px;border:1px solid #eee;border-radius:6px}
+    .download{display:block;margin-top:4px;font-size:12px;color:#007bff}
+    .zip-btn{margin:20px 0;padding:12px 20px;background:#007bff;color:#fff}
   </style>
 </head>
 <body>
 
-  <h1>QR Code → Vector SVG</h1>
-  <p>Upload QR images → Get <strong>real vector SVG</strong> (editable in Illustrator)</p>
+<h1>QR Code Generator – Excel Style</h1>
 
-  <div class="upload-area" id="dropArea">
-    <p style="margin:0; font-size:18px;">Drop QR code images here<br>or click to select</p>
-    <input type="file" id="fileInput" accept="image/*" multiple />
-  </div>
+<table id="dataTable">
+  <thead>
+    <tr>
+      <th style="width:35%">Name (file name)</th>
+      <th style="width:55%">URL</th>
+      <th style="width:10%"></th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- rows added by JS -->
+  </tbody>
+</table>
 
-  <button id="processBtn" disabled>Extract & Generate Vector SVGs</button>
-  <button id="downloadAllBtn" class="download-all">Download All as ZIP</button>
+<button onclick="addRow()">+ Add Row</button>
+<button onclick="generateAll()">Generate All QR Codes</button>
 
-  <div id="preview" class="preview"></div>
-  <div id="status" class="status"></div>
+<div id="output"></div>
 
-  <!-- Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script>
+// ---------- Table handling ----------
+const tbody = document.querySelector('#dataTable tbody');
 
-  <script>
-    const dropArea = document.getElementById('dropArea');
-    const fileInput = document.getElementById('fileInput');
-    const preview = document.getElementById('preview');
-    const processBtn = document.getElementById('processBtn');
-    const downloadAllBtn = document.getElementById('downloadAllBtn');
-    const status = document.getElementById('status');
+function addRow(name = '', url = '') {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" value="${name}" placeholder="MySite"></td>
+    <td><input type="text" value="${url}" placeholder="https://example.com"></td>
+    <td style="text-align:center"><button class="remove" onclick="this.parentElement.parentElement.remove()">X</button></td>
+  `;
+  tbody.appendChild(tr);
+}
 
-    let files = [];
-    let processedSVGs = [];
+// start with one empty row
+addRow();
 
-    // Drag & Drop
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
-      dropArea.addEventListener(event, e => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
+// ---------- QR generation ----------
+let zip = null;
+if (typeof JSZip !== 'undefined') zip = new JSZip();
+const zipScript = document.createElement('script');
+zipScript.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+document.head.appendChild(zipScript);
+
+function sanitizeFileName(str) {
+  return str.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'qr';
+}
+
+function generateAll() {
+  const rows = tbody.querySelectorAll('tr');
+  const output = document.getElementById('output');
+  output.innerHTML = '';
+  if (!zip) zip = new JSZip();
+
+  let processed = 0;
+  const total = rows.length;
+
+  rows.forEach((row, idx) => {
+    const inputs = row.querySelectorAll('input');
+    const nameRaw = inputs[0].value.trim();
+    const url = inputs[1].value.trim();
+
+    if (!nameRaw || !url) {
+      processed++;
+      if (processed === total) finalizeZip();
+      return; // skip empty rows
+    }
+
+    const filename = sanitizeFileName(nameRaw) + '.svg';
+
+    QRCode.toString(url, {
+      type: 'svg',
+      width: 512,
+      margin: 1,
+      color: { dark: '#000000', light: '#00000000' }, // black + transparent
+      errorCorrectionLevel: 'H'
+    }, (err, svg) => {
+      if (err) throw err;
+
+      // preview
+      const div = document.createElement('div');
+      div.className = 'qr-item';
+      div.innerHTML = `
+        <div>${svg}</div>
+        <strong>${nameRaw}</strong><br>
+        <a class="download" href="#" download="${filename}">Download SVG</a>
+      `;
+      output.appendChild(div);
+
+      // download link
+      const blob = new Blob([svg], {type: 'image/svg+xml'});
+      const objUrl = URL.createObjectURL(blob);
+      div.querySelector('.download').href = objUrl;
+
+      // add to zip
+      zip.file(filename, svg);
+
+      processed++;
+      if (processed === total) finalizeZip();
     });
+  });
+}
 
-    ['dragenter', 'dragover'].forEach(() => dropArea.classList.add('dragover'));
-    ['dragleave', 'drop'].forEach(() => dropArea.classList.remove('dragover'));
+function finalizeZip() {
+  if (Object.keys(zip.files).length === 0) return;
 
-    dropArea.addEventListener('drop', e => {
-      const dt = e.dataTransfer;
-      handleFiles(dt.files);
-    });
+  zip.generateAsync({type:'blob'}).then(blob => {
+    const url = URL.createObjectURL(blob);
+    const btn = document.createElement('a');
+    btn.href = url;
+    btn.download = 'qr-codes.zip';
+    btn.innerHTML = '<button class="zip-btn">Download All as ZIP</button>';
+    document.getElementById('output').appendChild(btn);
+  });
+}
+</script>
 
-    dropArea.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', e => handleFiles(e.target.files));
-
-    function handleFiles(fileList) {
-      files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
-      renderPreview();
-      processBtn.disabled = files.length === 0;
-      downloadAllBtn.style.display = 'none';
-      processedSVGs = [];
-      clearStatus();
-    }
-
-    function renderPreview() {
-      preview.innerHTML = '';
-      files.forEach((file, i) => {
-        const div = document.createElement('div');
-        div.className = 'preview-item';
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        const p = document.createElement('p');
-        p.textContent = file.name;
-        div.appendChild(img);
-        div.appendChild(p);
-        preview.appendChild(div);
-      });
-    }
-
-    processBtn.addEventListener('click', processAll);
-
-    async function processAll() {
-      clearStatus();
-      setStatus('Processing...', 'info');
-      processedSVGs = [];
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        try {
-          const data = await extractQRData(file);
-          if (!data) throw new Error('No QR code detected');
-
-          const svg = generateVectorQRCode(data);
-          const blob = new Blob([svg], { type: 'image/svg+xml' });
-          const url = URL.createObjectURL(blob);
-          const newName = file.name.replace(/\.[^/.]+$/, '') + '.svg';
-
-          processedSVGs.push({ name: newName, blob, url, data });
-
-          // Auto-download single
-          if (files.length === 1) {
-            downloadFile(url, newName);
-          }
-        } catch (err) {
-          console.error(err);
-          setStatus(`Failed: ${file.name} - ${err.message}`, 'error');
-        }
-      }
-
-      if (processedSVGs.length > 0) {
-        setStatus(`Success! ${processedSVGs.length} vector SVG(s) generated.`, 'success');
-        downloadAllBtn.style.display = 'block';
-      } else {
-        setStatus('No QR codes detected.', 'error');
-      }
-    }
-
-    downloadAllBtn.addEventListener('click', () => {
-      const zip = new JSZip();
-      processedSVGs.forEach(f => zip.file(f.name, f.blob));
-      zip.generateAsync({ type: 'blob' }).then(blob => {
-        saveAs(blob, 'qr-codes-vector-svg.zip');
-      });
-    });
-
-    // Extract QR code data from image
-    async function extractQRData(file) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          resolve(code ? code.data : null);
-        };
-        img.src = URL.createObjectURL(file);
-      });
-    }
-
-    // Generate true vector SVG QR code
-    function generateVectorQRCode(text) {
-      const qr = qrcode(0, 'M');
-      qr.addData(text);
-      qr.make();
-
-      const modules = qr.modules;
-      const moduleCount = modules.length;
-      const moduleSize = 10; // Size per module in SVG
-      const size = moduleCount * moduleSize;
-
-      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
-      svg += `<rect width="${size}" height="${size}" fill="#ffffff"/>`; // White background (optional)
-
-      for (let row = 0; row < moduleCount; row++) {
-        for (let col = 0; col < moduleCount; col++) {
-          if (modules[row][col]) {
-            const x = col * moduleSize;
-            const y = row * moduleSize;
-            svg += `<rect x="${x}" y="${y}" width="${moduleSize}" height="${moduleSize}" fill="#000000"/>`;
-          }
-        }
-      }
-
-      svg += `</svg>`;
-      return svg;
-    }
-
-    function downloadFile(url, filename) {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-    }
-
-    function setStatus(msg, type) {
-      status.textContent = msg;
-      status.className = `status ${type}`;
-    }
-
-    function clearStatus() {
-      status.textContent = '';
-      status.className = 'status';
-    }
-  </script>
 </body>
 </html>
