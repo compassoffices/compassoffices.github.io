@@ -6,8 +6,6 @@
     <title>Event Data Form</title>
     <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ZXing QR Code Reader (kept but not used now) -->
-    <script src="https://unpkg.com/@zxing/library@0.19.1/dist/index.min.js"></script>
     <style>
         body { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
         .form-container { background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); min-height: 100vh; padding: 1rem; }
@@ -104,6 +102,11 @@
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Event ID (Auto-generated)</label>
                         <div id="eventIdDisplay" class="event-id-display">Generating...</div>
                     </div>
+                    <!-- Time Display (Formatted) -->
+                    <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <label class="block text-sm font-semibold text-blue-700 mb-2">Time Display (Auto-formatted)</label>
+                        <div id="timeDisplay" class="text-lg font-medium text-blue-900">Select start and end time</div>
+                    </div>
                     <!-- Organizer -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-gray-200 pb-6">
                         <div>
@@ -119,11 +122,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label for="startTime" class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
-                            <input type="time" id="startTime" value="09:00" class="input-field px-4 py-3 rounded-lg">
+                            <input type="time" id="startTime" value="18:00" class="input-field px-4 py-3 rounded-lg">
                         </div>
                         <div>
                             <label for="endTime" class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
-                            <input type="time" id="endTime" value="09:30" class="input-field px-4 py-3 rounded-lg">
+                            <input type="time" id="endTime" value="21:00" class="input-field px-4 py-3 rounded-lg">
                         </div>
                     </div>
                     <div>
@@ -311,9 +314,18 @@
                             <!-- EDM BANNER -->
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 mb-1 required">EDM Banner Image (Auto-converted to PNG)</label>
-                                <div class="file-upload">
-                                    <input type="file" id="edmBannerInput" accept="image/*">
-                                    <label for="edmBannerInput" class="file-upload-label">Click or drag banner</label>
+                                <div class="flex items-center gap-3 mb-2">
+                                    <select id="edmBannerSource" class="input-field px-3 py-2 rounded-lg text-sm">
+                                        <option value="upload">Upload new image</option>
+                                        <option value="copy">Same as Poster Key Image</option>
+                                    </select>
+                                    <span class="text-xs text-gray-500">(Copies first key image)</span>
+                                </div>
+                                <div id="edmBannerUploadSection">
+                                    <div class="file-upload">
+                                        <input type="file" id="edmBannerInput" accept="image/*">
+                                        <label for="edmBannerInput" class="file-upload-label">Click or drag banner</label>
+                                    </div>
                                 </div>
                                 <div id="edmBannerPreview" class="mt-2"></div>
                             </div>
@@ -398,17 +410,32 @@
             const eventIdDisplay = document.getElementById('eventIdDisplay');
             eventIdDisplay.textContent = generateEventId();
 
-            // === PASSWORD ===
-            document.getElementById('passwordSubmit').addEventListener('click', () => {
-                if (document.getElementById('passwordInput').value === 'm2025') {
-                    document.getElementById('passwordPage').classList.add('hidden');
-                    document.getElementById('formPage').classList.remove('hidden');
+            // === TIME FORMAT DISPLAY (6:00 PM - 9:00 PM) ===
+            const timeDisplay = document.getElementById('timeDisplay');
+            function formatTime12(hour, minute) {
+                const period = hour >= 12 ? 'PM' : 'AM';
+                const h12 = hour % 12 || 12;
+                return `${h12}:${minute.toString().padStart(2, '0')} ${period}`;
+            }
+            function updateTimeDisplay() {
+                const start = document.getElementById('startTime').value;
+                const end = document.getElementById('endTime').value;
+                if (start && end) {
+                    const [sh, sm] = start.split(':').map(Number);
+                    const [eh, em] = end.split(':').map(Number);
+                    timeDisplay.textContent = `${formatTime12(sh, sm)} - ${formatTime12(eh, em)}`;
                 } else {
-                    document.getElementById('passwordError').classList.remove('hidden');
+                    timeDisplay.textContent = 'Select start and end time';
                 }
+            }
+            ['startTime', 'endTime'].forEach(id => {
+                const input = document.getElementById(id);
+                input.addEventListener('change', updateTimeDisplay);
+                input.addEventListener('input', updateTimeDisplay);
             });
+            updateTimeDisplay();
 
-            // === TIME SNAP ===
+            // === TIME SNAP TO 30-MIN INTERVALS ===
             ['startTime', 'endTime'].forEach(id => {
                 const input = document.getElementById(id);
                 input.addEventListener('blur', () => {
@@ -417,7 +444,18 @@
                     m = m < 15 ? 0 : m < 45 ? 30 : 0;
                     if (m === 0) h = (h + 1) % 24;
                     input.value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                    updateTimeDisplay();
                 });
+            });
+
+            // === PASSWORD ===
+            document.getElementById('passwordSubmit').addEventListener('click', () => {
+                if (document.getElementById('passwordInput').value === 'm2025') {
+                    document.getElementById('passwordPage').classList.add('hidden');
+                    document.getElementById('formPage').classList.remove('hidden');
+                } else {
+                    document.getElementById('passwordError').classList.remove('hidden');
+                }
             });
 
             // === CLIENT CONTACT VALIDATION ===
@@ -755,15 +793,41 @@
                                 <img src="${url}" class="image-preview" alt="Key image ${idx + 1}">
                                 <p class="text-xs text-green-600 mt-1">Converted to PNG</p>
                             `;
+                            updateEdmBannerFromKeyImage(); // Auto-update if "same as poster" selected
                         }
                     });
                 });
             });
 
-            // === EDM BANNER ===
-            let autoCroppedEdmBanner = null;
+            // === EDM BANNER SOURCE SELECTOR ===
+            const edmBannerSource = document.getElementById('edmBannerSource');
+            const edmBannerUploadSection = document.getElementById('edmBannerUploadSection');
             const edmBannerInput = document.getElementById('edmBannerInput');
             const edmBannerPreview = document.getElementById('edmBannerPreview');
+            let autoCroppedEdmBanner = null;
+
+            function updateEdmBannerFromKeyImage() {
+                if (edmBannerSource.value === 'copy' && autoCroppedKeyImages.length > 0 && autoCroppedKeyImages[0]) {
+                    autoCroppedEdmBanner = autoCroppedKeyImages[0];
+                    const url = URL.createObjectURL(autoCroppedEdmBanner);
+                    edmBannerPreview.innerHTML = `
+                        <img src="${url}" class="image-preview" alt="EDM Banner (from Poster)">
+                        <p class="text-xs text-blue-600 mt-1">Copied from first Poster Key Image</p>
+                    `;
+                }
+            }
+
+            edmBannerSource.addEventListener('change', () => {
+                const isCopy = edmBannerSource.value === 'copy';
+                edmBannerUploadSection.style.display = isCopy ? 'none' : 'block';
+                if (isCopy) {
+                    updateEdmBannerFromKeyImage();
+                } else {
+                    edmBannerPreview.innerHTML = '';
+                    autoCroppedEdmBanner = null;
+                }
+            });
+
             edmBannerInput.addEventListener('change', () => {
                 const file = edmBannerInput.files[0];
                 if (!file) return;
@@ -814,9 +878,9 @@
                 const errorText = document.getElementById('errorText');
                 error.classList.add('hidden');
 
-                // === VALIDATION (only required fields) ===
+                // === VALIDATION ===
                 if (needEDM.checked && !autoCroppedEdmBanner) {
-                    errorText.textContent = 'Please upload the EDM Banner image.';
+                    errorText.textContent = 'Please upload or copy the EDM Banner image.';
                     error.classList.remove('hidden');
                     return;
                 }
@@ -833,6 +897,7 @@
                 formData.append('organizerEmail', document.getElementById('organizerEmail').value.trim());
                 formData.append('startTime', document.getElementById('startTime').value);
                 formData.append('endTime', document.getElementById('endTime').value);
+                formData.append('formattedTime', timeDisplay.textContent);
                 formData.append('date', document.getElementById('date').value);
                 formData.append('clientName', document.getElementById('clientName').value.trim());
                 formData.append('clientContact', document.getElementById('clientContact').value.trim());
@@ -991,6 +1056,7 @@
                 document.getElementById('needEDM').dispatchEvent(new Event('change'));
                 document.getElementById('needRegisterLink').dispatchEvent(new Event('change'));
                 document.querySelector(`input[name="linkSource"]:checked`)?.dispatchEvent(new Event('change'));
+                updateTimeDisplay();
             }
         });
     </script>
