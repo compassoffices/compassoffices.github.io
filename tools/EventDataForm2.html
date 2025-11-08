@@ -414,9 +414,6 @@
                 </form>
                 <div id="successMessage" class="hidden mt-6 p-4 rounded-lg text-white success-message">
                     <p>Event data submitted successfully!</p>
-                  <!--  <p class="mt-2">Click the link below to reopen this form with all data pre-filled:</p>
-                    <div id="webhookLink" class="webhook-link mt-3"></div>
-                    <button onclick="navigator.clipboard.writeText(document.getElementById('webhookLink').textContent).then(() => alert('Link copied!'))" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Copy Link</button> -->
                 </div>
                 <div id="errorMessage" class="hidden mt-6 p-4 rounded-lg text-white error-message">
                     <span id="errorText">Error</span>
@@ -436,7 +433,6 @@
             }
             const eventIdDisplay = document.getElementById('eventIdDisplay');
             eventIdDisplay.textContent = generateEventId();
-
             // === FORMATTED TIME ===
             let formattedTime = '6:00 PM - 9:00 PM';
             function formatTime12(hour, minute) {
@@ -456,7 +452,6 @@
                     formattedTime = 'Select start and end time';
                 }
             }
-
             // === TIME INPUTS ===
             ['startTime', 'endTime'].forEach(id => {
                 const input = document.getElementById(id);
@@ -465,7 +460,6 @@
                 input.addEventListener('input', updateFormattedTime);
             });
             updateFormattedTime();
-
             // === PASSWORD ===
             document.getElementById('passwordSubmit').addEventListener('click', () => {
                 if (document.getElementById('passwordInput').value === 'm2025') {
@@ -476,12 +470,10 @@
                     document.getElementById('passwordError').classList.remove('hidden');
                 }
             });
-
             // === LOAD FROM URL ===
             function loadFromURL() {
                 const params = new URLSearchParams(window.location.search);
                 if (!params.toString()) return;
-
                 // Load text & checkbox
                 params.forEach((value, key) => {
                     const el = document.getElementById(key);
@@ -498,54 +490,57 @@
                         el.value = value;
                     }
                 });
-
                 // Special: link source radio
                 const linkSource = params.get('linkSource');
                 if (linkSource) {
                     const radio = document.querySelector(`input[name="linkSource"][value="${linkSource}"]`);
-                    if (radio) radio.checked = true;
-                    radio?.dispatchEvent(new Event('change'));
+                    if (radio) {
+                        radio.checked = true;
+                        radio.dispatchEvent(new Event('change'));
+                    }
                 }
-
                 // Load files from base64
+                let logoFile = null;
+                let edmBannerFile = null;
+                let keyFiles = [];
                 ['posterLogo', 'posterKeyImage1', 'posterKeyImage2', 'posterKeyImage3', 'edmBanner'].forEach(key => {
                     const b64 = params.get(key);
                     if (b64) {
-                        const file = dataURLtoFile(b64, key === 'posterLogo' ? 'logo.png' : key.includes('Key') ? `key${key.slice(-1)}.png` : 'banner.png');
-                        if (key === 'posterLogo') {
-                            document.getElementById('posterLogoInput').files = createFileList([file]);
-                            processLogoFile(file);
-                        } else if (key.includes('Key')) {
+                        const isLogo = key === 'posterLogo';
+                        const isEdm = key === 'edmBanner';
+                        const filename = isLogo ? 'logo.png' : isEdm ? 'banner.png' : `key${key.slice(-1)}.png`;
+                        const file = dataURLtoFile(b64, filename);
+                        if (isLogo) {
+                            logoFile = file;
+                        } else if (isEdm) {
+                            edmBannerFile = file;
+                        } else {
                             const idx = parseInt(key.slice(-1)) - 1;
-                            const input = document.getElementById('posterKeyImagesInput');
-                            const dt = new DataTransfer();
-                            dt.items.add(file);
-                            input.files = dt.files;
-                            autoCropAndConvertToPng(file, (pngFile, url) => {
-                                autoCroppedKeyImages[idx] = pngFile;
-                                updateEdmBannerFromKeyImage();
-                            });
-                        } else if (key === 'edmBanner') {
-                            const input = document.getElementById('edmBannerInput');
-                            const dt = new DataTransfer();
-                            dt.items.add(file);
-                            input.files = dt.files;
-                            autoCropAndConvertToPng(file, (pngFile, url) => {
-                                autoCroppedEdmBanner = pngFile;
-                            });
+                            keyFiles[idx] = file;
                         }
                     }
                 });
-
+                // Set files and trigger processing
+                if (logoFile) {
+                    document.getElementById('posterLogoInput').files = createFileList([logoFile]);
+                    processLogoFile(logoFile);
+                }
+                if (keyFiles.length > 0) {
+                    const filteredKeyFiles = keyFiles.filter(f => f);
+                    document.getElementById('posterKeyImagesInput').files = createFileList(filteredKeyFiles);
+                    document.getElementById('posterKeyImagesInput').dispatchEvent(new Event('change'));
+                }
+                if (edmBannerFile) {
+                    document.getElementById('edmBannerInput').files = createFileList([edmBannerFile]);
+                    document.getElementById('edmBannerInput').dispatchEvent(new Event('change'));
+                }
                 updateFormattedTime();
             }
-
             function createFileList(files) {
                 const dt = new DataTransfer();
                 files.forEach(f => dt.items.add(f));
                 return dt.files;
             }
-
             function dataURLtoFile(dataurl, filename) {
                 const arr = dataurl.split(',');
                 const mime = arr[0].match(/:(.*?);/)[1];
@@ -555,7 +550,6 @@
                 while (n--) u8arr[n] = bstr.charCodeAt(n);
                 return new File([u8arr], filename, { type: mime });
             }
-
             // === CLIENT CONTACT VALIDATION ===
             const contactInput = document.getElementById('clientContact');
             const feedback = document.getElementById('contactFeedback');
@@ -573,7 +567,6 @@
                     feedback.innerHTML = `<svg class="text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span class="text-red-600">Enter valid email or phone</span>`;
                 }
             });
-
             // === BUILDING / FLOOR / EMAIL DATA ===
             const buildingData = {
                 "Hong Kong": {
@@ -624,13 +617,11 @@
                     "Menara AIA Sentral": { levels: ["3", "4", "5"], emails: ["KULMSC003@compassoffices.com", "KULMSC004@compassoffices.com", "KULMSC005@compassoffices.com"] }
                 }
             };
-
             const countrySelect = document.getElementById('country');
             const buildingSelect = document.getElementById('building');
             const floorSelect = document.getElementById('floor');
             const emailPreview = document.getElementById('emailPreview');
             const locationPreview = document.getElementById('locationPreview');
-
             function updateBuildingOptions() {
                 const country = countrySelect.value;
                 buildingSelect.innerHTML = '<option>Select Building</option>';
@@ -649,7 +640,6 @@
                     });
                 }
             }
-
             function updateFloorOptions() {
                 const country = countrySelect.value;
                 const building = buildingSelect.value;
@@ -668,7 +658,6 @@
                     });
                 }
             }
-
             function updateEmail() {
                 const country = countrySelect.value;
                 const building = buildingSelect.value;
@@ -680,7 +669,6 @@
                     emailPreview.textContent = email;
                 }
             }
-
             function getAreaTypes() {
                 const types = [];
                 if (document.getElementById('loungeArea').checked) types.push('Lounge area');
@@ -688,7 +676,6 @@
                 if (document.getElementById('room').checked) types.push('Room');
                 return types.length ? types.join(', ') : '';
             }
-
             function getRoomName() {
                 const meeting = document.getElementById('meetingRoomName').value.trim();
                 const regular = document.getElementById('regularRoomName').value.trim();
@@ -696,11 +683,9 @@
                 if (regular) return `Room ${regular}`;
                 return '';
             }
-
             function getAdditionalReqs() {
                 return document.getElementById('additionalRequirements').value.trim();
             }
-
             function updateLocationPreview() {
                 const country = countrySelect.value;
                 const building = buildingSelect.value;
@@ -719,7 +704,6 @@
                 locationPreview.textContent = formatted;
                 return formatted;
             }
-
             countrySelect.addEventListener('change', updateBuildingOptions);
             buildingSelect.addEventListener('change', updateFloorOptions);
             floorSelect.addEventListener('change', () => { updateEmail(); updateLocationPreview(); });
@@ -730,7 +714,6 @@
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('input', updateLocationPreview);
             });
-
             const loungeArea = document.getElementById('loungeArea');
             const meetingRoom = document.getElementById('meetingRoom');
             const room = document.getElementById('room');
@@ -747,33 +730,30 @@
             loungeArea.addEventListener('change', toggleRoomInputs);
             meetingRoom.addEventListener('change', toggleRoomInputs);
             room.addEventListener('change', toggleRoomInputs);
-
             window.addSuggestion = function (text) {
                 const input = document.getElementById('additionalRequirements');
                 const cur = input.value.trim();
                 input.value = cur ? cur + ', ' + text : text;
                 updateLocationPreview();
             };
-
             // === CHAR COUNTERS ===
             function updateCharCount(id, countId, max, nonBlankMax) {
-    const input = document.getElementById(id);
-    const count = document.getElementById(countId);
-    if (!input || !count) return;
-
-    function update() {
-        const val = input.value.trim();
-        const len = val.length;
-        const nonBlankLen = val.replace(/\s/g, '').length;
-        const displayLen = nonBlankLen > 0 ? nonBlankLen : len;
-        count.textContent = `${len} / ${max} (${displayLen} non-blank)`;
-        count.className = 'char-count';
-        if (len > max) count.classList.add('error');
-        else if (len > nonBlankMax) count.classList.add('warning');
-    }
-    input.addEventListener('input', update);
-    update();
-}
+                const input = document.getElementById(id);
+                const count = document.getElementById(countId);
+                if (!input || !count) return;
+                function update() {
+                    const val = input.value.trim();
+                    const len = val.length;
+                    const nonBlankLen = val.replace(/\s/g, '').length;
+                    const displayLen = nonBlankLen > 0 ? nonBlankLen : len;
+                    count.textContent = `${len} / ${max} (${displayLen} non-blank)`;
+                    count.className = 'char-count';
+                    if (len > max) count.classList.add('error');
+                    else if (len > nonBlankMax) count.classList.add('warning');
+                }
+                input.addEventListener('input', update);
+                update();
+            }
             updateCharCount('posterTitle', 'posterTitleCount', 40, 37);
             updateCharCount('posterSubtitle', 'posterSubtitleCount', 40, 37);
             updateCharCount('edmTitle', 'edmTitleCount', 40, 37);
@@ -788,7 +768,6 @@
                 });
                 count.textContent = '0 / 120';
             });
-
             // === POSTER / EDM TOGGLE & SYNC ===
             const needPoster = document.getElementById('needPoster');
             const posterDetails = document.getElementById('posterDetailsSection');
@@ -813,7 +792,6 @@
                 document.getElementById('edmSubtitleAuto').classList.toggle('hidden', this.checked);
                 syncContent();
             });
-
             let syncTimeout;
             function syncContent() {
                 clearTimeout(syncTimeout);
@@ -847,7 +825,6 @@
                     }
                 }, 300);
             }
-
             ['posterTitle', 'posterSubtitle', 'posterBullet1', 'posterBullet2', 'posterBullet3',
                 'edmTitle', 'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3'].forEach(id => {
                 document.getElementById(id).addEventListener('input', syncContent);
@@ -855,7 +832,6 @@
             ['posterHasSubtitle', 'edmHasSubtitle'].forEach(id => {
                 document.getElementById(id).addEventListener('change', syncContent);
             });
-
             // === SMART LOGO UPLOAD ===
             const logoDropZone = document.getElementById('logoDropZone');
             const logoInput = document.getElementById('posterLogoInput');
@@ -865,7 +841,6 @@
             const logoResultBox = document.getElementById('logoResultBox');
             const logoResultCanvas = document.getElementById('logoResultCanvas');
             let processedLogoFile = null;
-
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 logoDropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
             });
@@ -881,14 +856,12 @@
             });
             logoDropZone.addEventListener('click', () => logoInput.click());
             logoInput.addEventListener('change', () => { if (logoInput.files[0]) processLogoFile(logoInput.files[0]); });
-
             function resetLogoUI() {
                 [logoOriginalBox, logoResultBox, logoStatus].forEach(el => el.classList.add('hidden'));
                 processedLogoFile = null;
                 logoOriginalImg.src = '';
                 logoResultCanvas.width = 1; logoResultCanvas.height = 1;
             }
-
             async function processLogoFile(file) {
                 resetLogoUI();
                 showLogoStatus('Analyzing image...', 'info');
@@ -903,7 +876,6 @@
                 img.onerror = () => showLogoStatus('Failed to load image.', 'error');
                 img.src = url;
             }
-
             async function fitLogoAndConvert(img, originalFile) {
                 showLogoStatus('Removing background & detecting shape...', 'info');
                 const canvas = document.createElement('canvas');
@@ -945,7 +917,6 @@
                     processedLogoFile = new File([blob], originalFile.name.replace(/\.[^/.]+$/, ".png"), { type: 'image/png' });
                 }, 'image/png');
             }
-
             function getContentBoundingBox(ctx, width, height) {
                 const imageData = ctx.getImageData(0, 0, width, height).data;
                 let minX = width, minY = height, maxX = 0, maxY = 0;
@@ -964,13 +935,11 @@
                 }
                 return found ? { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } : null;
             }
-
             function showLogoStatus(msg, type = 'info') {
                 logoStatus.innerHTML = msg;
                 logoStatus.className = `logo-status ${type}`;
                 logoStatus.classList.remove('hidden');
             }
-
             // === KEY IMAGES ===
             let autoCroppedKeyImages = [];
             const keyImagesInput = document.getElementById('posterKeyImagesInput');
@@ -997,7 +966,6 @@
                     });
                 });
             });
-
             function autoCropAndConvertToPng(file, callback) {
                 const img = new Image();
                 img.onload = () => {
@@ -1018,14 +986,12 @@
                 img.onerror = () => callback(null, null);
                 img.src = URL.createObjectURL(file);
             }
-
             // === EDM BANNER ===
             const edmBannerSource = document.getElementById('edmBannerSource');
             const edmBannerUploadSection = document.getElementById('edmBannerUploadSection');
             const edmBannerInput = document.getElementById('edmBannerInput');
             const edmBannerPreview = document.getElementById('edmBannerPreview');
             let autoCroppedEdmBanner = null;
-
             function updateEdmBannerFromKeyImage() {
                 if (edmBannerSource.value === 'copy' && autoCroppedKeyImages.length > 0 && autoCroppedKeyImages[0]) {
                     autoCroppedEdmBanner = autoCroppedKeyImages[0];
@@ -1038,7 +1004,6 @@
                     edmBannerPreview.innerHTML = `<p class="text-xs text-gray-500">Upload a key image first</p>`;
                 }
             }
-
             edmBannerSource.addEventListener('change', () => {
                 const isCopy = edmBannerSource.value === 'copy';
                 edmBannerUploadSection.style.display = isCopy ? 'none' : 'block';
@@ -1046,7 +1011,6 @@
                 autoCroppedEdmBanner = null;
                 if (isCopy) updateEdmBannerFromKeyImage();
             });
-
             edmBannerInput.addEventListener('change', () => {
                 const file = edmBannerInput.files[0];
                 if (!file) return;
@@ -1061,7 +1025,6 @@
                     }
                 });
             });
-
             // === CATERING & REGISTRATION LINK ===
             document.getElementById('haveCatering').addEventListener('change', function () {
                 document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
@@ -1081,7 +1044,6 @@
                     buildLinkSection.classList.toggle('hidden', value !== 'build');
                 });
             });
-
             // === FORM SUBMISSION ===
             const webhookURL = 'https://hook.eu2.make.com/i2pvup7yc0fc8uj38wts4j2sqvsmty88';
             const submitButton = document.getElementById('submitButton');
@@ -1090,13 +1052,10 @@
             const successMessage = document.getElementById('successMessage');
             const errorMessage = document.getElementById('errorMessage');
             const errorText = document.getElementById('errorText');
-            const webhookLink = document.getElementById('webhookLink');
-
             document.getElementById('eventForm').addEventListener('submit', async function (e) {
                 e.preventDefault();
                 errorMessage.classList.add('hidden');
                 successMessage.classList.add('hidden');
-
                 if (needPoster.checked && autoCroppedKeyImages.filter(b => b).length === 0) {
                     errorText.textContent = 'Please upload at least one key image for Poster.';
                     errorMessage.classList.remove('hidden');
@@ -1107,59 +1066,57 @@
                     errorMessage.classList.remove('hidden');
                     return;
                 }
-
                 const formData = new FormData();
                 const urlParams = new URLSearchParams();
-
                 // Text & checkbox fields
-const fields = [
-    'eventId', 'organizerName', 'organizerEmail', 'startTime', 'endTime', 'formattedTime', 'date',
-    'clientName', 'clientContact', 'companyName', 'eventName', 'country', 'building', 'floor',
-    'contactEmail', 'formattedlocation', 'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
-    'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
-    'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
-    'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
-    'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink',
-    'reopenLink'                    
-];
-
+                const fields = [
+                    'organizerName', 'organizerEmail', 'startTime', 'endTime', 'date',
+                    'clientName', 'clientContact', 'companyName', 'eventName', 'country', 'building', 'floor',
+                    'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
+                    'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
+                    'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
+                    'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
+                    'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink'
+                ];
+                formData.append('eventId', eventIdDisplay.textContent);
+                urlParams.append('eventId', eventIdDisplay.textContent);
+                formData.append('formattedTime', formattedTime);
+                urlParams.append('formattedTime', formattedTime);
+                formData.append('formattedlocation', updateLocationPreview());
+                urlParams.append('formattedlocation', updateLocationPreview());
+                formData.append('contactEmail', emailPreview.textContent);
+                urlParams.append('contactEmail', emailPreview.textContent);
                 fields.forEach(key => {
                     let value;
-                    if (key === 'eventId') value = eventIdDisplay.textContent;
-                    else if (key === 'formattedTime') value = formattedTime;
-                    else if (key === 'formattedlocation') value = updateLocationPreview();
-                    else if (key === 'contactEmail') value = emailPreview.textContent;
-                    else if (key === 'linkSource') value = document.querySelector('input[name="linkSource"]:checked')?.value || '';
-                    else {
-                        const el = document.getElementById(key);
-                        value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
-                    }
+                    const el = document.getElementById(key);
+                    value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
                     formData.append(key, value);
                     urlParams.append(key, value);
                 });
-
+                const linkSourceValue = document.querySelector('input[name="linkSource"]:checked')?.value || '';
+                formData.append('linkSource', linkSourceValue);
+                urlParams.append('linkSource', linkSourceValue);
                 // Auto subtitle if not checked
+                let posterSubtitle = document.getElementById('posterSubtitle').value;
                 if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
-                    const autoSub = '(Exclusive event for clients of Compass Offices)';
-                    formData.append('posterSubtitle', autoSub);
-                    urlParams.append('posterSubtitle', autoSub);
+                    posterSubtitle = '(Exclusive event for clients of Compass Offices)';
                 }
+                formData.append('posterSubtitle', posterSubtitle);
+                urlParams.append('posterSubtitle', posterSubtitle);
+                let edmSubtitle = document.getElementById('edmSubtitle').value;
                 if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked) {
-                    const autoSub = '(Exclusive event for clients of Compass Offices)';
-                    formData.append('edmSubtitle', autoSub);
-                    urlParams.append('edmSubtitle', autoSub);
+                    edmSubtitle = '(Exclusive event for clients of Compass Offices)';
                 }
-
-                // Files to base64
+                formData.append('edmSubtitle', edmSubtitle);
+                urlParams.append('edmSubtitle', edmSubtitle);
+                // Files to base64 and append
                 const filePromises = [];
-
                 if (processedLogoFile) {
                     filePromises.push(fileToBase64(processedLogoFile).then(b64 => {
                         formData.append('posterLogo', processedLogoFile, processedLogoFile.name);
                         urlParams.append('posterLogo', b64);
                     }));
                 }
-
                 autoCroppedKeyImages.forEach((file, i) => {
                     if (file) {
                         filePromises.push(fileToBase64(file).then(b64 => {
@@ -1168,107 +1125,45 @@ const fields = [
                         }));
                     }
                 });
-
                 if (autoCroppedEdmBanner) {
                     filePromises.push(fileToBase64(autoCroppedEdmBanner).then(b64 => {
                         formData.append('edmBanner', autoCroppedEdmBanner, autoCroppedEdmBanner.name);
                         urlParams.append('edmBanner', b64);
                     }));
                 }
-
                 loadingOverlay.classList.remove('hidden');
                 submitButton.disabled = true;
                 document.getElementById('submitText').textContent = 'Submitting...';
-
                 let progress = 0;
                 const interval = setInterval(() => {
                     progress = Math.min(progress + 10, 90);
                     loadingFill.style.width = progress + '%';
                 }, 300);
-
                 try {
                     await Promise.all(filePromises);
-
+                    const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+                    formData.append('reopenLink', reopenUrl);
                     const response = await fetch(webhookURL, {
                         method: 'POST',
                         body: formData
                     });
-
                     clearInterval(interval);
                     loadingFill.style.width = '100%';
                     await new Promise(r => setTimeout(r, 500));
-
-if (response.ok) {
-    // === STEP 1: Wait for all file base64 conversions ===
-    await Promise.all(filePromises);
-
-    // === STEP 2: Re-build urlParams AFTER files are processed ===
-    const finalUrlParams = new URLSearchParams();
-    
-    // Re-add all text/checkbox fields
-    fields.forEach(key => {
-        let value;
-        if (key === 'eventId') value = eventIdDisplay.textContent;
-        else if (key === 'formattedTime') value = formattedTime;
-        else if (key === 'formattedlocation') value = updateLocationPreview();
-        else if (key === 'contactEmail') value = emailPreview.textContent;
-        else if (key === 'linkSource') value = document.querySelector('input[name="linkSource"]:checked')?.value || '';
-        else {
-            const el = document.getElementById(key);
-            value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
-        }
-        finalUrlParams.append(key, value);
-    });
-
-    // Re-add auto subtitles
-    if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
-        finalUrlParams.append('posterSubtitle', '(Exclusive event for clients of Compass Offices)');
-    }
-    if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked) {
-        finalUrlParams.append('edmSubtitle', '(Exclusive event for clients of Compass Offices)');
-    }
-
-    // Re-add file base64 strings
-    if (processedLogoFile) {
-        const b64 = await fileToBase64(processedLogoFile);
-        finalUrlParams.append('posterLogo', b64);
-    }
-    autoCroppedKeyImages.forEach(async (file, i) => {
-        if (file) {
-            const b64 = await fileToBase64(file);
-            finalUrlParams.append(`posterKeyImage${i + 1}`, b64);
-        }
-    });
-    if (autoCroppedEdmBanner) {
-        const b64 = await fileToBase64(autoCroppedEdmBanner);
-        finalUrlParams.append('edmBanner', b64);
-    }
-
-    // === STEP 3: Build final reopen URL ===
-    const reopenUrl = `${window.location.origin}${window.location.pathname}?${finalUrlParams.toString()}`;
-
-    // === STEP 4: Send reopenLink to Make.com (via formData) ===
-    formData.append('reopenLink', reopenUrl);
-
-    // === STEP 5: Show success + clickable re-open link ===
-    const linkHtml = `
-        <p class="mt-2 text-sm">Event submitted successfully!</p>
-        <p class="mt-3 text-sm">Click below to <strong>re-open this form with all data pre-filled</strong>:</p>
-        <div class="webhook-link mt-2 p-3 text-xs break-all">${reopenUrl}</div>
-        <button onclick="navigator.clipboard.writeText('${reopenUrl}').then(() => alert('Link copied to clipboard!'))" 
-                class="mt-2 px-4 py-2 bg-white text-orange-600 border border-orange-600 rounded-lg text-sm hover:bg-orange-50">
-            Copy Re-Open Link
-        </button>
-    `;
-    successMessage.innerHTML = linkHtml;
-    successMessage.classList.remove('hidden');
-
-    // === STEP 6: Update browser URL (for bookmarking/sharing) ===
-    window.history.replaceState({}, '', `?${finalUrlParams.toString()}`);
-
-    // === STEP 7: Clear local draft ===
-    localStorage.removeItem('eventFormDraft');
-}
+                    if (response.ok) {
+                        const linkHtml = `
+                            <p class="mt-2 text-sm">Event submitted successfully!</p>
+                            <p class="mt-3 text-sm">Click below to <strong>re-open this form with all data pre-filled</strong>:</p>
+                            <div class="webhook-link mt-2 p-3 text-xs break-all">${reopenUrl}</div>
+                            <button onclick="navigator.clipboard.writeText('${reopenUrl}').then(() => alert('Link copied to clipboard!'))"
+                                    class="mt-2 px-4 py-2 bg-white text-orange-600 border border-orange-600 rounded-lg text-sm hover:bg-orange-50">
+                                Copy Re-Open Link
+                            </button>
+                        `;
+                        successMessage.innerHTML = linkHtml;
+                        successMessage.classList.remove('hidden');
+                        window.history.replaceState({}, '', `?${urlParams.toString()}`);
+                        localStorage.removeItem('eventFormDraft');
                     } else {
                         throw new Error(`Server error: ${response.status}`);
                     }
@@ -1282,7 +1177,6 @@ if (response.ok) {
                     clearInterval(interval);
                 }
             });
-
             function fileToBase64(file) {
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -1291,10 +1185,8 @@ if (response.ok) {
                     reader.readAsDataURL(file);
                 });
             }
-
             // === AUTO-FILL DATE TODAY ===
             document.getElementById('date').value = new Date().toISOString().split('T')[0];
-
             // === MOBILE FIXES ===
             document.querySelectorAll('input[type="time"], input[type="date"]').forEach(el => {
                 el.addEventListener('focus', function () {
@@ -1304,7 +1196,6 @@ if (response.ok) {
             document.querySelectorAll('input, select, textarea').forEach(el => {
                 el.addEventListener('touchstart', () => {}, { passive: true });
             });
-
             // === LOCAL DRAFT (Optional) ===
             const form = document.getElementById('eventForm');
             const saveKey = 'eventFormDraft';
@@ -1317,7 +1208,6 @@ if (response.ok) {
                 }
                 localStorage.setItem(saveKey, JSON.stringify(obj));
             });
-
             const draft = localStorage.getItem(saveKey);
             if (draft) {
                 try {
@@ -1329,11 +1219,6 @@ if (response.ok) {
                     updateFormattedTime();
                 } catch (e) { }
             }
-
-            document.getElementById('successMessage').addEventListener('DOMNodeInserted', () => {
-                localStorage.removeItem(saveKey);
-            });
-
             window.scrollTo(0, 0);
         });
     </script>
