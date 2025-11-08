@@ -1198,20 +1198,76 @@ const fields = [
                     loadingFill.style.width = '100%';
                     await new Promise(r => setTimeout(r, 500));
 
-                    if (response.ok) {
-    // ----- 1. Build the re-open URL *once* (same as before)
-    const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+if (response.ok) {
+    // === STEP 1: Wait for all file base64 conversions ===
+    await Promise.all(filePromises);
 
-    // ----- 2. Append it to BOTH payloads
-    formData.append('reopenLink', reopenUrl);   // <-- to Make
-    urlParams.append('reopenLink', reopenUrl); // <-- (kept for possible future use)
+    // === STEP 2: Re-build urlParams AFTER files are processed ===
+    const finalUrlParams = new URLSearchParams();
+    
+    // Re-add all text/checkbox fields
+    fields.forEach(key => {
+        let value;
+        if (key === 'eventId') value = eventIdDisplay.textContent;
+        else if (key === 'formattedTime') value = formattedTime;
+        else if (key === 'formattedlocation') value = updateLocationPreview();
+        else if (key === 'contactEmail') value = emailPreview.textContent;
+        else if (key === 'linkSource') value = document.querySelector('input[name="linkSource"]:checked')?.value || '';
+        else {
+            const el = document.getElementById(key);
+            value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
+        }
+        finalUrlParams.append(key, value);
+    });
 
-    // ----- 3. **DO NOT** show the link on the page any more
-    // (remove the old lines that wrote into #webhookLink)
+    // Re-add auto subtitles
+    if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
+        finalUrlParams.append('posterSubtitle', '(Exclusive event for clients of Compass Offices)');
+    }
+    if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked) {
+        finalUrlParams.append('edmSubtitle', '(Exclusive event for clients of Compass Offices)');
+    }
 
+    // Re-add file base64 strings
+    if (processedLogoFile) {
+        const b64 = await fileToBase64(processedLogoFile);
+        finalUrlParams.append('posterLogo', b64);
+    }
+    autoCroppedKeyImages.forEach(async (file, i) => {
+        if (file) {
+            const b64 = await fileToBase64(file);
+            finalUrlParams.append(`posterKeyImage${i + 1}`, b64);
+        }
+    });
+    if (autoCroppedEdmBanner) {
+        const b64 = await fileToBase64(autoCroppedEdmBanner);
+        finalUrlParams.append('edmBanner', b64);
+    }
+
+    // === STEP 3: Build final reopen URL ===
+    const reopenUrl = `${window.location.origin}${window.location.pathname}?${finalUrlParams.toString()}`;
+
+    // === STEP 4: Send reopenLink to Make.com (via formData) ===
+    formData.append('reopenLink', reopenUrl);
+
+    // === STEP 5: Show success + clickable re-open link ===
+    const linkHtml = `
+        <p class="mt-2 text-sm">Event submitted successfully!</p>
+        <p class="mt-3 text-sm">Click below to <strong>re-open this form with all data pre-filled</strong>:</p>
+        <div class="webhook-link mt-2 p-3 text-xs break-all">${reopenUrl}</div>
+        <button onclick="navigator.clipboard.writeText('${reopenUrl}').then(() => alert('Link copied to clipboard!'))" 
+                class="mt-2 px-4 py-2 bg-white text-orange-600 border border-orange-600 rounded-lg text-sm hover:bg-orange-50">
+            Copy Re-Open Link
+        </button>
+    `;
+    successMessage.innerHTML = linkHtml;
     successMessage.classList.remove('hidden');
-    // keep the history update so the URL in the address bar stays the same
-    window.history.replaceState({}, '', `?${urlParams.toString()}`);
+
+    // === STEP 6: Update browser URL (for bookmarking/sharing) ===
+    window.history.replaceState({}, '', `?${finalUrlParams.toString()}`);
+
+    // === STEP 7: Clear local draft ===
+    localStorage.removeItem('eventFormDraft');
 }
                     } else {
                         throw new Error(`Server error: ${response.status}`);
