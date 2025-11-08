@@ -414,9 +414,9 @@
                 </form>
                 <div id="successMessage" class="hidden mt-6 p-4 rounded-lg text-white success-message">
                     <p>Event data submitted successfully!</p>
-                    <p class="mt-2">Click the link below to reopen this form with all data pre-filled:</p>
+                  <!--  <p class="mt-2">Click the link below to reopen this form with all data pre-filled:</p>
                     <div id="webhookLink" class="webhook-link mt-3"></div>
-                    <button onclick="navigator.clipboard.writeText(document.getElementById('webhookLink').textContent).then(() => alert('Link copied!'))" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Copy Link</button>
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('webhookLink').textContent).then(() => alert('Link copied!'))" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Copy Link</button> -->
                 </div>
                 <div id="errorMessage" class="hidden mt-6 p-4 rounded-lg text-white error-message">
                     <span id="errorText">Error</span>
@@ -1095,15 +1095,16 @@
                 const urlParams = new URLSearchParams();
 
                 // Text & checkbox fields
-                const fields = [
-                    'eventId', 'organizerName', 'organizerEmail', 'startTime', 'endTime', 'formattedTime', 'date',
-                    'clientName', 'clientContact', 'companyName', 'eventName', 'country', 'building', 'floor',
-                    'contactEmail', 'formattedlocation', 'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
-                    'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
-                    'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
-                    'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
-                    'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink'
-                ];
+const fields = [
+    'eventId', 'organizerName', 'organizerEmail', 'startTime', 'endTime', 'formattedTime', 'date',
+    'clientName', 'clientContact', 'companyName', 'eventName', 'country', 'building', 'floor',
+    'contactEmail', 'formattedlocation', 'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
+    'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
+    'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
+    'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
+    'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink',
+    'reopenLink'                    
+];
 
                 fields.forEach(key => {
                     let value;
@@ -1181,10 +1182,20 @@
                     await new Promise(r => setTimeout(r, 500));
 
                     if (response.ok) {
-                        const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
-                        webhookLink.textContent = reopenUrl;
-                        successMessage.classList.remove('hidden');
-                        window.history.replaceState({}, '', `?${urlParams.toString()}`);
+    // ----- 1. Build the re-open URL *once* (same as before)
+    const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+
+    // ----- 2. Append it to BOTH payloads
+    formData.append('reopenLink', reopenUrl);   // <-- to Make
+    urlParams.append('reopenLink', reopenUrl); // <-- (kept for possible future use)
+
+    // ----- 3. **DO NOT** show the link on the page any more
+    // (remove the old lines that wrote into #webhookLink)
+
+    successMessage.classList.remove('hidden');
+    // keep the history update so the URL in the address bar stays the same
+    window.history.replaceState({}, '', `?${urlParams.toString()}`);
+}
                     } else {
                         throw new Error(`Server error: ${response.status}`);
                     }
