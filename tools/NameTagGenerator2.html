@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Compass Name Tag Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --tag-w: 93mm; --tag-h: 57mm;
+            --compass: 'https://compassoffices.github.io/img/poster-compass-logo.png';
+            --orange: #ff6600;
+            --white: #ffffff;
+            --black: #000000;
+            --cutline: #cccccc;
+        }
+        * { box-sizing: border-box; margin:0; padding:0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--white); padding:20px; }
+        .container { max-width:1000px; margin:auto; background: var(--white); padding:25px; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.12); }
+        h1 { text-align:center; color: var(--black); font-size:28px; margin-bottom:8px; }
+        .subtitle { text-align:center; color: var(--orange); font-size:15px; font-weight:600; margin-bottom:20px; }
+        .info { background: #fff3e6; padding:14px; border: 2px solid var(--orange); border-radius:10px; font-family:monospace; font-size:13px; margin-bottom:20px; word-break:break-all; color: var(--black); }
+        .controls { text-align:center; margin:25px 0; }
+        button { background: var(--orange); color: var(--white); border:none; padding:14px 30px; margin:0 8px; font-size:16px; border-radius:8px; cursor:pointer; font-weight:600; transition:.3s; }
+        button:hover { background: #e65c00; transform:translateY(-2px); box-shadow:0 4px 12px rgba(255,102,0,.3); }
+        .loading { display:none; text-align:center; margin:20px; color: var(--black); font-weight:600; }
+
+        /* A4 Page - TIGHT PACKING */
+        .a4-page {
+            width:210mm; height:297mm; background: var(--white); padding:8mm 6mm; page-break-after:always;
+            display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(5,1fr);
+            gap:0; box-shadow:0 6px 25px rgba(0,0,0,.15); margin:20px auto;
+        }
+
+        /* Name Tag - LIGHT GRAY CUT LINE */
+        .tag {
+            width:var(--tag-w); height:var(--tag-h); background: var(--white);
+            overflow:hidden; position:relative;
+            border: 1px dashed var(--cutline); display:flex; flex-direction:column;
+        }
+
+        /* VERY LIGHT BACKGROUND: 50% white + brightness */
+        .tag-bg {
+            position:absolute; inset:0; background-size:cover; background-position:center;
+            z-index:0; filter:brightness(1.3);
+        }
+        .tag-bg::after {
+            content:''; position:absolute; inset:0;
+            background: linear-gradient(to right, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.7) 30%, rgba(255,255,255,0.95) 70%, white 100%);
+            z-index:1;
+        }
+
+        .tag-content { position:relative; z-index:2; flex-grow:1; display:flex; flex-direction:column; padding:10px 8px 0; }
+
+        /* Name - BIGGER TEXT */
+        .name-area { flex-grow:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:4px; }
+        .name-en { color: var(--black); font-weight:700; font-size:20px; line-height:1.3; }
+        .name-other { color: var(--black); font-weight:700; font-size:30px; line-height:1.3; }
+
+        /* BIGGER LOGO BAR: 18mm height, NO EDGE PADDING */
+        .logo-bar {
+            height:18mm; background: var(--white); border-top:1px solid var(--orange);
+            display:flex; align-items:center; justify-content:flex-start; padding:0 2mm; gap:5mm;
+            z-index:3;
+        }
+        .logo-item { height:16mm; max-width:28mm; object-fit:contain; }
+        .compass-logo { height:16mm; width:auto; object-fit:contain; }
+
+        @media print {
+            body,* { background: var(--white) !important; padding:0 !important; margin:0 !important; }
+            .container, .controls, .info, .loading { display:none !important; }
+            .a4-page { box-shadow:none; margin:0; padding:8mm 6mm; page-break-after:always; gap:0; }
+            .tag { border:1px dashed #cccccc !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Compass Name Tag Generator</h1>
+    <p class="subtitle">9.3cm × 5.7cm • Easy Cut • 300 DPI</p>
+    <div class="info" id="info">Enter names and logos in the URL to generate tags!</div>
+    <div class="controls">
+        <button id="jpgBtn">Download 300 DPI JPG (ZIP)</button>
+    </div>
+    <div class="loading" id="loading">Generating high-res files...</div>
+    <div id="pages"></div>
+</div>
+
+<script>
+    const COMPASS = 'https://compassoffices.github.io/img/poster-compass-logo.png';
+
+    function getParams() {
+        const p = new URLSearchParams(location.search);
+        const bg = p.get('bg') || '';
+        const globalLogo1 = p.get('logo1') || '';
+        const globalLogo2 = p.get('logo2') || '';
+        const tags = [];
+        let i = 0;
+        while (p.has(`name${i}`)) {
+            tags.push({ name: p.get(`name${i}`) || '' });
+            i++;
+        }
+        return { bg, globalLogo1, globalLogo2, tags };
+    }
+
+    function splitName(name) {
+        const parts = name.split('/').map(s => s.trim()).filter(Boolean);
+        if (parts.length < 2) return { en: '', other: name };
+        const en = parts.find(p => /[a-zA-Z]/.test(p)) || parts[1];
+        const other = parts.find(p => !/[a-zA-Z]/.test(p)) || parts[0];
+        return { en, other };
+    }
+
+    function createTag(data, bg, logo1, logo2) {
+        const tag = document.createElement('div'); tag.className = 'tag';
+        const { en, other } = splitName(data.name);
+
+        // Full background
+        const bgDiv = document.createElement('div'); bgDiv.className = 'tag-bg';
+        if (bg) bgDiv.style.backgroundImage = `url('${bg}')`;
+        tag.appendChild(bgDiv);
+
+        // Content
+        const content = document.createElement('div'); content.className = 'tag-content';
+
+        // Name: English TOP
+        const nameArea = document.createElement('div'); nameArea.className = 'name-area';
+        if (en) {
+            const enLine = document.createElement('div'); enLine.className = 'name-en';
+            enLine.textContent = en; nameArea.appendChild(enLine);
+        }
+        if (other) {
+            const otherLine = document.createElement('div'); otherLine.className = 'name-other';
+            otherLine.textContent = other; nameArea.appendChild(otherLine);
+        }
+        if (!en && !other) {
+            const line = document.createElement('div'); line.className = 'name-other';
+            line.textContent = 'Your Name'; nameArea.appendChild(line);
+        }
+        content.appendChild(nameArea);
+
+        // BIG LOGO BAR: 18mm height, NO EDGE PADDING
+        const bar = document.createElement('div'); bar.className = 'logo-bar';
+
+        [logo1, logo2].forEach(src => {
+            if (!src) return;
+            const img = new Image(); 
+            img.crossOrigin = 'anonymous'; 
+            img.src = src;
+            img.className = 'logo-item';
+            img.onload = () => {
+                const targetHeight = 16; // mm
+                img.style.height = `${targetHeight}mm`;
+                img.style.width = 'auto';
+            };
+            bar.appendChild(img);
+        });
+
+        const compass = new Image(); 
+        compass.crossOrigin = 'anonymous'; 
+        compass.src = COMPASS;
+        compass.className = 'logo-item compass-logo';
+        compass.onload = () => { compass.style.height = '16mm'; };
+        bar.appendChild(compass);
+
+        content.appendChild(bar);
+        tag.appendChild(content);
+        return tag;
+    }
+
+    function layout(tags, bg, logo1, logo2) {
+        const container = document.getElementById('pages');
+        container.innerHTML = '';
+        const perPage = 10;
+        for (let i = 0; i < tags.length; i += perPage) {
+            const page = document.createElement('div'); page.className = 'a4-page';
+            const slice = tags.slice(i, i + perPage);
+            slice.forEach(t => page.appendChild(createTag(t, bg, logo1, logo2)));
+            while (page.children.length < perPage) {
+                const dummy = document.createElement('div'); dummy.className = 'tag';
+                dummy.style.border = '1px dashed #cccccc'; dummy.style.visibility = 'hidden';
+                page.appendChild(dummy);
+            }
+            container.appendChild(page);
+        }
+    }
+
+    async function exportJPG() {
+        const loading = document.getElementById('loading'); loading.style.display = 'block';
+        const pages = document.querySelectorAll('.a4-page');
+        const zip = new JSZip();
+        const scale = 300 / 96; // EXACT 300 DPI, NO DISTORTION
+
+        for (let i = 0; i < pages.length; i++) {
+            const canvas = await html2canvas(pages[i], { 
+                scale, 
+                useCORS: true, 
+                backgroundColor: '#fff',
+                width: 2480,  // 210mm × 300/25.4 ≈ 2480px
+                height: 3508  // 297mm × 300/25.4 ≈ 3508px
+            });
+            zip.file(`page_${i+1}.jpg`, canvas.toDataURL('image/jpeg', 1.0).split(',')[1], { base64: true });
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'name-tags-300dpi.zip'; a.click();
+        loading.style.display = 'none';
+    }
+
+    // Init
+    const { bg, globalLogo1, globalLogo2, tags } = getParams();
+    if (!tags.length) {
+        document.getElementById('info').textContent = 'Enter names and logos in the URL to generate tags!';
+    } else {
+        document.getElementById('info').textContent = `${tags.length} tags • Global logos: ${globalLogo1 && globalLogo2 ? '2' : globalLogo1 ? '1' : '0'} • Background: ${bg?'Yes':'No'}`;
+        layout(tags, bg, globalLogo1, globalLogo2);
+    }
+
+    document.getElementById('jpgBtn').onclick = exportJPG;
+</script>
+</body>
+</html>
