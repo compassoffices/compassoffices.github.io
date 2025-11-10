@@ -19,6 +19,10 @@
       width:595px;height:842px;background:#fff;position:relative;overflow:hidden;
       box-shadow:0 10px 30px rgba(0,0,0,.15);font-family:system-ui,-apple-system,sans-serif;
       display:flex;flex-direction:column;
+      /* ---- CRITICAL FOR CANVAS ---- */
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      transform:translateZ(0);           /* force GPU layer */
     }
     @media print{body,.poster{background:#fff;box-shadow:none;}}
 
@@ -209,36 +213,27 @@
       customImg.onload = () => {
         const { naturalWidth, naturalHeight } = customImg;
 
-        // Detect common upload sizes
         let maxW, maxH, gap;
         if (naturalWidth === 1080 && naturalHeight === 1080) {
-          // Square → larger logos
           maxW = 130; maxH = 130; gap = 'gap-4';
         } else if (naturalWidth === 1080 && naturalHeight === 500) {
-          // Wide → compact logos
           maxW = 110; maxH = 55; gap = 'gap-2';
         } else {
-          // Fallback
           maxW = 110; maxH = 45; gap = 'gap-2';
         }
 
-        // Apply size to both logos
         customImg.className = `max-w-[${maxW}px] max-h-[${maxH}px]`;
         const compassImg = document.createElement('img');
         compassImg.src = 'https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png';
         compassImg.alt = 'Compass Logo';
         compassImg.className = `max-w-[${maxW}px] max-h-[${maxH}px] object-contain`;
 
-        // Clear previous & append
         logosContainer.innerHTML = '';
         logosContainer.className = `flex items-center ${gap} mt-2`;
         logosContainer.append(customImg, compassImg);
       };
 
-      customImg.onerror = () => {
-        // Fallback if image fails
-        logosContainer.innerHTML = '';
-      };
+      customImg.onerror = () => logosContainer.innerHTML = '';
     }
 
     // ---------- DATE ----------
@@ -272,15 +267,32 @@
       colorDark: "#000000", colorLight: "#ffffff"
     });
 
-    // ---------- AUTO‑DOWNLOAD ----------
+    // ---------- AUTO‑DOWNLOAD (FIXED) ----------
     window.onload = () => {
       setTimeout(() => {
         html2canvas(document.getElementById('poster'), {
-          scale: 300 / 72,
+          scale: 2,                     // 2× = ~300 dpi on 72 dpi screen
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
-          logging: false
+          logging: false,
+          width: 595,                   // force exact pixel size
+          height: 842,
+          windowWidth: 595,
+          windowHeight: 842,
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0,
+          // Force crisp text & SVG
+          onclone: (clonedDoc) => {
+            const style = clonedDoc.createElement('style');
+            style.textContent = `
+              * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+              svg { shape-rendering: crispEdges; }
+            `;
+            clonedDoc.head.appendChild(style);
+          }
         }).then(canvas => {
           const safeTitle = sanitizeFilename(rawTitle);
           const filename = `${safeTitle}-${isoDate}-poster.jpg`;
@@ -292,7 +304,7 @@
           console.error('JPG generation failed:', err);
           alert('Failed to generate poster – check image URLs.');
         });
-      }, 900);
+      }, 1200); // slightly longer to ensure QR & logos load
     };
   </script>
 </body>
