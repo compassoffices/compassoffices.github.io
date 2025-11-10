@@ -138,37 +138,82 @@
       return words.slice(0, max).join(' ') + (words.length > max ? '...' : '');
     };
     const sanitizeFilename = str => str.replace(/[^\w\-]/g, '_');
+
     /* ---------- content ---------- */
     const rawTitle = limitWords(params.get('title'), 40) || 'Event Title';
     const rawSubtitle = limitWords(params.get('subtitle'), 40) || 'Event Subtitle';
     const rawDate = params.get('date') || '2025-07-15';
     document.getElementById('title').textContent = rawTitle;
     document.getElementById('subtitle').textContent = rawSubtitle;
+
     // Key image
     document.getElementById('key-image').src = params.get('image') || 'https://example.com/key-image.jpg';
-    // Dynamic Logos
+
+    // Dynamic Logos – now with smart sizing based on uploaded logo dimensions
     const customLogoUrl = params.get('logo');
     if (customLogoUrl) {
       const customImg = document.createElement('img');
       customImg.src = customLogoUrl;
       customImg.alt = 'Custom Logo';
-      customImg.classList.add('max-w-[110px]', 'max-h-[45px]', 'object-contain');
-      customImg.onerror = () => { customImg.remove(); };
+      customImg.classList.add('max-h-[45px]', 'object-contain', 'flex-shrink-0');
+      customImg.style.maxWidth = '110px';
 
+      // Detect aspect ratio after load to adjust Compass logo size
+      customImg.onload = function() {
+        const img = this;
+        const ratio = img.naturalWidth / img.naturalHeight;
+
+        // Default Compass logo
+        const compassImg = document.createElement('img');
+        compassImg.src = 'https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png';
+        compassImg.alt = 'Compass Logo';
+        compassImg.classList.add('max-h-[45px]', 'object-contain', 'flex-shrink-0');
+
+        // Adjust Compass logo size based on uploaded logo shape
+        if (img.naturalWidth === 1080 && img.naturalHeight === 500) {
+          // Wide logo → make Compass smaller to balance
+          compassImg.style.maxWidth = '80px';
+        } else if (img.naturalWidth === 1080 && img.naturalHeight === 1080) {
+          // Square logo → make Compass slightly smaller for symmetry
+          compassImg.style.maxWidth = '90px';
+        } else {
+          // Default fallback
+          compassImg.style.maxWidth = '110px';
+        }
+
+        const logosContainer = document.getElementById('logos');
+        logosContainer.appendChild(customImg);
+        logosContainer.appendChild(compassImg);
+      };
+
+      // Fallback if image fails to load
+      customImg.onerror = () => {
+        console.warn('Custom logo failed to load:', customLogoUrl);
+        // Still show Compass logo
+        const compassImg = document.createElement('img');
+        compassImg.src = 'https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png';
+        compassImg.alt = 'Compass Logo';
+        compassImg.classList.add('max-h-[45px]', 'object-contain', 'flex-shrink-0');
+        compassImg.style.maxWidth = '110px';
+        document.getElementById('logos').appendChild(compassImg);
+      };
+    } else {
+      // No custom logo → show only Compass
       const compassImg = document.createElement('img');
       compassImg.src = 'https://www.compassoffices.com/wp-content/uploads/2025/10/x-compass-logo.png';
       compassImg.alt = 'Compass Logo';
-      compassImg.classList.add('max-w-[110px]', 'max-h-[45px]', 'object-contain');
-
-      document.getElementById('logos').appendChild(customImg);
+      compassImg.classList.add('max-h-[45px]', 'object-contain', 'flex-shrink-0');
+      compassImg.style.maxWidth = '110px';
       document.getElementById('logos').appendChild(compassImg);
     }
+
     // Date
     const dateObj = new Date(rawDate);
     document.getElementById('date').textContent = dateObj.toLocaleDateString('en-US', {
       weekday:'short', year:'numeric', month:'short', day:'numeric'
     });
     const isoDate = dateObj.toISOString().split('T')[0];
+
     // Time
     const start = params.get('time') || '18:00';
     const end = params.get('end_time') || '22:00';
@@ -180,10 +225,12 @@
     };
     document.getElementById('time').textContent = `${fmt(start)} – ${fmt(end)}`;
     document.getElementById('location').textContent = params.get('location') || 'Central Park, New York';
+
     // Bullets
     document.getElementById('desc1').textContent = limitWords(params.get('desc1'), 70);
     document.getElementById('desc2').textContent = limitWords(params.get('desc2'), 70);
     document.getElementById('desc3').textContent = limitWords(params.get('desc3'), 70);
+
     // QR
     const qrUrl = params.get('qr_url') || 'https://example.com';
     new QRCode(document.getElementById('qr'), {
@@ -193,6 +240,7 @@
       colorDark: "#000000",
       colorLight: "#ffffff"
     });
+
     /* ---------- auto-download ---------- */
     window.onload = () => {
       setTimeout(() => {
@@ -213,7 +261,7 @@
           console.error('JPG generation failed:', err);
           alert('Failed to generate poster – check image URLs.');
         });
-      }, 900);
+      }, 1200); // Increased delay slightly to allow logo onload
     };
   </script>
 </body>
