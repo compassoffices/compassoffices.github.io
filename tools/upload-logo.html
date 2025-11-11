@@ -127,7 +127,7 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .hidden { display: none; }
 
-        /* Company Name Suggestions */
+        /* Smart Suggestions */
         .suggestions {
             position: absolute;
             top: 100%;
@@ -151,10 +151,18 @@
             border-bottom: 1px solid #f3f4f6;
             font-size: 0.95rem;
             transition: background .2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .suggestion-item:hover, .suggestion-item.active {
             background: #fff5e6;
             color: #ff6600;
+        }
+        .suggestion-domain {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-left: 8px;
         }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
@@ -168,7 +176,7 @@
     </div>
     <div class="content">
         <form id="logoForm">
-            <!-- Company Name with Smart Suggestions -->
+            <!-- Company Name with Clearbit Autocomplete -->
             <div class="form-group">
                 <label for="companyName">Company Name</label>
                 <input type="text" id="companyName" placeholder="Start typing company name..." required autocomplete="off" />
@@ -232,7 +240,7 @@
     let finalBlob = null;
     const WEBHOOK = 'https://hook.eu2.make.com/vmt72bscm634y3pb25772pcfmkf0vq2w';
 
-    // === SMART COMPANY NAME SUGGESTIONS ===
+    // === CLEARBIT AUTOCOMPLETE (FREE, NO KEY) ===
     let debounceTimer;
     companyName.addEventListener('input', () => {
         clearTimeout(debounceTimer);
@@ -241,20 +249,21 @@
             suggestionsUl.classList.add('hidden');
             return;
         }
-        debounceTimer = setTimeout(() => fetchCompanySuggestions(query), 300);
+        debounceTimer = setTimeout(() => fetchClearbitSuggestions(query), 300);
     });
 
-    async function fetchCompanySuggestions(query) {
+    async function fetchClearbitSuggestions(query) {
         try {
-            // Using Google Suggest API (public, no key needed)
-            const res = await fetch(`https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query + " company")}`);
+            const res = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(query)}`);
+            if (!res.ok) throw new Error();
             const data = await res.json();
-            const suggestions = data[1]
-                .filter(s => s.toLowerCase().includes(query.toLowerCase()) && !s.includes('wikipedia'))
-                .slice(0, 6);
+            const suggestions = data.slice(0, 6).map(item => ({
+                name: item.name,
+                domain: item.domain
+            }));
             showSuggestions(suggestions);
         } catch (err) {
-            console.warn('Suggestion fetch failed:', err);
+            console.warn('Clearbit fetch failed:', err);
             suggestionsUl.classList.add('hidden');
         }
     }
@@ -268,9 +277,12 @@
         list.forEach((item, i) => {
             const li = document.createElement('li');
             li.className = 'suggestion-item';
-            li.textContent = item;
+            li.innerHTML = `
+                <span>${item.name}</span>
+                ${item.domain ? `<span class="suggestion-domain">${item.domain}</span>` : ''}
+            `;
             li.onclick = () => {
-                companyName.value = item;
+                companyName.value = item.name;
                 suggestionsUl.classList.add('hidden');
             };
             if (i === 0) li.classList.add('active');
