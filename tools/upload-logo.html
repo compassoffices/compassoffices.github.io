@@ -74,7 +74,7 @@
         .upload-area input { display: none; }
         .preview-box { margin: 22px 0; text-align: center; }
         .preview-box p { font-weight: 600; margin-bottom: 10px; color: #1f2937; }
-        .preview-box img, .preview-box canvas {
+        .preview-box canvas {
             max-width: 100%;
             max-height: 200px;
             border-radius: 14px;
@@ -199,20 +199,19 @@
             <div class="upload-area" id="dropZone">
                 <i class="fas fa-cloud-upload-alt"></i>
                 <p><strong>Click or drag & drop</strong> your logo</p>
-                <p style="font-size:0.85rem;color:#9ca3af;margin-top:6px;">JPG, PNG, WebP, GIF – any size</p>
-                <input type="file" id="fileInput" accept="image/*"/>
+                <p style="font-size:0.85rem;color:#9ca3af;margin-top:6px;">JPG, PNG, SVG, WebP, GIF – any size<br><strong>.AI & .PDF not supported in browser</strong></p>
+                <input type="file" id="fileInput" accept="image/*,.svg,.pdf,.ai"/>
             </div>
-            <p class="upload-tip">Tip: Upload the highest resolution image possible for the best transparent background removal, especially if the logo is on a white background.</p>
+            <p class="upload-tip">Tip: For .AI or .PDF, please export as high-res PNG or SVG first. SVG works perfectly!</p>
 
             <div id="status" class="info hidden"></div>
-            <div class="preview-box hidden" id="originalBox">
-                <p>Original Image</p>
-                <img id="originalImg" alt="Original"/>
-            </div>
+
+            <!-- ONLY SHOW FINAL RESULT -->
             <div class="preview-box hidden" id="resultBox">
                 <p>Final Transparent Logo (No Crop)</p>
                 <canvas id="resultCanvas"></canvas>
             </div>
+
             <button type="submit" class="btn hidden" id="submitBtn">
                 <span class="loader hidden" id="loader"></span>
                 <span id="btnText">Submit to Compass Offices</span>
@@ -226,8 +225,6 @@
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const status = document.getElementById('status');
-    const originalBox = document.getElementById('originalBox');
-    const originalImg = document.getElementById('originalImg');
     const resultBox = document.getElementById('resultBox');
     const resultCanvas = document.getElementById('resultCanvas');
     const submitBtn = document.getElementById('submitBtn');
@@ -240,7 +237,7 @@
     let finalBlob = null;
     const WEBHOOK = 'https://hook.eu2.make.com/vmt72bscm634y3pb25772pcfmkf0vq2w';
 
-    // === CLEARBIT AUTOCOMPLETE (FREE, NO KEY) ===
+    // === CLEARBIT AUTOCOMPLETE ===
     let debounceTimer;
     companyName.addEventListener('input', () => {
         clearTimeout(debounceTimer);
@@ -291,7 +288,6 @@
         suggestionsUl.classList.remove('hidden');
     }
 
-    // Hide suggestions when clicking outside
     document.addEventListener('click', (e) => {
         if (!companyName.contains(e.target) && !suggestionsUl.contains(e.target)) {
             suggestionsUl.classList.add('hidden');
@@ -302,30 +298,65 @@
     ['dragenter','dragover','dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false));
     ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('dragover'), false));
     ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('dragover'), false));
-    dropZone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) processFile(f); });
+    dropZone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
     dropZone.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => { if (fileInput.files[0]) processFile(fileInput.files[0]); });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
 
-    // === PROCESS FILE (unchanged) ===
-    async function processFile(file) {
+    // === HANDLE FILE (Support SVG, reject AI/PDF) ===
+    async function handleFile(file) {
+        const name = file.name.toLowerCase();
+        const type = file.type;
+
+        // Reject .ai and .pdf
+        if (name.endsWith('.ai') || name.endsWith('.pdf')) {
+            showStatus('AI and PDF files are not supported in browser. Please export as PNG or SVG first.', 'error');
+            return;
+        }
+
         resetUI();
-        showStatus('Analyzing image...', 'info');
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = async () => {
-            URL.revokeObjectURL(url);
-            originalImg.src = img.src;
-            originalBox.classList.remove('hidden');
-            await fitAndConvert(img);
-        };
-        img.src = url;
+        showStatus('Processing your logo...', 'info');
+
+        let img;
+
+        if (name.endsWith('.svg') || type === 'image/svg+xml') {
+            // Handle SVG
+            const text = await file.text();
+            const blob = new Blob([text], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            img = new Image();
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                processImage(img);
+            };
+            img.onerror = () => {
+                showStatus('Invalid SVG file.', 'error');
+                URL.revokeObjectURL(url);
+            };
+            img.src = url;
+        } else {
+            // Handle raster images
+            const url = URL.createObjectURL(file);
+            img = new Image();
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                processImage(img);
+            };
+            img.onerror = () => {
+                showStatus('Failed to load image.', 'error');
+                URL.revokeObjectURL(url);
+            };
+            img.src = url;
+        }
     }
 
-    async function fitAndConvert(img) {
+    // === PROCESS IMAGE (Background Remove + Resize) ===
+    async function processImage(img) {
         showStatus('Removing background & detecting shape...', 'info');
         toggleLoader(true);
+
         const canvas = document.createElement('canvas');
-        canvas.width = img.width; canvas.height = img.height;
+        canvas.width = img.width;
+        canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
 
@@ -342,7 +373,7 @@
         // Find bounding box
         const box = getContentBoundingBox(ctx, canvas.width, canvas.height);
         if (!box || box.w < 30 || box.h < 30) {
-            showStatus('No logo detected. Try a clearer image.', 'error');
+            showStatus('No logo detected. Try a clearer image with white background.', 'error');
             toggleLoader(false);
             return;
         }
@@ -354,8 +385,9 @@
         const targetH = isSquare ? 1080 : 500;
         showStatus(`Detected <strong>${isSquare ? 'square' : 'horizontal'}</strong> logo → ${targetW}×${targetH} PNG (100% preserved)`, 'success');
 
-        // Fit to canvas
-        resultCanvas.width = targetW; resultCanvas.height = targetH;
+        // Draw to result canvas
+        resultCanvas.width = targetW;
+        resultCanvas.height = targetH;
         const rctx = resultCanvas.getContext('2d');
         rctx.clearRect(0, 0, targetW, targetH);
         const scale = Math.min(targetW / box.w, targetH / box.h);
@@ -364,7 +396,7 @@
         rctx.drawImage(canvas, box.x, box.y, box.w, box.h, dx, dy, drawW, drawH);
         resultBox.classList.remove('hidden');
 
-        // Export
+        // Export as PNG
         resultCanvas.toBlob(blob => {
             finalBlob = blob;
             submitBtn.classList.remove('hidden');
@@ -402,8 +434,8 @@
         fd.append('company_name', companyName.value.trim());
         fd.append('industry', industry.options[industry.selectedIndex].text);
         fd.append('timestamp', new Date().toISOString());
-        fd.append('timezone', 'HKT');
-        fd.append('country', 'HK');
+        fd.append('timezone', 'AWST');
+        fd.append('country', 'AU');
         try {
             const res = await fetch(WEBHOOK, { method: 'POST', body: fd });
             if (res.ok) {
@@ -431,7 +463,9 @@
         btnText.textContent = show ? 'Processing...' : 'Submit to Compass Offices';
     }
     function resetUI() {
-        [originalBox, resultBox, submitBtn, status].forEach(el => el.classList.add('hidden'));
+        resultBox.classList.add('hidden');
+        submitBtn.classList.add('hidden');
+        status.classList.add('hidden');
         finalBlob = null;
         toggleLoader(false);
     }
