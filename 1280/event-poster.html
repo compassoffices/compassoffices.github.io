@@ -10,21 +10,18 @@
       padding: 0;
       box-sizing: border-box;
     }
-
     html, body {
       width: 1280px;
       height: 800px;
       overflow: hidden;
       font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
     }
-
     body {
       background-size: cover;
       background-position: center;
       position: relative;
       color: white;
     }
-
     .top-left {
       position: absolute;
       top: 2rem;
@@ -38,7 +35,6 @@
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.2);
     }
-
     .location {
       font-size: 2.6rem;
       font-weight: 600;
@@ -46,19 +42,16 @@
       display: flex;
       align-items: center;
     }
-
     .time {
       font-size: 2.2rem;
       font-weight: 400;
       display: flex;
       align-items: center;
     }
-
     .icon {
       font-size: 2.4rem;
       margin-right: 1rem;
     }
-
     .top-right-wrapper {
       position: absolute;
       top: 2rem;
@@ -66,7 +59,6 @@
       display: flex;
       align-items: flex-start;
     }
-
     .qr-box {
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(6px);
@@ -83,20 +75,17 @@
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
       animation: float 3s ease-in-out infinite;
     }
-
     .qr-box img {
       width: 100px;
       height: 100px;
       border-radius: 0.5rem;
     }
-
     .qr-label {
       font-size: 0.9rem;
       text-align: center;
       color: #fff;
       line-height: 1rem;
     }
-
     .date-box {
       width: 12rem;
       height: 12rem;
@@ -117,7 +106,6 @@
       line-height: 4.2rem;
       color: white;
     }
-
     @keyframes float {
       0% { transform: translateY(0px); }
       50% { transform: translateY(-8px); }
@@ -126,13 +114,11 @@
   </style>
 </head>
 <body>
-
   <!-- Top Left: Location and Time -->
   <div class="top-left">
-    <div class="location" id="event-location"><span class="icon">📍</span> Loading...</div>
-    <div class="time" id="event-time"><span class="icon">🕒</span> Loading...</div>
+    <div class="location" id="event-location"><span class="icon">Location</span> Loading...</div>
+    <div class="time" id="event-time"><span class="icon">Time</span> Loading...</div>
   </div>
-
   <!-- Top Right: QR Code and Date -->
   <div class="top-right-wrapper">
     <!-- QR Code Box -->
@@ -148,47 +134,71 @@
   </div>
 
   <script>
+    // -----------------------------------------------------------------
+    // Helper: format "DD-MM" → { day: "DD", monthText: "MMM" }
+    // -----------------------------------------------------------------
     function formatDateParts(dateStr) {
       var parts = dateStr.split('-');
       var day = parts[0];
       var month = parts[1];
-      var monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      var monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                        "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
       var monthText = monthNames[parseInt(month, 10) - 1];
       return { day: day, monthText: monthText };
     }
 
-    function loadEventData() {
-      var xhr = new XMLHttpRequest();
-      xhr.open("GET", "https://docs.google.com/spreadsheets/d/e/2PACX-1vQipx6p43dqkFXUkcT8O6YGAiqs_dlSJUvBZ5538JjEA0PFg47z1Tw0GVqn3apA2cp-LI54XO2sNaqZ/pubhtml", true);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-          var parser = new DOMParser();
-          var doc = parser.parseFromString(xhr.responseText, "text/html");
-          var rows = doc.querySelectorAll("table tbody tr");
-          if (rows.length < 2) return;
+    // -----------------------------------------------------------------
+    // Simple CSV parser (handles quoted fields, newlines, commas)
+    // -----------------------------------------------------------------
+    function parseCSV(str) {
+      const rows = [];
+      let row = [];
+      let field = '';
+      let inQuotes = false;
 
-          var cells = rows[1].getElementsByTagName("td");
-          var location = cells[0].textContent.trim();
-          var date = cells[1].textContent.trim();
-          var time = cells[2].textContent.trim();
-          var image = cells[3].textContent.trim();
+      for (let i = 0; i < str.length; i++) {
+        const c = str[i];
+        const next = str[i + 1];
 
-          // Update DOM
-          document.getElementById("event-location").innerHTML = '<span class="icon">📍</span> ' + location;
-          document.getElementById("event-time").innerHTML = '<span class="icon">🕒</span> ' + time;
+        if (c === '"' && !inQuotes) { inQuotes = true; continue; }
+        if (c === '"' && inQuotes && next === '"') { field += '"'; i++; continue; }
+        if (c === '"' && inQuotes) { inQuotes = false; continue; }
 
-          var dateParts = formatDateParts(date);
-          document.getElementById("event-date").innerHTML = dateParts.day + "<br>" + dateParts.monthText;
-
-          // Set background image
-          document.body.style.backgroundImage = "url('" + image + "')";
+        if (c === ',' && !inQuotes) {
+          row.push(field.trim());
+          field = '';
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+          if (field || row.length) {
+            row.push(field.trim());
+            rows.push(row);
+            row = [];
+            field = '';
+          }
+          if (c === '\r' && next === '\n') i++; // skip \n after \r
+        } else {
+          field += c;
         }
-      };
-      xhr.send();
+      }
+      if (field || row.length) {
+        row.push(field.trim());
+        rows.push(row);
+      }
+      return rows;
     }
 
-    loadEventData();
-  </script>
+    // -----------------------------------------------------------------
+    // Load event data from Google Sheets (CSV export)
+    // -----------------------------------------------------------------
+    function loadEventData() {
+      const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQipx6p43dqkFXUkcT8O6YGAiqs_dlSJUvBZ5538JjEA0PFg47z1Tw0GVqn3apA2cp-LI54XO2sNaqZ/pub?output=csv";
 
-</body>
-</html>
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", csvUrl, true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 200) {
+            const csvText = xhr.responseText;
+            const data = parseCSV(csvText);
+
+            if (data.length < 2) {
+              console.warn("No data rows found
