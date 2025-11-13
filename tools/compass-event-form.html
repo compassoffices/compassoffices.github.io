@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Event Data Form</title>
+    <link rel="icon" href="https://compassoffices.github.io/img/logo.ico" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        body { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; font-family: system-ui, -apple-system, sans-serif; }
+        .form-container { background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); min-height: 100vh; padding: 1rem; padding-bottom: 6rem; }
+        .form-card { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.98); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid #ff6600; }
+        .input-field { transition: all 0.3s ease; border: 2px solid #e5e7eb; background: white; width: 100%; box-sizing: border-box; -webkit-appearance: none; }
+        .input-field:focus { border-color: #ff6600; box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.1); transform: translateY(-1px); outline: none; }
+        .submit-btn { background: linear-gradient(135deg, #ff6600 0%, #e55a00 100%); transition: all 0.3s ease; }
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(255, 102, 0, 0.4); }
+        .submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+        .success-message { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .error-message { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .file-upload { position: relative; display: inline-block; width: 100%; }
+        .file-upload input[type="file"] { position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        .file-upload-label { display: block; padding: 0.75rem 1rem; background: #f9fafb; border: 2px dashed #d1d5db; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: all 0.3s ease; font-size: 0.875rem; color: #6b7280; }
+        .file-upload-label:hover { border-color: #ff6600; background: #fff7ed; }
+        .char-count { font-size: 0.75rem; color: #6b7280; text-align: right; margin-top: 0.25rem; }
+        .char-count.warning { color: #f59e0b; } .char-count.error { color: #ef4444; }
+        .required:after { content: " *"; color: #ef4444; font-weight: bold; }
+        .suggestions { font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; }
+        .suggestion-btn { display: inline-block; background: #f3f4f6; color: #374151; padding: 0.25rem 0.5rem; margin-right: 0.25rem; margin-bottom: 0.25rem; border-radius: 0.375rem; font-size: 0.75rem; cursor: pointer; }
+        .suggestion-btn:hover { background: #e5e7eb; }
+        .contact-feedback { font-size: 0.75rem; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.25rem; }
+        .contact-feedback svg { width: 1rem; height: 1rem; }
+        .image-preview { max-width: 200px; max-height: 200px; margin-top: 0.5rem; border: 1px solid #ddd; border-radius: 0.5rem; }
+        .key-image-item, .edm-banner-item { border: 1px solid #ddd; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
+        .email-preview { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 0.75rem; margin-top: 0.75rem; font-family: monospace; font-size: 0.875rem; color: #1f2937; }
+        .event-id-display { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem; font-family: monospace; font-weight: bold; color: #1f2937; }
+        .webhook-link { background: #e0f2fe; border: 1px solid #0ea5e9; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; font-family: monospace; font-size: 0.875rem; color: #0c4a6e; word-break: break-all; }
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9999; color: white; font-size: 1.125rem;
+        }
+        .loading-bar {
+            width: 60%; max-width: 400px; height: 8px; background: rgba(255,255,255,0.2);
+            border-radius: 4px; margin-top: 1rem; overflow: hidden;
+        }
+        .loading-fill {
+            height: 100%; background: linear-gradient(90deg, #ff6600, #e55a00);
+            width: 0%; border-radius: 4px; transition: width 0.3s ease;
+        }
+        @media (max-width: 768px) {
+            .form-container { padding: 0.5rem; padding-bottom: 8rem; }
+            .form-card { padding: 1.5rem; }
+            .grid-cols-1, .grid-cols-2 { grid-template-columns: 1fr; gap: 1rem; }
+            .input-field { padding: 0.75rem 1rem; font-size: 1rem; }
+            .max-w-2xl { max-width: 100%; padding: 0 0.5rem; }
+            .text-4xl { font-size: 1.875rem; line-height: 2.25rem; }
+            .submit-btn { padding: 0.75rem 1rem; font-size: 1rem; }
+            select.input-field, input[type="time"], input[type="date"], input[type="text"], textarea { -webkit-appearance: none; border-radius: 0.5rem; }
+            select.input-field { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234B5563'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em; padding-right: 2rem; }
+        }
+        .date-input-container { margin-bottom: 1.5rem; }
+        /* Smart Logo Upload */
+        .logo-upload-area {
+            border: 3px dashed #94a3b8;
+            border-radius: 18px;
+            padding: 45px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8fafc;
+            margin-top: 0.75rem;
+        }
+        .logo-upload-area:hover { border-color: #ff6600; background: #fff7ed; }
+        .logo-upload-area.dragover { border-color: #ff6600; background: #fed7aa; }
+        .logo-upload-area i { font-size: 50px; color: #64748b; margin-bottom: 14px; display: block; }
+        .logo-upload-area input { display: none; }
+        .logo-status { font-size: 0.875rem; margin-top: 0.75rem; padding: 0.5rem; border-radius: 0.75rem; }
+        .logo-status.info { background: #f0f9ff; color: #0c4a6e; border-left: 4px solid #0ea5e9; }
+        .logo-status.success { background: #ecfdf5; color: #166534; }
+        .logo-status.error { background: #fee2e2; color: #991b1b; }
+        .logo-preview-box { margin: 1rem 0; text-align: center; }
+        .logo-preview-box p { font-weight: 600; margin-bottom: 0.75rem; color: #1f2937; }
+        .logo-preview-box img, .logo-preview-box canvas {
+            max-width: 100%; max-height: 200px; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+        }
+        .logo-loader {
+            display: inline-block; width: 18px; height: 18px; border: 2px solid #fff; border-radius: 50%;
+            border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="form-container">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="text-center">
+            <p class="font-semibold">Submitting your event data...</p>
+            <p class="text-sm mt-1 opacity-80">Please wait while we transfer your information.</p>
+            <div class="loading-bar mt-4">
+                <div id="loadingFill" class="loading-fill"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Main Form -->
+    <div id="formPage" class="min-h-screen py-8 px-4">
+        <div class="max-w-2xl mx-auto">
+            <div class="text-center mb-8">
+                <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Logo" class="h-16 mx-auto" onerror="this.style.display='none';">
+                <h1 class="text-4xl font-bold text-white mb-2">Event Registration</h1>
+                <p class="text-white/80 text-lg">Fill in the details for the new event</p>
+            </div>
+            <div class="form-card rounded-2xl p-8">
+                <form id="eventForm" class="space-y-6">
+                    <!-- Event ID -->
+                    <div class="mb-6 p-4 bg-gray-50 rounded-lg border">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Event ID (Auto-generated)</label>
+                        <div id="eventIdDisplay" class="event-id-display">Generating...</div>
+                    </div>
+                    <!-- Organizer -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-gray-200 pb-6">
+                        <div>
+                            <label for="organizerName" class="block text-sm font-semibold text-gray-700 mb-2 required">Staff Name</label>
+                            <input type="text" id="organizerName" required placeholder="Full name" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="organizerEmail" class="block text-sm font-semibold text-gray-700 mb-2 required">Staff Email</label>
+                            <input type="email" id="organizerEmail" required placeholder="email@company.com" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                    </div>
+                    <!-- Time -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="startTime" class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                            <input type="time" id="startTime" value="18:00" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="endTime" class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+                            <input type="time" id="endTime" value="21:00" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                    </div>
+                    <!-- Date -->
+                    <div class="date-input-container">
+                        <label for="date" class="block text-sm font-semibold text-gray-700 mb-2 required">Date</label>
+                        <input type="date" id="date" required class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                    <!-- Client Info -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="clientName" class="block text-sm font-semibold text-gray-700 mb-2">Client Name</label>
+                            <input type="text" id="clientName" placeholder="Client name" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div>
+                            <label for="clientContact" class="block text-sm font-semibold text-gray-700 mb-2">Client Contact</label>
+                            <input type="text" id="clientContact" placeholder="email@domain.com or +852 1234 5678" class="input-field px-4 py-3 rounded-lg">
+                            <div id="contactFeedback" class="contact-feedback"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="companyName" class="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
+                        <input type="text" id="companyName" placeholder="Company name" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="eventName" class="block text-sm font-semibold text-gray-700 mb-2 required">Event Name</label>
+                        <input type="text" id="eventName" required placeholder="Event name" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="eventType" class="block text-sm font-semibold text-gray-700 mb-2 required">Event Type</label>
+                        <select id="eventType" required class="input-field px-4 py-3 rounded-lg">
+                            <option value="">Select Event Type</option>
+                            <option value="Seminar">Seminar</option>
+                            <option value="Workshop">Workshop</option>
+                            <option value="Networking">Networking</option>
+                            <option value="Party">Party</option>
+                            <option value="Conference">Conference</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <!-- Location -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-4">Location</label>
+                        <div class="mb-4">
+                            <label for="country" class="block text-xs font-medium text-gray-600 mb-2 required">Country</label>
+                            <select id="country" required class="input-field px-4 py-3 rounded-lg">
+                                <option value="">Select Country</option>
+                                <option value="Hong Kong">Hong Kong</option>
+                                <option value="Tokyo">Tokyo</option>
+                                <option value="Osaka">Osaka</option>
+                                <option value="Singapore">Singapore</option>
+                                <option value="Melbourne">Melbourne</option>
+                                <option value="Sydney">Sydney</option>
+                                <option value="Philippines">Philippines</option>
+                                <option value="Kuala Lumpur">Kuala Lumpur</option>
+                                <option value="Ho Chi Minh City">Ho Chi Minh City</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="building" class="block text-xs font-medium text-gray-600 mb-2 required">Building</label>
+                            <select id="building" required disabled class="input-field px-4 py-3 rounded-lg"><option>Select Building</option></select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="floor" class="block text-xs font-medium text-gray-600 mb-2 required">Floor</label>
+                            <select id="floor" required disabled class="input-field px-4 py-3 rounded-lg"><option>Select Floor</option></select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-xs font-medium text-gray-600 mb-2">Area Type</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center"><input type="checkbox" id="loungeArea" class="mr-2 text-orange-500"><span class="text-sm">Lounge area</span></label>
+                                <label class="flex items-center"><input type="checkbox" id="meetingRoom" class="mr-2 text-orange-500"><span class="text-sm">Meeting room</span></label>
+                                <label class="flex items-center"><input type="checkbox" id="room" class="mr-2 text-orange-500"><span class="text-sm">Room</span></label>
+                            </div>
+                        </div>
+                        <div class="mb-4" id="roomNameSection" style="display:none;">
+                            <div id="regularRoomInput" style="display:none;" class="mb-3">
+                                <label for="regularRoomName" class="block text-xs font-medium text-gray-600 mb-2">Room Number</label>
+                                <input type="text" id="regularRoomName" placeholder="e.g., 1826" class="input-field px-4 py-3 rounded-lg">
+                            </div>
+                            <div id="meetingRoomInput" style="display:none;">
+                                <label for="meetingRoomName" class="block text-xs font-medium text-gray-600 mb-2">Meeting Room Name</label>
+                                <input type="text" id="meetingRoomName" placeholder="e.g., ABC" class="input-field px-4 py-3 rounded-lg">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="additionalRequirements" class="block text-xs font-medium text-gray-600 mb-2">Additional Requirements</label>
+                            <input type="text" id="additionalRequirements" placeholder="e.g., TV, Mic, Speaker..." class="input-field px-4 py-3 rounded-lg">
+                            <div class="suggestions">
+                                <span class="suggestion-btn" onclick="addSuggestion('TV')">TV</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Mic')">Mic</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Speaker')">Speaker</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Projector')">Projector</span>
+                                <span class="suggestion-btn" onclick="addSuggestion('Whiteboard')">Whiteboard</span>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Location Preview:</label>
+                            <div id="locationPreview" class="text-sm font-medium text-gray-800">Please select location details above</div>
+                        </div>
+                        <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <label class="block text-xs font-medium text-blue-700 mb-1">Contact Email (Auto-filled):</label>
+                            <div id="emailPreview" class="email-preview">Select building and floor to see email</div>
+                        </div>
+                    </div>
+                    <!-- POSTER -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">Poster</label>
+                        <div class="space-y-3">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="needPoster" class="mr-2 text-orange-500">
+                                <span class="text-sm">Need Poster?</span>
+                            </label>
+                            <div id="posterDetailsSection" class="ml-6 space-y-4 hidden">
+                                <div>
+                                    <label for="posterTitle" class="block text-xs font-medium text-gray-600 mb-1 required">Title</label>
+                                    <input type="text" id="posterTitle" maxlength="40" placeholder="Title" class="input-field px-4 py-3 rounded-lg">
+                                    <div class="char-count" id="posterTitleCount">0 / 40 (0 non-blank)</div>
+                                </div>
+                                <div>
+                                    <label class="flex items-center mb-2">
+                                        <input type="checkbox" id="posterHasSubtitle" class="mr-2 text-orange-500">
+                                        <span class="text-sm">Add Subtitle?</span>
+                                    </label>
+                                    <div id="posterSubtitleInput" class="hidden">
+                                        <label for="posterSubtitle" class="block text-xs font-medium text-gray-600 mb-1 required">Subtitle</label>
+                                        <input type="text" id="posterSubtitle" maxlength="40" placeholder="Subtitle" class="input-field px-4 py-3 rounded-lg">
+                                        <div class="char-count" id="posterSubtitleCount">0 / 40 (0 non-blank)</div>
+                                    </div>
+                                    <div id="posterSubtitleAuto" class="text-sm text-gray-600 mt-1 hidden">(Exclusive event for clients of Compass Offices)</div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1 required">Description (3 bullet points)</label>
+                                    <textarea id="posterBullet1" maxlength="120" rows="3" placeholder="Point 1..." class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                                    <div class="char-count" id="posterBullet1Count">0 / 120</div>
+                                    <textarea id="posterBullet2" maxlength="120" rows="3" placeholder="Point 2..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                    <div class="char-count" id="posterBullet2Count">0 / 120</div>
+                                    <textarea id="posterBullet3" maxlength="120" rows="3" placeholder="Point 3..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                    <div class="char-count" id="posterBullet3Count">0 / 120</div>
+                                </div>
+                                <!-- SMART LOGO UPLOAD -->
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Upload Logo</label>
+                                    <div class="logo-upload-area" id="logoDropZone">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                        <p><strong>Click or drag & drop</strong> your logo</p>
+                                        <p style="font-size:0.85rem;color:#64748b;margin-top:6px;">JPG, PNG, WebP, GIF – any size</p>
+                                        <input type="file" id="posterLogoInput" accept="image/*"/>
+                                    </div>
+                                    <div id="logoStatus" class="logo-status info hidden"></div>
+                                    <div class="logo-preview-box hidden" id="logoOriginalBox">
+                                        <p>Original Image</p>
+                                        <img id="logoOriginalImg" alt="Original"/>
+                                    </div>
+                                    <div class="logo-preview-box hidden" id="logoResultBox">
+                                        <p>Final Transparent Logo (No Crop)</p>
+                                        <canvas id="logoResultCanvas"></canvas>
+                                    </div>
+                                </div>
+                                <!-- KEY IMAGES -->
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Key Images (Auto-converted to PNG)</label>
+                                    <div class="file-upload" ondragover="event.preventDefault()" ondrop="event.preventDefault()">
+                                        <input type="file" id="posterKeyImagesInput" accept="image/*" multiple>
+                                        <label for="posterKeyImagesInput" class="file-upload-label">Click or drag images</label>
+                                    </div>
+                                    <div id="keyImagePreviews" class="mt-2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- EDM -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">EDM</label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="needEDM" class="mr-2 text-orange-500">
+                            <span class="text-sm">Need EDM?</span>
+                        </label>
+                        <div id="edmDetailsSection" class="ml-6 mt-3 space-y-4 hidden">
+                            <div>
+                                <label for="edmTitle" class="block text-xs font-medium text-gray-600 mb-1 required">Title</label>
+                                <input type="text" id="edmTitle" maxlength="40" placeholder="Title" class="input-field px-4 py-3 rounded-lg">
+                                <div class="char-count" id="edmTitleCount">0 / 40 (0 non-blank)</div>
+                            </div>
+                            <div>
+                                <label class="flex items-center mb-2">
+                                    <input type="checkbox" id="edmHasSubtitle" class="mr-2 text-orange-500">
+                                    <span class="text-sm">Add Subtitle?</span>
+                                </label>
+                                <div id="edmSubtitleInput" class="hidden">
+                                    <label for="edmSubtitle" class="block text-xs font-medium text-gray-600 mb-1 required">Subtitle</label>
+                                    <input type="text" id="edmSubtitle" maxlength="40" placeholder="Subtitle" class="input-field px-4 py-3 rounded-lg">
+                                    <div class="char-count" id="edmSubtitleCount">0 / 40 (0 non-blank)</div>
+                                </div>
+                                <div id="edmSubtitleAuto" class="text-sm text-gray-600 mt-1 hidden">(Exclusive event for clients of Compass Offices)</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1 required">Description (3 bullet points)</label>
+                                <textarea id="edmBullet1" maxlength="120" rows="3" placeholder="Point 1..." class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                                <div class="char-count" id="edmBullet1Count">0 / 120</div>
+                                <textarea id="edmBullet2" maxlength="120" rows="3" placeholder="Point 2..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                <div class="char-count" id="edmBullet2Count">0 / 120</div>
+                                <textarea id="edmBullet3" maxlength="120" rows="3" placeholder="Point 3..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                                <div class="char-count" id="edmBullet3Count">0 / 120</div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1 required">EDM Banner Image (Auto-converted to PNG)</label>
+                                <div class="flex items-center gap-3 mb-2">
+                                    <select id="edmBannerSource" class="input-field px-3 py-2 rounded-lg text-sm">
+                                        <option value="upload">Upload new image</option>
+                                        <option value="copy">Same as Poster Key Image</option>
+                                    </select>
+                                    <span class="text-xs text-gray-500">(Copies first key image)</span>
+                                </div>
+                                <div id="edmBannerUploadSection">
+                                    <div class="file-upload" ondragover="event.preventDefault()" ondrop="event.preventDefault()">
+                                        <input type="file" id="edmBannerInput" accept="image/*">
+                                        <label for="edmBannerInput" class="file-upload-label">Click or drag banner</label>
+                                    </div>
+                                </div>
+                                <div id="edmBannerPreview" class="mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Catering -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">Catering</label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="haveCatering" class="mr-2 text-orange-500">
+                            <span class="text-sm">Have Catering?</span>
+                        </label>
+                        <div id="cateringDetailsSection" class="ml-6 mt-3 hidden">
+                            <textarea id="cateringDetails" placeholder="Menu, headcount, dietary restrictions..." rows="3" class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                        </div>
+                    </div>
+                    <!-- Registration Link -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">Registration Link</label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="needRegisterLink" class="mr-2 text-orange-500">
+                            <span class="text-sm">Need Registration Link?</span>
+                        </label>
+                        <div id="registerLinkSection" class="ml-6 mt-3 space-y-4 hidden">
+                            <div class="flex gap-4 items-center">
+                                <label class="flex items-center">
+                                    <input type="radio" name="linkSource" value="manual" checked class="mr-2">
+                                    <span class="text-sm">Enter manually</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="radio" name="linkSource" value="build" class="mr-2">
+                                    <span class="text-sm">Build new registration link</span>
+                                </label>
+                            </div>
+                            <div id="manualLinkInput">
+                                <label for="registerLink" class="block text-xs font-medium text-gray-600 mb-1">Registration Link</label>
+                                <input type="url" id="registerLink" placeholder="https://example.com/register" class="input-field px-4 py-3 rounded-lg">
+                            </div>
+                            <div id="buildLinkSection" class="hidden space-y-3">
+                                <p class="text-sm text-gray-600">We'll generate a registration link for you.</p>
+                                <div class="p-3 bg-blue-50 border border-blue-200 rounded">
+                                    <p class="text-sm font-medium text-blue-800">Link will be generated automatically after submission.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="details" class="block text-sm font-semibold text-gray-700 mb-2">Additional Details</label>
+                        <textarea id="details" rows="4" placeholder="Other info..." class="input-field px-4 py-3 rounded-lg"></textarea>
+                    </div>
+                    <div class="pt-4">
+                        <button type="submit" id="submitButton" class="submit-btn w-full py-4 px-6 text-white font-semibold rounded-lg">
+                            <span id="submitText">Submit Event Data</span>
+                        </button>
+                    </div>
+                </form>
+                <div id="successMessage" class="hidden mt-6 p-4 rounded-lg text-white success-message">
+                    <p>Event data submitted successfully!</p>
+                </div>
+                <div id="errorMessage" class="hidden mt-6 p-4 rounded-lg text-white error-message">
+                    <span id="errorText">Error</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // === AUTO-GENERATE EVENT ID ===
+            function generateEventId() {
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+                const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+                const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                return `EVT${dateStr}${timeStr}${rand}`;
+            }
+            const eventIdDisplay = document.getElementById('eventIdDisplay');
+            eventIdDisplay.textContent = generateEventId();
+            // === FORMATTED TIME ===
+            let formattedTime = '6:00 PM - 9:00 PM';
+            function formatTime12(hour, minute) {
+                const period = hour >= 12 ? 'PM' : 'AM';
+                const h12 = hour % 12 || 12;
+                const m = minute.toString().padStart(2, '0');
+                return `${h12}:${m} ${period}`;
+            }
+            function updateFormattedTime() {
+                const start = document.getElementById('startTime').value;
+                const end = document.getElementById('endTime').value;
+                if (start && end) {
+                    const [sh, sm] = start.split(':').map(Number);
+                    const [eh, em] = end.split(':').map(Number);
+                    formattedTime = `${formatTime12(sh, sm)} - ${formatTime12(eh, em)}`;
+                } else {
+                    formattedTime = 'Select start and end time';
+                }
+            }
+            // === TIME INPUTS ===
+            ['startTime', 'endTime'].forEach(id => {
+                const input = document.getElementById(id);
+                input.value = input.value || (id === 'startTime' ? '18:00' : '21:00');
+                input.addEventListener('change', updateFormattedTime);
+                input.addEventListener('input', updateFormattedTime);
+            });
+            updateFormattedTime();
+            // === LOAD FROM URL ===
+            function loadFromURL() {
+                const params = new URLSearchParams(window.location.search);
+                if (!params.toString()) return;
+                // Load text & checkbox
+                params.forEach((value, key) => {
+                    const el = document.getElementById(key);
+                    if (!el) return;
+                    if (el.type === 'checkbox') {
+                        el.checked = value === 'true';
+                        if (['needPoster', 'needEDM', 'haveCatering', 'needRegisterLink', 'posterHasSubtitle', 'edmHasSubtitle'].includes(el.id)) {
+                            el.dispatchEvent(new Event('change'));
+                        }
+                    } else if (el.tagName === 'SELECT') {
+                        el.value = value;
+                        el.dispatchEvent(new Event('change'));
+                    } else if (el.type !== 'file') {
+                        el.value = value;
+                    }
+                });
+                // Special: link source radio
+                const linkSource = params.get('linkSource');
+                if (linkSource) {
+                    const radio = document.querySelector(`input[name="linkSource"][value="${linkSource}"]`);
+                    if (radio) {
+                        radio.checked = true;
+                        radio.dispatchEvent(new Event('change'));
+                    }
+                }
+                // Special: eventId display
+                if (params.has('eventId')) {
+                    eventIdDisplay.textContent = params.get('eventId');
+                }
+                // Load files from base64
+                let logoFile = null;
+                let edmBannerFile = null;
+                let keyFiles = [];
+                ['posterLogo', 'posterKeyImage1', 'posterKeyImage2', 'posterKeyImage3', 'edmBanner'].forEach(key => {
+                    const b64 = params.get(key);
+                    if (b64) {
+                        const isLogo = key === 'posterLogo';
+                        const isEdm = key === 'edmBanner';
+                        const filename = isLogo ? 'logo.png' : isEdm ? 'banner.png' : `key${key.slice(-1)}.png`;
+                        const file = dataURLtoFile(b64, filename);
+                        if (file) {
+                            if (isLogo) {
+                                logoFile = file;
+                            } else if (isEdm) {
+                                edmBannerFile = file;
+                            } else {
+                                const idx = parseInt(key.slice(-1)) - 1;
+                                keyFiles[idx] = file;
+                            }
+                        }
+                    }
+                });
+                // Set files and trigger processing
+                if (logoFile) {
+                    document.getElementById('posterLogoInput').files = createFileList([logoFile]);
+                    processLogoFile(logoFile);
+                }
+                if (keyFiles.length > 0) {
+                    const filteredKeyFiles = keyFiles.filter(f => f);
+                    document.getElementById('posterKeyImagesInput').files = createFileList(filteredKeyFiles);
+                    document.getElementById('posterKeyImagesInput').dispatchEvent(new Event('change'));
+                }
+                if (edmBannerFile) {
+                    document.getElementById('edmBannerInput').files = createFileList([edmBannerFile]);
+                    document.getElementById('edmBannerInput').dispatchEvent(new Event('change'));
+                }
+                updateFormattedTime();
+            }
+            function createFileList(files) {
+                const dt = new DataTransfer();
+                files.forEach(f => dt.items.add(f));
+                return dt.files;
+            }
+            function dataURLtoFile(dataurl, filename) {
+                const arr = dataurl.split(',');
+                const match = arr[0].match(/:(.*?);/);
+                if (!match) {
+                    console.error('Invalid data URL format');
+                    return null;
+                }
+                const mime = match[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                return new File([u8arr], filename, { type: mime });
+            }
+            // === CLIENT CONTACT VALIDATION ===
+            const contactInput = document.getElementById('clientContact');
+            const feedback = document.getElementById('contactFeedback');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/;
+            contactInput.addEventListener('input', () => {
+                const val = contactInput.value.trim();
+                feedback.innerHTML = '';
+                if (!val) return;
+                if (emailRegex.test(val)) {
+                    feedback.innerHTML = `<svg class="text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM9 11v4h2V9H9v2zm0-6v2h2V5H9z"/></svg><span class="text-green-600">Valid Email</span>`;
+                } else if (phoneRegex.test(val)) {
+                    feedback.innerHTML = `<svg class="text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg><span class="text-green-600">Valid Phone</span>`;
+                } else {
+                    feedback.innerHTML = `<svg class="text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span class="text-red-600">Enter valid email or phone</span>`;
+                }
+            });
+            // === BUILDING / FLOOR / EMAIL DATA ===
+            const buildingData = {
+                "Hong Kong": {
+                    "Lee Garden Two": { "levels": ["15", "16", "28"], "emails": ["HKG2LG015@compassoffices.com", "HKG2LG016@compassoffices.com", "HKG2LG028@compassoffices.com"] },
+                    "Lee Garden One": { "levels": ["24"], "emails": ["HKGLG024@compassoffices.com"] },
+                    "Wing On Centre": { "levels": ["27"], "emails": ["HKGWOC027@compassoffices.com"] },
+                    "Infinitus Plaza": { "levels": ["12", "20", "29", "35", "38"], "emails": ["HKGIP012@compassoffices.com", "HKGIP020@compassoffices.com", "HKGIP029@compassoffices.com", "HKGIP035@compassoffices.com", "HKGIP038@compassoffices.com"] },
+                    "China Building": { "levels": ["18", "19"], "emails": ["HKGCHB018@compassoffices.com", "HKGCHB019@compassoffices.com"] },
+                    "Bank of Dongguan Tower": { "levels": ["9", "10", "11", "12"], "emails": ["HKGBODG012@compassoffices.com"] },
+                    "Admiralty Centre Tower 1": { "levels": ["15"], "emails": ["HKG1ADC015@compassoffices.com"] },
+                    "Admiralty Centre Tower 2": { "levels": ["8", "11"], "emails": ["HKG2ADC011@compassoffices.com"] },
+                    "AIA Tower": { "levels": ["43"], "emails": ["HKGAIA043@compassoffices.com"] },
+                    "Silvercord": { "levels": ["5", "11", "17"], "emails": ["HKG2SC005@compassoffices.com", "HKG2SC011@compassoffices.com", "HKG2SC017@compassoffices.com"] }
+                },
+                "Tokyo": {
+                    "Ebisu Green Glass": { "levels": ["6", "7", "8", "9"], "emails": ["TYOEBS006@compassoffices.com", "TYOEBS007@compassoffices.com", "TYOEBS008@compassoffices.com", "TYOEBS009@compassoffices.com"] },
+                    "Toranomon 40 MT": { "levels": ["7"], "emails": ["TYO40MT007@compassoffices.com"] },
+                    "ouno八重洲 x Compass Offices": { "levels": ["3"], "emails": ["TYOYSD003@compassoffices.com"] },
+                    "WTC annex": { "levels": ["11", "12"], "emails": ["tyowtca012@compassoffices.com", "tyowtca012@compassoffices.com"] }
+                },
+                "Osaka": {
+                    "INOGATE OSAKA": { "levels": ["9", "10"], "emails": ["OSAING009@compassoffices.com", "OSAING010@compassoffices.com"] }
+                },
+                "Singapore": {
+                    "Samsung Hub": { "levels": ["29"], "emails": ["SINSHC029@compassoffices.com"] },
+                    "Singapore Land Tower": { "levels": ["19", "30"], "emails": ["SINSLT019@compassoffices.com", "SINSLT030@compassoffices.com"] }
+                },
+                "Melbourne": {
+                    "360 Collins Street": { "levels": ["26"], "emails": ["MEL360C026@compassoffices.com"] },
+                    "459 Collins Street": { "levels": ["21"], "emails": ["MEL459C021@compassoffices.com"] },
+                    "570 Bourke Street": { "levels": ["17", "24"], "emails": ["MEL570B017@compassoffices.com", "MEL570B024@compassoffices.com"] }
+                },
+                "Sydney": {
+                    "141 Walker Street": { "levels": ["12"], "emails": ["SYD141W012@compassoffices.com"] },
+                    "207 Kent Street": { "levels": ["21"], "emails": ["SYD207K021@compassoffices.com"] },
+                    "9 Castlereagh Street": { "levels": ["16", "17"], "emails": ["SYD9CAS017@compassoffices.com"] }
+                },
+                "Philippines": {
+                    "Arthaland Century Pacific Tower": { "levels": ["9"], "emails": ["MNLART009@compassoffices.com"] },
+                    "Tower 6789": { "levels": ["16"], "emails": ["MNLAYA016@compassoffices.com"] },
+                    "BGC Corporate Center": { "levels": ["24"], "emails": ["MNLBGC024@compassoffices.com"] }
+                },
+                "Ho Chi Minh City": {
+                    "Compass Offices Landmark 81": { "levels": ["72"], "emails": ["SGNLM81072@compassoffices.com"] },
+                    "Bitexco Financial Tower": { "levels": ["16", "46", "56"], "emails": ["SGNBFT016@compassoffices.com", "SGNBFT046@compassoffices.com", "SGNBFT056@compassoffices.com"] }
+                },
+                "Kuala Lumpur": {
+                    "Menara AIA Sentral": { "levels": ["3", "4", "5"], "emails": ["KULMSC003@compassoffices.com", "KULMSC004@compassoffices.com", "KULMSC005@compassoffices.com"] }
+                }
+            };
+            const countrySelect = document.getElementById('country');
+            const buildingSelect = document.getElementById('building');
+            const floorSelect = document.getElementById('floor');
+            const emailPreview = document.getElementById('emailPreview');
+            const locationPreview = document.getElementById('locationPreview');
+            function updateBuildingOptions() {
+                const country = countrySelect.value;
+                buildingSelect.innerHTML = '<option>Select Building</option>';
+                floorSelect.innerHTML = '<option>Select Floor</option>';
+                buildingSelect.disabled = true;
+                floorSelect.disabled = true;
+                emailPreview.textContent = 'Select building and floor to see email';
+                updateLocationPreview();
+                if (country && buildingData[country]) {
+                    buildingSelect.disabled = false;
+                    Object.keys(buildingData[country]).forEach(b => {
+                        const opt = document.createElement('option');
+                        opt.value = b;
+                        opt.textContent = b;
+                        buildingSelect.appendChild(opt);
+                    });
+                }
+            }
+            function updateFloorOptions() {
+                const country = countrySelect.value;
+                const building = buildingSelect.value;
+                floorSelect.innerHTML = '<option>Select Floor</option>';
+                floorSelect.disabled = true;
+                emailPreview.textContent = 'Select floor to see email';
+                updateLocationPreview();
+                if (country && building && buildingData[country][building]) {
+                    floorSelect.disabled = false;
+                    const levels = buildingData[country][building].levels;
+                    levels.forEach(l => {
+                        const opt = document.createElement('option');
+                        opt.value = l;
+                        opt.textContent = l + '/F';
+                        floorSelect.appendChild(opt);
+                    });
+                }
+            }
+            function updateEmail() {
+                const country = countrySelect.value;
+                const building = buildingSelect.value;
+                const floor = floorSelect.value;
+                if (country && building && floor) {
+                    const data = buildingData[country][building];
+                    const idx = data.levels.indexOf(floor);
+                    const email = (idx >= 0) ? data.emails[idx] : data.emails[0];
+                    emailPreview.textContent = email;
+                }
+            }
+            function getAreaTypes() {
+                const types = [];
+                if (document.getElementById('loungeArea').checked) types.push('Lounge area');
+                if (document.getElementById('meetingRoom').checked) types.push('Meeting room');
+                if (document.getElementById('room').checked) types.push('Room');
+                return types.length ? types.join(', ') : '';
+            }
+            function getRoomName() {
+                const names = [];
+                const meeting = document.getElementById('meetingRoomName').value.trim();
+                const regular = document.getElementById('regularRoomName').value.trim();
+                if (regular) names.push(`Room ${regular}`);
+                if (meeting) names.push(`MR ${meeting}`);
+                return names.length ? names.join(', ') : '';
+            }
+            function getAdditionalReqs() {
+                return document.getElementById('additionalRequirements').value.trim();
+            }
+            function updateLocationPreview() {
+                const country = countrySelect.value;
+                const building = buildingSelect.value;
+                const floor = floorSelect.value;
+                const areaTypes = getAreaTypes();
+                const roomName = getRoomName();
+                let parts = [];
+                if (building) parts.push(building);
+                if (floor) parts.push(`${floor}/F`);
+                if (country) parts.push(country);
+                if (areaTypes) parts.push(`– ${areaTypes}`);
+                if (roomName) parts.push(`(${roomName})`);
+                const formatted = parts.length ? parts.join(', ') : 'Please select location details above';
+                locationPreview.textContent = formatted;
+                return formatted;
+            }
+            countrySelect.addEventListener('change', updateBuildingOptions);
+            buildingSelect.addEventListener('change', updateFloorOptions);
+            floorSelect.addEventListener('change', () => { updateEmail(); updateLocationPreview(); });
+            ['loungeArea', 'meetingRoom', 'room'].forEach(id => {
+                document.getElementById(id).addEventListener('change', () => { toggleRoomInputs(); updateLocationPreview(); });
+            });
+            ['regularRoomName', 'meetingRoomName', 'additionalRequirements'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', updateLocationPreview);
+            });
+            const loungeArea = document.getElementById('loungeArea');
+            const meetingRoom = document.getElementById('meetingRoom');
+            const room = document.getElementById('room');
+            const roomNameSection = document.getElementById('roomNameSection');
+            const regularRoomInput = document.getElementById('regularRoomInput');
+            const meetingRoomInput = document.getElementById('meetingRoomInput');
+            function toggleRoomInputs() {
+                const isRoom = room.checked;
+                const isMeeting = meetingRoom.checked;
+                roomNameSection.style.display = isRoom || isMeeting ? 'block' : 'none';
+                regularRoomInput.style.display = isRoom ? 'block' : 'none';
+                meetingRoomInput.style.display = isMeeting ? 'block' : 'none';
+            }
+            loungeArea.addEventListener('change', toggleRoomInputs);
+            meetingRoom.addEventListener('change', toggleRoomInputs);
+            room.addEventListener('change', toggleRoomInputs);
+            window.addSuggestion = function (text) {
+                const input = document.getElementById('additionalRequirements');
+                const cur = input.value.trim();
+                input.value = cur ? cur + ', ' + text : text;
+                updateLocationPreview();
+            };
+            // === CHAR COUNTERS ===
+            function updateCharCount(id, countId, max, nonBlankMax) {
+                const input = document.getElementById(id);
+                const count = document.getElementById(countId);
+                if (!input || !count) return;
+                function update() {
+                    const val = input.value.trim();
+                    const len = val.length;
+                    const nonBlankLen = val.replace(/\s/g, '').length;
+                    const displayLen = nonBlankLen > 0 ? nonBlankLen : len;
+                    count.textContent = `${len} / ${max} (${displayLen} non-blank)`;
+                    count.className = 'char-count';
+                    if (len > max) count.classList.add('error');
+                    else if (len > nonBlankMax) count.classList.add('warning');
+                }
+                input.addEventListener('input', update);
+                update();
+            }
+            updateCharCount('posterTitle', 'posterTitleCount', 40, 37);
+            updateCharCount('posterSubtitle', 'posterSubtitleCount', 40, 37);
+            updateCharCount('edmTitle', 'edmTitleCount', 40, 37);
+            updateCharCount('edmSubtitle', 'edmSubtitleCount', 40, 37);
+            ['posterBullet1', 'posterBullet2', 'posterBullet3', 'edmBullet1', 'edmBullet2', 'edmBullet3'].forEach(id => {
+                const input = document.getElementById(id);
+                const count = document.getElementById(id + 'Count');
+                input.addEventListener('input', () => {
+                    const len = input.value.length;
+                    count.textContent = `${len} / 120`;
+                    count.className = len > 120 ? 'char-count error' : 'char-count';
+                });
+                count.textContent = '0 / 120';
+            });
+            // === POSTER / EDM TOGGLE & SYNC ===
+            const needPoster = document.getElementById('needPoster');
+            const posterDetails = document.getElementById('posterDetailsSection');
+            const needEDM = document.getElementById('needEDM');
+            const edmDetails = document.getElementById('edmDetailsSection');
+            needPoster.addEventListener('change', () => {
+                posterDetails.classList.toggle('hidden', !needPoster.checked);
+                syncContent();
+            });
+            needEDM.addEventListener('change', () => {
+                edmDetails.classList.toggle('hidden', !needEDM.checked);
+                if (needEDM.checked) setTimeout(() => edmDetails.scrollIntoView({ behavior: 'smooth' }), 100);
+                syncContent();
+            });
+            document.getElementById('posterHasSubtitle').addEventListener('change', function() {
+                document.getElementById('posterSubtitleInput').classList.toggle('hidden', !this.checked);
+                document.getElementById('posterSubtitleAuto').classList.toggle('hidden', this.checked);
+                syncContent();
+            });
+            document.getElementById('edmHasSubtitle').addEventListener('change', function() {
+                document.getElementById('edmSubtitleInput').classList.toggle('hidden', !this.checked);
+                document.getElementById('edmSubtitleAuto').classList.toggle('hidden', this.checked);
+                syncContent();
+            });
+            let syncTimeout;
+            function syncContent() {
+                clearTimeout(syncTimeout);
+                syncTimeout = setTimeout(() => {
+                    if (needPoster.checked && needEDM.checked) {
+                        const posterTitle = document.getElementById('posterTitle').value;
+                        const edmTitle = document.getElementById('edmTitle').value;
+                        const posterHasSub = document.getElementById('posterHasSubtitle').checked;
+                        const edmHasSub = document.getElementById('edmHasSubtitle').checked;
+                        if (posterTitle && !edmTitle) document.getElementById('edmTitle').value = posterTitle;
+                        if (edmTitle && !posterTitle) document.getElementById('posterTitle').value = edmTitle;
+                        if (posterHasSub !== edmHasSub) {
+                            document.getElementById('edmHasSubtitle').checked = posterHasSub;
+                            document.getElementById('edmSubtitleInput').classList.toggle('hidden', !posterHasSub);
+                            document.getElementById('edmSubtitleAuto').classList.toggle('hidden', posterHasSub);
+                        }
+                        ['1', '2', '3'].forEach(i => {
+                            const posterVal = document.getElementById('posterBullet' + i).value;
+                            const edmVal = document.getElementById('edmBullet' + i).value;
+                            if (posterVal && !edmVal) document.getElementById('edmBullet' + i).value = posterVal;
+                            if (edmVal && !posterVal) document.getElementById('posterBullet' + i).value = edmVal;
+                        });
+                        ['posterTitle', 'posterSubtitle', 'edmTitle', 'edmSubtitle'].forEach(id => {
+                            const input = document.getElementById(id);
+                            if (input) input.dispatchEvent(new Event('input'));
+                        });
+                        ['posterBullet1', 'posterBullet2', 'posterBullet3', 'edmBullet1', 'edmBullet2', 'edmBullet3'].forEach(id => {
+                            const input = document.getElementById(id);
+                            if (input) input.dispatchEvent(new Event('input'));
+                        });
+                    }
+                }, 300);
+            }
+            ['posterTitle', 'posterSubtitle', 'posterBullet1', 'posterBullet2', 'posterBullet3',
+                'edmTitle', 'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3'].forEach(id => {
+                document.getElementById(id).addEventListener('input', syncContent);
+            });
+            ['posterHasSubtitle', 'edmHasSubtitle'].forEach(id => {
+                document.getElementById(id).addEventListener('change', syncContent);
+            });
+            // === SMART LOGO UPLOAD ===
+            const logoDropZone = document.getElementById('logoDropZone');
+            const logoInput = document.getElementById('posterLogoInput');
+            const logoStatus = document.getElementById('logoStatus');
+            const logoOriginalBox = document.getElementById('logoOriginalBox');
+            const logoOriginalImg = document.getElementById('logoOriginalImg');
+            const logoResultBox = document.getElementById('logoResultBox');
+            const logoResultCanvas = document.getElementById('logoResultCanvas');
+            let processedLogoFile = null;
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                logoDropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
+            });
+            ['dragenter', 'dragover'].forEach(eventName => {
+                logoDropZone.addEventListener(eventName, () => logoDropZone.classList.add('dragover'), false);
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                logoDropZone.addEventListener(eventName, () => logoDropZone.classList.remove('dragover'), false);
+            });
+            logoDropZone.addEventListener('drop', e => {
+                const files = e.dataTransfer.files;
+                if (files.length) processLogoFile(files[0]);
+            });
+            logoDropZone.addEventListener('click', () => logoInput.click());
+            logoInput.addEventListener('change', () => { if (logoInput.files[0]) processLogoFile(logoInput.files[0]); });
+            function resetLogoUI() {
+                [logoOriginalBox, logoResultBox, logoStatus].forEach(el => el.classList.add('hidden'));
+                processedLogoFile = null;
+                logoOriginalImg.src = '';
+                logoResultCanvas.width = 1; logoResultCanvas.height = 1;
+            }
+            async function processLogoFile(file) {
+                resetLogoUI();
+                showLogoStatus('Analyzing image...', 'info');
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = async () => {
+                    URL.revokeObjectURL(url);
+                    logoOriginalImg.src = img.src;
+                    logoOriginalBox.classList.remove('hidden');
+                    await fitLogoAndConvert(img, file);
+                };
+                img.onerror = () => showLogoStatus('Failed to load image.', 'error');
+                img.src = url;
+            }
+            async function fitLogoAndConvert(img, originalFile) {
+                showLogoStatus('Removing background & detecting shape...', 'info');
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                    if (a > 200 && r > 220 && g > 220 && b > 220) {
+                        data[i+3] = 0;
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+                const box = getContentBoundingBox(ctx, canvas.width, canvas.height);
+                if (!box || box.w < 30 || box.h < 30) {
+                    showLogoStatus('No logo detected. Try a clearer image.', 'error');
+                    return;
+                }
+                const aspect = box.w / box.h;
+                const isSquare = aspect >= 0.75 && aspect <= 1.4;
+                const targetW = 1080;
+                const targetH = isSquare ? 1080 : 500;
+                showLogoStatus(`Detected <strong>${isSquare ? 'square' : 'horizontal'}</strong> logo → ${targetW}×${targetH} PNG`, 'success');
+                logoResultCanvas.width = targetW;
+                logoResultCanvas.height = targetH;
+                const rctx = logoResultCanvas.getContext('2d');
+                rctx.clearRect(0, 0, targetW, targetH);
+                const scale = Math.min(targetW / box.w, targetH / box.h);
+                const drawW = box.w * scale;
+                const drawH = box.h * scale;
+                const dx = (targetW - drawW) / 2;
+                const dy = (targetH - drawH) / 2;
+                rctx.drawImage(canvas, box.x, box.y, box.w, box.h, dx, dy, drawW, drawH);
+                logoResultBox.classList.remove('hidden');
+                logoResultCanvas.toBlob(blob => {
+                    processedLogoFile = new File([blob], originalFile.name.replace(/\.[^/.]+$/, ".png"), { type: 'image/png' });
+                }, 'image/png');
+            }
+            function getContentBoundingBox(ctx, width, height) {
+                const imageData = ctx.getImageData(0, 0, width, height).data;
+                let minX = width, minY = height, maxX = 0, maxY = 0;
+                let found = false;
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const i = (y * width + x) * 4;
+                        if (imageData[i + 3] > 60) {
+                            minX = Math.min(minX, x);
+                            minY = Math.min(minY, y);
+                            maxX = Math.max(maxX, x);
+                            maxY = Math.max(maxY, y);
+                            found = true;
+                        }
+                    }
+                }
+                return found ? { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } : null;
+            }
+            function showLogoStatus(msg, type = 'info') {
+                logoStatus.innerHTML = msg;
+                logoStatus.className = `logo-status ${type}`;
+                logoStatus.classList.remove('hidden');
+            }
+            // === KEY IMAGES ===
+            let autoCroppedKeyImages = [];
+            const keyImagesInput = document.getElementById('posterKeyImagesInput');
+            const keyImagePreviews = document.getElementById('keyImagePreviews');
+            keyImagesInput.addEventListener('change', () => {
+                keyImagePreviews.innerHTML = '';
+                autoCroppedKeyImages = [];
+                Array.from(keyImagesInput.files).forEach((file, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'key-image-item';
+                    div.innerHTML = `<p class="text-sm">Processing <strong>${file.name}</strong>...</p>`;
+                    keyImagePreviews.appendChild(div);
+                    autoCropAndConvertToPng(file, (pngFile, url) => {
+                        if (pngFile && url) {
+                            autoCroppedKeyImages[idx] = pngFile;
+                            div.innerHTML = `
+                                <img src="${url}" class="image-preview" alt="Key image ${idx + 1}">
+                                <p class="text-xs text-green-600 mt-1">Converted to PNG</p>
+                            `;
+                            updateEdmBannerFromKeyImage();
+                        } else {
+                            div.innerHTML = `<p class="text-xs text-red-600">Failed to process</p>`;
+                        }
+                    });
+                });
+            });
+            function autoCropAndConvertToPng(file, callback) {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 1080;
+                    canvas.height = 1080;
+                    const scale = Math.max(1080 / img.width, 1080 / img.height);
+                    const w = img.width * scale;
+                    const h = img.height * scale;
+                    ctx.drawImage(img, (1080 - w) / 2, (1080 - h) / 2, w, h);
+                    canvas.toBlob(blob => {
+                        const pngFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".png"), { type: 'image/png' });
+                        const previewUrl = URL.createObjectURL(pngFile);
+                        callback(pngFile, previewUrl);
+                    }, 'image/png', 0.9);
+                };
+                img.onerror = () => callback(null, null);
+                img.src = URL.createObjectURL(file);
+            }
+            // === EDM BANNER ===
+            const edmBannerSource = document.getElementById('edmBannerSource');
+            const edmBannerUploadSection = document.getElementById('edmBannerUploadSection');
+            const edmBannerInput = document.getElementById('edmBannerInput');
+            const edmBannerPreview = document.getElementById('edmBannerPreview');
+            let autoCroppedEdmBanner = null;
+            function updateEdmBannerFromKeyImage() {
+                if (edmBannerSource.value === 'copy' && autoCroppedKeyImages.length > 0 && autoCroppedKeyImages[0]) {
+                    autoCroppedEdmBanner = autoCroppedKeyImages[0];
+                    const url = URL.createObjectURL(autoCroppedEdmBanner);
+                    edmBannerPreview.innerHTML = `
+                        <img src="${url}" class="image-preview" alt="EDM Banner (from Poster)">
+                        <p class="text-xs text-blue-600 mt-1">Copied from first Poster Key Image</p>
+                    `;
+                } else if (edmBannerSource.value === 'copy') {
+                    edmBannerPreview.innerHTML = `<p class="text-xs text-gray-500">Upload a key image first</p>`;
+                }
+            }
+            edmBannerSource.addEventListener('change', () => {
+                const isCopy = edmBannerSource.value === 'copy';
+                edmBannerUploadSection.style.display = isCopy ? 'none' : 'block';
+                edmBannerPreview.innerHTML = '';
+                autoCroppedEdmBanner = null;
+                if (isCopy) updateEdmBannerFromKeyImage();
+            });
+            edmBannerInput.addEventListener('change', () => {
+                const file = edmBannerInput.files[0];
+                if (!file) return;
+                edmBannerPreview.innerHTML = `<p class="text-sm">Processing <strong>${file.name}</strong>...</p>`;
+                autoCropAndConvertToPng(file, (pngFile, url) => {
+                    if (pngFile && url) {
+                        autoCroppedEdmBanner = pngFile;
+                        edmBannerPreview.innerHTML = `
+                            <img src="${url}" class="image-preview" alt="EDM Banner">
+                            <p class="text-xs text-green-600 mt-1">Converted to PNG</p>
+                        `;
+                    }
+                });
+            });
+            // === CATERING & REGISTRATION LINK ===
+            document.getElementById('haveCatering').addEventListener('change', function () {
+                document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
+            });
+            const needRegisterLink = document.getElementById('needRegisterLink');
+            const registerLinkSection = document.getElementById('registerLinkSection');
+            const registerLinkInput = document.getElementById('registerLink');
+            const manualLinkInput = document.getElementById('manualLinkInput');
+            const buildLinkSection = document.getElementById('buildLinkSection');
+            needRegisterLink.addEventListener('change', () => {
+                registerLinkSection.classList.toggle('hidden', !needRegisterLink.checked);
+            });
+            document.querySelectorAll('input[name="linkSource"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    const value = radio.value;
+                    manualLinkInput.classList.toggle('hidden', value !== 'manual');
+                    buildLinkSection.classList.toggle('hidden', value !== 'build');
+                });
+            });
+            // === FORM SUBMISSION ===
+            const webhookURL = 'https://hook.eu2.make.com/i2pvup7yc0fc8uj38wts4j2sqvsmty88';
+            const submitButton = document.getElementById('submitButton');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingFill = document.getElementById('loadingFill');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            document.getElementById('eventForm').addEventListener('submit', async function (e) {
+                e.preventDefault();
+                errorMessage.classList.add('hidden');
+                successMessage.classList.add('hidden');
+                const formData = new FormData();
+                const urlParams = new URLSearchParams();
+                // Text & checkbox fields
+                const fields = [
+                    'organizerName', 'organizerEmail', 'startTime', 'endTime', 'date',
+                    'clientName', 'clientContact', 'companyName', 'eventName', 'eventType', 'country', 'building', 'floor',
+                    'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
+                    'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
+                    'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
+                    'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
+                    'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink'
+                ];
+                formData.append('eventId', eventIdDisplay.textContent);
+                urlParams.append('eventId', eventIdDisplay.textContent);
+                formData.append('formattedTime', formattedTime);
+                urlParams.append('formattedTime', formattedTime);
+                formData.append('formattedlocation', updateLocationPreview());
+                urlParams.append('formattedlocation', updateLocationPreview());
+                formData.append('contactEmail', emailPreview.textContent);
+                urlParams.append('contactEmail', emailPreview.textContent);
+                fields.forEach(key => {
+                    let value;
+                    const el = document.getElementById(key);
+                    value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
+                    formData.append(key, value);
+                    urlParams.append(key, value);
+                });
+                const linkSourceValue = document.querySelector('input[name="linkSource"]:checked')?.value || '';
+                formData.append('linkSource', linkSourceValue);
+                urlParams.append('linkSource', linkSourceValue);
+                // Auto subtitle if not checked
+                let posterSubtitle = document.getElementById('posterSubtitle').value;
+                if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
+                    posterSubtitle = '(Exclusive event for clients of Compass Offices)';
+                }
+                formData.append('posterSubtitle', posterSubtitle);
+                urlParams.append('posterSubtitle', posterSubtitle);
+                let edmSubtitle = document.getElementById('edmSubtitle').value;
+                if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked) {
+                    edmSubtitle = '(Exclusive event for clients of Compass Offices)';
+                }
+                formData.append('edmSubtitle', edmSubtitle);
+                urlParams.append('edmSubtitle', edmSubtitle);
+                // Files to base64 and append
+                const filePromises = [];
+                if (processedLogoFile) {
+                    filePromises.push(fileToBase64(processedLogoFile).then(b64 => {
+                        formData.append('posterLogo', processedLogoFile, processedLogoFile.name);
+                    }));
+                }
+                autoCroppedKeyImages.forEach((file, i) => {
+                    if (file) {
+                        filePromises.push(fileToBase64(file).then(b64 => {
+                            formData.append(`posterKeyImage${i + 1}`, file, file.name);
+                        }));
+                    }
+                });
+                if (autoCroppedEdmBanner) {
+                    filePromises.push(fileToBase64(autoCroppedEdmBanner).then(b64 => {
+                        formData.append('edmBanner', autoCroppedEdmBanner, autoCroppedEdmBanner.name);
+                    }));
+                }
+                loadingOverlay.classList.remove('hidden');
+                submitButton.disabled = true;
+                document.getElementById('submitText').textContent = 'Submitting...';
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress = Math.min(progress + 10, 90);
+                    loadingFill.style.width = progress + '%';
+                }, 300);
+                try {
+                    await Promise.all(filePromises);
+                    const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+                    formData.append('reopenLink', reopenUrl);
+                    const response = await fetch(webhookURL, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    clearInterval(interval);
+                    loadingFill.style.width = '100%';
+                    await new Promise(r => setTimeout(r, 500));
+                    if (response.ok) {
+                        const linkHtml = `
+                            <p class="mt-2 text-sm">Event submitted successfully!</p>
+                            <p class="mt-3 text-sm">Click below to <strong>re-open this form with all data pre-filled</strong>:</p>
+                            <div class="webhook-link mt-2 p-3 text-xs break-all">${reopenUrl}</div>
+                            <button onclick="navigator.clipboard.writeText('${reopenUrl}').then(() => alert('Link copied to clipboard!'))"
+                                    class="mt-2 px-4 py-2 bg-white text-orange-600 border border-orange-600 rounded-lg text-sm hover:bg-orange-50">
+                                Copy Re-Open Link
+                            </button>
+                        `;
+                        successMessage.innerHTML = linkHtml;
+                        successMessage.classList.remove('hidden');
+                        window.history.replaceState({}, '', `?${urlParams.toString()}`);
+                        localStorage.removeItem('eventFormDraft');
+                    } else {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                } catch (err) {
+                    errorText.textContent = `Submission failed: ${err.message}. Please try again.`;
+                    errorMessage.classList.remove('hidden');
+                } finally {
+                    loadingOverlay.classList.add('hidden');
+                    submitButton.disabled = false;
+                    document.getElementById('submitText').textContent = 'Submit Event Data';
+                    clearInterval(interval);
+                }
+            });
+            function fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+            // === AUTO-FILL DATE TODAY ===
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            // === MOBILE FIXES ===
+            document.querySelectorAll('input[type="time"], input[type="date"]').forEach(el => {
+                el.addEventListener('focus', function () {
+                    this.showPicker?.();
+                });
+            });
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                el.addEventListener('touchstart', () => {}, { passive: true });
+            });
+            // === LOCAL DRAFT (Optional) ===
+            const form = document.getElementById('eventForm');
+            const saveKey = 'eventFormDraft';
+            form.addEventListener('input', () => {
+                const data = new FormData(form);
+                const obj = {};
+                for (let [k, v] of data) {
+                    if (v instanceof File && v.size === 0) continue;
+                    obj[k] = v.name || v;
+                }
+                localStorage.setItem(saveKey, JSON.stringify(obj));
+            });
+            const draft = localStorage.getItem(saveKey);
+            if (draft) {
+                try {
+                    const obj = JSON.parse(draft);
+                    Object.keys(obj).forEach(k => {
+                        const el = document.getElementById(k);
+                        if (el && el.type !== 'file') el.value = obj[k];
+                    });
+                    updateFormattedTime();
+                } catch (e) { }
+            }
+            window.scrollTo(0, 0);
+            loadFromURL(); // Call loadFromURL at the end to load any query params
+        });
+    </script>
+</body>
+</html>
