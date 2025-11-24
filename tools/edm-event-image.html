@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en" class="h-full w-full">
+ <head>
+  <meta charset="UTF-8">
+  <title>Event Poster Maker</title><!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script><!-- Canva SDKs -->
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Simple utility for focus ring */
+    .focus-outline:focus-visible {
+      outline: 2px solid #111827;
+      outline-offset: 2px;
+    }
+
+    /* Image preview container handling object-fit */
+    .poster-image {
+      object-fit: cover;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full w-full">
+  <div class="app-wrapper h-full w-full bg-white flex items-center justify-center">
+   <main class="main-content w-full h-full flex items-center justify-center">
+    <section aria-label="Event poster creator" class="w-full h-full flex items-center justify-center px-4 py-6">
+     <div class="w-full max-w-5xl h-full bg-white shadow-lg rounded-2xl border border-gray-200/70 flex flex-col md:flex-row overflow-hidden" id="poster-card"><!-- Left: Controls -->
+      <aside class="w-full md:w-2/5 bg-gray-50/60 border-b md:border-b-0 md:border-r border-gray-200/70 p-4 md:p-6 flex flex-col gap-4">
+       <header>
+        <h1 id="panel-title" class="text-xl font-semibold tracking-tight text-gray-900">Event Poster Builder</h1>
+        <p id="panel-subtitle" class="mt-1 text-sm text-gray-600 leading-snug">Upload a photo and fill in the event details to instantly preview your clean white-layout poster.</p>
+       </header>
+       <form id="poster-form" class="flex-1 flex flex-col gap-4"><!-- Image upload -->
+        <div class="space-y-2"><label for="image-input" class="block text-sm font-medium text-gray-800"> Event Image </label>
+         <div class="border border-dashed border-gray-300 rounded-xl px-4 py-3 bg-white flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0">
+           <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 text-lg" aria-hidden="true">
+            📷
+           </div>
+           <div class="min-w-0">
+            <p class="text-xs font-medium text-gray-800 truncate">Choose an image file</p>
+            <p class="text-[11px] text-gray-500">JPG or PNG, landscape works best</p>
+           </div>
+          </div><label for="image-input" class="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium cursor-pointer hover:bg-gray-800 transition-colors focus-outline"> Browse </label>
+         </div><input id="image-input" name="image-input" type="file" accept="image/*" class="sr-only">
+         <p id="image-error" class="hidden text-xs text-red-600 mt-1">There was a problem loading your image. Please try a different file.</p>
+        </div><!-- Event name -->
+        <div class="space-y-1.5"><label for="event-name-input" class="block text-sm font-medium text-gray-800"> Event name </label> <textarea id="event-name-input" name="event-name-input" rows="2" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 resize-none" placeholder="e.g. Summer Design Meetup"></textarea>
+        </div><!-- Location -->
+        <div class="space-y-1.5"><label for="location-input" class="block text-sm font-medium text-gray-800"> Location </label> <textarea id="location-input" name="location-input" rows="2" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 resize-none" placeholder="e.g. Creative Hub, Downtown"></textarea>
+        </div><!-- Date -->
+        <div class="space-y-1.5"><label for="date-input" class="block text-sm font-medium text-gray-800"> Date </label> <input id="date-input" name="date-input" type="date" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900">
+        </div><!-- Buttons -->
+        <div class="mt-2"><button id="reset-btn" type="button" class="w-full inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-800 hover:bg-gray-100 transition-colors focus-outline"> Clear details </button>
+        </div><!-- Download Button -->
+        <div class="mt-2"><button id="download-btn" type="button" class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700 transition-colors focus-outline" style="background-color: #ff6600;"> <span>📥</span> Download as JPG (800x800) </button>
+        </div><!-- Inline message for any feedback -->
+        <p id="status-message" class="mt-1 text-[11px] text-gray-500">Changes are reflected live in the poster on the right.</p>
+       </form>
+      </aside><!-- Right: Poster preview -->
+      <section class="w-full md:w-3/5 bg-white flex items-center justify-center p-4 md:p-6" aria-label="Poster preview">
+       <div id="poster-container" class="relative bg-white w-full max-w-md aspect-[3/4] border border-gray-200/80 rounded-2xl overflow-hidden flex flex-col" style="box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);"><!-- Poster inner padding box -->
+        <div class="flex-1 flex flex-col p-5 md:p-6 gap-4"><!-- Image area -->
+         <div class="w-full rounded-xl bg-gray-100 overflow-hidden border border-gray-200/80 flex items-center justify-center relative" style="height: 55%;"><img id="poster-image" src="" alt="Event visual" class="poster-image h-full w-full hidden">
+          <div id="image-placeholder" class="flex flex-col items-center justify-center text-center px-4">
+           <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-200 text-gray-500 text-2xl mb-2" aria-hidden="true">
+            🖼️
+           </div>
+           <p class="text-xs font-medium text-gray-700">Your event image will appear here</p>
+           <p class="mt-1 text-[11px] text-gray-500">Use a clean, bright photo for the best look.</p>
+          </div><!-- Date badge overlay -->
+          <div id="date-badge" class="hidden absolute top-4 right-4 bg-orange-600 text-white rounded-2xl shadow-lg overflow-hidden" style="width: 110px; background-color: #ff6600;">
+           <div class="flex flex-col items-center justify-center py-4 px-3">
+            <div id="badge-day" class="text-5xl font-bold leading-none">
+             20
+            </div>
+            <div id="badge-month" class="text-lg font-semibold uppercase tracking-wide mt-1">
+             Nov
+            </div>
+           </div>
+          </div>
+         </div><!-- Text area -->
+         <div class="flex-1 flex flex-col gap-2">
+          <div class="space-y-2">
+           <h2 id="poster-event-title" class="text-4xl font-bold tracking-tight text-gray-900 leading-tight break-words">Your Event Title</h2>
+           <p id="poster-location" class="text-xl text-gray-800 break-words">Location goes here</p>
+          </div>
+         </div>
+        </div>
+       </div>
+      </section>
+     </div>
+    </section>
+   </main>
+  </div>
+  <script>
+    // ---- Element SDK config (colors, fonts, text defaults) ----
+    const defaultConfig = {
+      background_color: "#ffffff",
+      surface_color: "#f9fafb",
+      text_color: "#111827",
+      primary_action_color: "#111827",
+      secondary_action_color: "#6b7280",
+      font_family: "Helvetica",
+      font_size: 14,
+      default_event_title: "Your Event Title",
+      default_location: "Location goes here"
+    };
+
+    function applyConfigToUI(config) {
+      const merged = Object.assign({}, defaultConfig, config || {});
+      const baseFont = merged.font_family || defaultConfig.font_family;
+      const fontStack = baseFont + ", system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
+      const baseSize = merged.font_size || defaultConfig.font_size;
+
+      // Elements
+      const bodyEl = document.body;
+      const card = document.getElementById("poster-card");
+      const panelTitle = document.getElementById("panel-title");
+      const panelSubtitle = document.getElementById("panel-subtitle");
+      const posterEventTitle = document.getElementById("poster-event-title");
+      const posterLocation = document.getElementById("poster-location");
+      const resetBtn = document.getElementById("reset-btn");
+
+      // Colors
+      if (bodyEl) {
+        bodyEl.style.backgroundColor = merged.background_color;
+      }
+      if (card) {
+        card.style.backgroundColor = merged.surface_color;
+      }
+      if (panelTitle) {
+        panelTitle.style.color = merged.text_color;
+      }
+      if (posterEventTitle) {
+        posterEventTitle.style.color = merged.text_color;
+      }
+      if (resetBtn) {
+        resetBtn.style.color = merged.secondary_action_color;
+        resetBtn.style.borderColor = "#e5e7eb";
+      }
+
+      // Font families
+      [
+        panelTitle,
+        panelSubtitle,
+        posterEventTitle,
+        posterLocation,
+        resetBtn,
+        document.getElementById("status-message")
+      ].forEach(function (el) {
+        if (el) {
+          el.style.fontFamily = fontStack;
+        }
+      });
+
+      // Font sizes (scaled)
+      if (panelTitle) panelTitle.style.fontSize = (baseSize * 1.6) + "px";
+      if (panelSubtitle) panelSubtitle.style.fontSize = (baseSize * 0.9) + "px";
+      if (posterEventTitle) posterEventTitle.style.fontSize = (baseSize * 2.5) + "px";
+      if (posterLocation) posterLocation.style.fontSize = (baseSize * 1.4) + "px";
+      if (resetBtn) resetBtn.style.fontSize = (baseSize * 0.85) + "px";
+
+      // Default text values (used when fields are empty)
+      if (posterEventTitle && !document.getElementById("event-name-input").value.trim()) {
+        posterEventTitle.innerHTML = merged.default_event_title;
+      }
+      if (posterLocation && !document.getElementById("location-input").value.trim()) {
+        posterLocation.innerHTML = merged.default_location;
+      }
+    }
+
+    function initElementSdkIfAvailable() {
+      if (!window.elementSdk) {
+        applyConfigToUI(defaultConfig);
+        return;
+      }
+
+      window.elementSdk.init({
+        defaultConfig: defaultConfig,
+        onConfigChange: async function (config) {
+          applyConfigToUI(config);
+        },
+        mapToCapabilities: function (config) {
+          const cfg = Object.assign({}, defaultConfig, config || {});
+          return {
+            recolorables: [
+              {
+                get: function () { return cfg.background_color; },
+                set: function (value) {
+                  cfg.background_color = value;
+                  window.elementSdk.setConfig({ background_color: value });
+                }
+              },
+              {
+                get: function () { return cfg.surface_color; },
+                set: function (value) {
+                  cfg.surface_color = value;
+                  window.elementSdk.setConfig({ surface_color: value });
+                }
+              },
+              {
+                get: function () { return cfg.text_color; },
+                set: function (value) {
+                  cfg.text_color = value;
+                  window.elementSdk.setConfig({ text_color: value });
+                }
+              },
+              {
+                get: function () { return cfg.primary_action_color; },
+                set: function (value) {
+                  cfg.primary_action_color = value;
+                  window.elementSdk.setConfig({ primary_action_color: value });
+                }
+              },
+              {
+                get: function () { return cfg.secondary_action_color; },
+                set: function (value) {
+                  cfg.secondary_action_color = value;
+                  window.elementSdk.setConfig({ secondary_action_color: value });
+                }
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: function () { return cfg.font_family; },
+              set: function (value) {
+                cfg.font_family = value;
+                window.elementSdk.setConfig({ font_family: value });
+              }
+            },
+            fontSizeable: {
+              get: function () { return cfg.font_size; },
+              set: function (value) {
+                cfg.font_size = value;
+                window.elementSdk.setConfig({ font_size: value });
+              }
+            }
+          };
+        },
+        mapToEditPanelValues: function (config) {
+          const cfg = Object.assign({}, defaultConfig, config || {});
+          return new Map([
+            ["default_event_title", cfg.default_event_title],
+            ["default_location", cfg.default_location]
+          ]);
+        }
+      });
+
+      applyConfigToUI(window.elementSdk.config || defaultConfig);
+    }
+
+    // ---- Main UI behaviour (image + text) ----
+    function setupPosterLogic() {
+      const fileInput = document.getElementById("image-input");
+      const imageEl = document.getElementById("poster-image");
+      const placeholderEl = document.getElementById("image-placeholder");
+      const imageError = document.getElementById("image-error");
+
+      const eventInput = document.getElementById("event-name-input");
+      const locationInput = document.getElementById("location-input");
+      const dateInput = document.getElementById("date-input");
+
+      const posterEventTitle = document.getElementById("poster-event-title");
+      const posterLocation = document.getElementById("poster-location");
+
+      const resetBtn = document.getElementById("reset-btn");
+      const statusMessage = document.getElementById("status-message");
+
+      // Live text update helper
+      function updatePosterTexts() {
+        const cfg = (window.elementSdk && window.elementSdk.config) || defaultConfig;
+
+        const nameVal = eventInput.value.trim();
+        const locVal = locationInput.value.trim();
+        const dateVal = dateInput.value.trim();
+
+        // Preserve line breaks by using innerHTML with <br> tags
+        posterEventTitle.innerHTML = (nameVal || cfg.default_event_title).replace(/\n/g, '<br>');
+        posterLocation.innerHTML = (locVal || cfg.default_location).replace(/\n/g, '<br>');
+
+        // Update date badge
+        const dateBadge = document.getElementById("date-badge");
+        const badgeDay = document.getElementById("badge-day");
+        const badgeMonth = document.getElementById("badge-month");
+
+        if (dateVal) {
+          // Parse date (format: YYYY-MM-DD from date input)
+          const parts = dateVal.split("-");
+          if (parts.length === 3) {
+            const year = parts[0];
+            const month = parts[1];
+            const day = parts[2];
+
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const monthIndex = parseInt(month, 10) - 1;
+            const monthName = monthNames[monthIndex] || "Jan";
+
+            badgeDay.textContent = parseInt(day, 10).toString();
+            badgeMonth.textContent = monthName;
+            dateBadge.classList.remove("hidden");
+          } else {
+            dateBadge.classList.add("hidden");
+          }
+        } else {
+          dateBadge.classList.add("hidden");
+        }
+      }
+
+      // Image upload
+      if (fileInput) {
+        fileInput.addEventListener("change", function () {
+          imageError.classList.add("hidden");
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) {
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const result = e.target && e.target.result;
+            if (typeof result === "string") {
+              imageEl.src = result;
+              imageEl.classList.remove("hidden");
+              placeholderEl.classList.add("hidden");
+            } else {
+              imageError.classList.remove("hidden");
+            }
+          };
+          reader.onerror = function () {
+            imageError.classList.remove("hidden");
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // Live change updates
+      [eventInput, locationInput, dateInput].forEach(function (input) {
+        if (!input) return;
+        input.addEventListener("input", function () {
+          updatePosterTexts();
+        });
+      });
+
+      // Reset button
+      if (resetBtn) {
+        resetBtn.addEventListener("click", function () {
+          eventInput.value = "";
+          locationInput.value = "";
+          dateInput.value = "";
+
+          const cfg = (window.elementSdk && window.elementSdk.config) || defaultConfig;
+          posterEventTitle.innerHTML = cfg.default_event_title;
+          posterLocation.innerHTML = cfg.default_location;
+
+          const dateBadge = document.getElementById("date-badge");
+          dateBadge.classList.add("hidden");
+
+          if (statusMessage) {
+            statusMessage.textContent = "Details cleared. Start typing to customise again.";
+            statusMessage.classList.remove("text-gray-700");
+            statusMessage.classList.add("text-gray-500");
+          }
+        });
+      }
+
+      // Initial text fill from defaults
+      updatePosterTexts();
+    }
+
+    // ---- Download poster as JPG ----
+    function setupDownload() {
+      const downloadBtn = document.getElementById("download-btn");
+      const posterContainer = document.getElementById("poster-container");
+
+      if (!downloadBtn || !posterContainer) return;
+
+      downloadBtn.addEventListener("click", async function () {
+        // Show loading state
+        const originalText = downloadBtn.innerHTML;
+        downloadBtn.innerHTML = '<span>⏳</span> Generating...';
+        downloadBtn.disabled = true;
+
+        try {
+          // Use html2canvas to capture the poster
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
+          
+          script.onload = async function () {
+            try {
+              const canvas = await html2canvas(posterContainer, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                logging: false,
+                width: 800,
+                height: 800,
+                windowWidth: 800,
+                windowHeight: 800
+              });
+
+              // Convert to JPG
+              canvas.toBlob(function (blob) {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "event-poster-800x800.jpg";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                // Reset button
+                downloadBtn.innerHTML = originalText;
+                downloadBtn.disabled = false;
+              }, "image/jpeg", 0.95);
+            } catch (err) {
+              console.error("Download error:", err);
+              downloadBtn.innerHTML = originalText;
+              downloadBtn.disabled = false;
+              
+              const statusMessage = document.getElementById("status-message");
+              if (statusMessage) {
+                statusMessage.textContent = "Download failed. Please try again.";
+                statusMessage.classList.add("text-red-600");
+              }
+            }
+          };
+
+          script.onerror = function () {
+            downloadBtn.innerHTML = originalText;
+            downloadBtn.disabled = false;
+            
+            const statusMessage = document.getElementById("status-message");
+            if (statusMessage) {
+              statusMessage.textContent = "Download library failed to load.";
+              statusMessage.classList.add("text-red-600");
+            }
+          };
+
+          document.head.appendChild(script);
+        } catch (err) {
+          console.error("Download setup error:", err);
+          downloadBtn.innerHTML = originalText;
+          downloadBtn.disabled = false;
+        }
+      });
+    }
+
+    // Initialise everything
+    (function init() {
+      initElementSdkIfAvailable();
+      setupPosterLogic();
+      setupDownload();
+    })();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a37bb83f0efcf9d',t:'MTc2Mzk3NTAwMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
