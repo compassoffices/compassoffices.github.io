@@ -68,6 +68,14 @@
     #poster-card {
       border-radius: 20px !important;
     }
+    /* Enhanced text rendering for date badge to match preview in html2canvas */
+    #date-badge #badge-day,
+    #date-badge #badge-month {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      font-smooth: always;
+    }
   </style>
   <style>@view-transition { navigation: auto; }</style>
  </head>
@@ -122,10 +130,10 @@
           </div><!-- Date badge overlay -->
           <div id="date-badge" class="hidden absolute top-4 right-4 bg-orange-600 text-white rounded-2xl shadow-lg overflow-hidden z-10" style="width: 110px; background-color: var(--primary-orange);">
            <div class="py-4 px-3 text-center">
-            <div id="badge-day" class="text-5xl font-bold leading-none">
+            <div id="badge-day" class="text-5xl font-bold leading-none" style="font-family: inherit; line-height: 1;">
              20
             </div>
-            <div id="badge-month" class="text-lg font-semibold uppercase tracking-wide mt-1">
+            <div id="badge-month" class="text-lg font-semibold uppercase tracking-wide mt-1" style="font-family: inherit; line-height: 1;">
              Nov
             </div>
            </div>
@@ -208,6 +216,8 @@
       const posterEventTitle = document.getElementById("poster-event-title");
       const posterLocation = document.getElementById("poster-location");
       const resetBtn = document.getElementById("reset-btn");
+      const badgeDay = document.getElementById("badge-day");
+      const badgeMonth = document.getElementById("badge-month");
       // Colors
       if (bodyEl) {
         bodyEl.style.backgroundColor = merged.background_color;
@@ -225,25 +235,29 @@
         resetBtn.style.color = merged.secondary_action_color;
         resetBtn.style.borderColor = "#e5e7eb";
       }
-      // Font families
+      // Font families (now including badge elements for consistent rendering)
       [
         panelTitle,
         panelSubtitle,
         posterEventTitle,
         posterLocation,
         resetBtn,
-        document.getElementById("status-message")
+        document.getElementById("status-message"),
+        badgeDay,
+        badgeMonth
       ].forEach(function (el) {
         if (el) {
           el.style.fontFamily = fontStack;
         }
       });
-      // Font sizes (scaled)
+      // Font sizes (scaled, now including badge for precise control)
       if (panelTitle) panelTitle.style.fontSize = (baseSize * 1.6) + "px";
       if (panelSubtitle) panelSubtitle.style.fontSize = (baseSize * 0.9) + "px";
       if (posterEventTitle) posterEventTitle.style.fontSize = (baseSize * 2.5) + "px";
       if (posterLocation) posterLocation.style.fontSize = (baseSize * 1.4) + "px";
       if (resetBtn) resetBtn.style.fontSize = (baseSize * 0.85) + "px";
+      if (badgeDay) badgeDay.style.fontSize = (baseSize * 3.4) + "px"; // Matches text-5xl (~48px at base 14)
+      if (badgeMonth) badgeMonth.style.fontSize = (baseSize * 1.3) + "px"; // Matches text-lg (~18px at base 14)
       // Default text values (used when fields are empty)
       if (posterEventTitle && !document.getElementById("event-name-input").value.trim()) {
         posterEventTitle.innerHTML = merged.default_event_title;
@@ -460,14 +474,16 @@
         downloadBtn.disabled = true;
         try {
           await loadHtml2canvas();
-          // Capture at a consistent scale (higher for better quality, uniform scaling prevents distortion)
-          const scale = 2; // Higher resolution capture for crisp output
+          // Capture at a higher scale for crisper text rendering (matches preview sharpness)
+          const scale = 3; // Increased from 2 for better font/text fidelity in JPG
           const canvas = await html2canvas(posterContainer, {
             backgroundColor: null, // Preserve actual background
             scale: scale,
             logging: false,
             useCORS: true,
-            allowTaint: true
+            allowTaint: true,
+            letterRendering: true, // Ensures exact letter spacing/tracking for text like badge
+            ignoreElements: function (el) { return el.classList.contains('hidden'); } // Properly handles hidden elements
           });
           // Always resize to exact 600x800 using cover fit (crop to fill, no distortion)
           const outputCanvas = document.createElement('canvas');
@@ -482,6 +498,8 @@
           const drawHeight = canvas.height * drawScale;
           const offsetX = (600 - drawWidth) / 2;
           const offsetY = (800 - drawHeight) / 2;
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high'; // High-quality resampling for text edges
           ctx.drawImage(canvas, offsetX, offsetY, drawWidth, drawHeight);
           // Download the output canvas
           outputCanvas.toBlob(function (blob) {
