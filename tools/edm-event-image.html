@@ -38,9 +38,9 @@
       background-color: white !important;
       overflow: hidden !important;
     }
-    /* Drop shadow for poster image */
+    /* Drop shadow for poster image - using box-shadow for better html2canvas support */
     #poster-image {
-      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1)); /* Subtle shadow */
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important; /* Subtle shadow, better compatibility */
     }
     /* Bulk preview thumbnails: cover to fill */
     .bulk-thumb {
@@ -435,7 +435,7 @@
       // Initial text fill from defaults
       updatePosterTexts();
     }
-    // ---- Download poster as JPG (exact match to preview layout) ----
+    // ---- Download poster as JPG (exact match to preview layout, no distortion) ----
     let html2canvasLoaded = false;
     function loadHtml2canvas() {
       if (html2canvasLoaded) return Promise.resolve();
@@ -461,34 +461,30 @@
         downloadBtn.disabled = true;
         try {
           await loadHtml2canvas();
-          // Capture the exact rendered preview at high resolution (no forced size to preserve layout/positions/text/image fit)
+          // Temporarily resize container to exact export dimensions to match preview aspect perfectly
+          const originalWidth = posterContainer.style.width;
+          const originalHeight = posterContainer.style.height;
+          const originalMaxWidth = posterContainer.style.maxWidth;
+          posterContainer.style.width = '600px';
+          posterContainer.style.height = '800px';
+          posterContainer.style.maxWidth = '600px';
+          // Wait for reflow
+          await new Promise(resolve => setTimeout(resolve, 100));
+          // Capture at 1:1 scale for exact match (high res via devicePixelRatio if needed, but keep simple)
           const canvas = await html2canvas(posterContainer, {
             backgroundColor: "#ffffff",
-            scale: 3, // High DPI for sharp text/shadows/image
+            scale: window.devicePixelRatio || 1, // Use device DPI for sharpness without extra distortion
             logging: false,
             useCORS: true,
-            allowTaint: true,
-            width: posterContainer.scrollWidth,
-            height: posterContainer.scrollHeight
+            allowTaint: true
           });
-          // Since preview is already 3:4 aspect, resize proportionally to 600x800 without distortion
-          const outputCanvas = document.createElement('canvas');
-          outputCanvas.width = 600;
-          outputCanvas.height = 800;
-          const ctx = outputCanvas.getContext('2d');
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, 600, 800);
-          // Draw captured image scaled to fit exactly (cover logic, but since aspects match, no crop)
-          const scaleX = 600 / canvas.width;
-          const scaleY = 800 / canvas.height;
-          const scale = Math.max(scaleX, scaleY); // Cover to fill
-          const drawWidth = canvas.width * scale;
-          const drawHeight = canvas.height * scale;
-          const offsetX = (600 - drawWidth) / 2;
-          const offsetY = (800 - drawHeight) / 2;
-          ctx.drawImage(canvas, offsetX, offsetY, drawWidth, drawHeight);
-          // Convert to JPG
-          outputCanvas.toBlob(function (blob) {
+          // Restore original styles
+          posterContainer.style.width = originalWidth;
+          posterContainer.style.height = originalHeight;
+          posterContainer.style.maxWidth = originalMaxWidth;
+          await new Promise(resolve => setTimeout(resolve, 50)); // Reflow back
+          // Since we captured at exact 600x800, no need for post-resize - direct blob
+          canvas.toBlob(function (blob) {
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
