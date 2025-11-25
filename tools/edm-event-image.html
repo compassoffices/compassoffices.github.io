@@ -26,9 +26,18 @@
     }
     /* Image preview container handling object-fit */
     .poster-image {
-      object-fit: contain; /* Fits whole image without distortion/cropping */
-      width: 100%;
-      height: 100%;
+      object-fit: contain !important; /* Ensures whole image fits and scales auto, no crop/squeeze */
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100%;
+      max-height: 100%;
+    }
+    /* Image container ensures full fit */
+    .image-area {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background-color: white !important;
     }
     /* Drop shadow for poster image */
     #poster-image {
@@ -102,7 +111,7 @@
       <section class="w-full md:w-3/5 bg-white flex items-center justify-center p-4 md:p-6" aria-label="Poster preview">
        <div id="poster-container" class="relative bg-white w-full max-w-md aspect-[3/4] border border-gray-200/80 rounded-2xl overflow-hidden flex flex-col mx-auto" style="box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 8px 20px rgba(0, 0, 0, 0.1);"><!-- Poster inner padding box -->
         <div class="flex-1 flex flex-col p-5 md:p-6 gap-4"><!-- Image area -->
-         <div class="w-full rounded-xl bg-white overflow-hidden border border-gray-200/80 flex items-center justify-center relative" style="height: 55%;"><img id="poster-image" src="" alt="Event visual" class="poster-image h-full w-full hidden">
+         <div class="image-area w-full rounded-xl bg-white overflow-hidden border border-gray-200/80 flex items-center justify-center relative" style="height: 55%;"><img id="poster-image" src="" alt="Event visual" class="poster-image h-full w-full hidden">
           <div id="image-placeholder" class="flex flex-col items-center justify-center text-center px-4">
            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-200 text-gray-500 text-2xl mb-2" aria-hidden="true">
             🖼️
@@ -381,6 +390,10 @@
               imageEl.src = result;
               imageEl.classList.remove("hidden");
               placeholderEl.classList.add("hidden");
+              // Force reflow for fitting
+              imageEl.style.display = 'none';
+              imageEl.offsetHeight;
+              imageEl.style.display = '';
             } else {
               imageError.classList.remove("hidden");
             }
@@ -411,6 +424,8 @@
           posterLocation.innerHTML = cfg.default_location;
           const dateBadge = document.getElementById("date-badge");
           dateBadge.classList.add("hidden");
+          imageEl.classList.add("hidden");
+          placeholderEl.classList.remove("hidden");
           if (statusMessage) {
             statusMessage.textContent = "Details cleared. Start typing to customise again.";
             statusMessage.classList.remove("text-gray-700");
@@ -421,7 +436,7 @@
       // Initial text fill from defaults
       updatePosterTexts();
     }
-    // ---- Download poster as JPG (load html2canvas once, preserve aspect ratio) ----
+    // ---- Download poster as JPG (exact match to preview layout) ----
     let html2canvasLoaded = false;
     function loadHtml2canvas() {
       if (html2canvasLoaded) return Promise.resolve();
@@ -447,19 +462,34 @@
         downloadBtn.disabled = true;
         try {
           await loadHtml2canvas();
-          // Preserve 3:4 aspect ratio: 600x800 px output (no squeeze)
-          const exportWidth = 600;
-          const exportHeight = 800;
+          // Capture the exact rendered preview at high resolution (no forced size to preserve layout/positions/text/image fit)
           const canvas = await html2canvas(posterContainer, {
             backgroundColor: "#ffffff",
-            scale: 2, // High res without distortion
+            scale: 3, // High DPI for sharp text/shadows/image
             logging: false,
-            width: exportWidth,
-            height: exportHeight,
-            useCORS: true // For external images if any
+            useCORS: true,
+            allowTaint: true,
+            width: posterContainer.scrollWidth,
+            height: posterContainer.scrollHeight
           });
+          // Since preview is already 3:4 aspect, resize proportionally to 600x800 without distortion
+          const outputCanvas = document.createElement('canvas');
+          outputCanvas.width = 600;
+          outputCanvas.height = 800;
+          const ctx = outputCanvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 600, 800);
+          // Draw captured image scaled to fit exactly (contain logic, but since aspects match, no pad)
+          const scaleX = 600 / canvas.width;
+          const scaleY = 800 / canvas.height;
+          const scale = Math.min(scaleX, scaleY); // Preserve aspect
+          const drawWidth = canvas.width * scale;
+          const drawHeight = canvas.height * scale;
+          const offsetX = (600 - drawWidth) / 2;
+          const offsetY = (800 - drawHeight) / 2;
+          ctx.drawImage(canvas, offsetX, offsetY, drawWidth, drawHeight);
           // Convert to JPG
-          canvas.toBlob(function (blob) {
+          outputCanvas.toBlob(function (blob) {
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
