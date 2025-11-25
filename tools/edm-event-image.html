@@ -26,11 +26,9 @@
     }
     /* Image preview container handling object-fit */
     .poster-image {
-      object-fit: contain !important; /* Ensures whole image fits and scales auto, no crop/squeeze */
+      object-fit: cover !important; /* Crops/scales to fill whole box without distortion */
       width: 100% !important;
       height: 100% !important;
-      max-width: 100%;
-      max-height: 100%;
     }
     /* Image container ensures full fit */
     .image-area {
@@ -38,14 +36,15 @@
       align-items: center !important;
       justify-content: center !important;
       background-color: white !important;
+      overflow: hidden !important;
     }
     /* Drop shadow for poster image */
     #poster-image {
       filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1)); /* Subtle shadow */
     }
-    /* Bulk preview thumbnails: fit whole image */
+    /* Bulk preview thumbnails: cover to fill */
     .bulk-thumb {
-      object-fit: contain;
+      object-fit: cover;
       background-color: white;
     }
     /* Drag & drop feedback */
@@ -479,10 +478,10 @@
           const ctx = outputCanvas.getContext('2d');
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, 600, 800);
-          // Draw captured image scaled to fit exactly (contain logic, but since aspects match, no pad)
+          // Draw captured image scaled to fit exactly (cover logic, but since aspects match, no crop)
           const scaleX = 600 / canvas.width;
           const scaleY = 800 / canvas.height;
-          const scale = Math.min(scaleX, scaleY); // Preserve aspect
+          const scale = Math.max(scaleX, scaleY); // Cover to fill
           const drawWidth = canvas.width * scale;
           const drawHeight = canvas.height * scale;
           const offsetX = (600 - drawWidth) / 2;
@@ -514,7 +513,7 @@
         }
       });
     }
-    // ---- Bulk Image Converter (with drag/drop) ----
+    // ---- Bulk Image Converter (with drag/drop, cover fit) ----
     function setupBulkConverter() {
       const bulkInput = document.getElementById("bulk-image-input");
       const bulkUploadArea = document.getElementById("bulk-upload-area");
@@ -551,7 +550,7 @@
           const img = document.createElement("img");
           img.src = fileData.dataUrl;
           img.alt = "Preview " + (index + 1);
-          img.className = "bulk-thumb w-full h-full"; // contain fit
+          img.className = "bulk-thumb w-full h-full"; // cover fit
          
           const removeBtn = document.createElement("button");
           removeBtn.type = "button";
@@ -661,8 +660,8 @@
                 ctx.fillStyle = "#ffffff";
                 ctx.fillRect(0, 0, 800, 600);
                
-                // Calculate scaling to fit 800x600 while maintaining aspect ratio (whole image)
-                const scale = Math.min(800 / img.width, 600 / img.height);
+                // Calculate scaling to cover 800x600 (crop if needed, fill whole area)
+                const scale = Math.max(800 / img.width, 600 / img.height);
                 const scaledWidth = img.width * scale;
                 const scaledHeight = img.height * scale;
                 const x = (800 - scaledWidth) / 2;
