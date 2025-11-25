@@ -461,42 +461,58 @@
         downloadBtn.disabled = true;
         try {
           await loadHtml2canvas();
-          // Temporarily resize container to exact export dimensions to match preview aspect perfectly
-          const originalWidth = posterContainer.style.width;
-          const originalHeight = posterContainer.style.height;
-          const originalMaxWidth = posterContainer.style.maxWidth;
-          posterContainer.style.width = '600px';
-          posterContainer.style.height = '800px';
-          posterContainer.style.maxWidth = '600px';
-          // Wait for reflow
-          await new Promise(resolve => setTimeout(resolve, 100));
-          // Capture at 1:1 scale for exact match (high res via devicePixelRatio if needed, but keep simple)
+          // Get current dimensions for proportional scaling
+          const rect = posterContainer.getBoundingClientRect();
+          const scale = 600 / rect.width; // Proportional scale to target width 600, height will be ~800 due to aspect
+          // Capture with exact proportional scale (no distortion, preserves layout/positions/text/shadows/image fit)
           const canvas = await html2canvas(posterContainer, {
-            backgroundColor: "#ffffff",
-            scale: window.devicePixelRatio || 1, // Use device DPI for sharpness without extra distortion
+            backgroundColor: null, // Preserve actual background
+            scale: scale,
             logging: false,
             useCORS: true,
             allowTaint: true
           });
-          // Restore original styles
-          posterContainer.style.width = originalWidth;
-          posterContainer.style.height = originalHeight;
-          posterContainer.style.maxWidth = originalMaxWidth;
-          await new Promise(resolve => setTimeout(resolve, 50)); // Reflow back
-          // Since we captured at exact 600x800, no need for post-resize - direct blob
-          canvas.toBlob(function (blob) {
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = "event-poster-600x800.jpg";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            // Reset button
-            downloadBtn.innerHTML = originalText;
-            downloadBtn.disabled = false;
-          }, "image/jpeg", 0.95);
+          // Since scale ensures 600x800, direct blob (minor adjustment if height not exact due to rounding)
+          if (canvas.height !== 800) {
+            const outputCanvas = document.createElement('canvas');
+            outputCanvas.width = 600;
+            outputCanvas.height = 800;
+            const ctx = outputCanvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 600, 800);
+            const drawScale = Math.min(600 / canvas.width, 800 / canvas.height);
+            const drawWidth = canvas.width * drawScale;
+            const drawHeight = canvas.height * drawScale;
+            const offsetX = (600 - drawWidth) / 2;
+            const offsetY = (800 - drawHeight) / 2;
+            ctx.drawImage(canvas, offsetX, offsetY, drawWidth, drawHeight);
+            outputCanvas.toBlob(function (blob) {
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "event-poster-600x800.jpg";
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+              downloadBtn.innerHTML = originalText;
+              downloadBtn.disabled = false;
+            }, "image/jpeg", 0.95);
+          } else {
+            // Direct if exact
+            canvas.toBlob(function (blob) {
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "event-poster-600x800.jpg";
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+              downloadBtn.innerHTML = originalText;
+              downloadBtn.disabled = false;
+            }, "image/jpeg", 0.95);
+          }
         } catch (err) {
           console.error("Download error:", err);
           downloadBtn.innerHTML = originalText;
