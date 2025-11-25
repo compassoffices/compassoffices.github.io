@@ -25,23 +25,6 @@
       outline-offset: 2px;
     }
     /* Image preview container handling object-fit */
-    .poster-image {
-      object-fit: cover !important; /* Crops/scales to fill whole box without distortion */
-      width: 100% !important;
-      height: 100% !important;
-    }
-    /* Image container ensures full fit */
-    .image-area {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      background-color: white !important;
-      overflow: hidden !important;
-    }
-    /* Drop shadow for poster image - using box-shadow for better html2canvas support */
-    #poster-image {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important; /* Subtle shadow, better compatibility */
-    }
     /* Bulk preview thumbnails: cover to fill */
     .bulk-thumb {
       object-fit: cover;
@@ -65,6 +48,21 @@
       height: 100%;
       background: var(--primary-orange);
       transition: width 0.3s ease;
+    }
+    /* Image container ensures full fit */
+    .image-area {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background-color: white !important;
+      overflow: hidden !important;
+      background-size: cover !important;
+      background-position: center !important;
+      background-repeat: no-repeat !important;
+    }
+    /* Drop shadow for image area when has image */
+    .image-area.has-image {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
     }
   </style>
   <style>@view-transition { navigation: auto; }</style>
@@ -110,7 +108,7 @@
       <section class="w-full md:w-3/5 bg-white flex items-center justify-center p-4 md:p-6" aria-label="Poster preview">
        <div id="poster-container" class="relative bg-white w-full max-w-md aspect-[3/4] border border-gray-200/80 rounded-2xl overflow-hidden flex flex-col mx-auto" style="box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 8px 20px rgba(0, 0, 0, 0.1);"><!-- Poster inner padding box -->
         <div class="flex-1 flex flex-col p-5 md:p-6 gap-4"><!-- Image area -->
-         <div class="image-area w-full rounded-xl bg-white overflow-hidden border border-gray-200/80 flex items-center justify-center relative" style="height: 55%;"><img id="poster-image" src="" alt="Event visual" class="poster-image h-full w-full hidden">
+         <div id="image-area" class="image-area w-full rounded-xl bg-white overflow-hidden border border-gray-200/80 flex items-center justify-center relative" style="height: 55%;">
           <div id="image-placeholder" class="flex flex-col items-center justify-center text-center px-4">
            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-200 text-gray-500 text-2xl mb-2" aria-hidden="true">
             🖼️
@@ -331,7 +329,7 @@
     // ---- Main UI behaviour (image + text) ----
     function setupPosterLogic() {
       const fileInput = document.getElementById("image-input");
-      const imageEl = document.getElementById("poster-image");
+      const imageArea = document.getElementById("image-area");
       const placeholderEl = document.getElementById("image-placeholder");
       const imageError = document.getElementById("image-error");
       const eventInput = document.getElementById("event-name-input");
@@ -386,13 +384,9 @@
           reader.onload = function (e) {
             const result = e.target && e.target.result;
             if (typeof result === "string") {
-              imageEl.src = result;
-              imageEl.classList.remove("hidden");
+              imageArea.style.backgroundImage = `url(${result})`;
+              imageArea.classList.add("has-image");
               placeholderEl.classList.add("hidden");
-              // Force reflow for fitting
-              imageEl.style.display = 'none';
-              imageEl.offsetHeight;
-              imageEl.style.display = '';
             } else {
               imageError.classList.remove("hidden");
             }
@@ -423,7 +417,8 @@
           posterLocation.innerHTML = cfg.default_location;
           const dateBadge = document.getElementById("date-badge");
           dateBadge.classList.add("hidden");
-          imageEl.classList.add("hidden");
+          imageArea.style.backgroundImage = "";
+          imageArea.classList.remove("has-image");
           placeholderEl.classList.remove("hidden");
           if (statusMessage) {
             statusMessage.textContent = "Details cleared. Start typing to customise again.";
@@ -461,10 +456,8 @@
         downloadBtn.disabled = true;
         try {
           await loadHtml2canvas();
-          // Get current dimensions for proportional scaling
-          const rect = posterContainer.getBoundingClientRect();
-          const scale = 600 / rect.width; // Proportional scale to target width 600, height will be ~800 due to aspect
-          // Capture with exact proportional scale (no distortion, preserves layout/positions/text/shadows/image fit)
+          // Capture at a consistent scale (higher for better quality, uniform scaling prevents distortion)
+          const scale = 2; // Higher resolution capture for crisp output
           const canvas = await html2canvas(posterContainer, {
             backgroundColor: null, // Preserve actual background
             scale: scale,
@@ -472,47 +465,33 @@
             useCORS: true,
             allowTaint: true
           });
-          // Since scale ensures 600x800, direct blob (minor adjustment if height not exact due to rounding)
-          if (canvas.height !== 800) {
-            const outputCanvas = document.createElement('canvas');
-            outputCanvas.width = 600;
-            outputCanvas.height = 800;
-            const ctx = outputCanvas.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, 600, 800);
-            const drawScale = Math.min(600 / canvas.width, 800 / canvas.height);
-            const drawWidth = canvas.width * drawScale;
-            const drawHeight = canvas.height * drawScale;
-            const offsetX = (600 - drawWidth) / 2;
-            const offsetY = (800 - drawHeight) / 2;
-            ctx.drawImage(canvas, offsetX, offsetY, drawWidth, drawHeight);
-            outputCanvas.toBlob(function (blob) {
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = "event-poster-600x800.jpg";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(url);
-              downloadBtn.innerHTML = originalText;
-              downloadBtn.disabled = false;
-            }, "image/jpeg", 0.95);
-          } else {
-            // Direct if exact
-            canvas.toBlob(function (blob) {
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = "event-poster-600x800.jpg";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(url);
-              downloadBtn.innerHTML = originalText;
-              downloadBtn.disabled = false;
-            }, "image/jpeg", 0.95);
-          }
+          // Always resize to exact 600x800 using cover fit (crop to fill, no distortion)
+          const outputCanvas = document.createElement('canvas');
+          outputCanvas.width = 600;
+          outputCanvas.height = 800;
+          const ctx = outputCanvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 600, 800);
+          // Use cover scaling: max to fill the area, crop if needed
+          const drawScale = Math.max(600 / canvas.width, 800 / canvas.height);
+          const drawWidth = canvas.width * drawScale;
+          const drawHeight = canvas.height * drawScale;
+          const offsetX = (600 - drawWidth) / 2;
+          const offsetY = (800 - drawHeight) / 2;
+          ctx.drawImage(canvas, offsetX, offsetY, drawWidth, drawHeight);
+          // Download the output canvas
+          outputCanvas.toBlob(function (blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "event-poster-600x800.jpg";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            downloadBtn.innerHTML = originalText;
+            downloadBtn.disabled = false;
+          }, "image/jpeg", 0.95);
         } catch (err) {
           console.error("Download error:", err);
           downloadBtn.innerHTML = originalText;
@@ -558,12 +537,12 @@
         selectedFiles.forEach(function (fileData, index) {
           const thumbDiv = document.createElement("div");
           thumbDiv.className = "relative aspect-square rounded-xl overflow-hidden border-2 border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow group"; // bg-white for fit preview
-         
+        
           const img = document.createElement("img");
           img.src = fileData.dataUrl;
           img.alt = "Preview " + (index + 1);
           img.className = "bulk-thumb w-full h-full"; // cover fit
-         
+        
           const removeBtn = document.createElement("button");
           removeBtn.type = "button";
           removeBtn.className = "absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-all flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100";
@@ -573,11 +552,11 @@
             renderPreviews();
             updateUI();
           };
-         
+        
           const label = document.createElement("div");
           label.className = "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1 text-white text-xs font-medium text-center truncate";
           label.textContent = fileData.file.name; // Show file name
-         
+        
           thumbDiv.appendChild(img);
           thumbDiv.appendChild(removeBtn);
           thumbDiv.appendChild(label);
@@ -667,25 +646,25 @@
                 const ctx = canvas.getContext("2d");
                 ctx.imageSmoothingEnabled = true; // Better quality
                 ctx.imageSmoothingQuality = "high";
-               
+              
                 // Fill white background
                 ctx.fillStyle = "#ffffff";
                 ctx.fillRect(0, 0, 800, 600);
-               
+              
                 // Calculate scaling to cover 800x600 (crop if needed, fill whole area)
                 const scale = Math.max(800 / img.width, 600 / img.height);
                 const scaledWidth = img.width * scale;
                 const scaledHeight = img.height * scale;
                 const x = (800 - scaledWidth) / 2;
                 const y = (600 - scaledHeight) / 2;
-               
+              
                 ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-               
+              
                 // Convert to blob and download immediately
                 const blob = await new Promise((resolve) => {
                   canvas.toBlob(resolve, "image/jpeg", 0.95); // Higher quality
                 });
-               
+              
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement("a");
                 link.href = url;
@@ -694,12 +673,12 @@
                 link.click();
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
-               
+              
                 processedCount++;
                 const percent = Math.round((processedCount / selectedFiles.length) * 100);
                 progressFill.style.width = percent + "%";
                 progressText.textContent = percent + "%";
-               
+              
                 // Small delay between downloads to prevent browser blocking
                 await new Promise((resolve) => setTimeout(resolve, 300));
               } catch (err) {
