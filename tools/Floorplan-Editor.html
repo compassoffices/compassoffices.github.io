@@ -190,6 +190,8 @@
                 <button class="btn btn-secondary" id="rectangleBtn">📐 Rectangle Tool</button>
                 <button class="btn btn-secondary" id="dragBtn">✋ Move Image</button>
                 <button class="btn btn-secondary" id="selectionBtn">🔲 Selection Tool</button>
+                <button class="btn btn-secondary" onclick="undo()">↶ Undo</button>
+                <button class="btn btn-secondary" onclick="redo()">↷ Redo</button>
                 <button class="btn btn-danger" onclick="clearRectangles()">🗑️ Clear All</button>
                 <button class="btn btn-success" onclick="downloadImage()">💾 Download JPG</button>
             </div>
@@ -212,7 +214,6 @@
         const status = document.getElementById('status');
         const pdfPageSelect = document.getElementById('pdfPage');
         const pageSelector = document.getElementById('pageSelector');
-
         let dragMode = false;
         let uploadedImage = null;
         let rectangles = [];
@@ -229,10 +230,10 @@
         let pdfDoc = null;
         let currentPage = 1;
         let selectionRect = null;
-
+        let undoStack = [];
+        let redoStack = [];
         // Initialize canvas size
         updateCanvasSize();
-
         // Event listeners
         fileInput.addEventListener('change', handleFileUpload);
         canvasSize.addEventListener('change', updateCanvasSize);
@@ -246,21 +247,65 @@
         canvas.addEventListener('mousemove', draw);
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
-
+        function getState() {
+            return {
+                rectangles: rectangles.map(r => ({x: r.x, y: r.y, width: r.width, height: r.height})),
+                selectionRect: selectionRect ? {x: selectionRect.x, y: selectionRect.y, width: selectionRect.width, height: selectionRect.height} : null,
+                imageOffsetX: imageOffsetX,
+                imageOffsetY: imageOffsetY,
+                scale: parseFloat(scaleSlider.value),
+                rotation: parseInt(rotationSlider.value)
+            };
+        }
+        function saveState() {
+            undoStack.push(getState());
+            if (undoStack.length > 50) undoStack.shift();
+            redoStack.length = 0;
+        }
+        function restoreState(state) {
+            rectangles = state.rectangles;
+            selectionRect = state.selectionRect;
+            imageOffsetX = state.imageOffsetX;
+            imageOffsetY = state.imageOffsetY;
+            scaleSlider.value = state.scale;
+            document.getElementById('scaleValue').textContent = Math.round(state.scale * 100) + '%';
+            rotationSlider.value = state.rotation;
+            document.getElementById('rotationValue').textContent = (state.rotation * 90) + '°';
+            redrawCanvas();
+        }
+        function undo() {
+            if (undoStack.length === 0) {
+                status.textContent = 'Nothing to undo';
+                return;
+            }
+            redoStack.push(getState());
+            const prev = undoStack.pop();
+            restoreState(prev);
+            status.textContent = 'Undone';
+        }
+        function redo() {
+            if (redoStack.length === 0) {
+                status.textContent = 'Nothing to redo';
+                return;
+            }
+            undoStack.push(getState());
+            const next = redoStack.pop();
+            restoreState(next);
+            status.textContent = 'Redone';
+        }
         function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-
+            undoStack = [];
+            redoStack = [];
             const fileType = file.type;
             const reader = new FileReader();
-
             // Reset state
             uploadedImage = null;
             rectangles = [];
             selectionRect = null;
             imageOffsetX = 0;
             imageOffsetY = 0;
-
             if (fileType === 'application/pdf') {
                 reader.onload = function(event) {
                     const typedArray = new Uint8Array(event.target.result);
@@ -292,6 +337,7 @@
                         pageSelector.style.display = 'none';
                         redrawCanvas();
                         status.textContent = `Image loaded: ${img.width}×${img.height}`;
+                        saveState();
                     };
                     img.src = event.target.result;
                 };
@@ -300,7 +346,6 @@
                 status.textContent = 'Unsupported file type. Please upload an image or PDF.';
             }
         }
-
         function loadPdfPage(pageNum) {
             if (!pdfDoc) return;
             pdfDoc.getPage(pageNum).then(function(page) {
@@ -309,17 +354,16 @@
                 const tempCtx = tempCanvas.getContext('2d');
                 tempCanvas.width = viewport.width;
                 tempCanvas.height = viewport.height;
-
                 const renderContext = {
                     canvasContext: tempCtx,
                     viewport: viewport
                 };
-
                 page.render(renderContext).promise.then(function() {
                     uploadedImage = new Image();
                     uploadedImage.onload = function() {
                         redrawCanvas();
                         status.textContent = `PDF page ${pageNum} loaded at high resolution: ${uploadedImage.width}×${uploadedImage.height}`;
+                        saveState();
                     };
                     uploadedImage.src = tempCanvas.toDataURL('image/png', 1.0);
                 }).catch(function(error) {
@@ -327,35 +371,35 @@
                 });
             });
         }
-
         function updatePdfPage() {
             currentPage = parseInt(pdfPageSelect.value);
             rectangles = [];
             selectionRect = null;
             imageOffsetX = 0;
             imageOffsetY = 0;
+            undoStack = [];
+            redoStack = [];
             loadPdfPage(currentPage);
         }
-
         function updateCanvasSize() {
+            saveState();
             const size = canvasSize.value.split('x');
             canvas.width = parseInt(size[0]);
             canvas.height = parseInt(size[1]);
             redrawCanvas();
         }
-
         function updateRotation() {
+            saveState();
             const rotation = rotationSlider.value * 90;
             document.getElementById('rotationValue').textContent = rotation + '°';
             redrawCanvas();
         }
-
         function updateScale() {
+            saveState();
             const scale = parseFloat(scaleSlider.value);
             document.getElementById('scaleValue').textContent = Math.round(scale * 100) + '%';
             redrawCanvas();
         }
-
         function toggleRectangleMode() {
             rectangleMode = !rectangleMode;
             if (rectangleMode) {
@@ -370,7 +414,6 @@
             rectangleBtn.className = rectangleMode ? 'btn btn-success' : 'btn btn-secondary';
             canvas.style.cursor = rectangleMode ? 'crosshair' : (dragMode ? 'move' : (selectionMode ? 'crosshair' : 'default'));
         }
-
         function toggleDragMode() {
             dragMode = !dragMode;
             if (dragMode) {
@@ -385,7 +428,6 @@
             dragBtn.className = dragMode ? 'btn btn-success' : 'btn btn-secondary';
             canvas.style.cursor = dragMode ? 'move' : (rectangleMode || selectionMode ? 'crosshair' : 'default');
         }
-
         function toggleSelectionMode() {
             selectionMode = !selectionMode;
             if (selectionMode) {
@@ -400,33 +442,27 @@
             selectionBtn.className = selectionMode ? 'btn btn-success' : 'btn btn-secondary';
             canvas.style.cursor = selectionMode ? 'crosshair' : (rectangleMode ? 'crosshair' : (dragMode ? 'move' : 'default'));
         }
-
         function startDrawing(e) {
             if (!uploadedImage) return;
-
+            if (rectangleMode || selectionMode || dragMode) {
+                saveState();
+            }
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
-
             if (rectangleMode || selectionMode) {
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-
                 const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
                 const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
-
                 const cosR = Math.cos(-rotation);
                 const sinR = Math.sin(-rotation);
                 const invScale = 1 / scale;
-
                 startX = (relativeX * cosR - relativeY * sinR) * invScale;
                 startY = (relativeX * sinR + relativeY * cosR) * invScale;
-
                 isDrawing = true;
-
                 currentRect = {
                     x: startX,
                     y: startY,
@@ -439,41 +475,30 @@
                 dragStartY = mouseY - imageOffsetY;
             }
         }
-
         function draw(e) {
             if (!uploadedImage) return;
-
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
-
             if (isDrawing && (rectangleMode || selectionMode)) {
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
                 const scale = parseFloat(scaleSlider.value);
-
                 const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
                 const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
-
                 const cosR = Math.cos(-rotation);
                 const sinR = Math.sin(-rotation);
                 const invScale = 1 / scale;
-
                 const currentX = (relativeX * cosR - relativeY * sinR) * invScale;
                 const currentY = (relativeX * sinR + relativeY * cosR) * invScale;
-
                 currentRect.width = currentX - startX;
                 currentRect.height = currentY - startY;
-
                 redrawCanvas();
-
                 ctx.save();
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
-
                 ctx.fillStyle = selectionMode ? 'rgba(0, 0, 255, 0.3)' : 'rgb(255, 255, 255)';
                 ctx.fillRect(currentRect.x, currentRect.y, currentRect.width, currentRect.height);
                 ctx.restore();
@@ -483,7 +508,6 @@
                 redrawCanvas();
             }
         }
-
         function stopDrawing() {
             if (isDrawing && rectangleMode) {
                 isDrawing = false;
@@ -515,19 +539,16 @@
                 isDragging = false;
             }
         }
-
         function drawGrid() {
             const gridSize = 50;
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.lineWidth = 1;
-
             for (let x = 0; x <= canvas.width; x += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x, canvas.height);
                 ctx.stroke();
             }
-
             for (let y = 0; y <= canvas.height; y += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(0, y);
@@ -535,16 +556,12 @@
                 ctx.stroke();
             }
         }
-
         function redrawCanvas() {
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
-
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
             if (uploadedImage) {
                 ctx.save();
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
@@ -557,7 +574,6 @@
                 ctx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
                 ctx.restore();
             }
-
             if (selectionRect) {
                 // Fill outside the selection rectangle with white
                 ctx.save();
@@ -574,7 +590,6 @@
                 ctx.fill('evenodd');
                 ctx.restore();
             }
-
             rectangles.forEach(rect => {
                 ctx.save();
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
@@ -586,35 +601,28 @@
                 ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
                 ctx.restore();
             });
-
             drawGrid();
         }
-
         function clearRectangles() {
+            saveState();
             rectangles = [];
             selectionRect = null;
             redrawCanvas();
             status.textContent = 'All rectangles and selection cleared';
         }
-
         function downloadImage() {
             if (!uploadedImage) {
                 alert('Please upload an image or PDF first!');
                 return;
             }
-
             const downloadCanvas = document.createElement('canvas');
             const downloadCtx = downloadCanvas.getContext('2d');
-
             downloadCtx.imageSmoothingEnabled = true;
             downloadCtx.imageSmoothingQuality = 'high';
-
             downloadCanvas.width = canvas.width;
             downloadCanvas.height = canvas.height;
-
             downloadCtx.fillStyle = 'white';
             downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
-
             if (uploadedImage) {
                 downloadCtx.save();
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
@@ -627,7 +635,6 @@
                 downloadCtx.drawImage(uploadedImage, -imgWidth / 2, -imgHeight / 2);
                 downloadCtx.restore();
             }
-
             if (selectionRect) {
                 // Fill outside the selection rectangle with white
                 downloadCtx.save();
@@ -644,7 +651,6 @@
                 downloadCtx.fill('evenodd');
                 downloadCtx.restore();
             }
-
             rectangles.forEach(rect => {
                 downloadCtx.save();
                 const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
@@ -656,7 +662,6 @@
                 downloadCtx.fillRect(rect.x, rect.y, rect.width, rect.height);
                 downloadCtx.restore();
             });
-
             downloadCanvas.toBlob(function(blob) {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -666,7 +671,6 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-
                 status.textContent = 'Image downloaded successfully!';
             }, 'image/jpeg', 1.0);
         }
