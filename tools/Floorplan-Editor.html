@@ -92,12 +92,13 @@
             display: none;
         }
         .canvas-container {
-            padding: 20px;
+            padding: 5px;
             display: flex;
             justify-content: center;
             background: #f1f5f9;
             min-height: 500px;
             position: relative;
+            overflow: auto;
         }
         #canvas {
             border: 2px solid #cbd5e1;
@@ -107,6 +108,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             max-width: 100%;
             height: auto;
+            transform-origin: center center;
         }
         .controls {
             display: flex;
@@ -187,6 +189,11 @@
                     <input type="range" id="scaleSlider" min="0.1" max="10" step="0.1" value="0.8">
                     <span id="scaleValue">80%</span>
                 </div>
+                <div class="control-group">
+                    <label>Zoom:</label>
+                    <input type="range" id="zoomSlider" min="0.1" max="1" step="0.1" value="0.7">
+                    <span id="zoomValue">70%</span>
+                </div>
                 <button class="btn btn-secondary" id="rectangleBtn">📐 Rectangle Tool</button>
                 <button class="btn btn-secondary" id="dragBtn">✋ Move Image</button>
                 <button class="btn btn-secondary" id="selectionBtn">🔲 Selection Tool</button>
@@ -208,6 +215,7 @@
         const canvasSize = document.getElementById('canvasSize');
         const rotationSlider = document.getElementById('rotationSlider');
         const scaleSlider = document.getElementById('scaleSlider');
+        const zoomSlider = document.getElementById('zoomSlider');
         const rectangleBtn = document.getElementById('rectangleBtn');
         const dragBtn = document.getElementById('dragBtn');
         const selectionBtn = document.getElementById('selectionBtn');
@@ -227,6 +235,8 @@
         let imageOffsetY = 0;
         let dragStartX = 0;
         let dragStartY = 0;
+        let dragStartOffsetX = 0;
+        let dragStartOffsetY = 0;
         let pdfDoc = null;
         let currentPage = 1;
         let selectionRect = null;
@@ -239,6 +249,7 @@
         canvasSize.addEventListener('change', updateCanvasSize);
         rotationSlider.addEventListener('input', updateRotation);
         scaleSlider.addEventListener('input', updateScale);
+        zoomSlider.addEventListener('input', updateZoom);
         rectangleBtn.addEventListener('click', toggleRectangleMode);
         dragBtn.addEventListener('click', toggleDragMode);
         selectionBtn.addEventListener('click', toggleSelectionMode);
@@ -407,6 +418,11 @@
             document.getElementById('scaleValue').textContent = Math.round(scale * 100) + '%';
             redrawCanvas();
         }
+        function updateZoom() {
+            const zoom = parseFloat(zoomSlider.value);
+            document.getElementById('zoomValue').textContent = Math.round(zoom * 100) + '%';
+            canvas.style.transform = `scale(${zoom})`;
+        }
         function toggleRectangleMode() {
             rectangleMode = !rectangleMode;
             if (rectangleMode) {
@@ -460,13 +476,12 @@
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
             if (rectangleMode || selectionMode) {
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
                 const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
-                const cosR = Math.cos(-rotation);
-                const sinR = Math.sin(-rotation);
-                const invScale = 1 / scale;
+                const rotationRad = (rotationSlider.value * 90 * Math.PI) / 180;
+                const cosR = Math.cos(-rotationRad);
+                const sinR = Math.sin(-rotationRad);
+                const invScale = 1 / parseFloat(scaleSlider.value);
                 startX = (relativeX * cosR - relativeY * sinR) * invScale;
                 startY = (relativeX * sinR + relativeY * cosR) * invScale;
                 isDrawing = true;
@@ -478,8 +493,10 @@
                 };
             } else if (dragMode) {
                 isDragging = true;
-                dragStartX = mouseX - imageOffsetX;
-                dragStartY = mouseY - imageOffsetY;
+                dragStartX = mouseX;
+                dragStartY = mouseY;
+                dragStartOffsetX = imageOffsetX;
+                dragStartOffsetY = imageOffsetY;
             }
         }
         function draw(e) {
@@ -490,13 +507,12 @@
             const mouseX = (e.clientX - rect.left) * scaleX;
             const mouseY = (e.clientY - rect.top) * scaleY;
             if (isDrawing && (rectangleMode || selectionMode)) {
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 const relativeX = mouseX - (canvas.width / 2 + imageOffsetX);
                 const relativeY = mouseY - (canvas.height / 2 + imageOffsetY);
-                const cosR = Math.cos(-rotation);
-                const sinR = Math.sin(-rotation);
-                const invScale = 1 / scale;
+                const rotationRad = (rotationSlider.value * 90 * Math.PI) / 180;
+                const cosR = Math.cos(-rotationRad);
+                const sinR = Math.sin(-rotationRad);
+                const invScale = 1 / parseFloat(scaleSlider.value);
                 const currentX = (relativeX * cosR - relativeY * sinR) * invScale;
                 const currentY = (relativeX * sinR + relativeY * cosR) * invScale;
                 currentRect.width = currentX - startX;
@@ -504,14 +520,16 @@
                 redrawCanvas();
                 ctx.save();
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
-                ctx.rotate(rotation);
-                ctx.scale(scale, scale);
+                ctx.rotate(rotationRad);
+                ctx.scale(parseFloat(scaleSlider.value), parseFloat(scaleSlider.value));
                 ctx.fillStyle = selectionMode ? 'rgba(0, 0, 255, 0.3)' : 'rgb(255, 255, 255)';
                 ctx.fillRect(currentRect.x, currentRect.y, currentRect.width, currentRect.height);
                 ctx.restore();
             } else if (isDragging && dragMode) {
-                imageOffsetX = mouseX - dragStartX;
-                imageOffsetY = mouseY - dragStartY;
+                const deltaX = mouseX - dragStartX;
+                const deltaY = mouseY - dragStartY;
+                imageOffsetX = dragStartOffsetX + deltaX;
+                imageOffsetY = dragStartOffsetY + deltaY;
                 redrawCanvas();
             }
         }
@@ -569,10 +587,10 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const scale = parseFloat(scaleSlider.value);
+            const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
             if (uploadedImage) {
                 ctx.save();
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
@@ -584,8 +602,6 @@
             if (selectionRect) {
                 // Fill outside the selection rectangle with white
                 ctx.save();
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
@@ -599,8 +615,6 @@
             }
             rectangles.forEach(rect => {
                 ctx.save();
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 ctx.translate(canvas.width / 2 + imageOffsetX, canvas.height / 2 + imageOffsetY);
                 ctx.rotate(rotation);
                 ctx.scale(scale, scale);
@@ -630,10 +644,10 @@
             downloadCanvas.height = canvas.height;
             downloadCtx.fillStyle = 'white';
             downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+            const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
+            const scale = parseFloat(scaleSlider.value);
             if (uploadedImage) {
                 downloadCtx.save();
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
@@ -645,8 +659,6 @@
             if (selectionRect) {
                 // Fill outside the selection rectangle with white
                 downloadCtx.save();
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
@@ -660,8 +672,6 @@
             }
             rectangles.forEach(rect => {
                 downloadCtx.save();
-                const rotation = (rotationSlider.value * 90 * Math.PI) / 180;
-                const scale = parseFloat(scaleSlider.value);
                 downloadCtx.translate(downloadCanvas.width / 2 + imageOffsetX, downloadCanvas.height / 2 + imageOffsetY);
                 downloadCtx.rotate(rotation);
                 downloadCtx.scale(scale, scale);
