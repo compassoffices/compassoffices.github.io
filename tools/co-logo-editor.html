@@ -273,6 +273,9 @@
           <option value="1600x900">1600 × 900 (16:9)</option>
           <option value="2560x1440">2560 × 1440 (16:9)</option>
         </select>
+        <select id="layoutSelect" onchange="loadSelectedLayout()">
+          <option value="">Select Layout Version</option>
+        </select>
         <button onclick="togglePreview()">Create</button>
         <a href="https://compassoffices.github.io/tools/upload-logo.html" target="_blank">Submit Logo</a>
         <button onclick="saveLayout()">Save Layout</button>
@@ -295,7 +298,7 @@
       const hiddenLogos = new Set();
       const WEBHOOK_URL = "https://hook.eu2.make.com/5461eb62al82s9g1wsffmqprpca5qi4l";
       const LAYOUT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTspDQzvXaum4mk_VTrMziw0nb7Pa6aVTB20q5IeZRljrwycLOexA8uyeYArKSv5pmVOu-HslsCcBHl/pub?gid=2039428312&single=true&output=csv";
-      
+     
       function toggleSidebar(){
         const s = document.getElementById("sidebar");
         const m = document.getElementById("mainContent");
@@ -304,14 +307,14 @@
         m.style.marginLeft = s.classList.contains("collapsed") ? "0" : "";
         c.checked = s.classList.contains("collapsed");
       }
-      
+     
       function preloadImages(urls){
         return Promise.all(urls.map(u => new Promise(r => {
           const i = new Image(); i.crossOrigin = "Anonymous"; i.src = u;
           i.onload = () => r(i); i.onerror = () => { console.warn("Img fail:", u); r(null); }
         })));
       }
-      
+     
       async function togglePreview(){
         const sec = document.getElementById("clientsSection"), load = document.getElementById("loading");
         sec.classList.toggle("preview");
@@ -328,9 +331,22 @@
               width: sec.offsetWidth,
               height: sec.offsetHeight
             });
+            const outputSize = {width: 1920, height: 1080};
+            const outputCanvas = document.createElement('canvas');
+            outputCanvas.width = outputSize.width;
+            outputCanvas.height = outputSize.height;
+            const ctx = outputCanvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, outputSize.width, outputSize.height);
+            const scale = Math.min(outputSize.width / canvas.width, outputSize.height / canvas.height);
+            const drawW = canvas.width * scale;
+            const drawH = canvas.height * scale;
+            const dx = (outputSize.width - drawW) / 2;
+            const dy = (outputSize.height - drawH) / 2;
+            ctx.drawImage(canvas, dx, dy, drawW, drawH);
             const a = document.createElement("a");
-            a.href = canvas.toDataURL("image/png");
-            a.download = `client-logo-layout-${sec.offsetWidth}x${sec.offsetHeight}.png`;
+            a.href = outputCanvas.toDataURL("image/jpeg", 0.95);
+            a.download = `client-logo-layout.jpg`;
             a.click();
           }catch(e){ console.error(e); alert("Export failed."); }
           load.style.display = "none";
@@ -338,39 +354,39 @@
         document.querySelector('.controls button[onclick="togglePreview()"]').textContent = sec.classList.contains("preview") ? "Release" : "Create";
         document.querySelectorAll(".client-toggle").forEach(c => c.disabled = sec.classList.contains("preview"));
       }
-      
+     
       function toggleSectorTitles(){
         document.querySelectorAll(".industry-title").forEach(t => t.style.display = document.getElementById("toggleSectorTitles").checked ? "block" : "none");
       }
-      
+     
       function toggleDividers(){
         const hide = !document.getElementById("toggleDividers").checked;
         document.querySelectorAll(".industry-group").forEach(g => g.classList.toggle("hide-divider", hide));
       }
-      
+     
       function toggleLogo(idx){
         const logo = document.getElementById(`logo-${idx}`), cb = logo.querySelector(".client-toggle"), show = document.getElementById("toggleHidden").checked;
         if(cb.checked){ hiddenLogos.delete(idx); logo.style.display = "flex"; }
         else{ hiddenLogos.add(idx); logo.style.display = show ? "flex" : "none"; }
       }
-      
+     
       function toggleHiddenLogos(){
         const show = document.getElementById("toggleHidden").checked;
         hiddenLogos.forEach(i => { const l = document.getElementById(`logo-${i}`); if(l) l.style.display = show ? "flex" : "none"; });
       }
-      
+     
       document.getElementById("industrySelect").addEventListener("change", e => {
         const v = e.target.value;
         ["finance","tech","retail","logistics"].forEach(id => document.getElementById(`group-${id}`).style.display = (v === "all" || v === id) ? "block" : "none");
       });
-      
+     
       function makeDraggable(id){
         const c = document.getElementById(id); let dragged;
         c.addEventListener("dragstart", e => { if(e.target.classList.contains("client-logo")){ dragged = e.target; e.target.classList.add("dragging"); }});
         c.addEventListener("dragover", e => { e.preventDefault(); const t = e.target.closest(".client-logo"); if(t && t !== dragged){ const r = t.getBoundingClientRect(), next = (e.clientX - r.left) / r.width > 0.5; c.insertBefore(dragged, next ? t.nextSibling : t); }});
         c.addEventListener("dragend", e => e.target.classList.remove("dragging"));
       }
-      
+     
       function generateLayoutCode(){
         const layout = []; const secs = ["finance","tech","retail","logistics"];
         secs.forEach(s => {
@@ -384,12 +400,12 @@
         const code = `size:${w}x${h}|` + layout.join(",");
         return code;
       }
-      
+     
       async function saveLayout(){
         const loading = document.getElementById("loading");
         loading.textContent = "Saving layout...";
         loading.style.display = "block";
-        
+       
         try {
           const layoutCode = generateLayoutCode();
           const response = await fetch(WEBHOOK_URL, {
@@ -404,7 +420,7 @@
               canvas_height: document.getElementById("clientsSection").offsetHeight
             })
           });
-          
+         
           if (response.ok) {
             alert("Layout saved successfully!");
           } else {
@@ -414,39 +430,59 @@
           console.error('Save error:', error);
           alert("Failed to save layout. Please try again.");
         }
-        
+       
         loading.style.display = "none";
       }
-      
+     
+      function loadSelectedLayout() {
+        const select = document.getElementById('layoutSelect');
+        const code = select.value;
+        if (code) {
+          applyLayoutCode(code);
+        }
+      }
+     
       async function loadLayoutFromSheet(){
         const loading = document.getElementById("loading");
-        loading.textContent = "Loading layout...";
+        loading.textContent = "Loading layouts...";
         loading.style.display = "block";
-        
+       
         try {
           const response = await fetch(LAYOUT_SHEET_URL);
           const csvText = await response.text();
-          
-          // Parse CSV - get first column first row (A1)
-          const rows = csvText.split('\n').map(row => row.split(',')[0].trim().replace(/^"|"$/g, ''));
-          const layoutCode = rows[0];
-          
-          if (layoutCode && layoutCode.startsWith('size:')) {
-            // Wait a bit for logos to load if not already loaded
-            if (!window._logosLoaded) {
-              setTimeout(() => applyLayoutCode(layoutCode), 2000);
-            } else {
-              applyLayoutCode(layoutCode);
+          const rows = csvText.split('\n').map(r => r.trim()).filter(r => r);
+          const layouts = [];
+          for (let row of rows) {
+            const match = row.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)(.*)$/);
+            if (match) {
+              const dateStr = match[1];
+              const layoutStr = match[2].trim();
+              if (layoutStr.startsWith('size:')) {
+                layouts.push({date: new Date(dateStr), code: layoutStr});
+              }
             }
-            console.log("Layout loaded from sheet");
           }
+          layouts.sort((a, b) => b.date - a.date);
+          const select = document.getElementById('layoutSelect');
+          select.innerHTML = '<option value="">Select Layout Version</option>';
+          layouts.forEach(l => {
+            const opt = document.createElement('option');
+            opt.value = l.code;
+            opt.textContent = l.date.toLocaleString();
+            select.appendChild(opt);
+          });
+          if (layouts.length > 0) {
+            select.value = layouts[0].code;
+            applyLayoutCode(layouts[0].code);
+          }
+          console.log("Layouts loaded from sheet");
         } catch (error) {
           console.error('Load layout error:', error);
         }
-        
+       
         loading.style.display = "none";
       }
-      
+     
       function applyLayoutCode(code){
         const [meta, data] = code.split("|");
         if(!meta.startsWith("size:")) return;
@@ -469,20 +505,20 @@
           if(cont){ cont.innerHTML = ""; logos.forEach(l => cont.appendChild(l)); }
         });
       }
-      
+     
       function setCanvasSize(){
         const [w, h] = document.getElementById("canvasSizeSelect").value.split("x").map(Number);
         const cs = document.getElementById("clientsSection");
         cs.style.width = w + "px";
         cs.style.height = h + "px";
       }
-      
+     
       function autoAdjustMargin(img){
         if(img.naturalWidth === 1080 && img.naturalHeight === 1080){
           img.parentElement.classList.add("square-logo");
         }
       }
-      
+     
       /* -------------------------------------------------
          CSV: Skip header, read 4 columns
          ------------------------------------------------- */
@@ -535,16 +571,16 @@
           document.getElementById("logisticsList").innerHTML = industries.logistics.join("");
           ["financeList","techList","retailList","logisticsList"].forEach(makeDraggable);
           window._logosLoaded = true;
-          
+         
           // Load layout from sheet after logos are loaded
-          setTimeout(loadLayoutFromSheet, 500);
+          loadLayoutFromSheet();
         } catch(e){
           console.error(e);
           alert("Failed to load data – check Google Sheet URL or internet.");
         }
         loading.style.display = "none";
       }
-      
+     
       fetchClientData();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
