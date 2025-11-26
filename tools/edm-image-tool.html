@@ -138,6 +138,7 @@
       gap: 1rem;
       margin-bottom: 1rem;
       justify-content: center;
+      flex-wrap: wrap;
     }
     .btns button {
       padding: 0.75rem 1.5rem;
@@ -158,6 +159,15 @@
     }
     .btns button:active {
       transform: translateY(0);
+    }
+    .toggle {
+      text-align: center;
+      margin: 1rem 0;
+    }
+    .toggle label {
+      font-size: 0.9rem;
+      color: #374151;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -183,11 +193,18 @@
       <input type="range" id="scale3" min="0.05" max="5" step="0.05" value="1">
     </label>
   </div>
-  <canvas id="canvas400" width="1600" height="1200"></canvas>
   <canvas id="canvas680" width="2720" height="1200"></canvas>
+  <div id="smallWrapper" style="display: none;">
+    <canvas id="canvas400" width="1600" height="1200"></canvas>
+  </div>
   <div class="btns">
-    <button onclick="downloadImage(canvas400, '400x300')">Download 400x300</button>
     <button onclick="downloadImage(canvas680, '680x300')">Download 680x300</button>
+    <button id="download400Btn" onclick="downloadImage(canvas400, '400x300')" style="display: none;">Download 400x300</button>
+  </div>
+  <div class="toggle">
+    <label>
+      <input type="checkbox" id="showSmall"> Show 400x300 preview
+    </label>
   </div>
 </div>
 <script>
@@ -203,7 +220,6 @@
   let dragging = null;
   let isCanvasDragging = false;
   let dragStart = { x: 0, y: 0 };
-
   // Layouts in high resolution (×4)
   const layout400 = [
     { x: 20, y: 20, w: 1560, h: 580 },
@@ -215,7 +231,6 @@
     { x: 1560, y: 20, w: 1120, h: 560 },
     { x: 1560, y: 620, w: 1120, h: 560 },
   ];
-
   // Multiple upload input
   const multiInput = document.createElement('input');
   multiInput.type = 'file';
@@ -223,14 +238,12 @@
   multiInput.style.display = 'none';
   multiInput.multiple = true;
   document.body.appendChild(multiInput);
-
   const multiBtn = document.getElementById('multiBtn');
   multiBtn.addEventListener('click', () => {
     delete multiInput.dataset.targetI;
     multiInput.multiple = true;
     multiInput.click();
   });
-
   multiInput.addEventListener('change', (e) => {
     if (multiInput.multiple === false) {
       const i = parseInt(multiInput.dataset.targetI);
@@ -246,7 +259,6 @@
     }
     e.target.value = '';
   });
-
   function loadImage(i, file) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -261,7 +273,6 @@
     };
     reader.readAsDataURL(file);
   }
-
   function updatePreview(i) {
     const zone = dropZones[i];
     zone.innerHTML = '';
@@ -286,7 +297,6 @@
       e.dataTransfer.setData('text/plain', i.toString());
     });
   }
-
   dropZones.forEach((zone, i) => {
     zone.dataset.index = i.toString();
     zone.addEventListener('click', () => {
@@ -333,14 +343,12 @@
       loadImage(i, file);
     });
   });
-
   scaleInputs.forEach((input, i) => {
     input.addEventListener('input', () => {
       scales[i] = parseFloat(input.value);
       renderAll(true);
     });
   });
-
   function drawImageClipped(ctx, img, box, offset, scale) {
     if (!img) return;
     const iw = img.width * scale;
@@ -356,7 +364,6 @@
     ctx.drawImage(img, dx, dy, iw, ih);
     ctx.restore();
   }
-
   function drawBorders(ctx, layout) {
     ctx.strokeStyle = 'rgba(255, 102, 0, 0.5)';
     ctx.lineWidth = 2;
@@ -364,19 +371,16 @@
       ctx.strokeRect(box.x, box.y, box.w, box.h);
     });
   }
-
   function renderAll(showBorders = true) {
     ctx400.fillStyle = "#fff";
     ctx400.fillRect(0, 0, canvas400.width, canvas400.height);
     layout400.forEach((box, i) => drawImageClipped(ctx400, images[i], box, offsets[i], scales[i]));
     if (showBorders) drawBorders(ctx400, layout400);
-
     ctx680.fillStyle = "#fff";
     ctx680.fillRect(0, 0, canvas680.width, canvas680.height);
     layout680.forEach((box, i) => drawImageClipped(ctx680, images[i], box, offsets[i], scales[i]));
     if (showBorders) drawBorders(ctx680, layout680);
   }
-
   // Dragging support for both canvases
   [canvas400, canvas680].forEach((canvas, canvasIndex) => {
     const layout = canvasIndex === 0 ? layout400 : layout680;
@@ -422,7 +426,6 @@
       renderAll(true);
     });
   });
-
   function downloadImage(canvas, label) {
     renderAll(false);
     const now = new Date().toISOString().replace(/[:.]/g, '-');
@@ -432,6 +435,19 @@
     link.click();
     renderAll(true);
   }
+  // Toggle for 400x300
+  const showSmall = document.getElementById('showSmall');
+  const smallWrapper = document.getElementById('smallWrapper');
+  const download400Btn = document.getElementById('download400Btn');
+  showSmall.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      smallWrapper.style.display = 'block';
+      download400Btn.style.display = 'inline-block';
+    } else {
+      smallWrapper.style.display = 'none';
+      download400Btn.style.display = 'none';
+    }
+  });
 </script>
 </body>
 </html>
