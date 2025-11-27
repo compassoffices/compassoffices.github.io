@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compass Offices Client Logo Layout Editor</title>
+    <link rel="icon" type="image/x-icon" href="https://compassoffices.github.io/img/logo/new-p1-32.png">
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --font-primary: "SF Pro Display", sans-serif;
+        --bg-color: #f5f5f7;
+        --container-bg: #ffffff;
+        --border-radius: 20px;
+        --text-main: #1d1d1f;
+        --sidebar-bg: #ffffff;
+        --sidebar-width: 280px;
+        --sidebar-collapsed-width: 50px;
+        --button-orange: #ff6600;
+        --button-orange-hover: #cc5200;
+        --button-black: #000000;
+        --button-black-hover: #333333;
+        --logo-box-size: 120px;
+        --square-margin: 10px;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin:0; padding:0; font-family:var(--font-primary); background:var(--bg-color); color:var(--text-main); height:100vh; overflow:hidden; }
+      body { display:flex; flex-direction:row; }
+      .sidebar-footer { margin-top:auto; padding-top:20px; border-top:1px solid #eee; text-align:center; font-size:12px; color:#888; }
+      .sidebar-footer img { width:100px; margin:0 auto 10px; display:block; }
+      .sidebar {
+        width: var(--sidebar-width);
+        background: var(--sidebar-bg);
+        padding: 20px;
+        box-shadow: 2px 6px 20px rgba(0,0,0,.1);
+        border-radius: var(--border-radius);
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        transition: all .3s ease;
+        overflow-y: auto;
+        height: 100vh;
+        position: relative;
+      }
+      .sidebar.collapsed {
+        width: var(--sidebar-collapsed-width);
+        padding: 15px 10px;
+      }
+      .sidebar.collapsed .controls,
+      .sidebar.collapsed .sidebar-footer {
+        display: none !important;
+      }
+      .toggle-sidebar-btn {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 40px;
+        height: 30px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .toggle-sidebar-btn input {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        z-index: 2;
+        cursor: pointer;
+        margin: 0;
+        padding: 0;
+      }
+      .toggle-sidebar-btn span {
+        position: relative;
+        display: block;
+        width: 30px;
+        height: 4px;
+        background: #ff6600;
+        border-radius: 2px;
+        transition: background .3s;
+      }
+      .toggle-sidebar-btn span::before,
+      .toggle-sidebar-btn span::after {
+        content: '';
+        position: absolute;
+        width: 30px;
+        height: 4px;
+        background: #ff6600;
+        border-radius: 2px;
+        transition: transform .3s;
+      }
+      .toggle-sidebar-btn span::before { top: -10px; }
+      .toggle-sidebar-btn span::after { top: 10px; }
+      .toggle-sidebar-btn input:checked + span { background: transparent; }
+      .toggle-sidebar-btn input:checked + span::before { transform: rotate(45deg) translate(5px,5px); }
+      .toggle-sidebar-btn input:checked + span::after { transform: rotate(-45deg) translate(5px,-5px); }
+      .main-content {
+        flex-grow: 1;
+        padding: 20px;
+        overflow-y: auto;
+        height: 100vh;
+        transition: margin-left .3s;
+      }
+      .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .controls select,
+      .controls input[type=text],
+      .controls button,
+      .controls a {
+        font-size: 14px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #ccc;
+        width: 100%;
+      }
+      .controls button,
+      .controls a {
+        background: var(--button-orange);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        text-align: center;
+        text-decoration: none;
+      }
+      .controls button:hover,
+      .controls a:hover {
+        background: var(--button-orange-hover);
+      }
+      .controls .button-black {
+        background: var(--button-black);
+      }
+      .controls .button-black:hover {
+        background: var(--button-black-hover);
+      }
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #clientsSection {
+        width: 1920px;
+        height: 1080px;
+        min-height: 400px;
+        background: var(--container-bg);
+        border-radius: var(--border-radius);
+        box-shadow: 0 6px 20px rgba(0,0,0,.1);
+        padding: 30px;
+        resize: both; /* FREE RESIZE */
+        overflow: auto;
+        position: relative;
+        margin: 0 auto;
+        background: #fff;
+        /* Ensure logos don't stretch */
+        align-content: flex-start; 
+      }
+      .industry-group { margin-bottom: 30px; }
+      .industry-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+      .divider { height: 2px; background: var(--button-orange); margin-bottom: 10px; }
+      .hide-divider .divider { display: none; }
+      .client-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+      }
+      .client-logo {
+        position: relative;
+        width: var(--logo-box-size);
+        height: var(--logo-box-size);
+        border: 1px solid #d1d1d1;
+        border-radius: 0; /* NO ROUNDED CORNERS */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        overflow: hidden;
+        resize: horizontal;
+        padding: 0;
+      }
+      .client-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        pointer-events: none;
+        transition: all 0.2s ease;
+      }
+      .client-logo.square-logo {
+        padding: var(--square-margin);
+      }
+      .checkbox-container {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        z-index: 10;
+      }
+      .client-name {
+        position: absolute;
+        bottom: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        background: rgba(255,255,255,.9);
+        padding: 2px 5px;
+        border-radius: 5px;
+        display: none;
+        white-space: nowrap;
+        max-width: 90%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .client-logo:hover .client-name {
+        display: block;
+      }
+      /* Preview Mode Styles */
+      .preview .client-logo {
+        border: none !important;
+        resize: none !important;
+        /* padding: 0 !important; removed to keep square margin logic if active */
+      }
+      .preview .checkbox-container,
+      .preview .client-name {
+        display: none !important;
+      }
+      #loading {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%,-50%);
+        background: rgba(0,0,0,.8);
+        color: white;
+        padding: 20px 30px;
+        border-radius: 10px;
+        z-index: 1000;
+        font-weight: 500;
+      }
+      @media (max-width: 768px) {
+        body { flex-direction: column; }
+        .sidebar { width: 100%; height: auto; border-radius: 0; }
+        .toggle-sidebar-btn { position: static; margin: 0 auto 10px; }
+        .main-content { padding: 15px; }
+        .controls select,
+        .controls input,
+        .controls button,
+        .controls a { font-size: 13px; padding: 8px 10px; }
+        #clientsSection { width: 100%; height: auto; resize: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar" id="sidebar">
+      <div id="toggleSidebar" class="toggle-sidebar-btn" onclick="toggleSidebar()">
+        <input type="checkbox" id="toggleSidebarInput">
+        <span></span>
+      </div>
+      <div class="controls">
+        <select id="industrySelect">
+          <option value="all">All Groups</option>
+          <option value="finance">Finance, Banking & Insurance</option>
+          <option value="tech">Technology & Telecommunications</option>
+          <option value="retail">Retail, Hospitality & Lifestyle</option>
+          <option value="logistics">Logistics, Consulting & Professional Services</option>
+        </select>
+        <div class="checkbox-group"><input type="checkbox" id="toggleHidden" onchange="toggleHiddenLogos()"><label for="toggleHidden">Show Hidden Logos</label></div>
+        <div class="checkbox-group"><input type="checkbox" id="toggleSectorTitles" checked onchange="toggleSectorTitles()"><label for="toggleSectorTitles">Show All Sectors</label></div>
+        <div class="checkbox-group"><input type="checkbox" id="toggleDividers" checked onchange="toggleDividers()"><label for="toggleDividers">Hide Sector Dividers</label></div>
+        <select id="canvasSizeSelect" onchange="setCanvasSize()">
+          <option value="1920x1080">1920 × 1080 (16:9)</option>
+          <option value="1280x720">1280 × 720 (16:9)</option>
+          <option value="1600x900">1600 × 900 (16:9)</option>
+          <option value="2560x1440">2560 × 1440 (16:9)</option>
+        </select>
+        <select id="layoutSelect" onchange="loadSelectedLayout()">
+          <option value="">Select Layout Version</option>
+        </select>
+        <button onclick="togglePreview()">Create & Download</button>
+        <a href="https://compassoffices.github.io/tools/upload-logo.html" target="_blank">Submit Logo</a>
+        <button onclick="saveLayout()">Save Layout</button>
+      </div>
+      <div class="sidebar-footer">
+        <img src="https://compassoffices.github.io/img/logo/new-p1-02.png" alt="Compass Offices Logo">
+        <p>© 2025 Compass Offices</p>
+      </div>
+    </div>
+    <div class="main-content" id="mainContent">
+      <div id="loading">Loading...</div>
+      <div class="container" id="clientsSection">
+        <div class="industry-group" id="group-finance"><div class="industry-title">Finance, Banking & Insurance</div><div class="divider"></div><div class="client-list" id="financeList"></div></div>
+        <div class="industry-group" id="group-tech"><div class="industry-title">Technology & Telecommunications</div><div class="divider"></div><div class="client-list" id="techList"></div></div>
+        <div class="industry-group" id="group-retail"><div class="industry-title">Retail, Hospitality & Lifestyle</div><div class="divider"></div><div class="client-list" id="retailList"></div></div>
+        <div class="industry-group" id="group-logistics"><div class="industry-title">Logistics, Consulting & Professional Services</div><div class="divider"></div><div class="client-list" id="logisticsList"></div></div>
+      </div>
+    </div>
+    <script>
+      const hiddenLogos = new Set();
+      const WEBHOOK_URL = "https://hook.eu2.make.com/5461eb62al82s9g1wsffmqprpca5qi4l";
+      const LAYOUT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTspDQzvXaum4mk_VTrMziw0nb7Pa6aVTB20q5IeZRljrwycLOexA8uyeYArKSv5pmVOu-HslsCcBHl/pub?gid=2039428312&single=true&output=csv";
+      
+      function toggleSidebar(){
+        const s = document.getElementById("sidebar");
+        const m = document.getElementById("mainContent");
+        const c = document.getElementById("toggleSidebarInput");
+        s.classList.toggle("collapsed");
+        m.style.marginLeft = s.classList.contains("collapsed") ? "0" : "";
+        c.checked = s.classList.contains("collapsed");
+      }
+      
+      // Helper to parse CSV robustly (handles quotes)
+      function parseCSV(text) {
+        const rows = [];
+        let cur = "", inQuote = false;
+        for(let i = 0; i < text.length; i++){
+          const ch = text[i];
+          if(ch === '"') { inQuote = !inQuote; continue; }
+          if((ch === ',' || ch === '\r' || ch === '\n') && !inQuote){
+            if(ch === '\r' && text[i+1] === '\n') i++;
+            rows.push(cur.trim()); cur = "";
+          } else cur += ch;
+        }
+        if(cur.trim()) rows.push(cur.trim());
+        return rows;
+      }
+
+      function preloadImages(urls){
+        return Promise.all(urls.map(u => new Promise(r => {
+          const i = new Image(); 
+          i.crossOrigin = "Anonymous"; 
+          i.src = u;
+          i.onload = () => r(i); 
+          i.onerror = () => { console.warn("Img fail:", u); r(null); }
+        })));
+      }
+      
+      async function togglePreview(){
+        const sec = document.getElementById("clientsSection");
+        const load = document.getElementById("loading");
+        const btn = document.querySelector('.controls button[onclick="togglePreview()"]');
+
+        // Enter Preview Mode
+        sec.classList.add("preview");
+        load.textContent = "Generating Image...";
+        load.style.display = "block";
+        
+        try {
+          // Preload visual state
+          const imgs = [...sec.querySelectorAll(".client-logo img")].map(i => i.src);
+          await preloadImages(imgs);
+          
+          // Use html2canvas with settings optimized for preventing distortion
+          const canvas = await html2canvas(sec, {
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            scale: 2, // High resolution capture
+            backgroundColor: "#ffffff",
+            onclone: (clonedDoc) => {
+                // FORCE Aspect Ratios in the clone to prevent distortion
+                const clonedLogos = clonedDoc.querySelectorAll('.client-logo img');
+                clonedLogos.forEach(img => {
+                    img.style.objectFit = 'contain';
+                    // Explicitly set width/height to avoid flexbox squashing during render
+                    img.style.width = '100%'; 
+                    img.style.height = '100%';
+                });
+            }
+          });
+
+          // Prepare Output Canvas (1920x1080)
+          const outputSize = {width: 1920, height: 1080};
+          const outputCanvas = document.createElement('canvas');
+          outputCanvas.width = outputSize.width;
+          outputCanvas.height = outputSize.height;
+          const ctx = outputCanvas.getContext('2d');
+          
+          // Fill White Background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, outputSize.width, outputSize.height);
+          
+          // Letterbox Logic (Fit without stretching)
+          const scale = Math.min(outputSize.width / canvas.width, outputSize.height / canvas.height);
+          const drawW = canvas.width * scale;
+          const drawH = canvas.height * scale;
+          const dx = (outputSize.width - drawW) / 2;
+          const dy = (outputSize.height - drawH) / 2;
+          
+          // Draw captured canvas onto 1920x1080 canvas
+          ctx.drawImage(canvas, dx, dy, drawW, drawH);
+          
+          // Download
+          const a = document.createElement("a");
+          a.href = outputCanvas.toDataURL("image/jpeg", 0.95);
+          a.download = `client-logo-layout.jpg`;
+          a.click();
+
+        } catch(e){ 
+          console.error(e); 
+          alert("Export failed. Please check internet connection or logo URLs."); 
+        } finally {
+            // Exit Preview Mode
+            sec.classList.remove("preview");
+            load.style.display = "none";
+            document.querySelectorAll(".client-toggle").forEach(c => c.disabled = false);
+        }
+      }
+      
+      function toggleSectorTitles(){
+        document.querySelectorAll(".industry-title").forEach(t => t.style.display = document.getElementById("toggleSectorTitles").checked ? "block" : "none");
+      }
+      
+      function toggleDividers(){
+        const hide = !document.getElementById("toggleDividers").checked;
+        document.querySelectorAll(".industry-group").forEach(g => g.classList.toggle("hide-divider", hide));
+      }
+      
+      function toggleLogo(idx){
+        const logo = document.getElementById(`logo-${idx}`), cb = logo.querySelector(".client-toggle"), show = document.getElementById("toggleHidden").checked;
+        if(cb.checked){ hiddenLogos.delete(idx); logo.style.display = "flex"; }
+        else{ hiddenLogos.add(idx); logo.style.display = show ? "flex" : "none"; }
+      }
+      
+      function toggleHiddenLogos(){
+        const show = document.getElementById("toggleHidden").checked;
+        hiddenLogos.forEach(i => { const l = document.getElementById(`logo-${i}`); if(l) l.style.display = show ? "flex" : "none"; });
+      }
+      
+      document.getElementById("industrySelect").addEventListener("change", e => {
+        const v = e.target.value;
+        ["finance","tech","retail","logistics"].forEach(id => document.getElementById(`group-${id}`).style.display = (v === "all" || v === id) ? "block" : "none");
+      });
+      
+      function makeDraggable(id){
+        const c = document.getElementById(id); let dragged;
+        c.addEventListener("dragstart", e => { if(e.target.classList.contains("client-logo")){ dragged = e.target; e.target.classList.add("dragging"); }});
+        c.addEventListener("dragover", e => { e.preventDefault(); const t = e.target.closest(".client-logo"); if(t && t !== dragged){ const r = t.getBoundingClientRect(), next = (e.clientX - r.left) / r.width > 0.5; c.insertBefore(dragged, next ? t.nextSibling : t); }});
+        c.addEventListener("dragend", e => e.target.classList.remove("dragging"));
+      }
+      
+      function generateLayoutCode(){
+        const layout = []; const secs = ["finance","tech","retail","logistics"];
+        secs.forEach(s => {
+          const cont = document.getElementById(s + "List"), logos = cont.querySelectorAll(".client-logo");
+          logos.forEach(l => {
+            const id = l.id.replace("logo-", ""), vis = l.querySelector(".client-toggle").checked ? 1 : 0, w = parseInt(getComputedStyle(l).width);
+            layout.push(`${s}:${id}:1.00:${vis}:${w}`);
+          });
+        });
+        const cs = document.getElementById("clientsSection"), w = cs.offsetWidth, h = cs.offsetHeight;
+        const code = `size:${w}x${h}|` + layout.join(",");
+        return code;
+      }
+      
+      async function saveLayout(){
+        const loading = document.getElementById("loading");
+        loading.textContent = "Saving layout...";
+        loading.style.display = "block";
+        
+        try {
+          const layoutCode = generateLayoutCode();
+          const response = await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              layout_code: layoutCode,
+              timestamp: new Date().toISOString(),
+              canvas_width: document.getElementById("clientsSection").offsetWidth,
+              canvas_height: document.getElementById("clientsSection").offsetHeight
+            })
+          });
+          
+          if (response.ok) {
+            alert("Layout saved! It may take a moment to appear in the list.");
+            // Reload list after a short delay
+            setTimeout(loadLayoutFromSheet, 2000);
+          } else { throw new Error('Save failed'); }
+        } catch (error) {
+          console.error('Save error:', error);
+          alert("Failed to save layout.");
+        }
+        loading.style.display = "none";
+      }
+      
+      function loadSelectedLayout() {
+        const select = document.getElementById('layoutSelect');
+        const code = select.value;
+        if (code) applyLayoutCode(code);
+      }
+      
+      // FIXED: Uses robust parsing to get data from sheet
+      async function loadLayoutFromSheet(){
+        const loading = document.getElementById("loading");
+        try {
+          const response = await fetch(LAYOUT_SHEET_URL);
+          const csvText = await response.text();
+          
+          // Use the helper parser (handles quotes)
+          const tokens = parseCSV(csvText);
+          const rows = [];
+          
+          // Reconstruct rows from linear tokens (assuming 2 columns per row in sheet: Timestamp, LayoutCode)
+          // Adjust step based on actual CSV structure. Assuming simple structure here.
+          // Because parseCSV flattens it, we need to iterate carefully or split by newline first
+          // Let's use a simpler split-based approach for the Layout Sheet specifically if it's standard CSV
+          
+          const rawRows = csvText.split(/\r?\n/).filter(r => r.trim());
+          const layouts = [];
+
+          for (let row of rawRows) {
+            // Regex to capture "Date, LayoutString" where Date might be quoted
+            // Matches: "2024-01-01...", "size:..."  OR  2024-01-01..., size:...
+            const match = row.match(/^"?(\d{4}-\d{2}-\d{2}T[\d:.]+Z)"?,?(.*)$/);
+            
+            if (match) {
+              const dateStr = match[1];
+              let layoutStr = match[2].trim();
+              // Remove surrounding quotes from layout string if present
+              if(layoutStr.startsWith('"') && layoutStr.endsWith('"')) {
+                layoutStr = layoutStr.slice(1, -1);
+              }
+              // Unescape double quotes if CSV escaped them ("" -> ")
+              layoutStr = layoutStr.replace(/""/g, '"');
+
+              if (layoutStr.startsWith('size:')) {
+                layouts.push({date: new Date(dateStr), code: layoutStr});
+              }
+            }
+          }
+          
+          layouts.sort((a, b) => b.date - a.date);
+          const select = document.getElementById('layoutSelect');
+          select.innerHTML = '<option value="">Select Layout Version</option>';
+          layouts.forEach(l => {
+            const opt = document.createElement('option');
+            opt.value = l.code;
+            opt.textContent = l.date.toLocaleString();
+            select.appendChild(opt);
+          });
+          
+          console.log(`Loaded ${layouts.length} layouts.`);
+        } catch (error) {
+          console.error('Load layout error:', error);
+        }
+      }
+      
+      function applyLayoutCode(code){
+        const [meta, data] = code.split("|");
+        if(!meta.startsWith("size:")) return;
+        const [w, h] = meta.replace("size:", "").split("x").map(Number);
+        
+        // Update Canvas Size UI
+        const cs = document.getElementById("clientsSection");
+        cs.style.width = w + "px"; cs.style.height = h + "px";
+        
+        // Try to match dropdown to this size
+        const sizeOpt = document.querySelector(`#canvasSizeSelect option[value="${w}x${h}"]`);
+        if(sizeOpt) document.getElementById("canvasSizeSelect").value = `${w}x${h}`;
+
+        const entries = data.split(",").map(e => { 
+            const [s, i, _, v, bw] = e.split(":"); 
+            return {sector: s, id: i, visible: v === "1", boxWidth: +bw}; 
+        });
+        
+        const map = {finance: [], tech: [], retail: [], logistics: []};
+        
+        entries.forEach(o => {
+          const logo = document.getElementById(`logo-${o.id}`);
+          if(!logo) return;
+          logo.style.width = o.boxWidth + "px";
+          const cb = logo.querySelector(".client-toggle"); 
+          if(cb) cb.checked = o.visible;
+          logo.style.display = o.visible ? "flex" : "none";
+          if(map[o.sector]) map[o.sector].push(logo);
+        });
+        
+        Object.entries(map).forEach(([s, logos]) => {
+          const cont = document.getElementById(s + "List");
+          if(cont){ cont.innerHTML = ""; logos.forEach(l => cont.appendChild(l)); }
+        });
+      }
+      
+      function setCanvasSize(){
+        const [w, h] = document.getElementById("canvasSizeSelect").value.split("x").map(Number);
+        const cs = document.getElementById("clientsSection");
+        cs.style.width = w + "px";
+        cs.style.height = h + "px";
+      }
+      
+      function autoAdjustMargin(img){
+        if(img.naturalWidth === 1080 && img.naturalHeight === 1080){
+          img.parentElement.classList.add("square-logo");
+        }
+      }
+      
+      /* -------------------------------------------------
+         Main Data Loader
+         ------------------------------------------------- */
+      async function fetchClientData(){
+        const loading = document.getElementById("loading"); loading.style.display = "block";
+        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTspDQzvXaum4mk_VTrMziw0nb7Pa6aVTB20q5IeZRljrwycLOexA8uyeYArKSv5pmVOu-HslsCcBHl/pub?gid=0&single=true&output=csv";
+        
+        try{
+          const resp = await fetch(CSV_URL);
+          const txt = await resp.text();
+          // Use robust parser
+          const rows = parseCSV(txt);
+          
+          const data = [];
+          // Skip header (first 4 items), read chunks of 4 (Timestamp, Name, Type, URL)
+          // Adjust based on column index: 0=Time, 1=Name, 2=Type, 3=URL
+          for(let i = 4; i < rows.length; i += 4){
+            if(i + 3 >= rows.length) break;
+            const name = rows[i];
+            const type = rows[i+1];
+            const url = rows[i+2];
+            if(name && type && url) data.push([name, type, url]);
+          }
+          
+          const industries = {finance: [], tech: [], retail: [], logistics: []};
+          const imageUrls = [];
+          
+          data.forEach(([name, type, url], idx) => {
+            // CORS proxy often helps with images on canvas
+            const imgSrc = url.startsWith("http") ? url : `https://corsproxy.io/?${encodeURIComponent(url)}`;
+            imageUrls.push(imgSrc);
+            
+            const logoHTML = `
+              <div class="client-logo" id="logo-${idx}" draggable="true">
+                <div class="checkbox-container"><input type="checkbox" class="client-toggle" checked onchange="toggleLogo(${idx})"></div>
+                <img src="${imgSrc}" crossOrigin="Anonymous" alt="${name}" onload="autoAdjustMargin(this)" onerror="this.src='https://via.placeholder.com/150?text=No+Img'">
+                <div class="client-name" title="${name}">${name}</div>
+              </div>`;
+              
+            const lower = type.toLowerCase();
+            if(lower.includes("finance") || lower.includes("banking") || lower.includes("insurance")) industries.finance.push(logoHTML);
+            else if(lower.includes("tech") || lower.includes("technology") || lower.includes("telecom")) industries.tech.push(logoHTML);
+            else if(lower.includes("retail") || lower.includes("hospitality") || lower.includes("lifestyle")) industries.retail.push(logoHTML);
+            else industries.logistics.push(logoHTML);
+          });
+          
+          await preloadImages(imageUrls);
+          document.getElementById("financeList").innerHTML = industries.finance.join("");
+          document.getElementById("techList").innerHTML = industries.tech.join("");
+          document.getElementById("retailList").innerHTML = industries.retail.join("");
+          document.getElementById("logisticsList").innerHTML = industries.logistics.join("");
+          ["financeList","techList","retailList","logisticsList"].forEach(makeDraggable);
+          
+          // Load layouts after logos are ready
+          loadLayoutFromSheet();
+          
+        } catch(e){
+          console.error(e);
+          alert("Failed to load data – check Google Sheet URL or internet.");
+        }
+        loading.style.display = "none";
+      }
+      
+      fetchClientData();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  </body>
+</html>
