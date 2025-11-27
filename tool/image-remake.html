@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Upload & AI Remake</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .upload-section, .result-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .upload-section {
+            margin-bottom: 20px;
+        }
+        .result-section {
+            display: none;
+            text-align: center;
+        }
+        .result-section.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #555;
+            font-weight: 400;
+        }
+        .drop-zone {
+            border: 2px dashed #667eea;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #f8f9ff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            margin-bottom: 15px;
+        }
+        .drop-zone.dragover {
+            border-color: #764ba2;
+            background: #f0f4ff;
+            transform: scale(1.02);
+        }
+        .drop-zone p {
+            margin: 10px 0;
+            color: #666;
+            font-size: 16px;
+        }
+        .drop-zone input[type="file"] {
+            display: none; /* Hide the default file input; use for programmatic set */
+        }
+        button {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 15px;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+        }
+        .upload-again {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-top: 15px;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        .upload-again:hover {
+            color: #764ba2;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+            .upload-section, .result-section {
+                padding: 30px 20px;
+            }
+            .drop-zone {
+                padding: 30px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Image Remaker</h1>
+        
+        <div class="upload-section" id="uploadSection">
+            <h2>Upload Your Image</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="drop-zone" id="dropZone">
+                    <p>Drag & drop your image here, or click to browse</p>
+                    <p id="dropHint">Supports JPG, PNG, GIF, etc.</p>
+                    <input type="file" id="imageInput" name="image" accept="image/*" required>
+                </div>
+                <button type="submit" id="submitBtn">Remake with AI</button>
+            </form>
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                Processing... AI is remaking your image. Please wait.
+            </div>
+        </div>
+        
+        <div id="resultSection" class="result-section">
+            <h2>Your Remade Image</h2>
+            <img id="resultImage" alt="Remade Image" />
+            <p><a href="#" id="uploadAgain" class="upload-again">Upload Another Image</a></p>
+        </div>
+    </div>
+
+    <script>
+        const uploadSection = document.getElementById('uploadSection');
+        const form = document.getElementById('uploadForm');
+        const dropZone = document.getElementById('dropZone');
+        const imageInput = document.getElementById('imageInput');
+        const loading = document.getElementById('loading');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultSection = document.getElementById('resultSection');
+        const resultImage = document.getElementById('resultImage');
+        const uploadAgain = document.getElementById('uploadAgain');
+        const dropHint = document.getElementById('dropHint');
+
+        // Check for result in URL query params on load (fallback for redirects)
+        const urlParams = new URLSearchParams(window.location.search);
+        const resultUrl = urlParams.get('result');
+        if (resultUrl) {
+            resultImage.src = resultUrl;
+            showResult();
+        }
+
+        // Drag and drop functionality
+        dropZone.addEventListener('click', () => imageInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+            dropHint.textContent = 'Drop your image here!';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            dropHint.textContent = 'Supports JPG, PNG, GIF, etc.';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            dropHint.textContent = 'Supports JPG, PNG, GIF, etc.';
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
+                imageInput.files = files;
+                dropHint.textContent = `Selected: ${files[0].name}`;
+                submitBtn.disabled = false; // Enable if previously disabled
+            } else {
+                alert('Please drop a valid image file.');
+            }
+        });
+
+        // Handle file input change for click-browse
+        imageInput.addEventListener('change', () => {
+            if (imageInput.files[0]) {
+                dropHint.textContent = `Selected: ${imageInput.files[0].name}`;
+            }
+        });
+
+        // Handle form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!imageInput.files[0]) return;
+
+            showLoading();
+
+            const formData = new FormData();
+            formData.append('image', imageInput.files[0]);
+
+            try {
+                const response = await fetch('https://hook.eu2.make.com/nq80jwuvsjfayoaajjuj3tb826htuqq3', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Assume Make.com returns JSON like {"result": "https://remade-image.url"}
+                const data = await response.json();
+                if (data.result) {
+                    resultImage.src = data.result;
+                    showResult();
+                } else {
+                    throw new Error('No image URL in response');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Processing failed. Please try again. (Check Make.com setup for JSON response)');
+                hideLoading();
+            }
+        });
+
+        function showLoading() {
+            loading.style.display = 'block';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+            uploadSection.querySelector('h2').textContent = 'Uploading & Processing';
+        }
+
+        function hideLoading() {
+            loading.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Remake with AI';
+            uploadSection.querySelector('h2').textContent = 'Upload Your Image';
+        }
+
+        function showResult() {
+            hideLoading();
+            uploadSection.style.display = 'none';
+            resultSection.classList.add('show');
+        }
+
+        // Upload again link
+        uploadAgain.addEventListener('click', function(e) {
+            e.preventDefault();
+            resultSection.classList.remove('show');
+            uploadSection.style.display = 'block';
+            // Clear URL param
+            window.history.replaceState({}, document.title, window.location.pathname);
+            imageInput.value = '';
+            dropHint.textContent = 'Supports JPG, PNG, GIF, etc.';
+            resultImage.src = '';
+        });
+
+        // Initially disable submit until file selected
+        submitBtn.disabled = true;
+    </script>
+</body>
+</html>
