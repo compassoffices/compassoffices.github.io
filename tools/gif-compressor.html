@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF Compressor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Libraries for GIF processing -->
+    <script src="https://cdn.jsdelivr.net/npm/omggif@1.0.10/omggif.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .drag-active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        /* Custom scrollbar for modern feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xl">
+                    <i class="fa-solid fa-compress"></i>
+                </div>
+                <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                    GIF Compressor
+                </h1>
+            </div>
+            <a href="#" onclick="window.location.reload()" class="text-sm text-slate-500 hover:text-blue-600 transition-colors">
+                <i class="fa-solid fa-rotate-right mr-1"></i> Reset
+            </a>
+        </div>
+    </header>
+
+    <main class="flex-grow p-4 md:p-8">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left Column: Controls & Input -->
+            <div class="lg:col-span-1 space-y-6">
+                
+                <!-- Upload Zone -->
+                <div id="drop-zone" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center transition-all cursor-pointer hover:border-blue-400 group relative overflow-hidden">
+                    <input type="file" id="file-input" accept="image/gif" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                    
+                    <div class="space-y-4 pointer-events-none group-hover:scale-105 transition-transform duration-300">
+                        <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto text-2xl">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-slate-700">Click or Drag GIF here</p>
+                            <p class="text-xs text-slate-400 mt-1">Max recommended size: 20MB</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Panel (Hidden until upload) -->
+                <div id="settings-panel" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6 opacity-50 pointer-events-none transition-all">
+                    <h2 class="font-semibold flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-slate-400"></i> Settings
+                    </h2>
+
+                    <!-- Scale Slider -->
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <label class="font-medium text-slate-600">Scale (Dimensions)</label>
+                            <span id="scale-value" class="text-blue-600 font-bold">100%</span>
+                        </div>
+                        <input type="range" id="scale-slider" min="10" max="100" value="100" step="10" 
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                        <p class="text-xs text-slate-400 mt-1">Reducing dimensions is the best way to shrink size.</p>
+                    </div>
+
+                    <!-- Frame Skip -->
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <label class="font-medium text-slate-600">Frame Reduction</label>
+                            <span id="fps-value" class="text-blue-600 font-bold">Keep All</span>
+                        </div>
+                        <input type="range" id="fps-slider" min="1" max="4" value="1" step="1" 
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                        <div class="flex justify-between text-xs text-slate-400 mt-1 px-1">
+                            <span>None</span>
+                            <span>Skip 1</span>
+                            <span>Skip 2</span>
+                            <span>Skip 3</span>
+                        </div>
+                    </div>
+
+                    <!-- Colors/Quality -->
+                    <div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <label class="font-medium text-slate-600">Compression Level</label>
+                            <span id="quality-value" class="text-blue-600 font-bold">Balanced</span>
+                        </div>
+                        <input type="range" id="quality-slider" min="1" max="30" value="10" step="1" 
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" style="direction: rtl">
+                        <!-- Note: In gif.js, higher quality number = worse quality/faster. We reverse visual direction for intuitive feel -->
+                        <p class="text-xs text-slate-400 mt-1">Left: Better Quality, Right: Smaller Size</p>
+                    </div>
+
+                    <button id="compress-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-blue-200 transform active:scale-95 flex items-center justify-center gap-2">
+                        <span>Compress GIF</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Column: Preview -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Status Bar -->
+                <div id="status-bar" class="hidden bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center gap-3 text-blue-800">
+                    <div class="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    <span id="status-text" class="font-medium text-sm">Processing...</span>
+                </div>
+
+                <!-- Comparison Area -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- Original -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                        <div class="bg-slate-50 border-b border-slate-100 px-4 py-3 flex justify-between items-center">
+                            <span class="font-semibold text-slate-600 text-sm">Original</span>
+                            <span id="original-size" class="bg-slate-200 text-slate-600 text-xs px-2 py-1 rounded-full font-mono">-</span>
+                        </div>
+                        <div class="p-4 flex-grow flex items-center justify-center bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAjyQc6OUpcmQ4ADF53+Madta3AAAAAElFTkSuQmCC')] bg-repeat">
+                            <img id="preview-original" class="max-w-full max-h-[400px] object-contain shadow-sm rounded" alt="Original preview">
+                            <div id="original-placeholder" class="text-slate-300 text-4xl">
+                                <i class="fa-regular fa-image"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Result -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
+                        <div class="bg-slate-50 border-b border-slate-100 px-4 py-3 flex justify-between items-center">
+                            <span class="font-semibold text-slate-600 text-sm">Compressed</span>
+                            <span id="compressed-size" class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-mono">-</span>
+                        </div>
+                        <div class="p-4 flex-grow flex items-center justify-center bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAjyQc6OUpcmQ4ADF53+Madta3AAAAAElFTkSuQmCC')] bg-repeat">
+                            <img id="preview-compressed" class="hidden max-w-full max-h-[400px] object-contain shadow-sm rounded" alt="Compressed preview">
+                            <div id="compressed-placeholder" class="text-slate-300 text-4xl">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </div>
+                        </div>
+
+                        <!-- Success Overlay / Download -->
+                        <div id="success-overlay" class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20">
+                            <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mb-4 shadow-sm">
+                                <i class="fa-solid fa-check"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-slate-800 mb-1">Ready!</h3>
+                            <p class="text-sm text-slate-500 mb-6" id="savings-text">Saved 0%</p>
+                            <a id="download-btn" download="compressed.gif" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-lg shadow-green-200 flex items-center gap-2 cursor-pointer">
+                                <i class="fa-solid fa-download"></i> Download
+                            </a>
+                            <button id="view-btn" class="mt-4 text-sm text-slate-500 hover:text-slate-800 underline">View Image</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Hidden Canvas for processing -->
+    <canvas id="process-canvas" class="hidden"></canvas>
+
+    <script>
+        // --- State ---
+        let originalFile = null;
+        let originalBuffer = null;
+        let gifReader = null;
+        let isProcessing = false;
+
+        // --- DOM Elements ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const settingsPanel = document.getElementById('settings-panel');
+        const previewOriginal = document.getElementById('preview-original');
+        const originalPlaceholder = document.getElementById('original-placeholder');
+        const originalSizeBadge = document.getElementById('original-size');
+        const compressBtn = document.getElementById('compress-btn');
+        const statusBar = document.getElementById('status-bar');
+        const statusText = document.getElementById('status-text');
+        const previewCompressed = document.getElementById('preview-compressed');
+        const compressedPlaceholder = document.getElementById('compressed-placeholder');
+        const compressedSizeBadge = document.getElementById('compressed-size');
+        const successOverlay = document.getElementById('success-overlay');
+        const downloadBtn = document.getElementById('download-btn');
+        const savingsText = document.getElementById('savings-text');
+        const viewBtn = document.getElementById('view-btn');
+
+        // Sliders
+        const scaleSlider = document.getElementById('scale-slider');
+        const scaleValue = document.getElementById('scale-value');
+        const fpsSlider = document.getElementById('fps-slider');
+        const fpsValue = document.getElementById('fps-value');
+        const qualitySlider = document.getElementById('quality-slider');
+        const qualityValue = document.getElementById('quality-value');
+
+        // --- Event Listeners ---
+
+        // Drag & Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-active');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        // Sliders
+        scaleSlider.addEventListener('input', (e) => {
+            scaleValue.textContent = e.target.value + '%';
+        });
+
+        fpsSlider.addEventListener('input', (e) => {
+            const v = parseInt(e.target.value);
+            if (v === 1) fpsValue.textContent = "Keep All";
+            else fpsValue.textContent = "Skip " + (v - 1);
+        });
+
+        qualitySlider.addEventListener('input', (e) => {
+            // Note: gif.js quality param: 1 = best, 30 = worst (but faster/smaller)
+            // Slider is 1-30. We display "High" for low numbers.
+            const v = parseInt(e.target.value);
+            let text = "Balanced";
+            if (v < 5) text = "Best Quality";
+            else if (v < 15) text = "Balanced";
+            else text = "Max Compression";
+            qualityValue.textContent = text;
+        });
+
+        viewBtn.addEventListener('click', () => {
+            successOverlay.classList.add('hidden');
+        });
+
+        compressBtn.addEventListener('click', startCompression);
+
+        // --- Functions ---
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        function handleFile(file) {
+            if (file.type !== 'image/gif') {
+                alert('Please upload a valid GIF file.');
+                return;
+            }
+
+            originalFile = file;
+            originalSizeBadge.textContent = formatBytes(file.size);
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                originalBuffer = new Uint8Array(e.target.result);
+                
+                // Parse immediately to verify validity
+                try {
+                    gifReader = new Omggif.GifReader(originalBuffer);
+                    
+                    // Show preview
+                    const blobUrl = URL.createObjectURL(file);
+                    previewOriginal.src = blobUrl;
+                    previewOriginal.classList.remove('hidden');
+                    originalPlaceholder.classList.add('hidden');
+
+                    // Enable settings
+                    settingsPanel.classList.remove('opacity-50', 'pointer-events-none');
+                    resetResult();
+                    
+                    console.log(`GIF Loaded: ${gifReader.width}x${gifReader.height}, ${gifReader.numFrames()} frames`);
+
+                } catch (err) {
+                    console.error(err);
+                    alert("Could not parse this GIF. It might be corrupted or complex.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function resetResult() {
+            previewCompressed.classList.add('hidden');
+            compressedPlaceholder.classList.remove('hidden');
+            successOverlay.classList.add('hidden');
+            compressedSizeBadge.textContent = '-';
+        }
+
+        async function startCompression() {
+            if (isProcessing || !gifReader) return;
+            
+            isProcessing = true;
+            compressBtn.disabled = true;
+            compressBtn.classList.add('opacity-75', 'cursor-wait');
+            statusBar.classList.remove('hidden');
+            statusText.textContent = "Preparing worker...";
+            resetResult();
+
+            // 1. Setup Worker for gif.js (Inline to avoid CORS/Filepath issues)
+            let workerUrl = "";
+            try {
+                // Fetch the worker code from CDN and create a local blob
+                const workerResp = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+                const workerText = await workerResp.text();
+                const blob = new Blob([workerText], {type: 'application/javascript'});
+                workerUrl = URL.createObjectURL(blob);
+            } catch (e) {
+                console.error("Failed to load worker", e);
+                statusText.textContent = "Error loading compression engine.";
+                isProcessing = false;
+                compressBtn.disabled = false;
+                return;
+            }
+
+            // 2. Configuration
+            const scalePercent = parseInt(scaleSlider.value) / 100;
+            const frameSkip = parseInt(fpsSlider.value); // 1 = keep all, 2 = skip every 2nd (keep 0, 2, 4...)
+            // Actually logic: keep frame if index % frameSkip == 0.
+            // If slider is 1: keep 0, 1, 2... (mod 1 is always 0) - correct.
+            // If slider is 2: keep 0, 2, 4... - correct.
+            
+            const qualityParam = parseInt(qualitySlider.value); // 1 to 30
+
+            const width = gifReader.width;
+            const height = gifReader.height;
+            const targetWidth = Math.round(width * scalePercent);
+            const targetHeight = Math.round(height * scalePercent);
+
+            // 3. Initialize Encoder
+            const gifWriter = new GIF({
+                workers: 2,
+                quality: qualityParam,
+                width: targetWidth,
+                height: targetHeight,
+                workerScript: workerUrl
+            });
+
+            // 4. Decode and Process Frames
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d', {willReadFrequently: true});
+
+            // Buffer for omggif decoding
+            const pixels = new Uint8ClampedArray(width * height * 4);
+            const imageData = ctx.createImageData(width, height);
+
+            // Helper canvas for resizing
+            const resizeCanvas = document.createElement('canvas');
+            resizeCanvas.width = targetWidth;
+            resizeCanvas.height = targetHeight;
+            const resizeCtx = resizeCanvas.getContext('2d');
+
+            statusText.textContent = `Processing ${gifReader.numFrames()} frames...`;
+
+            // Frame Loop (with non-blocking delays to keep UI responsive)
+            let frameIndex = 0;
+            
+            const processBatch = () => {
+                const batchSize = 5; // Process 5 frames at a time
+                const endFrame = Math.min(frameIndex + batchSize, gifReader.numFrames());
+
+                for (let i = frameIndex; i < endFrame; i++) {
+                    // Logic for disposal/blending
+                    // Omggif decodeToRGBA writes raw pixels. It doesn't handle disposal (clearing previous frame).
+                    // We must manually handle the "previous frame" logic if we want perfection.
+                    // HOWEVER, `omggif` + full disposal logic is complex. 
+                    // Simplified approach: decode to buffer, put on canvas. 
+                    // If the GIF is optimized (transparent diffs), this might look weird without full disposal handling.
+                    // For a robust client-side tool without 500 lines of disposal logic, we assume standard behavior:
+                    // We clear canvas if disposal == 2, otherwise draw over.
+                    
+                    const frameInfo = gifReader.frameInfo(i);
+                    
+                    // Handling Disposal (Basic)
+                    // 0: No disposal specified (draw over)
+                    // 1: Do not dispose (draw over)
+                    // 2: Restore to background (clear rect)
+                    // 3: Restore to previous (complex, skipping for simplicity)
+                    
+                    if (i > 0) {
+                        const prevInfo = gifReader.frameInfo(i - 1);
+                        if (prevInfo.disposal === 2) {
+                            ctx.clearRect(prevInfo.x, prevInfo.y, prevInfo.width, prevInfo.height);
+                        }
+                    } else {
+                         ctx.clearRect(0, 0, width, height); // Clear for first frame
+                    }
+
+                    // Decode current frame
+                    gifReader.decodeAndBlitFrameRGBA(i, pixels);
+                    
+                    // Put pixels onto temp canvas (handling offsets)
+                    // omggif gives us the full canvas buffer usually if we pass the full array?
+                    // decodeAndBlitFrameRGBA writes into the full buffer at the right coordinates usually? 
+                    // No, it expects a buffer of size width*height*4. It handles x/y offset internally if we passed the full buffer.
+                    
+                    imageData.data.set(pixels);
+                    ctx.putImageData(imageData, 0, 0);
+
+                    // Skip logic: Only add frame if it matches skip pattern
+                    // BUT, we must decode ALL frames sequentially to maintain the drawing state (canvas context),
+                    // we just choose not to ADD it to the writer.
+                    if (i % frameSkip === 0) {
+                        
+                        // Resize logic
+                        resizeCtx.clearRect(0, 0, targetWidth, targetHeight);
+                        resizeCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+
+                        // Add to new GIF
+                        // Delay: gifReader gives delay in 100ths of sec. gif.js wants ms.
+                        // If we skip frames, should we increase delay? 
+                        // Yes, if we skip every 2nd frame, the remaining frame should last twice as long roughly.
+                        let delay = frameInfo.delay * 10; 
+                        if (delay === 0) delay = 100; // Default safety
+                        
+                        // Adjust delay for skipped frames
+                        delay = delay * frameSkip;
+
+                        gifWriter.addFrame(resizeCtx, {copy: true, delay: delay});
+                    }
+                }
+
+                frameIndex = endFrame;
+                
+                // Progress Bar Update
+                const progress = Math.round((frameIndex / gifReader.numFrames()) * 100);
+                statusText.textContent = `Processing: ${progress}%`;
+
+                if (frameIndex < gifReader.numFrames()) {
+                    requestAnimationFrame(processBatch);
+                } else {
+                    finishEncoding(gifWriter, workerUrl);
+                }
+            };
+
+            // Start loop
+            requestAnimationFrame(processBatch);
+        }
+
+        function finishEncoding(gifWriter, workerUrl) {
+            statusText.textContent = "Encoding final GIF...";
+            
+            gifWriter.on('finished', (blob) => {
+                isProcessing = false;
+                statusBar.classList.add('hidden');
+                compressBtn.disabled = false;
+                compressBtn.classList.remove('opacity-75', 'cursor-wait');
+
+                // Cleanup worker URL
+                URL.revokeObjectURL(workerUrl);
+
+                // Show Result
+                const url = URL.createObjectURL(blob);
+                previewCompressed.src = url;
+                previewCompressed.classList.remove('hidden');
+                compressedPlaceholder.classList.add('hidden');
+                
+                // Stats
+                compressedSizeBadge.textContent = formatBytes(blob.size);
+                
+                // Calculate savings
+                const savings = originalFile.size - blob.size;
+                const percent = Math.round((savings / originalFile.size) * 100);
+                
+                if (savings > 0) {
+                    savingsText.textContent = `Saved ${formatBytes(savings)} (${percent}%)`;
+                    savingsText.className = "text-sm text-green-600 font-bold mb-6";
+                } else {
+                    savingsText.textContent = `Size increased by ${formatBytes(Math.abs(savings))}`;
+                    savingsText.className = "text-sm text-orange-500 font-bold mb-6";
+                }
+
+                // Download Link
+                downloadBtn.href = url;
+                
+                // Show Overlay
+                successOverlay.classList.remove('hidden');
+            });
+
+            gifWriter.render();
+        }
+
+    </script>
+</body>
+</html>
