@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKG-SCT2-017 Panel Page</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #f0f0f0;
+            overflow: auto;
+            position: relative; /* For button positioning */
+        }
+        body:hover .button-container {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .container {
+            width: 100vw;
+            height: calc(100vw * 9 / 16); /* Maintain 16:9 aspect ratio */
+            max-width: 100%;
+            max-height: 100vh;
+            display: flex;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            overflow: auto; /* Ensure container can scroll if content overflows */
+        }
+        .left {
+            flex: 1 1 auto;
+            height: 100%;
+            min-width: 0; /* Prevent flex item from overflowing */
+        }
+        .right {
+            width: 600px; /* Increased from 450px */
+            flex: 0 0 600px;
+            height: 100%;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block; /* Ensure iframe doesn't add extra space */
+        }
+        .button-container {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .control-button {
+            padding: 8px 16px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s ease;
+            white-space: nowrap;
+        }
+        .control-button:hover {
+            background: #555;
+        }
+        /* Keep buttons visible when hovering over them directly */
+        .button-container:hover {
+            opacity: 1 !important;
+            transform: translateY(0) !important;
+        }
+        .control-button:hover {
+            opacity: 1 !important;
+        }
+        @media (max-width: 800px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+                overflow-y: auto; /* Allow vertical scrolling on mobile */
+            }
+            .left {
+                height: 50vh;
+                min-height: 300px;
+            }
+            .right {
+                width: 100%;
+                height: 450px; /* Keep consistent with previous mobile height */
+                flex: 0 0 auto;
+            }
+            .button-container {
+                top: 5px;
+                right: 5px;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .control-button {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="button-container">
+        <button class="control-button" onclick="toggleFullScreen()">Toggle Full Screen</button>
+        <button class="control-button" onclick="clearCache()">Clear Cache</button>
+    </div>
+    <div class="container">
+        <div class="left">
+            <iframe src="https://compassoffices.github.io/hk/HKG-SCT2-017.html"></iframe>
+        </div>
+        <div class="right">
+            <iframe src="https://compassoffices.github.io/410/event.html"></iframe>
+        </div>
+    </div>
+    <script>
+        // Full screen functionality
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Clear cache functionality
+        function clearCache() {
+            // Store fullscreen state
+            const wasFullscreen = !!document.fullscreenElement;
+
+            // Clear service worker caches
+            caches.keys().then(cacheNames => {
+                return Promise.all(
+                    cacheNames.map(cacheName => caches.delete(cacheName))
+                );
+            }).catch(err => {
+                console.error('Error clearing service worker cache:', err);
+            });
+
+            // Append cache-busting query parameter to iframe URLs
+            document.querySelectorAll('iframe').forEach(iframe => {
+                const originalSrc = iframe.src.split('?')[0]; // Remove existing query params
+                const cacheBuster = `cb=${Date.now()}`; // Unique timestamp
+                iframe.src = `${originalSrc}?${cacheBuster}`;
+            });
+
+            // Restore fullscreen state if it was active
+            if (wasFullscreen && !document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error restoring full-screen mode: ${err.message}`);
+                });
+            }
+        }
+
+        // Auto-clear cache at 9 AM and 4 PM
+        function scheduleCacheClear() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            
+            // Calculate milliseconds until next 9 AM or 4 PM
+            let nextClear;
+            if (hours < 9 || (hours === 9 && minutes < 1)) {
+                nextClear = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
+            } else if (hours < 16 || (hours === 16 && minutes < 1)) {
+                nextClear = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 16, 0, 0);
+            } else {
+                // If past 4 PM, schedule for next day's 9 AM
+                nextClear = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0, 0);
+            }
+
+            const msUntilNextClear = nextClear.getTime() - now.getTime();
+            
+            setTimeout(() => {
+                clearCache();
+                // Schedule next clear every 24 hours after the first execution
+                setInterval(() => {
+                    // Clear at 9 AM and 4 PM daily
+                    const currentTime = new Date();
+                    const currentHours = currentTime.getHours();
+                    
+                    if (currentHours === 9 || currentHours === 16) {
+                        clearCache();
+                    }
+                }, 60 * 60 * 1000); // Check every hour
+            }, msUntilNextClear);
+        }
+
+        // Initialize auto-clear cache
+        scheduleCacheClear();
+
+        // Handle fullscreen change to ensure buttons remain accessible
+        document.addEventListener('fullscreenchange', function() {
+            if (!document.fullscreenElement) {
+                // When exiting fullscreen, ensure buttons are visible on hover
+                document.body.style.cursor = 'default';
+            }
+        });
+    </script>
+</body>
+</html>
