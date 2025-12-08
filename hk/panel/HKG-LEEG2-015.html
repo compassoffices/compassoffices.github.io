@@ -13,7 +13,7 @@
             min-height: 100vh;
             background: #f0f0f0;
             overflow: auto;
-            position: relative; /* For button positioning */
+            position: relative;
         }
         body:hover .button-container {
             opacity: 1;
@@ -21,29 +21,29 @@
         }
         .container {
             width: 100vw;
-            height: calc(100vw * 9 / 16); /* Maintain 16:9 aspect ratio */
+            height: calc(100vw * 9 / 16);
             max-width: 100%;
             max-height: 100vh;
             display: flex;
             background: white;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            overflow: auto; /* Ensure container can scroll if content overflows */
+            overflow: auto;
         }
         .left {
             flex: 1 1 auto;
             height: 100%;
-            min-width: 0; /* Prevent flex item from overflowing */
+            min-width: 0;
         }
         .right {
-            width: 600px; /* Increased from 450px */
-            flex: 0 0 600px;
+            width: 420px;           /* THINNER RIGHT PANEL (was 600px) */
+            flex: 0 0 420px;        /* Must match the width above */
             height: 100%;
         }
         iframe {
             width: 100%;
             height: 100%;
             border: none;
-            display: block; /* Ensure iframe doesn't add extra space */
+            display: block;
         }
         .button-container {
             position: fixed;
@@ -70,20 +70,16 @@
         .control-button:hover {
             background: #555;
         }
-        /* Keep buttons visible when hovering over them directly */
         .button-container:hover {
             opacity: 1 !important;
             transform: translateY(0) !important;
-        }
-        .control-button:hover {
-            opacity: 1 !important;
         }
         @media (max-width: 800px) {
             .container {
                 flex-direction: column;
                 height: auto;
                 min-height: 100vh;
-                overflow-y: auto; /* Allow vertical scrolling on mobile */
+                overflow-y: auto;
             }
             .left {
                 height: 50vh;
@@ -91,7 +87,7 @@
             }
             .right {
                 width: 100%;
-                height: 450px; /* Keep consistent with previous mobile height */
+                height: 450px;
                 flex: 0 0 auto;
             }
             .button-container {
@@ -112,6 +108,7 @@
         <button class="control-button" onclick="toggleFullScreen()">Toggle Full Screen</button>
         <button class="control-button" onclick="clearCache()">Clear Cache</button>
     </div>
+
     <div class="container">
         <div class="left">
             <iframe src="https://compassoffices.github.io/hk/HKG-LEEG2-015.html"></iframe>
@@ -120,6 +117,7 @@
             <iframe src="https://compassoffices.github.io/410/event.html"></iframe>
         </div>
     </div>
+
     <script>
         // Full screen functionality
         function toggleFullScreen() {
@@ -134,7 +132,6 @@
 
         // Clear cache functionality
         function clearCache() {
-            // Store fullscreen state
             const wasFullscreen = !!document.fullscreenElement;
 
             // Clear service worker caches
@@ -146,14 +143,14 @@
                 console.error('Error clearing service worker cache:', err);
             });
 
-            // Append cache-busting query parameter to iframe URLs
+            // Reload iframes with cache-buster
             document.querySelectorAll('iframe').forEach(iframe => {
-                const originalSrc = iframe.src.split('?')[0]; // Remove existing query params
-                const cacheBuster = `cb=${Date.now()}`; // Unique timestamp
+                const originalSrc = iframe.src.split('?')[0];
+                const cacheBuster = `cb=${Date.now()}`;
                 iframe.src = `${originalSrc}?${cacheBuster}`;
             });
 
-            // Restore fullscreen state if it was active
+            // Restore fullscreen if it was active
             if (wasFullscreen && !document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
                     console.error(`Error restoring full-screen mode: ${err.message}`);
@@ -161,51 +158,40 @@
             }
         }
 
-        // Auto-clear cache at 9 AM and 4 PM
+        // Auto-clear cache at 9 AM and 4 PM daily
         function scheduleCacheClear() {
             const now = new Date();
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
-            const seconds = now.getSeconds();
-            
-            // Calculate milliseconds until next 9 AM or 4 PM
             let nextClear;
-            if (hours < 9 || (hours === 9 && minutes < 1)) {
+
+            if (now.getHours() < 9 || (now.getHours() === 9 && now.getMinutes() < 1)) {
                 nextClear = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
-            } else if (hours < 16 || (hours === 16 && minutes < 1)) {
+            } else if (now.getHours() < 16 || (now.getHours() === 16 && now.getMinutes() < 1)) {
                 nextClear = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 16, 0, 0);
             } else {
-                // If past 4 PM, schedule for next day's 9 AM
                 nextClear = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0, 0);
             }
 
             const msUntilNextClear = nextClear.getTime() - now.getTime();
-            
+
             setTimeout(() => {
                 clearCache();
-                // Schedule next clear every 24 hours after the first execution
+                // Then check every hour forever
                 setInterval(() => {
-                    // Clear at 9 AM and 4 PM daily
-                    const currentTime = new Date();
-                    const currentHours = currentTime.getHours();
-                    
-                    if (currentHours === 9 || currentHours === 16) {
-                        clearCache();
-                    }
-                }, 60 * 60 * 1000); // Check every hour
+                    const h = new Date().getHours();
+                    if (h === 9 || h === 16) clearCache();
+                }, 60 * 60 * 1000);
             }, msUntilNextClear);
         }
 
-        // Initialize auto-clear cache
         scheduleCacheClear();
 
-        // Handle fullscreen change to ensure buttons remain accessible
-        document.addEventListener('fullscreenchange', function() {
+        // Keep buttons accessible in fullscreen
+        document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
-                // When exiting fullscreen, ensure buttons are visible on hover
                 document.body.style.cursor = 'default';
             }
         });
     </script>
+</body>
 </body>
 </html>
