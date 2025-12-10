@@ -389,26 +389,6 @@
             cursor: pointer;
             border: none;
         }
-        .rotate-controls {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-        }
-        .rotate-btn {
-            background: #666;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            width: 28px;
-            height: 28px;
-            font-size: 0.9rem;
-            cursor: pointer;
-        }
-        .rotate-btn:hover { background: #888; }
-        .rotate-slider {
-            flex: 1;
-        }
         @media (max-width: 768px) {
             .main-container {
                 flex-direction: column;
@@ -436,19 +416,16 @@
    <div class="sidebar">
     <div class="section">
      <div class="section-title">Upload Images</div>
-     <!-- URL Input Field -->
      <div class="url-input-group">
       <input type="text" id="urlInput" class="url-input" placeholder="Paste image URL(s), separate with comma">
       <button id="addUrlBtn" class="add-url-btn">Add URL</button>
      </div>
      <div id="urlError" class="url-error"></div>
-     <!-- Upload Zone -->
      <div class="upload-zone" id="uploadZone">
       <div class="upload-text" id="uploadText">Drop images here or click</div>
       <div class="upload-hint">JPG, PNG, GIF supported</div>
      </div>
      <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
-    
      <div class="image-list" id="imageList"></div>
      <button class="btn btn-secondary" id="clearBtn" style="display: none; margin-top: 15px;">Clear All</button>
     </div>
@@ -460,6 +437,7 @@
       <button class="layout-btn" data-layout="big-small">Big + Small</button>
       <button class="layout-btn" data-layout="three">Three</button>
       <button class="layout-btn" data-layout="four">Four</button>
+      <button class="layout-btn" data-layout="big-three">Big + 3 Small</button>
      </div>
      <div class="layout-adjustments" id="layoutAdjustments">
       <div class="adjustment-title">Adjust Current Layout</div>
@@ -483,7 +461,7 @@
    </div>
    <div class="canvas-area">
     <div class="zoom-controls">
-     <button class="zoom-btn" id="zoomOut">−</button>
+     <button class="zoom-btn" id="zoomOut">-</button>
      <button class="zoom-btn" id="zoomIn">+</button>
      <button class="zoom-btn" id="resetZoom">Reset</button>
     </div>
@@ -514,7 +492,15 @@
         two: { slots: [], adjustments: { split: { label: 'Split Position', min: 0.2, max: 0.8, value: 0.5, step: 0.01 } } },
         'big-small': { slots: [], adjustments: { mainWidth: { label: 'Main Image Width', min: 0.5, max: 0.8, value: 0.67, step: 0.01 }, smallSplit: { label: 'Small Images Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 } } },
         three: { slots: [], adjustments: { topHeight: { label: 'Top Image Height', min: 0.2, max: 0.6, value: 0.33, step: 0.01 }, bottomSplit: { label: 'Bottom Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 } } },
-        four: { slots: [], adjustments: { verticalSplit: { label: 'Vertical Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 }, horizontalSplit: { label: 'Horizontal Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 } } }
+        four: { slots: [], adjustments: { verticalSplit: { label: 'Vertical Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 }, horizontalSplit: { label: 'Horizontal Split', min: 0.2, max: 0.8, value: 0.5, step: 0.01 } } },
+        'big-three': { 
+            slots: [], 
+            adjustments: { 
+                bigWidth: { label: 'Big Image Width', min: 0.4, max: 0.8, value: 0.65, step: 0.01 },
+                topSplit: { label: 'Top Small Height', min: 0.15, max: 0.5, value: 0.33, step: 0.01 },
+                midSplit: { label: 'Middle Small Height', min: 0.15, max: 0.5, value: 0.33, step: 0.01 }
+            } 
+        }
     };
     let layoutAdjustments = {};
 
@@ -574,14 +560,14 @@
         });
     }
 
-    // ==================== IMAGE BOX CLASS (with rotation) ====================
+    // ==================== IMAGE BOX CLASS ====================
     class ImageBox {
         constructor(x, y, width, height, index) {
             this.id = Date.now() + Math.random();
             this.x = x; this.y = y; this.width = width; this.height = height;
             this.index = index; this.image = null;
             this.zoom = 1; this.panX = 0; this.panY = 0;
-            this.rotation = 0;                     // NEW
+            this.rotation = 0;
             this.isPanning = false; this.panStartX = 0; this.panStartY = 0;
             this.element = null; this.resizeHandle = null;
             this.createElements();
@@ -665,8 +651,6 @@
                 border: 1px solid #666; border-radius: 6px; padding: 8px; z-index: 1000;
                 display: flex; flex-direction: column; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             `;
-
-            // Zoom
             const zoomRow = document.createElement('div');
             zoomRow.style.display = 'flex'; zoomRow.style.gap = '6px';
             const zoomInBtn = this.createControlButton('Zoom In', 'Zoom In', () => {
@@ -681,7 +665,6 @@
             zoomRow.append(zoomInBtn, zoomOutBtn, resetBtn);
             menu.appendChild(zoomRow);
 
-            // Rotation
             const rotRow = document.createElement('div');
             rotRow.style.display = 'flex'; rotRow.style.alignItems = 'center'; rotRow.style.gap = '6px';
             const rotLeft = this.createControlButton('CCW', 'Rotate Left', () => {
@@ -708,10 +691,8 @@
             rotRow.append(rotLeft, rotSlider, rotRight, rotVal);
             menu.appendChild(rotRow);
 
-            // Change image
             const changeBtn = this.createControlButton('Change', 'Change Image', () => this.cycleImage());
             menu.appendChild(changeBtn);
-
             document.body.appendChild(menu);
             setTimeout(() => {
                 document.addEventListener('click', () => menu.remove(), { once: true });
@@ -765,15 +746,15 @@
     }
     function calculateLayoutSlots() {
         const config = layoutConfigs[currentLayout];
-        const adjustments = layoutAdjustments;
+        const adj = layoutAdjustments;
         switch (currentLayout) {
             case 'single': return [{ x: 0, y: 0, width: 1, height: 1 }];
             case 'two':
-                const split = adjustments.split || 0.5;
+                const split = adj.split || 0.5;
                 return [{ x: 0, y: 0, width: 1, height: split }, { x: 0, y: split, width: 1, height: 1 - split }];
             case 'big-small':
-                const mainWidth = adjustments.mainWidth || 0.67;
-                const smallSplit = adjustments.smallSplit || 0.5;
+                const mainWidth = adj.mainWidth || 0.67;
+                const smallSplit = adj.smallSplit || 0.5;
                 const sideWidth = 1 - mainWidth;
                 return [
                     { x: 0, y: 0, width: mainWidth, height: 1 },
@@ -781,8 +762,8 @@
                     { x: mainWidth, y: smallSplit, width: sideWidth, height: 1 - smallSplit }
                 ];
             case 'three':
-                const topHeight = adjustments.topHeight || 0.33;
-                const bottomSplit = adjustments.bottomSplit || 0.5;
+                const topHeight = adj.topHeight || 0.33;
+                const bottomSplit = adj.bottomSplit || 0.5;
                 const bottomHeight = 1 - topHeight;
                 return [
                     { x: 0, y: 0, width: 1, height: topHeight },
@@ -790,17 +771,30 @@
                     { x: bottomSplit, y: topHeight, width: 1 - bottomSplit, height: bottomHeight }
                 ];
             case 'four':
-                const vSplit = adjustments.verticalSplit || 0.5;
-                const hSplit = adjustments.horizontalSplit || 0.5;
+                const vSplit = adj.verticalSplit || 0.5;
+                const hSplit = adj.horizontalSplit || 0.5;
                 return [
                     { x: 0, y: 0, width: vSplit, height: hSplit },
                     { x: vSplit, y: 0, width: 1 - vSplit, height: hSplit },
                     { x: 0, y: hSplit, width: vSplit, height: 1 - hSplit },
                     { x: vSplit, y: hSplit, width: 1 - vSplit, height: 1 - hSplit }
                 ];
+            case 'big-three':
+                const bigW = adj.bigWidth || 0.65;
+                const rightW = 1 - bigW;
+                const topH = adj.topSplit || 0.33;
+                const midH = adj.midSplit || 0.33;
+                const botH = 1 - topH - midH;
+                return [
+                    { x: 0, y: 0, width: bigW, height: 1 },
+                    { x: bigW, y: 0, width: rightW, height: topH },
+                    { x: bigW, y: topH, width: rightW, height: midH },
+                    { x: bigW, y: topH + midH, width: rightW, height: botH }
+                ];
             default: return config.slots;
         }
     }
+
     function createLayout() {
         imageBoxes.forEach(box => box.remove());
         imageBoxes = [];
@@ -816,6 +810,7 @@
         });
         updateCanvas();
     }
+
     function createAdjustmentControls() {
         const controlsContainer = document.getElementById('adjustmentControls');
         const config = layoutConfigs[currentLayout];
@@ -845,8 +840,7 @@
             controlDiv.appendChild(slider);
             controlsContainer.appendChild(controlDiv);
         });
-        const adjustmentSection = document.getElementById('layoutAdjustments');
-        adjustmentSection.style.display = Object.keys(config.adjustments).length > 0 ? 'block' : 'none';
+        document.getElementById('layoutAdjustments').style.display = Object.keys(config.adjustments).length > 0 ? 'block' : 'none';
     }
 
     // ==================== DRAWING WITH ROTATION ====================
@@ -867,18 +861,14 @@
                 }
                 const drawWidth = baseWidth * box.zoom;
                 const drawHeight = baseHeight * box.zoom;
-
-                // Center of the box
                 const cx = box.x + box.width / 2;
                 const cy = box.y + box.height / 2;
-
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.rotate((box.rotation * Math.PI) / 180);
                 ctx.beginPath();
                 ctx.rect(-box.width / 2, -box.height / 2, box.width, box.height);
                 ctx.clip();
-
                 const drawX = -drawWidth / 2 + box.panX;
                 const drawY = -drawHeight / 2 + box.panY;
                 ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
@@ -894,41 +884,24 @@
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 5;
         ctx.lineCap = 'square';
-        const layoutSlots = calculateLayoutSlots();
-        switch (currentLayout) {
-            case 'two':
-                const split = layoutAdjustments.split || 0.5;
-                const y = split * canvas.height;
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-                break;
-            case 'big-small':
-                const mainWidth = layoutAdjustments.mainWidth || 0.67;
-                const x = mainWidth * canvas.width;
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-                const smallSplit = layoutAdjustments.smallSplit || 0.5;
-                const smallY = smallSplit * canvas.height;
-                ctx.beginPath(); ctx.moveTo(x, smallY); ctx.lineTo(canvas.width, smallY); ctx.stroke();
-                break;
-            case 'three':
-                const topHeight = layoutAdjustments.topHeight || 0.33;
-                const topY = topHeight * canvas.height;
-                ctx.beginPath(); ctx.moveTo(0, topY); ctx.lineTo(canvas.width, topY); ctx.stroke();
-                const bottomSplit = layoutAdjustments.bottomSplit || 0.5;
-                const bottomX = bottomSplit * canvas.width;
-                ctx.beginPath(); ctx.moveTo(bottomX, topY); ctx.lineTo(bottomX, canvas.height); ctx.stroke();
-                break;
-            case 'four':
-                const vSplit = layoutAdjustments.verticalSplit || 0.5;
-                const vX = vSplit * canvas.width;
-                ctx.beginPath(); ctx.moveTo(vX, 0); ctx.lineTo(vX, canvas.height); ctx.stroke();
-                const hSplit = layoutAdjustments.horizontalSplit || 0.5;
-                const hY = hSplit * canvas.height;
-                ctx.beginPath(); ctx.moveTo(0, hY); ctx.lineTo(canvas.width, hY); ctx.stroke();
-                break;
+        const adj = layoutAdjustments;
+
+        if (currentLayout === 'big-three') {
+            const bigW = adj.bigWidth || 0.65;
+            const x = bigW * canvas.width;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+
+            const topH = adj.topSplit || 0.33;
+            const midH = adj.midSplit || 0.33;
+            const y1 = topH * canvas.height;
+            const y2 = (topH + midH) * canvas.height;
+            ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(canvas.width, y1); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y2); ctx.lineTo(canvas.width, y2); ctx.stroke();
         }
+        // other layouts keep their existing dividers
     }
 
-    // ==================== IMAGE LIST (re-order + rotate UI) ====================
+    // ==================== IMAGE LIST & REST OF CODE (unchanged) ====================
     function handleFiles(files) {
         Array.from(files).forEach(file => {
             if (file.type.startsWith('image/')) {
@@ -956,7 +929,6 @@
             const item = document.createElement('div');
             item.className = 'image-item';
             item.draggable = true;
-
             const thumb = document.createElement('canvas');
             thumb.width = 40; thumb.height = 40; thumb.className = 'image-thumb';
             const thumbCtx = thumb.getContext('2d');
@@ -964,24 +936,19 @@
             const sx = (img.width - size) / 2;
             const sy = (img.height - size) / 2;
             thumbCtx.drawImage(img, sx, sy, size, size, 0, 0, 40, 40);
-
             const name = document.createElement('div');
             name.className = 'image-name';
             name.textContent = img.fileName || `Image ${index + 1}`;
-
-            // Order buttons
             const upBtn = document.createElement('button');
             upBtn.className = 'order-btn';
             upBtn.textContent = 'Up';
             upBtn.disabled = index === 0;
             upBtn.addEventListener('click', () => moveImage(index, index - 1));
-
             const downBtn = document.createElement('button');
             downBtn.className = 'order-btn';
             downBtn.textContent = 'Down';
             downBtn.disabled = index === uploadedImages.length - 1;
             downBtn.addEventListener('click', () => moveImage(index, index + 1));
-
             const removeBtn = document.createElement('button');
             removeBtn.className = 'remove-btn';
             removeBtn.textContent = '×';
@@ -991,7 +958,6 @@
                 updateImageList();
                 updateCanvas();
             });
-
             item.appendChild(thumb);
             item.appendChild(name);
             item.appendChild(upBtn);
@@ -999,7 +965,6 @@
             item.appendChild(removeBtn);
             imageList.appendChild(item);
 
-            // Drag & drop re-order
             let dragSrc = null;
             item.addEventListener('dragstart', (e) => {
                 dragSrc = item;
@@ -1011,9 +976,7 @@
                 if (item !== dragSrc) item.style.borderTop = '2px solid #ff6600';
             });
             item.addEventListener('dragover', (e) => e.preventDefault());
-            item.addEventListener('dragleave', () => {
-                item.style.borderTop = '';
-            });
+            item.addEventListener('dragleave', () => item.style.borderTop = '');
             item.addEventListener('drop', (e) => {
                 e.stopPropagation();
                 if (dragSrc !== item) {
@@ -1039,7 +1002,6 @@
         const [moved] = uploadedImages.splice(fromIdx, 1);
         uploadedImages.splice(toIdx, 0, moved);
         updateImageList();
-        // Re-assign images to boxes preserving current box settings (zoom/pan/rotation)
         const oldAssignments = imageBoxes.map(b => b.image);
         imageBoxes.forEach((box, i) => {
             box.image = uploadedImages[i] || null;
@@ -1064,7 +1026,6 @@
         link.click();
     }
 
-    // ==================== EVENT LISTENERS ====================
     document.addEventListener('DOMContentLoaded', () => {
         initCanvas();
 
@@ -1109,7 +1070,7 @@
             uploadedImages = []; imageBoxes.forEach(b => b.image = null); updateImageList(); updateCanvas();
         };
 
-        // Mouse Events (drag / resize / pan)
+        // Mouse Events
         document.onmousemove = e => {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
@@ -1143,7 +1104,6 @@
             document.getElementById('canvasContainer').style.transform = `scale(${canvasScale}) translate(${canvasOffset.x}px, ${canvasOffset.y}px)`;
         }
 
-        // Load from URL params
         loadImagesFromUrlParams();
         createAdjustmentControls();
         createLayout();
