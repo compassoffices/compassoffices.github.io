@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Pro Image Editor</title>
+  <title>Pro EDM Banner Editor</title>
   <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet">
 <style>
     * {
@@ -256,6 +256,28 @@
     <button onclick="moveImage(-20, 0)">⬅️</button>
     <button onclick="moveImage(20, 0)">➡️</button>
   </div>
+
+  <!-- NEW: Logo upload section (exactly matching the style) -->
+  <div class="upload-section">
+    <label>Upload Logo (PNG/JPG):
+      <input type="file" id="uploadLogo" accept="image/*" />
+    </label>
+  </div>
+  <div class="row">
+    <label>Logo Size (px):
+      <div class="input-group">
+        <input type="range" id="logoSize" min="10" max="200" step="1" value="80" />
+        <input type="number" id="logoSizeNum" min="10" max="200" step="1" value="80" />
+      </div>
+    </label>
+    <label>Logo Position X:
+      <input type="number" id="logoPosX" step="1" value="20" />
+    </label>
+    <label>Logo Position Y:
+      <input type="number" id="logoPosY" step="1" value="210" />
+    </label>
+  </div>
+
   <canvas id="editorCanvas"></canvas>
   <h3>📝 Text 1</h3>
   <textarea id="text1" placeholder="Text 1..."></textarea>
@@ -371,10 +393,15 @@
   const overlayOpacity = document.getElementById('overlayOpacity');
   const overlayOpacityNum = document.getElementById('overlayOpacityNum');
   const uploadImage = document.getElementById('uploadImage');
+  const uploadLogo = document.getElementById('uploadLogo');
   const zoomSlider = document.getElementById('zoomSlider');
   const zoomNum = document.getElementById('zoomNum');
   const offsetX = document.getElementById('offsetX');
   const offsetY = document.getElementById('offsetY');
+  const logoSize = document.getElementById('logoSize');
+  const logoSizeNum = document.getElementById('logoSizeNum');
+  const logoPosX = document.getElementById('logoPosX');
+  const logoPosY = document.getElementById('logoPosY');
   const text1 = document.getElementById('text1');
   const textSize1 = document.getElementById('textSize1');
   const textSize1Num = document.getElementById('textSize1Num');
@@ -408,6 +435,7 @@
   const textPosX2 = document.getElementById('textPosX2');
   const textPosY2 = document.getElementById('textPosY2');
   let image = null;
+  let logo = null;
   let zoom = 1;
   let offset = { x: 0, y: 0 };
   let textPos1 = { x: 0, y: 0 };
@@ -429,20 +457,19 @@
     offset = { x: 0, y: 0 };
     offsetX.value = 0;
     offsetY.value = 0;
-    textPos1 = { x: (w / 2) * scale, y: (h * 0.4) * scale };
-    textPosX1.value = Math.round(textPos1.x / scale);
-    textPosY1.value = Math.round(textPos1.y / scale);
-    textPosX1.min = 0;
-    textPosX1.max = w;
-    textPosY1.min = 0;
-    textPosY1.max = h;
-    textPos2 = { x: (w / 2) * scale, y: (h * 0.7) * scale };
-    textPosX2.value = Math.round(textPos2.x / scale);
-    textPosY2.value = Math.round(textPos2.y / scale);
-    textPosX2.min = 0;
-    textPosX2.max = w;
-    textPosY2.min = 0;
-    textPosY2.max = h;
+    logoPosX.max = w;
+    logoPosY.max = h;
+    logoPosY.value = h - 90; // default: small logo at bottom-left
+    textPos1 = { x: 20 * scale, y: 192 * scale };
+    textPosX1.value = 20;
+    textPosY1.value = 192;
+    textPosX1.min = 0; textPosX1.max = w;
+    textPosY1.min = 0; textPosY1.max = h;
+    textPos2 = { x: 20 * scale, y: 258 * scale };
+    textPosX2.value = 20;
+    textPosY2.value = 258;
+    textPosX2.min = 0; textPosX2.max = w;
+    textPosY2.min = 0; textPosY2.max = h;
     render();
   }
   function drawTextBlock(text, size, color, align, weight, pos, shadowEnabled, shadowOptions) {
@@ -483,6 +510,12 @@
       grad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    if (logo) {
+      const size = parseFloat(logoSize.value) * scale;
+      const x = parseFloat(logoPosX.value) * scale;
+      const y = parseFloat(logoPosY.value) * scale;
+      ctx.drawImage(logo, x, y, size, size);
     }
     drawTextBlock(text1.value, parseFloat(textSize1.value), textColor1.value, textAlign1.value, fontWeight1.value, textPos1,
       shadow1.checked, {
@@ -590,113 +623,51 @@
     };
     reader.readAsDataURL(file);
   });
-  // Synced listeners
-  overlayOpacity.addEventListener('input', () => {
-    overlayOpacityNum.value = overlayOpacity.value;
-    render();
+  uploadLogo.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        logo = img;
+        render();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   });
-  overlayOpacityNum.addEventListener('input', () => {
-    overlayOpacity.value = overlayOpacityNum.value;
-    render();
-  });
-  zoomSlider.addEventListener('input', () => {
-    zoomNum.value = zoomSlider.value;
-    zoom = parseFloat(zoomSlider.value);
-    render();
-  });
-  zoomNum.addEventListener('input', () => {
-    zoomSlider.value = zoomNum.value;
-    zoom = parseFloat(zoomNum.value);
-    render();
-  });
-  textSize1.addEventListener('input', () => {
-    textSize1Num.value = textSize1.value;
-    render();
-  });
-  textSize1Num.addEventListener('input', () => {
-    textSize1.value = textSize1Num.value;
-    render();
-  });
-  shadowX1.addEventListener('input', () => {
-    shadowX1Num.value = shadowX1.value;
-    render();
-  });
-  shadowX1Num.addEventListener('input', () => {
-    shadowX1.value = shadowX1Num.value;
-    render();
-  });
-  shadowY1.addEventListener('input', () => {
-    shadowY1Num.value = shadowY1.value;
-    render();
-  });
-  shadowY1Num.addEventListener('input', () => {
-    shadowY1.value = shadowY1Num.value;
-    render();
-  });
-  shadowBlur1.addEventListener('input', () => {
-    shadowBlur1Num.value = shadowBlur1.value;
-    render();
-  });
-  shadowBlur1Num.addEventListener('input', () => {
-    shadowBlur1.value = shadowBlur1Num.value;
-    render();
-  });
-  textSize2.addEventListener('input', () => {
-    textSize2Num.value = textSize2.value;
-    render();
-  });
-  textSize2Num.addEventListener('input', () => {
-    textSize2.value = textSize2Num.value;
-    render();
-  });
-  shadowX2.addEventListener('input', () => {
-    shadowX2Num.value = shadowX2.value;
-    render();
-  });
-  shadowX2Num.addEventListener('input', () => {
-    shadowX2.value = shadowX2Num.value;
-    render();
-  });
-  shadowY2.addEventListener('input', () => {
-    shadowY2Num.value = shadowY2.value;
-    render();
-  });
-  shadowY2Num.addEventListener('input', () => {
-    shadowY2.value = shadowY2Num.value;
-    render();
-  });
-  shadowBlur2.addEventListener('input', () => {
-    shadowBlur2Num.value = shadowBlur2.value;
-    render();
-  });
-  shadowBlur2Num.addEventListener('input', () => {
-    shadowBlur2.value = shadowBlur2Num.value;
-    render();
-  });
-  offsetX.addEventListener('input', () => {
-    offset.x = parseFloat(offsetX.value) * scale;
-    render();
-  });
-  offsetY.addEventListener('input', () => {
-    offset.y = parseFloat(offsetY.value) * scale;
-    render();
-  });
-  textPosX1.addEventListener('input', () => {
-    textPos1.x = parseFloat(textPosX1.value) * scale;
-    render();
-  });
-  textPosY1.addEventListener('input', () => {
-    textPos1.y = parseFloat(textPosY1.value) * scale;
-    render();
-  });
-  textPosX2.addEventListener('input', () => {
-    textPos2.x = parseFloat(textPosX2.value) * scale;
-    render();
-  });
-  textPosY2.addEventListener('input', () => {
-    textPos2.y = parseFloat(textPosY2.value) * scale;
-    render();
-  });
+  // Synced listeners (including new logo size)
+  overlayOpacity.addEventListener('input', () => { overlayOpacityNum.value = overlayOpacity.value; render(); });
+  overlayOpacityNum.addEventListener('input', () => { overlayOpacity.value = overlayOpacityNum.value; render(); });
+  zoomSlider.addEventListener('input', () => { zoomNum.value = zoomSlider.value; zoom = parseFloat(zoomSlider.value); render(); });
+  zoomNum.addEventListener('input', () => { zoomSlider.value = zoomNum.value; zoom = parseFloat(zoomNum.value); render(); });
+  logoSize.addEventListener('input', () => { logoSizeNum.value = logoSize.value; render(); });
+  logoSizeNum.addEventListener('input', () => { logoSize.value = logoSizeNum.value; render(); });
+  textSize1.addEventListener('input', () => { textSize1Num.value = textSize1.value; render(); });
+  textSize1Num.addEventListener('input', () => { textSize1.value = textSize1Num.value; render(); });
+  shadowX1.addEventListener('input', () => { shadowX1Num.value = shadowX1.value; render(); });
+  shadowX1Num.addEventListener('input', () => { shadowX1.value = shadowX1Num.value; render(); });
+  shadowY1.addEventListener('input', () => { shadowY1Num.value = shadowY1.value; render(); });
+  shadowY1Num.addEventListener('input', () => { shadowY1.value = shadowY1Num.value; render(); });
+  shadowBlur1.addEventListener('input', () => { shadowBlur1Num.value = shadowBlur1.value; render(); });
+  shadowBlur1Num.addEventListener('input', () => { shadowBlur1.value = shadowBlur1Num.value; render(); });
+  textSize2.addEventListener('input', () => { textSize2Num.value = textSize2.value; render(); });
+  textSize2Num.addEventListener('input', () => { textSize2.value = textSize2Num.value; render(); });
+  shadowX2.addEventListener('input', () => { shadowX2Num.value = shadowX2.value; render(); });
+  shadowX2Num.addEventListener('input', () => { shadowX2.value = shadowX2Num.value; render(); });
+  shadowY2.addEventListener('input', () => { shadowY2Num.value = shadowY2.value; render(); });
+  shadowY2Num.addEventListener('input', () => { shadowY2.value = shadowY2Num.value; render(); });
+  shadowBlur2.addEventListener('input', () => { shadowBlur2Num.value = shadowBlur2.value; render(); });
+  shadowBlur2Num.addEventListener('input', () => { shadowBlur2.value = shadowBlur2Num.value; render(); });
+  offsetX.addEventListener('input', () => { offset.x = parseFloat(offsetX.value) * scale; render(); });
+  offsetY.addEventListener('input', () => { offset.y = parseFloat(offsetY.value) * scale; render(); });
+  logoPosX.addEventListener('input', render);
+  logoPosY.addEventListener('input', render);
+  textPosX1.addEventListener('input', () => { textPos1.x = parseFloat(textPosX1.value) * scale; render(); });
+  textPosY1.addEventListener('input', () => { textPos1.y = parseFloat(textPosY1.value) * scale; render(); });
+  textPosX2.addEventListener('input', () => { textPos2.x = parseFloat(textPosX2.value) * scale; render(); });
+  textPosY2.addEventListener('input', () => { textPos2.y = parseFloat(textPosY2.value) * scale; render(); });
   layoutSelect.addEventListener('change', setCanvasSize);
   [
     overlayEffect,
@@ -707,22 +678,6 @@
     textAlign1, textAlign2
   ].forEach(el => el.addEventListener('change', render));
   setCanvasSize();
-  // Set custom defaults after initial setup
-  const w = 385;
-  const h = 300;
-  textPosX1.max = w;
-  textPosY1.max = h;
-  textPosX2.max = w;
-  textPosY2.max = h;
-  textPos1.x = 20 * scale;
-  textPos1.y = 192 * scale;
-  textPosX1.value = 20;
-  textPosY1.value = 192;
-  textPos2.x = 20 * scale;
-  textPos2.y = 258 * scale;
-  textPosX2.value = 20;
-  textPosY2.value = 258;
-  render();
 </script>
 </body>
 </html>
