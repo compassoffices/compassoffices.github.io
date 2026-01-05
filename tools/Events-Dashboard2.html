@@ -395,6 +395,12 @@ alt="Compass Offices Logo" />
 <p>Upcoming events and today's schedule</p>
 <div id="event-count" class="event-count">Loading events...</div>
 <div class="selector-group">
+<div class="year-selector">
+<label for="year-select">Filter by Year:</label>
+<select id="year-select">
+<option value="all">All Years</option>
+</select>
+</div>
 <div class="month-selector">
 <label for="month-select">Filter by Month:</label>
 <select id="month-select">
@@ -540,6 +546,9 @@ return eventDate >= today;
 function getCurrentMonth() {
 return new Date().getMonth();
 }
+function getCurrentYear() {
+return new Date().getFullYear();
+}
 function formatDate(date) {
 return date.toLocaleDateString('en-US', {
 weekday: 'short',
@@ -603,7 +612,7 @@ const dayEvents = events.filter(event => event.parsedDate.toDateString() === dat
 const isTodayClass = isToday(currentDate) ? 'today' : '';
 const hasEventsClass = dayEvents.length > 0 ? 'has-events' : '';
 calendarHTML += `
-<div class="calendar-day ${isTodayClass} $$ {hasEventsClass}" data-date=" $${dateStr}">
+<div class="calendar-day ${isTodayClass} ${hasEventsClass}" data-date="${dateStr}">
 <div class="day-number">${dayCount}</div>
 ${dayEvents.map(event => `<div class="event-indicator">${event['Event-Name'] || 'Event'}</div>`).join('')}
 </div>
@@ -663,11 +672,25 @@ e['Client-Name'] === event['Client-Name']
 });
 const sortedEvents = uniqueEvents.sort((a, b) => a.parsedDate - b.parsedDate);
 allEventsData = sortedEvents;
+const uniqueYears = [...new Set(sortedEvents.map(e => e.parsedDate.getFullYear()).filter(y => !isNaN(y)))].sort((a, b) => a - b);
+const yearSelect = document.getElementById('year-select');
+uniqueYears.forEach(year => {
+const option = document.createElement('option');
+option.value = year;
+option.textContent = year;
+yearSelect.appendChild(option);
+});
+yearSelect.value = getCurrentYear();
 const currentMonth = getCurrentMonth();
 document.getElementById('month-select').value = currentMonth.toString();
 updateRegionFilter();
 updateLocationFilter();
 filterEvents();
+document.getElementById('year-select').addEventListener('change', () => {
+updateRegionFilter();
+updateLocationFilter();
+filterEvents();
+});
 document.getElementById('month-select').addEventListener('change', () => {
 updateRegionFilter();
 updateLocationFilter();
@@ -686,11 +709,15 @@ showError();
 }
 let allEventsData = [];
 function updateRegionFilter() {
+const selectedYear = document.getElementById('year-select').value;
 const selectedMonth = document.getElementById('month-select').value;
 let filteredEvents = allEventsData;
+if (selectedYear !== 'all') {
+filteredEvents = filteredEvents.filter(event => event.parsedDate.getFullYear() === parseInt(selectedYear));
+}
 if (selectedMonth !== 'all') {
 const monthNum = parseInt(selectedMonth);
-filteredEvents = allEventsData.filter(event => event.parsedDate.getMonth() === monthNum);
+filteredEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === monthNum);
 }
 const uniqueRegions = [...new Set(filteredEvents.map(e => e.Region).filter(r => r))].sort();
 const regionSelect = document.getElementById('region-select');
@@ -703,12 +730,16 @@ regionSelect.appendChild(option);
 });
 }
 function updateLocationFilter() {
+const selectedYear = document.getElementById('year-select').value;
 const selectedMonth = document.getElementById('month-select').value;
 const selectedRegion = document.getElementById('region-select').value;
 let filteredEvents = allEventsData;
+if (selectedYear !== 'all') {
+filteredEvents = filteredEvents.filter(event => event.parsedDate.getFullYear() === parseInt(selectedYear));
+}
 if (selectedMonth !== 'all') {
 const monthNum = parseInt(selectedMonth);
-filteredEvents = allEventsData.filter(event => event.parsedDate.getMonth() === monthNum);
+filteredEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === monthNum);
 }
 if (selectedRegion !== 'all') {
 filteredEvents = filteredEvents.filter(event => event.Region === selectedRegion);
@@ -728,8 +759,11 @@ const countEl = document.getElementById('event-count');
 if (events.length === 0) {
 countEl.textContent = 'No events found for the selected filters.';
 } else {
+const yearName = document.getElementById('year-select').value === 'all'
+? 'all years'
+: document.getElementById('year-select').value;
 const monthName = document.getElementById('month-select').value === 'all'
-? 'all time'
+? 'all months'
 : new Date(0, document.getElementById('month-select').value).toLocaleString('en-US', { month: 'long' });
 const regionName = document.getElementById('region-select').value === 'all'
 ? 'all regions'
@@ -737,7 +771,7 @@ const regionName = document.getElementById('region-select').value === 'all'
 const locationName = document.getElementById('location-select').value === 'all'
 ? 'all locations'
 : document.getElementById('location-select').value;
-countEl.textContent = `${events.length} event${events.length === 1 ? '' : 's'} in ${monthName} at ${regionName}, ${locationName}`;
+countEl.textContent = `${events.length} event${events.length === 1 ? '' : 's'} in ${yearName}, ${monthName} at ${regionName}, ${locationName}`;
 }
 }
 function displayEvents(events) {
@@ -818,10 +852,14 @@ tableHTML += `
 listEl.innerHTML = tableHTML;
 }
 function exportToEmail() {
+const selectedYear = document.getElementById('year-select').value;
 const selectedMonth = document.getElementById('month-select').value;
 const selectedRegion = document.getElementById('region-select').value;
 const selectedLocation = document.getElementById('location-select').value;
 let filteredEvents = allEventsData;
+if (selectedYear !== 'all') {
+filteredEvents = filteredEvents.filter(event => event.parsedDate.getFullYear() === parseInt(selectedYear));
+}
 if (selectedMonth !== 'all') {
 const monthNum = parseInt(selectedMonth);
 filteredEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === monthNum);
@@ -832,6 +870,7 @@ filteredEvents = filteredEvents.filter(event => event.Region === selectedRegion)
 if (selectedLocation !== 'all') {
 filteredEvents = filteredEvents.filter(event => event.Location === selectedLocation);
 }
+const yearName = selectedYear === 'all' ? 'All Years' : selectedYear;
 const monthName = selectedMonth === 'all' ? 'All Months' : new Date(0, selectedMonth).toLocaleString('en-US', { month: 'long' });
 const grouped = {};
 filteredEvents.forEach(event => {
@@ -839,7 +878,7 @@ const baseLoc = extractBaseLocation(event.Location);
 if (!grouped[baseLoc]) grouped[baseLoc] = [];
 grouped[baseLoc].push(event);
 });
-let emailContent = `<h2>Events for ${monthName}</h2>`;
+let emailContent = `<h2>Events for ${yearName}, ${monthName}</h2>`;
 Object.keys(grouped).sort().forEach(baseLoc => {
 const groupEvents = grouped[baseLoc];
 emailContent += `<h3>${baseLoc}</h3>`;
@@ -851,22 +890,20 @@ emailContent += `<tr><td style="border: 1px solid #ddd; padding: 12px;">${format
 });
 emailContent += '</tbody></table>';
 });
-const mailtoLink = `mailto:?subject=Events - ${monthName}&body=${encodeURIComponent(emailContent.replace(/<\/?[^>]+(>|$)/g, ""))}`;
+const mailtoLink = `mailto:?subject=Events - ${yearName}, ${monthName}&body=${encodeURIComponent(emailContent.replace(/<\/?[^>]+(>|$)/g, ""))}`;
 window.location.href = mailtoLink;
 setTimeout(() => {
 alert('Email client opened! You can now paste the formatted table into your email body.');
 }, 500);
 }
-function displayCalendar(events, calendarMonth) {
+function displayCalendar(events, month, year) {
 document.getElementById('loading').style.display = 'none';
 document.getElementById('calendar-container').style.display = 'block';
 document.getElementById('events-container').style.display = 'none';
 document.getElementById('export-button').style.display = 'none';
 const gridEl = document.getElementById('calendar-grid');
-const now = new Date();
-const year = now.getFullYear();
 updateEventCount(events);
-gridEl.innerHTML = generateCalendar(year, calendarMonth, events);
+gridEl.innerHTML = generateCalendar(year, month, events);
 if (events.length === 0) {
 gridEl.innerHTML = `
 <div class="no-events">
@@ -907,14 +944,17 @@ overlay.style.display = 'none';
 });
 }
 function filterEvents() {
+const selectedYear = document.getElementById('year-select').value;
 const selectedMonth = document.getElementById('month-select').value;
 const selectedRegion = document.getElementById('region-select').value;
 const selectedLocation = document.getElementById('location-select').value;
 const view = document.getElementById('view-select').value;
 let filteredEvents = allEventsData;
+if (selectedYear !== 'all') {
+filteredEvents = filteredEvents.filter(event => event.parsedDate.getFullYear() === parseInt(selectedYear));
+}
 if (selectedMonth !== 'all') {
-const monthNum = parseInt(selectedMonth);
-filteredEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === monthNum);
+filteredEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === parseInt(selectedMonth));
 }
 if (selectedRegion !== 'all') {
 filteredEvents = filteredEvents.filter(event => event.Region === selectedRegion);
@@ -938,9 +978,21 @@ displayEvents(filteredEvents);
 } else if (view === 'table') {
 displayTable(filteredEvents);
 } else if (view === 'calendar') {
-const calendarMonth = selectedMonth === 'all' ? getCurrentMonth() : parseInt(selectedMonth);
-const calendarEvents = filteredEvents.filter(event => event.parsedDate.getMonth() === calendarMonth);
-displayCalendar(calendarEvents, calendarMonth);
+let calendarYear = getCurrentYear();
+let calendarMonth = getCurrentMonth();
+if (selectedYear !== 'all') {
+calendarYear = parseInt(selectedYear);
+}
+if (selectedMonth !== 'all') {
+calendarMonth = parseInt(selectedMonth);
+}
+const calendarEvents = allEventsData.filter(event => 
+event.parsedDate.getFullYear() === calendarYear &&
+event.parsedDate.getMonth() === calendarMonth &&
+(selectedRegion === 'all' || event.Region === selectedRegion) &&
+(selectedLocation === 'all' || event.Location === selectedLocation)
+);
+displayCalendar(calendarEvents, calendarMonth, calendarYear);
 }
 }
 function showError() {
