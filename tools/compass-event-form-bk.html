@@ -49,7 +49,7 @@
             height: 100%; background: linear-gradient(90deg, #ff6600, #e55a00);
             width: 0%; border-radius: 4px; transition: width 0.3s ease;
         }
-        .duplicate-btn {
+                .duplicate-btn {
             background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             transition: all 0.3s ease;
         }
@@ -66,12 +66,20 @@
             .max-w-2xl { max-width: 100%; padding: 0 0.5rem; }
             .text-4xl { font-size: 1.875rem; line-height: 2.25rem; }
             .submit-btn, .duplicate-btn { padding: 0.75rem 1rem; font-size: 1rem; }
+            select.input-field, input[type="time"], input[type="date"], input[type="text"], textarea { -webkit-appearance: none; border-radius: 0.5rem; }
+            select.input-field { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234B5563'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em; padding-right: 2rem; }
         }
         .date-input-container { margin-bottom: 1.5rem; }
+        /* Smart Logo Upload */
         .logo-upload-area {
-            border: 3px dashed #94a3b8; border-radius: 18px; padding: 45px 20px;
-            text-align: center; cursor: pointer; transition: all 0.3s ease;
-            background: #f8fafc; margin-top: 0.75rem;
+            border: 3px dashed #94a3b8;
+            border-radius: 18px;
+            padding: 45px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8fafc;
+            margin-top: 0.75rem;
         }
         .logo-upload-area:hover { border-color: #ff6600; background: #fff7ed; }
         .logo-upload-area.dragover { border-color: #ff6600; background: #fed7aa; }
@@ -83,7 +91,14 @@
         .logo-status.error { background: #fee2e2; color: #991b1b; }
         .logo-preview-box { margin: 1rem 0; text-align: center; }
         .logo-preview-box p { font-weight: 600; margin-bottom: 0.75rem; color: #1f2937; }
-        .logo-preview-box img, .logo-preview-box canvas { max-width: 100%; max-height: 200px; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+        .logo-preview-box img, .logo-preview-box canvas {
+            max-width: 100%; max-height: 200px; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+        }
+        .logo-loader {
+            display: inline-block; width: 18px; height: 18px; border: 2px solid #fff; border-radius: 50%;
+            border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="form-container">
@@ -97,6 +112,7 @@
             </div>
         </div>
     </div>
+    <!-- Main Form -->
     <div id="formPage" class="min-h-screen py-8 px-4">
         <div class="max-w-2xl mx-auto">
             <div class="text-center mb-8">
@@ -404,17 +420,8 @@
                         </button>
                     </div>
                 </form>
-                <div id="successMessage" class="hidden mt-6 p-6 rounded-xl text-white success-message">
-                    <p class="text-lg font-bold mb-3">Event data submitted successfully!</p>
-                    <div class="flex flex-col sm:flex-row gap-4 mb-4">
-                        <button id="copyReopenLinkBtn" class="px-6 py-3 bg-white text-orange-600 border-2 border-orange-600 rounded-lg hover:bg-orange-50 font-medium transition">
-                            Copy Re-Open Link
-                        </button>
-                        <button id="duplicateEventBtn" class="duplicate-btn px-6 py-3 text-white rounded-lg font-medium shadow-lg">
-                            Duplicate Event (New ID)
-                        </button>
-                    </div>
-                    <div class="webhook-link text-sm" id="reopenUrlDisplay"></div>
+                <div id="successMessage" class="hidden mt-6 p-4 rounded-lg text-white success-message">
+                    <p>Event data submitted successfully!</p>
                 </div>
                 <div id="errorMessage" class="hidden mt-6 p-4 rounded-lg text-white error-message">
                     <span id="errorText">Error</span>
@@ -422,7 +429,6 @@
             </div>
         </div>
     </div>
-
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             // === AUTO-GENERATE EVENT ID ===
@@ -435,35 +441,6 @@
             }
             const eventIdDisplay = document.getElementById('eventIdDisplay');
             eventIdDisplay.textContent = generateEventId();
-
-            // === HELPERS ===
-            function dataURLtoFile(dataurl, filename) {
-                const arr = dataurl.split(',');
-                const match = arr[0].match(/:(.*?);/);
-                if (!match) return null;
-                const mime = match[1];
-                const bstr = atob(arr[1]);
-                let n = bstr.length;
-                const u8arr = new Uint8Array(n);
-                while (n--) u8arr[n] = bstr.charCodeAt(n);
-                return new File([u8arr], filename, { type: mime });
-            }
-
-            function createFileList(files) {
-                const dt = new DataTransfer();
-                files.forEach(f => dt.items.add(f));
-                return dt.files;
-            }
-
-            function fileToBase64(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(file);
-                });
-            }
-
             // === FORMATTED TIME ===
             let formattedTime = '6:00 PM - 9:00 PM';
             function formatTime12(hour, minute) {
@@ -483,6 +460,7 @@
                     formattedTime = 'Select start and end time';
                 }
             }
+            // === TIME INPUTS ===
             ['startTime', 'endTime'].forEach(id => {
                 const input = document.getElementById(id);
                 input.value = input.value || (id === 'startTime' ? '18:00' : '21:00');
@@ -490,28 +468,27 @@
                 input.addEventListener('input', updateFormattedTime);
             });
             updateFormattedTime();
-
             // === LOAD FROM URL ===
             function loadFromURL() {
                 const params = new URLSearchParams(window.location.search);
                 if (!params.toString()) return;
-
+                // Load text & checkbox
                 params.forEach((value, key) => {
                     const el = document.getElementById(key);
                     if (!el) return;
                     if (el.type === 'checkbox') {
                         el.checked = value === 'true';
-                        if (['needPoster','needEDM','haveCatering','needRegisterLink','posterHasSubtitle','edmHasSubtitle'].includes(el.id)) {
+                        if (['needPoster', 'needEDM', 'haveCatering', 'needRegisterLink', 'posterHasSubtitle', 'edmHasSubtitle'].includes(el.id)) {
                             el.dispatchEvent(new Event('change'));
                         }
                     } else if (el.tagName === 'SELECT') {
                         el.value = value;
                         el.dispatchEvent(new Event('change'));
-                    } else if (el.type !== 'file' && el.type !== 'radio') {
+                    } else if (el.type !== 'file') {
                         el.value = value;
                     }
                 });
-
+                // Special: link source radio
                 const linkSource = params.get('linkSource');
                 if (linkSource) {
                     const radio = document.querySelector(`input[name="linkSource"][value="${linkSource}"]`);
@@ -520,12 +497,11 @@
                         radio.dispatchEvent(new Event('change'));
                     }
                 }
-
+                // Special: eventId display
                 if (params.has('eventId')) {
                     eventIdDisplay.textContent = params.get('eventId');
                 }
-
-                // File restoring
+                // Load files from base64
                 let logoFile = null;
                 let edmBannerFile = null;
                 let keyFiles = [];
@@ -537,32 +513,54 @@
                         const filename = isLogo ? 'logo.png' : isEdm ? 'banner.png' : `key${key.slice(-1)}.png`;
                         const file = dataURLtoFile(b64, filename);
                         if (file) {
-                            if (isLogo) logoFile = file;
-                            else if (isEdm) edmBannerFile = file;
-                            else {
+                            if (isLogo) {
+                                logoFile = file;
+                            } else if (isEdm) {
+                                edmBannerFile = file;
+                            } else {
                                 const idx = parseInt(key.slice(-1)) - 1;
                                 keyFiles[idx] = file;
                             }
                         }
                     }
                 });
-
+                // Set files and trigger processing
                 if (logoFile) {
                     document.getElementById('posterLogoInput').files = createFileList([logoFile]);
                     processLogoFile(logoFile);
                 }
-                if (keyFiles.filter(f => f).length > 0) {
-                    document.getElementById('posterKeyImagesInput').files = createFileList(keyFiles.filter(f => f));
+                if (keyFiles.length > 0) {
+                    const filteredKeyFiles = keyFiles.filter(f => f);
+                    document.getElementById('posterKeyImagesInput').files = createFileList(filteredKeyFiles);
                     document.getElementById('posterKeyImagesInput').dispatchEvent(new Event('change'));
                 }
                 if (edmBannerFile) {
                     document.getElementById('edmBannerInput').files = createFileList([edmBannerFile]);
                     document.getElementById('edmBannerInput').dispatchEvent(new Event('change'));
                 }
-
                 updateFormattedTime();
             }
-
+            function createFileList(files) {
+                const dt = new DataTransfer();
+                files.forEach(f => dt.items.add(f));
+                return dt.files;
+            }
+            function dataURLtoFile(dataurl, filename) {
+                const arr = dataurl.split(',');
+                const match = arr[0].match(/:(.*?);/);
+                if (!match) {
+                    console.error('Invalid data URL format');
+                    return null;
+                }
+                const mime = match[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                return new File([u8arr], filename, { type: mime });
+            }
             // === CLIENT CONTACT VALIDATION ===
             const contactInput = document.getElementById('clientContact');
             const feedback = document.getElementById('contactFeedback');
@@ -580,8 +578,7 @@
                     feedback.innerHTML = `<svg class="text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span class="text-red-600">Enter valid email or phone</span>`;
                 }
             });
-
-            // === LOCATION DATA ===
+            // === BUILDING / FLOOR / EMAIL DATA ===
             const buildingData = {
                 "Hong Kong": {
                     "Lee Garden Two": { "levels": ["15", "16", "28"], "emails": ["HKG2LG015@compassoffices.com", "HKG2LG016@compassoffices.com", "HKG2LG028@compassoffices.com"] },
@@ -631,13 +628,11 @@
                     "Menara AIA Sentral": { "levels": ["3", "4", "5"], "emails": ["KULMSC003@compassoffices.com", "KULMSC004@compassoffices.com", "KULMSC005@compassoffices.com"] }
                 }
             };
-
             const countrySelect = document.getElementById('country');
             const buildingSelect = document.getElementById('building');
             const floorSelect = document.getElementById('floor');
             const emailPreview = document.getElementById('emailPreview');
             const locationPreview = document.getElementById('locationPreview');
-
             function updateBuildingOptions() {
                 const country = countrySelect.value;
                 buildingSelect.innerHTML = '<option>Select Building</option>';
@@ -656,7 +651,6 @@
                     });
                 }
             }
-
             function updateFloorOptions() {
                 const country = countrySelect.value;
                 const building = buildingSelect.value;
@@ -675,7 +669,6 @@
                     });
                 }
             }
-
             function updateEmail() {
                 const country = countrySelect.value;
                 const building = buildingSelect.value;
@@ -684,10 +677,9 @@
                     const data = buildingData[country][building];
                     const idx = data.levels.indexOf(floor);
                     const email = (idx >= 0) ? data.emails[idx] : data.emails[0];
-                    emailPreview.textContent = email || 'No email found';
+                    emailPreview.textContent = email;
                 }
             }
-
             function getAreaTypes() {
                 const types = [];
                 if (document.getElementById('loungeArea').checked) types.push('Lounge area');
@@ -695,16 +687,17 @@
                 if (document.getElementById('room').checked) types.push('Room');
                 return types.length ? types.join(', ') : '';
             }
-
             function getRoomName() {
                 const names = [];
-                const meeting = document.getElementById('meetingRoomName')?.value.trim();
-                const regular = document.getElementById('regularRoomName')?.value.trim();
+                const meeting = document.getElementById('meetingRoomName').value.trim();
+                const regular = document.getElementById('regularRoomName').value.trim();
                 if (regular) names.push(`Room ${regular}`);
                 if (meeting) names.push(`MR ${meeting}`);
                 return names.length ? names.join(', ') : '';
             }
-
+            function getAdditionalReqs() {
+                return document.getElementById('additionalRequirements').value.trim();
+            }
             function updateLocationPreview() {
                 const country = countrySelect.value;
                 const building = buildingSelect.value;
@@ -721,7 +714,6 @@
                 locationPreview.textContent = formatted;
                 return formatted;
             }
-
             countrySelect.addEventListener('change', updateBuildingOptions);
             buildingSelect.addEventListener('change', updateFloorOptions);
             floorSelect.addEventListener('change', () => { updateEmail(); updateLocationPreview(); });
@@ -732,38 +724,43 @@
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('input', updateLocationPreview);
             });
-
+            const loungeArea = document.getElementById('loungeArea');
+            const meetingRoom = document.getElementById('meetingRoom');
+            const room = document.getElementById('room');
+            const roomNameSection = document.getElementById('roomNameSection');
+            const regularRoomInput = document.getElementById('regularRoomInput');
+            const meetingRoomInput = document.getElementById('meetingRoomInput');
             function toggleRoomInputs() {
-                const isRoom = document.getElementById('room').checked;
-                const isMeeting = document.getElementById('meetingRoom').checked;
-                document.getElementById('roomNameSection').style.display = (isRoom || isMeeting) ? 'block' : 'none';
-                document.getElementById('regularRoomInput').style.display = isRoom ? 'block' : 'none';
-                document.getElementById('meetingRoomInput').style.display = isMeeting ? 'block' : 'none';
+                const isRoom = room.checked;
+                const isMeeting = meetingRoom.checked;
+                roomNameSection.style.display = isRoom || isMeeting ? 'block' : 'none';
+                regularRoomInput.style.display = isRoom ? 'block' : 'none';
+                meetingRoomInput.style.display = isMeeting ? 'block' : 'none';
             }
-
-            window.addSuggestion = function(text) {
+            loungeArea.addEventListener('change', toggleRoomInputs);
+            meetingRoom.addEventListener('change', toggleRoomInputs);
+            room.addEventListener('change', toggleRoomInputs);
+            window.addSuggestion = function (text) {
                 const input = document.getElementById('additionalRequirements');
                 const cur = input.value.trim();
                 input.value = cur ? cur + ', ' + text : text;
                 updateLocationPreview();
             };
-
             // === CHAR COUNTERS ===
-            function updateCharCount(id, countId, max, nonBlankMax = null) {
+            function updateCharCount(id, countId, max, nonBlankMax) {
                 const input = document.getElementById(id);
                 const count = document.getElementById(countId);
                 if (!input || !count) return;
-                const update = () => {
+                function update() {
                     const val = input.value.trim();
                     const len = val.length;
-                    const nonBlank = val.replace(/\s/g, '').length;
-                    const display = (nonBlankMax !== null && nonBlank > 0) ? nonBlank : len;
-                    count.textContent = `${len} / ${max}` + (nonBlankMax ? ` (${display} non-blank)` : '');
+                    const nonBlankLen = val.replace(/\s/g, '').length;
+                    const displayLen = nonBlankLen > 0 ? nonBlankLen : len;
+                    count.textContent = `${len} / ${max} (${displayLen} non-blank)`;
                     count.className = 'char-count';
                     if (len > max) count.classList.add('error');
-                    else if (nonBlankMax && nonBlank > nonBlankMax) count.classList.add('warning');
-                    else count.classList.remove('warning', 'error');
-                };
+                    else if (len > nonBlankMax) count.classList.add('warning');
+                }
                 input.addEventListener('input', update);
                 update();
             }
@@ -771,73 +768,80 @@
             updateCharCount('posterSubtitle', 'posterSubtitleCount', 40, 37);
             updateCharCount('edmTitle', 'edmTitleCount', 40, 37);
             updateCharCount('edmSubtitle', 'edmSubtitleCount', 40, 37);
-            ['posterBullet1','posterBullet2','posterBullet3','edmBullet1','edmBullet2','edmBullet3'].forEach(id => {
+            ['posterBullet1', 'posterBullet2', 'posterBullet3', 'edmBullet1', 'edmBullet2', 'edmBullet3'].forEach(id => {
                 const input = document.getElementById(id);
                 const count = document.getElementById(id + 'Count');
-                if (input && count) {
-                    input.addEventListener('input', () => {
-                        const len = input.value.length;
-                        count.textContent = `${len} / 120`;
-                        count.className = len > 120 ? 'char-count error' : 'char-count';
-                    });
-                    count.textContent = '0 / 120';
-                }
+                input.addEventListener('input', () => {
+                    const len = input.value.length;
+                    count.textContent = `${len} / 120`;
+                    count.className = len > 120 ? 'char-count error' : 'char-count';
+                });
+                count.textContent = '0 / 120';
             });
-
             // === POSTER / EDM TOGGLE & SYNC ===
             const needPoster = document.getElementById('needPoster');
             const posterDetails = document.getElementById('posterDetailsSection');
             const needEDM = document.getElementById('needEDM');
             const edmDetails = document.getElementById('edmDetailsSection');
-
             needPoster.addEventListener('change', () => {
                 posterDetails.classList.toggle('hidden', !needPoster.checked);
-                if (needPoster.checked && needEDM.checked) syncContent();
+                syncContent();
             });
-
             needEDM.addEventListener('change', () => {
                 edmDetails.classList.toggle('hidden', !needEDM.checked);
-                if (needEDM.checked) setTimeout(() => edmDetails.scrollIntoView({behavior:'smooth'}), 100);
-                if (needPoster.checked && needEDM.checked) syncContent();
+                if (needEDM.checked) setTimeout(() => edmDetails.scrollIntoView({ behavior: 'smooth' }), 100);
+                syncContent();
             });
-
             document.getElementById('posterHasSubtitle').addEventListener('change', function() {
                 document.getElementById('posterSubtitleInput').classList.toggle('hidden', !this.checked);
                 document.getElementById('posterSubtitleAuto').classList.toggle('hidden', this.checked);
                 syncContent();
             });
-
             document.getElementById('edmHasSubtitle').addEventListener('change', function() {
                 document.getElementById('edmSubtitleInput').classList.toggle('hidden', !this.checked);
                 document.getElementById('edmSubtitleAuto').classList.toggle('hidden', this.checked);
                 syncContent();
             });
-
             let syncTimeout;
             function syncContent() {
                 clearTimeout(syncTimeout);
                 syncTimeout = setTimeout(() => {
                     if (needPoster.checked && needEDM.checked) {
-                        if (!document.getElementById('edmTitle').value && document.getElementById('posterTitle').value) {
-                            document.getElementById('edmTitle').value = document.getElementById('posterTitle').value;
+                        const posterTitle = document.getElementById('posterTitle').value;
+                        const edmTitle = document.getElementById('edmTitle').value;
+                        const posterHasSub = document.getElementById('posterHasSubtitle').checked;
+                        const edmHasSub = document.getElementById('edmHasSubtitle').checked;
+                        if (posterTitle && !edmTitle) document.getElementById('edmTitle').value = posterTitle;
+                        if (edmTitle && !posterTitle) document.getElementById('posterTitle').value = edmTitle;
+                        if (posterHasSub !== edmHasSub) {
+                            document.getElementById('edmHasSubtitle').checked = posterHasSub;
+                            document.getElementById('edmSubtitleInput').classList.toggle('hidden', !posterHasSub);
+                            document.getElementById('edmSubtitleAuto').classList.toggle('hidden', posterHasSub);
                         }
-                        if (!document.getElementById('posterTitle').value && document.getElementById('edmTitle').value) {
-                            document.getElementById('posterTitle').value = document.getElementById('edmTitle').value;
-                        }
-                        ['1','2','3'].forEach(i => {
-                            const p = document.getElementById('posterBullet'+i);
-                            const e = document.getElementById('edmBullet'+i);
-                            if (p.value && !e.value) e.value = p.value;
-                            if (e.value && !p.value) p.value = e.value;
+                        ['1', '2', '3'].forEach(i => {
+                            const posterVal = document.getElementById('posterBullet' + i).value;
+                            const edmVal = document.getElementById('edmBullet' + i).value;
+                            if (posterVal && !edmVal) document.getElementById('edmBullet' + i).value = posterVal;
+                            if (edmVal && !posterVal) document.getElementById('posterBullet' + i).value = edmVal;
                         });
-                        ['posterTitle','posterSubtitle','edmTitle','edmSubtitle'].forEach(id => {
-                            const el = document.getElementById(id);
-                            if (el) el.dispatchEvent(new Event('input'));
+                        ['posterTitle', 'posterSubtitle', 'edmTitle', 'edmSubtitle'].forEach(id => {
+                            const input = document.getElementById(id);
+                            if (input) input.dispatchEvent(new Event('input'));
+                        });
+                        ['posterBullet1', 'posterBullet2', 'posterBullet3', 'edmBullet1', 'edmBullet2', 'edmBullet3'].forEach(id => {
+                            const input = document.getElementById(id);
+                            if (input) input.dispatchEvent(new Event('input'));
                         });
                     }
-                }, 400);
+                }, 300);
             }
-
+            ['posterTitle', 'posterSubtitle', 'posterBullet1', 'posterBullet2', 'posterBullet3',
+                'edmTitle', 'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3'].forEach(id => {
+                document.getElementById(id).addEventListener('input', syncContent);
+            });
+            ['posterHasSubtitle', 'edmHasSubtitle'].forEach(id => {
+                document.getElementById(id).addEventListener('change', syncContent);
+            });
             // === SMART LOGO UPLOAD ===
             const logoDropZone = document.getElementById('logoDropZone');
             const logoInput = document.getElementById('posterLogoInput');
@@ -847,7 +851,6 @@
             const logoResultBox = document.getElementById('logoResultBox');
             const logoResultCanvas = document.getElementById('logoResultCanvas');
             let processedLogoFile = null;
-
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 logoDropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
             });
@@ -863,14 +866,12 @@
             });
             logoDropZone.addEventListener('click', () => logoInput.click());
             logoInput.addEventListener('change', () => { if (logoInput.files[0]) processLogoFile(logoInput.files[0]); });
-
             function resetLogoUI() {
                 [logoOriginalBox, logoResultBox, logoStatus].forEach(el => el.classList.add('hidden'));
                 processedLogoFile = null;
                 logoOriginalImg.src = '';
                 logoResultCanvas.width = 1; logoResultCanvas.height = 1;
             }
-
             async function processLogoFile(file) {
                 resetLogoUI();
                 showLogoStatus('Analyzing image...', 'info');
@@ -885,7 +886,6 @@
                 img.onerror = () => showLogoStatus('Failed to load image.', 'error');
                 img.src = url;
             }
-
             async function fitLogoAndConvert(img, originalFile) {
                 showLogoStatus('Removing background & detecting shape...', 'info');
                 const canvas = document.createElement('canvas');
@@ -927,7 +927,6 @@
                     processedLogoFile = new File([blob], originalFile.name.replace(/\.[^/.]+$/, ".png"), { type: 'image/png' });
                 }, 'image/png');
             }
-
             function getContentBoundingBox(ctx, width, height) {
                 const imageData = ctx.getImageData(0, 0, width, height).data;
                 let minX = width, minY = height, maxX = 0, maxY = 0;
@@ -946,18 +945,15 @@
                 }
                 return found ? { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } : null;
             }
-
             function showLogoStatus(msg, type = 'info') {
                 logoStatus.innerHTML = msg;
                 logoStatus.className = `logo-status ${type}`;
                 logoStatus.classList.remove('hidden');
             }
-
             // === KEY IMAGES ===
             let autoCroppedKeyImages = [];
             const keyImagesInput = document.getElementById('posterKeyImagesInput');
             const keyImagePreviews = document.getElementById('keyImagePreviews');
-
             keyImagesInput.addEventListener('change', () => {
                 keyImagePreviews.innerHTML = '';
                 autoCroppedKeyImages = [];
@@ -980,7 +976,6 @@
                     });
                 });
             });
-
             function autoCropAndConvertToPng(file, callback) {
                 const img = new Image();
                 img.onload = () => {
@@ -1001,14 +996,12 @@
                 img.onerror = () => callback(null, null);
                 img.src = URL.createObjectURL(file);
             }
-
             // === EDM BANNER ===
             const edmBannerSource = document.getElementById('edmBannerSource');
             const edmBannerUploadSection = document.getElementById('edmBannerUploadSection');
             const edmBannerInput = document.getElementById('edmBannerInput');
             const edmBannerPreview = document.getElementById('edmBannerPreview');
             let autoCroppedEdmBanner = null;
-
             function updateEdmBannerFromKeyImage() {
                 if (edmBannerSource.value === 'copy' && autoCroppedKeyImages.length > 0 && autoCroppedKeyImages[0]) {
                     autoCroppedEdmBanner = autoCroppedKeyImages[0];
@@ -1021,7 +1014,6 @@
                     edmBannerPreview.innerHTML = `<p class="text-xs text-gray-500">Upload a key image first</p>`;
                 }
             }
-
             edmBannerSource.addEventListener('change', () => {
                 const isCopy = edmBannerSource.value === 'copy';
                 edmBannerUploadSection.style.display = isCopy ? 'none' : 'block';
@@ -1029,7 +1021,6 @@
                 autoCroppedEdmBanner = null;
                 if (isCopy) updateEdmBannerFromKeyImage();
             });
-
             edmBannerInput.addEventListener('change', () => {
                 const file = edmBannerInput.files[0];
                 if (!file) return;
@@ -1044,26 +1035,25 @@
                     }
                 });
             });
-
             // === CATERING & REGISTRATION LINK ===
             document.getElementById('haveCatering').addEventListener('change', function () {
                 document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
             });
-
             const needRegisterLink = document.getElementById('needRegisterLink');
             const registerLinkSection = document.getElementById('registerLinkSection');
+            const registerLinkInput = document.getElementById('registerLink');
+            const manualLinkInput = document.getElementById('manualLinkInput');
+            const buildLinkSection = document.getElementById('buildLinkSection');
             needRegisterLink.addEventListener('change', () => {
                 registerLinkSection.classList.toggle('hidden', !needRegisterLink.checked);
             });
-
             document.querySelectorAll('input[name="linkSource"]').forEach(radio => {
                 radio.addEventListener('change', () => {
                     const value = radio.value;
-                    document.getElementById('manualLinkInput').classList.toggle('hidden', value !== 'manual');
-                    document.getElementById('buildLinkSection').classList.toggle('hidden', value !== 'build');
+                    manualLinkInput.classList.toggle('hidden', value !== 'manual');
+                    buildLinkSection.classList.toggle('hidden', value !== 'build');
                 });
             });
-
             // === FORM SUBMISSION ===
             const webhookURL = 'https://hook.eu2.make.com/i2pvup7yc0fc8uj38wts4j2sqvsmty88';
             const submitButton = document.getElementById('submitButton');
@@ -1072,30 +1062,22 @@
             const successMessage = document.getElementById('successMessage');
             const errorMessage = document.getElementById('errorMessage');
             const errorText = document.getElementById('errorText');
-            const reopenUrlDisplay = document.getElementById('reopenUrlDisplay');
-            let lastSubmittedParams = null;
-
-            document.getElementById('eventForm').addEventListener('submit', async function(e) {
+            document.getElementById('eventForm').addEventListener('submit', async function (e) {
                 e.preventDefault();
                 errorMessage.classList.add('hidden');
                 successMessage.classList.add('hidden');
-
                 const formData = new FormData();
                 const urlParams = new URLSearchParams();
-
+                // Text & checkbox fields
                 const fields = [
-                    'organizerName','organizerEmail','startTime','endTime','date',
-                    'clientName','clientContact','companyName','eventName','eventType',
-                    'country','building','floor','loungeArea','meetingRoom','room',
-                    'regularRoomName','meetingRoomName','additionalRequirements',
-                    'needPoster','needEDM','haveCatering','cateringDetails','details',
-                    'posterTitle','posterHasSubtitle','posterSubtitle',
-                    'posterBullet1','posterBullet2','posterBullet3',
-                    'edmTitle','edmHasSubtitle','edmSubtitle',
-                    'edmBullet1','edmBullet2','edmBullet3',
-                    'needRegisterLink','linkSource','registerLink'
+                    'organizerName', 'organizerEmail', 'startTime', 'endTime', 'date',
+                    'clientName', 'clientContact', 'companyName', 'eventName', 'eventType', 'country', 'building', 'floor',
+                    'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
+                    'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
+                    'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
+                    'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
+                    'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink'
                 ];
-
                 formData.append('eventId', eventIdDisplay.textContent);
                 urlParams.append('eventId', eventIdDisplay.textContent);
                 formData.append('formattedTime', formattedTime);
@@ -1104,34 +1086,153 @@
                 urlParams.append('formattedlocation', updateLocationPreview());
                 formData.append('contactEmail', emailPreview.textContent);
                 urlParams.append('contactEmail', emailPreview.textContent);
-
                 fields.forEach(key => {
+                    let value;
                     const el = document.getElementById(key);
-                    let val = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
-                    formData.append(key, val);
-                    urlParams.append(key, val);
+                    value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
+                    formData.append(key, value);
+                    urlParams.append(key, value);
                 });
-
-                const linkSourceValue = document.querySelector('input[name="linkSource"]:checked')?.value || 'manual';
+                const linkSourceValue = document.querySelector('input[name="linkSource"]:checked')?.value || '';
                 formData.append('linkSource', linkSourceValue);
                 urlParams.append('linkSource', linkSourceValue);
-
-                // Auto subtitle
-                let posterSub = document.getElementById('posterSubtitle')?.value || '';
+                // Auto subtitle if not checked
+                let posterSubtitle = document.getElementById('posterSubtitle').value;
                 if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
-                    posterSub = '(Exclusive event for clients of Compass Offices)';
+                    posterSubtitle = '(Exclusive event for clients of Compass Offices)';
                 }
-                formData.append('posterSubtitle', posterSub);
-                urlParams.append('posterSubtitle', posterSub);
-
-                let edmSub = document.getElementById('edmSubtitle')?.value || '';
+                formData.append('posterSubtitle', posterSubtitle);
+                urlParams.append('posterSubtitle', posterSubtitle);
+                let edmSubtitle = document.getElementById('edmSubtitle').value;
                 if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked) {
-                    edmSub = '(Exclusive event for clients of Compass Offices)';
+                    edmSubtitle = '(Exclusive event for clients of Compass Offices)';
                 }
-                formData.append('edmSubtitle', edmSub);
-                urlParams.append('edmSubtitle', edmSub);
+                formData.append('edmSubtitle', edmSubtitle);
+                urlParams.append('edmSubtitle', edmSubtitle);
+                // Files to base64 and append
+                const filePromises = [];
+                if (processedLogoFile) {
+                    filePromises.push(fileToBase64(processedLogoFile).then(b64 => {
+                        formData.append('posterLogo', processedLogoFile, processedLogoFile.name);
+                    }));
+                }
+                autoCroppedKeyImages.forEach((file, i) => {
+                    if (file) {
+                        filePromises.push(fileToBase64(file).then(b64 => {
+                            formData.append(`posterKeyImage${i + 1}`, file, file.name);
+                        }));
+                    }
+                });
+                if (autoCroppedEdmBanner) {
+                    filePromises.push(fileToBase64(autoCroppedEdmBanner).then(b64 => {
+                        formData.append('edmBanner', autoCroppedEdmBanner, autoCroppedEdmBanner.name);
+                    }));
+                }
+                loadingOverlay.classList.remove('hidden');
+                submitButton.disabled = true;
+                document.getElementById('submitText').textContent = 'Submitting...';
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress = Math.min(progress + 10, 90);
+                    loadingFill.style.width = progress + '%';
+                }, 300);
+                try {
+                    await Promise.all(filePromises);
+                    const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+                    formData.append('reopenLink', reopenUrl);
+                    const response = await fetch(webhookURL, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    clearInterval(interval);
+                    loadingFill.style.width = '100%';
+                    await new Promise(r => setTimeout(r, 500));
+                    if (response.ok) {
+const linkHtml = `
+    <p class="mt-4 text-lg font-semibold text-green-800">Event submitted successfully!</p>
+    
+    <div class="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <p class="text-sm text-amber-800">
+            <strong>Important:</strong> Images, logo and banner are <strong>not</strong> included in the re-open link 
+            (it would be too long for the browser).<br>
+            <span class="font-medium">You will need to re-upload them</span> if you use this link later.
+        </p>
+    </div>
 
-                // === FILE PROCESSING ===
+    <p class="mt-5 text-sm text-gray-700">Re-open this form with all text fields pre-filled:</p>
+    <div class="webhook-link mt-2 p-3 text-xs break-all bg-blue-50 border border-blue-200">
+        ${reopenUrl}
+    </div>
+
+    <button onclick="navigator.clipboard.writeText('${reopenUrl}').then(() => alert('Link copied!'))"
+            class="mt-4 px-5 py-2.5 bg-white text-orange-600 border-2 border-orange-500 rounded-lg hover:bg-orange-50 font-medium">
+        Copy Re-Open Link
+    </button>
+`;
+                        successMessage.innerHTML = linkHtml;
+                        successMessage.classList.remove('hidden');
+                        window.history.replaceState({}, '', `?${urlParams.toString()}`);
+                        localStorage.removeItem('eventFormDraft');
+                    } else {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                } catch (err) {
+                    errorText.textContent = `Submission failed: ${err.message}. Please try again.`;
+                    errorMessage.classList.remove('hidden');
+                } finally {
+                    loadingOverlay.classList.add('hidden');
+                    submitButton.disabled = false;
+                    document.getElementById('submitText').textContent = 'Submit Event Data';
+                    clearInterval(interval);
+                }
+            });
+            function fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+            // === AUTO-FILL DATE TODAY ===
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            // === MOBILE FIXES ===
+            document.querySelectorAll('input[type="time"], input[type="date"]').forEach(el => {
+                el.addEventListener('focus', function () {
+                    this.showPicker?.();
+                });
+            });
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                el.addEventListener('touchstart', () => {}, { passive: true });
+            });
+            // === LOCAL DRAFT (Optional) ===
+            const form = document.getElementById('eventForm');
+            const saveKey = 'eventFormDraft';
+            form.addEventListener('input', () => {
+                const data = new FormData(form);
+                const obj = {};
+                for (let [k, v] of data) {
+                    if (v instanceof File && v.size === 0) continue;
+                    obj[k] = v.name || v;
+                }
+                localStorage.setItem(saveKey, JSON.stringify(obj));
+            });
+            const draft = localStorage.getItem(saveKey);
+            if (draft) {
+                try {
+                    const obj = JSON.parse(draft);
+                    Object.keys(obj).forEach(k => {
+                        const el = document.getElementById(k);
+                        if (el && el.type !== 'file') el.value = obj[k];
+                    });
+                    updateFormattedTime();
+                } catch (e) { }
+            }
+            window.scrollTo(0, 0);
+            loadFromURL(); // Call loadFromURL at the end to load any query params
+        });
+
+                        // === FILE PROCESSING ===
                 const filePromises = [];
 
                 if (processedLogoFile) {
