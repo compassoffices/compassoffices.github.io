@@ -49,6 +49,15 @@
             height: 100%; background: linear-gradient(90deg, #ff6600, #e55a00);
             width: 0%; border-radius: 4px; transition: width 0.3s ease;
         }
+                .duplicate-btn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    transition: all 0.3s ease;
+}
+.duplicate-btn:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(59,130,246,0.4);
+}
         @media (max-width: 768px) {
             .form-container { padding: 0.5rem; padding-bottom: 8rem; }
             .form-card { padding: 1.5rem; }
@@ -975,7 +984,7 @@
                     }
                 });
             });
-            // === CATERING & REGISTRATION LINK ===
+           // === CATERING & REGISTRATION LINK ===
             document.getElementById('haveCatering').addEventListener('change', function () {
                 document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
             });
@@ -994,134 +1003,188 @@
                     buildLinkSection.classList.toggle('hidden', value !== 'build');
                 });
             });
-            // === FORM SUBMISSION ===
-            const webhookURL = 'https://hook.eu2.make.com/i2pvup7yc0fc8uj38wts4j2sqvsmty88';
-            const submitButton = document.getElementById('submitButton');
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            const loadingFill = document.getElementById('loadingFill');
-            const successMessage = document.getElementById('successMessage');
-            const errorMessage = document.getElementById('errorMessage');
-            const errorText = document.getElementById('errorText');
-            document.getElementById('eventForm').addEventListener('submit', async function (e) {
-                e.preventDefault();
-                errorMessage.classList.add('hidden');
-                successMessage.classList.add('hidden');
-                const formData = new FormData();
-                const urlParams = new URLSearchParams();
-                // Text & checkbox fields
-                const fields = [
-                    'organizerName', 'organizerEmail', 'startTime', 'endTime', 'date',
-                    'clientName', 'clientContact', 'companyName', 'eventName', 'eventType', 'country', 'building', 'floor',
-                    'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
-                    'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
-                    'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
-                    'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
-                    'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink'
-                ];
-                formData.append('eventId', eventIdDisplay.textContent);
-                urlParams.append('eventId', eventIdDisplay.textContent);
-                formData.append('formattedTime', formattedTime);
-                urlParams.append('formattedTime', formattedTime);
-                formData.append('formattedlocation', updateLocationPreview());
-                urlParams.append('formattedlocation', updateLocationPreview());
-                formData.append('contactEmail', emailPreview.textContent);
-                urlParams.append('contactEmail', emailPreview.textContent);
-                fields.forEach(key => {
-                    let value;
-                    const el = document.getElementById(key);
-                    value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
-                    formData.append(key, value);
-                    urlParams.append(key, value);
-                });
-                const linkSourceValue = document.querySelector('input[name="linkSource"]:checked')?.value || '';
-                formData.append('linkSource', linkSourceValue);
-                urlParams.append('linkSource', linkSourceValue);
-                // Auto subtitle if not checked
-                let posterSubtitle = document.getElementById('posterSubtitle').value;
-                if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
-                    posterSubtitle = '(Compass Offices クライアント限定イベント)';
-                }
-                formData.append('posterSubtitle', posterSubtitle);
-                urlParams.append('posterSubtitle', posterSubtitle);
-                let edmSubtitle = document.getElementById('edmSubtitle').value;
-                if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked) {
-                    edmSubtitle = '(Compass Offices クライアント限定イベント)';
-                }
-                formData.append('edmSubtitle', edmSubtitle);
-                urlParams.append('edmSubtitle', edmSubtitle);
-                // Files (same as original)
-                const filePromises = [];
-                if (processedLogoFile) {
-                    filePromises.push(fileToBase64(processedLogoFile).then(b64 => {
-                        formData.append('posterLogo', processedLogoFile, processedLogoFile.name);
-                    }));
-                }
-                autoCroppedKeyImages.forEach((file, i) => {
-                    if (file) {
-                        filePromises.push(fileToBase64(file).then(b64 => {
-                            formData.append(`posterKeyImage${i + 1}`, file, file.name);
-                        }));
-                    }
-                });
-                if (autoCroppedEdmBanner) {
-                    filePromises.push(fileToBase64(autoCroppedEdmBanner).then(b64 => {
-                        formData.append('edmBanner', autoCroppedEdmBanner, autoCroppedEdmBanner.name);
-                    }));
-                }
-                loadingOverlay.classList.remove('hidden');
-                submitButton.disabled = true;
-                document.getElementById('submitText').textContent = '送信中...';
-                let progress = 0;
-                const interval = setInterval(() => {
-                    progress = Math.min(progress + 10, 90);
-                    loadingFill.style.width = progress + '%';
-                }, 300);
-                try {
-                    await Promise.all(filePromises);
-                    const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
-                    formData.append('reopenLink', reopenUrl);
-                    const response = await fetch(webhookURL, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    clearInterval(interval);
-                    loadingFill.style.width = '100%';
-                    await new Promise(r => setTimeout(r, 500));
-                    if (response.ok) {
-                        const linkHtml = `
-                            <p class="mt-2 text-sm">イベントが正常に送信されました！</p>
-                            <p class="mt-3 text-sm">以下をクリックして<strong>すべてのデータを保持したままフォームを再開</strong>できます：</p>
-                            <div class="webhook-link mt-2 p-3 text-xs break-all">${reopenUrl}</div>
-                            <button onclick="navigator.clipboard.writeText('${reopenUrl}').then(() => alert('リンクをクリップボードにコピーしました！'))"
-                                    class="mt-2 px-4 py-2 bg-white text-orange-600 border border-orange-600 rounded-lg text-sm hover:bg-orange-50">
-                                再開リンクをコピー
-                            </button>
-                        `;
-                        successMessage.innerHTML = linkHtml;
-                        successMessage.classList.remove('hidden');
-                        window.history.replaceState({}, '', `?${urlParams.toString()}`);
-                        localStorage.removeItem('eventFormDraft');
-                    } else {
-                        throw new Error(`サーバーエラー: ${response.status}`);
-                    }
-                } catch (err) {
-                    errorText.textContent = `送信に失敗しました: ${err.message}。もう一度お試しください。`;
-                    errorMessage.classList.remove('hidden');
-                } finally {
-                    loadingOverlay.classList.add('hidden');
-                    submitButton.disabled = false;
-                    document.getElementById('submitText').textContent = 'イベントデータを送信';
-                    clearInterval(interval);
-                }
-            });
-            function fileToBase64(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(file);
-                });
-            }
+// === FORM SUBMISSION ===
+const webhookURL = 'https://hook.eu2.make.com/i2pvup7yc0fc8uj38wts4j2sqvsmty88';
+const submitButton = document.getElementById('submitButton');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingFill = document.getElementById('loadingFill');
+const successMessage = document.getElementById('successMessage');
+const errorMessage = document.getElementById('errorMessage');
+const errorText = document.getElementById('errorText');
+
+document.getElementById('eventForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    errorMessage.classList.add('hidden');
+    successMessage.classList.add('hidden');
+
+    const formData = new FormData();
+    const urlParams = new URLSearchParams();
+
+    // Text & checkbox fields
+    const fields = [
+        'organizerName', 'organizerEmail', 'startTime', 'endTime', 'date',
+        'clientName', 'clientContact', 'companyName', 'eventName', 'eventType', 'country', 'building', 'floor',
+        'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
+        'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
+        'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
+        'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
+        'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink'
+    ];
+
+    formData.append('eventId', eventIdDisplay.textContent);
+    urlParams.append('eventId', eventIdDisplay.textContent);
+
+    formData.append('formattedTime', formattedTime);
+    urlParams.append('formattedTime', formattedTime);
+
+    formData.append('formattedlocation', updateLocationPreview());
+    urlParams.append('formattedlocation', updateLocationPreview());
+
+    formData.append('contactEmail', emailPreview.textContent);
+    urlParams.append('contactEmail', emailPreview.textContent);
+
+    fields.forEach(key => {
+        const el = document.getElementById(key);
+        const value = el ? (el.type === 'checkbox' ? el.checked : el.value) : '';
+        formData.append(key, value);
+        urlParams.append(key, value);
+    });
+
+    const linkSourceValue = document.querySelector('input[name="linkSource"]:checked')?.value || '';
+    formData.append('linkSource', linkSourceValue);
+    urlParams.append('linkSource', linkSourceValue);
+
+    // Auto subtitle if not checked
+    let posterSubtitle = document.getElementById('posterSubtitle').value;
+    if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
+        posterSubtitle = '(Exclusive event for clients of Compass Offices)';
+    }
+    formData.append('posterSubtitle', posterSubtitle);
+    urlParams.append('posterSubtitle', posterSubtitle);
+
+    let edmSubtitle = document.getElementById('edmSubtitle').value;
+    if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked) {
+        edmSubtitle = '(Exclusive event for clients of Compass Offices)';
+    }
+    formData.append('edmSubtitle', edmSubtitle);
+    urlParams.append('edmSubtitle', edmSubtitle);
+
+    // Files - send as real File objects (best practice)
+    if (processedLogoFile) {
+        formData.append('posterLogo', processedLogoFile);
+    }
+    autoCroppedKeyImages.forEach((file, i) => {
+        if (file) {
+            formData.append(`posterKeyImage${i + 1}`, file);
+        }
+    });
+    if (autoCroppedEdmBanner) {
+        formData.append('edmBanner', autoCroppedEdmBanner);
+    }
+
+    // Start loading UI
+    loadingOverlay.classList.remove('hidden');
+    submitButton.disabled = true;
+    document.getElementById('submitText').textContent = 'Submitting...';
+
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress = Math.min(progress + 12, 92);
+        loadingFill.style.width = progress + '%';
+    }, 280);
+
+    try {
+        const reopenUrl = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+        formData.append('reopenLink', reopenUrl);
+
+        const response = await fetch(webhookURL, {
+            method: 'POST',
+            body: formData
+        });
+
+        clearInterval(interval);
+        loadingFill.style.width = '100%';
+        await new Promise(r => setTimeout(r, 600));
+
+        if (response.ok) {
+            // ── Success UI with Duplicate Button ───────────────────────────────
+            successMessage.innerHTML = `
+                <div class="text-center p-4">
+                    <p class="text-2xl font-bold mb-5 text-white">Event Submitted Successfully! 🎉</p>
+                    
+                    <p class="text-base mb-6 opacity-90">
+                        What would you like to do next?
+                    </p>
+
+                    <button id="duplicateEventBtn" 
+                            class="duplicate-btn w-full max-w-md mx-auto py-4 px-8 text-lg font-semibold rounded-xl shadow-lg mb-6">
+                        <i class="fas fa-copy mr-3"></i> Duplicate This Event (New ID)
+                    </button>
+
+                    <div class="mt-2 mb-3 text-sm opacity-90">
+                        Or save this link to come back later (text fields only):
+                    </div>
+                    
+                    <div class="webhook-link p-4 text-sm break-all bg-blue-900/30 border border-blue-300/40 rounded-lg mb-4">
+                        ${reopenUrl}
+                    </div>
+
+                    <button id="copyReopenLinkBtn"
+                            class="px-6 py-2.5 bg-white text-orange-600 border-2 border-orange-500 rounded-lg hover:bg-orange-50 font-medium">
+                        Copy Re-Open Link
+                    </button>
+                </div>
+            `;
+
+            successMessage.classList.remove('hidden');
+
+            // Copy reopen link
+            document.getElementById('copyReopenLinkBtn').onclick = () => {
+                navigator.clipboard.writeText(reopenUrl)
+                    .then(() => alert('Re-open link copied! ✓'))
+                    .catch(() => alert('Copy failed'));
+            };
+
+            // Duplicate event logic
+            document.getElementById('duplicateEventBtn').onclick = () => {
+                const newEventId = generateEventId();
+                const dupParams = new URLSearchParams(urlParams);
+                dupParams.set('eventId', newEventId);
+                
+                // Remove images from URL (too large)
+                ['posterLogo','posterKeyImage1','posterKeyImage2','posterKeyImage3','edmBanner']
+                    .forEach(k => dupParams.delete(k));
+
+                dupParams.set('duplicated', 'true');
+
+                window.location.href = `${window.location.origin}${window.location.pathname}?${dupParams.toString()}`;
+            };
+
+            // Clean URL & storage
+            window.history.replaceState({}, '', `?${urlParams.toString()}`);
+            localStorage.removeItem('eventFormDraft');
+        } else {
+            throw new Error(`Server responded with status: ${response.status}`);
+        }
+    } catch (err) {
+        errorText.textContent = `Submission failed: ${err.message}. Please try again.`;
+        errorMessage.classList.remove('hidden');
+    } finally {
+        loadingOverlay.classList.add('hidden');
+        submitButton.disabled = false;
+        document.getElementById('submitText').textContent = 'Submit Event Data';
+        clearInterval(interval);
+    }
+});
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
             // === AUTO-FILL DATE TODAY ===
             document.getElementById('date').value = new Date().toISOString().split('T')[0];
             // === MOBILE FIXES ===
@@ -1157,7 +1220,7 @@
                 } catch (e) { }
             }
             window.scrollTo(0, 0);
-            loadFromURL();
+            loadFromURL(); // Call loadFromURL at the end to load any query params
         });
     </script>
 </body>
