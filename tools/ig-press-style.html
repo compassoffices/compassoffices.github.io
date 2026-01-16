@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Photo Editor – No Crop + Full Background</title>
-  
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Editor - Fixed Export</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js"></script>
 
@@ -12,8 +11,7 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: #f1f5f9;
-      font-family: system-ui, sans-serif;
+      background: #f8fafc;
     }
 
     #capture {
@@ -23,29 +21,29 @@
       position: relative;
       background: white;
       overflow: hidden;
-      border-radius: 16px;
+      border-radius: 12px;
       box-shadow: 0 10px 40px rgba(0,0,0,0.12);
     }
 
-    .bg-layer {
+    .bg-container {
       position: absolute;
       inset: 0;
       background: white;
       z-index: 1;
     }
 
-    .bg-img {
+    .bg-image {
       width: 100%;
       height: 100%;
       object-fit: cover;
       object-position: center;
     }
 
-    .bg-blurred .bg-img {
+    .bg-blurred .bg-image {
       filter: blur(12px);
     }
 
-    .content-area {
+    .content {
       position: absolute;
       inset: 0;
       z-index: 5;
@@ -53,7 +51,7 @@
       box-sizing: border-box;
     }
 
-    .frames-container {
+    .frames {
       width: 1020px;
       height: 1000px;
       margin: 0 auto;
@@ -68,11 +66,11 @@
       height: 100%;
       border-radius: 20px;
       overflow: hidden;
-      background: #0f0f0f;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      background: #111;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
     }
 
-    .photo-container {
+    .photo-area {
       width: 100%;
       height: 100%;
       position: relative;
@@ -82,61 +80,60 @@
       touch-action: none;
     }
 
-    .photo-container:active {
+    .photo-area:active {
       cursor: grabbing;
     }
 
-    .photo {
+    .photo-inner {
       width: 100%;
       height: 100%;
-      background-size: contain;          /* ← very important change */
+      background-size: contain;           /* ← shows full image initially */
       background-position: center;
       background-repeat: no-repeat;
-      transition: transform 0.12s ease;
-      will-change: transform;
+      transition: transform 0.1s ease-out;
     }
 
-    .overlay {
+    .upload-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(0,0,0,0.4);
+      background: rgba(0,0,0,0.45);
       color: white;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       pointer-events: none;
-      transition: opacity 0.4s;
+      transition: opacity 0.3s;
     }
 
-    .single-mode .frames-container {
+    .single .frames {
       justify-content: center;
     }
 
-    .single-mode .frame.right {
-      display: none !important;
+    .single .frame.right {
+      display: none;
     }
 
     .toolbar {
       max-width: 1140px;
-      margin: 0 auto 32px auto;
-      padding: 20px;
+      margin: 0 auto 32px;
+      padding: 1.5rem;
       background: white;
-      border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+      border-radius: 12px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.08);
     }
   </style>
 </head>
 <body>
 
 <div class="toolbar">
-  <h1 class="text-2xl font-bold mb-5 text-center">Photo Frame Creator</h1>
+  <h1 class="text-2xl font-bold mb-4 text-center">Photo Frame Editor</h1>
   <div class="flex flex-wrap gap-4 justify-center">
-    <button id="upload-left" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">Left Photo</button>
-    <button id="upload-right" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">Right Photo</button>
-    <button id="upload-bg" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Background</button>
-    <button id="toggle-blur" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium">Blur BG</button>
-    <button id="download" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium">Download JPG</button>
+    <button id="btn-left" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Left Photo</button>
+    <button id="btn-right" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Right Photo</button>
+    <button id="btn-bg" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Background</button>
+    <button id="btn-blur" class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Blur BG</button>
+    <button id="btn-download" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">Download JPG</button>
   </div>
 
   <input type="file" id="file-left" accept="image/*" hidden>
@@ -145,32 +142,32 @@
 </div>
 
 <div id="capture">
-  <div class="bg-layer" id="bg-layer">
-    <img class="bg-img" id="bg-image" alt="background" crossorigin="anonymous">
+  <div class="bg-container" id="bg-layer">
+    <img class="bg-image" id="bg-img" crossorigin="anonymous">
   </div>
 
-  <div class="content-area">
-    <div class="frames-container" id="frames">
+  <div class="content">
+    <div class="frames" id="frames">
       <div class="frame">
-        <div class="photo-container" id="container-left">
-          <div class="photo" id="photo-left"></div>
-          <div class="overlay" id="overlay-left">
+        <div class="photo-area" id="area-left">
+          <div class="photo-inner" id="photo-left"></div>
+          <div class="upload-overlay" id="overlay-left">
             <svg class="w-12 h-12 mb-3" fill="none" stroke="white" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            <p>Left Photo – drag & zoom</p>
+            <p class="text-lg">Left Photo</p>
           </div>
         </div>
       </div>
 
       <div class="frame right">
-        <div class="photo-container" id="container-right">
-          <div class="photo" id="photo-right"></div>
-          <div class="overlay" id="overlay-right">
+        <div class="photo-area" id="area-right">
+          <div class="photo-inner" id="photo-right"></div>
+          <div class="upload-overlay" id="overlay-right">
             <svg class="w-12 h-12 mb-3" fill="none" stroke="white" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            <p>Right Photo – drag & zoom</p>
+            <p class="text-lg">Right Photo</p>
           </div>
         </div>
       </div>
@@ -178,32 +175,30 @@
   </div>
 </div>
 
-<!-- Simple toast -->
-<div id="toast" class="fixed bottom-6 right-6 bg-green-600 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-24 opacity-0 transition-all duration-300 z-50">
-  <span id="toast-msg">Done!</span>
+<!-- Toast -->
+<div id="toast" class="fixed bottom-8 right-8 bg-green-600 text-white px-8 py-4 rounded-xl shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3">
+  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+  <span id="toast-text">Done!</span>
 </div>
 
 <script>
 // ────────────────────────────────────────────────
 const capture = document.getElementById('capture');
-const bgLayer = document.getElementById('bg-layer');
 const frames = document.getElementById('frames');
 
-// Upload triggers
-document.getElementById('upload-left').onclick  = () => document.getElementById('file-left').click();
-document.getElementById('upload-right').onclick = () => document.getElementById('file-right').click();
-document.getElementById('upload-bg').onclick    = () => document.getElementById('file-bg').click();
+document.getElementById('btn-left').onclick  = () => document.getElementById('file-left').click();
+document.getElementById('btn-right').onclick = () => document.getElementById('file-right').click();
+document.getElementById('btn-bg').onclick    = () => document.getElementById('file-bg').click();
 
-// Load images
 document.getElementById('file-left').onchange = e => loadImage(e, 'photo-left', 'overlay-left');
 document.getElementById('file-right').onchange = e => loadImage(e, 'photo-right', 'overlay-right');
 
 document.getElementById('file-bg').onchange = e => {
-  const f = e.target.files[0];
-  if (f) {
-    const r = new FileReader();
-    r.onload = ev => document.getElementById('bg-image').src = ev.target.result;
-    r.readAsDataURL(f);
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = ev => document.getElementById('bg-img').src = ev.target.result;
+    reader.readAsDataURL(file);
   }
 };
 
@@ -213,97 +208,94 @@ function loadImage(e, photoId, overlayId) {
   const reader = new FileReader();
   reader.onload = ev => {
     document.getElementById(photoId).style.backgroundImage = `url(${ev.target.result})`;
-    if (overlayId) document.getElementById(overlayId).style.opacity = '0';
+    document.getElementById(overlayId).style.opacity = '0';
     updateLayout();
   };
   reader.readAsDataURL(file);
 }
 
-// Single / double mode
 function updateLayout() {
   const hasRight = !!document.getElementById('photo-right').style.backgroundImage;
-  frames.classList.toggle('single-mode', !hasRight);
+  frames.classList.toggle('single', !hasRight);
 }
 
-// Blur toggle
 let blurOn = false;
-document.getElementById('toggle-blur').onclick = () => {
+document.getElementById('btn-blur').onclick = () => {
   blurOn = !blurOn;
-  bgLayer.classList.toggle('bg-blurred', blurOn);
-  document.getElementById('toggle-blur').textContent = blurOn ? 'Unblur BG' : 'Blur BG';
+  document.getElementById('bg-layer').classList.toggle('bg-blurred', blurOn);
+  document.getElementById('btn-blur').textContent = blurOn ? 'Unblur BG' : 'Blur BG';
 };
 
-// Drag + Zoom
-function makeMovable(containerId, photoId) {
+// ────────────────────────────────────────────────
+// Drag & Zoom
+function initDragZoom(containerId, photoId) {
   const container = document.getElementById(containerId);
   const photo = document.getElementById(photoId);
 
   let scale = 1;
-  let tx = 0, ty = 0;
-  let dragging = false;
+  let x = 0;
+  let y = 0;
+  let isDragging = false;
   let startX, startY;
 
-  function update() {
-    photo.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-  }
+  const update = () => {
+    photo.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  };
 
   container.addEventListener('mousedown', e => {
-    dragging = true;
-    startX = e.clientX - tx;
-    startY = e.clientY - ty;
-    container.style.cursor = 'grabbing';
+    isDragging = true;
+    startX = e.clientX - x;
+    startY = e.clientY - y;
     e.preventDefault();
   });
 
   window.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    tx = e.clientX - startX;
-    ty = e.clientY - startY;
+    if (!isDragging) return;
+    x = e.clientX - startX;
+    y = e.clientY - startY;
     update();
   });
 
-  window.addEventListener('mouseup', () => {
-    dragging = false;
-    container.style.cursor = 'grab';
-  });
+  window.addEventListener('mouseup', () => isDragging = false);
 
   container.addEventListener('wheel', e => {
     e.preventDefault();
-    const step = e.deltaY > 0 ? -0.08 : 0.08;
-    scale = Math.max(0.35, Math.min(6, scale + step));
+    const delta = e.deltaY > 0 ? -0.08 : 0.08;
+    scale = Math.max(0.4, Math.min(5, scale + delta));
     update();
   });
 
-  // Touch pinch zoom
+  // Touch pinch
   let startDist = 0;
   container.addEventListener('touchstart', e => {
     if (e.touches.length === 2) {
       e.preventDefault();
       const t1 = e.touches[0], t2 = e.touches[1];
-      startDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      startDist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
     }
-  }, { passive: false });
+  }, {passive:false});
 
   container.addEventListener('touchmove', e => {
     if (e.touches.length === 2) {
       e.preventDefault();
       const t1 = e.touches[0], t2 = e.touches[1];
-      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const dist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
       scale *= dist / startDist;
-      scale = Math.max(0.35, Math.min(6, scale));
+      scale = Math.max(0.4, Math.min(5, scale));
       startDist = dist;
       update();
     }
-  }, { passive: false });
+  }, {passive:false});
 }
 
-makeMovable('container-left', 'photo-left');
-makeMovable('container-right', 'photo-right');
+initDragZoom('area-left', 'photo-left');
+initDragZoom('area-right', 'photo-right');
 
-// Download
-document.getElementById('download').onclick = async () => {
+// ────────────────────────────────────────────────
+// Download - most reliable settings for no white edges
+document.getElementById('btn-download').onclick = async () => {
   try {
-    showToast('Generating...');
+    showToast('Creating image...');
     const dataUrl = await htmlToImage.toJpeg(capture, {
       quality: 0.92,
       pixelRatio: 2,
@@ -312,31 +304,29 @@ document.getElementById('download').onclick = async () => {
       canvasHeight: 1350,
       width: 1080,
       height: 1350,
-      cacheBust: true,
-      includeQueryParamsInFontURI: true
+      cacheBust: true
     });
 
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `photo-frame-${Date.now()}.jpg`;
-    a.click();
+    const link = document.createElement('a');
+    link.download = `photo-${Date.now()}.jpg`;
+    link.href = dataUrl;
+    link.click();
 
     showToast('Downloaded!');
   } catch (err) {
     console.error(err);
-    showToast('Error occurred');
+    showToast('Export failed');
   }
 };
 
-function showToast(text) {
-  const t = document.getElementById('toast');
-  document.getElementById('toast-msg').textContent = text;
-  t.classList.remove('translate-y-24', 'opacity-0');
-  t.classList.add('translate-y-0', 'opacity-100');
-  setTimeout(() => t.classList.add('translate-y-24', 'opacity-0'), 2200);
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = msg;
+  toast.classList.remove('translate-y-20','opacity-0');
+  toast.classList.add('translate-y-0','opacity-100');
+  setTimeout(() => toast.classList.add('translate-y-20','opacity-0'), 2200);
 }
 
-// Init
 updateLayout();
 </script>
 </body>
