@@ -85,7 +85,7 @@
 
     .text-box {
       width: 920px;
-      min-height: 280px;                 /* ← previous taller version */
+      min-height: 280px;
       position: absolute;
       left: 80px;
       bottom: 60px;
@@ -98,7 +98,7 @@
 
     .text-editor {
       font-family: 'Neue Haas Grotesk Display Pro', 'Helvetica Neue', Arial, sans-serif;
-      font-size: 62px;
+      font-size: 70px;                   /* default = large */
       line-height: 1.25;
       color: #000;
       outline: none;
@@ -107,9 +107,9 @@
       background: transparent;
     }
 
-    .text-editor.font-small {
-      font-size: 10px !important;       /* very small when selected */
-      line-height: 1.2;
+    .text-editor .font-small {
+      font-size: 62px !important;
+      line-height: 1.3;
     }
 
     .upload-overlay {
@@ -182,8 +182,8 @@
     <div class="formatting-toolbar">
       <button id="bold-btn" class="format-btn">Bold</button>
       <button id="highlight-btn" class="format-btn" style="background:#ff6600; color:white; border-color:#ff6600;">Highlight</button>
-      <button id="size-big-btn" class="format-btn active">Large (62px)</button>
-      <button id="size-small-btn" class="format-btn">Small (10px)</button>
+      <button id="size-large-btn" class="format-btn active">Large (70px)</button>
+      <button id="size-small-btn" class="format-btn">Small (62px)</button>
       <button id="clear-btn" class="format-btn">Clear</button>
     </div>
 
@@ -254,35 +254,50 @@
       r.readAsDataURL(f);
     };
 
-    // Formatting
+    // Text formatting - now supports different sizes on selected text
     document.getElementById('bold-btn').onclick = () => document.execCommand('bold');
     document.getElementById('highlight-btn').onclick = () => document.execCommand('foreColor', false, '#ff6600');
 
-    document.getElementById('size-big-btn').onclick = () => {
-      els.textArea.classList.remove('font-small');
-      document.execCommand('fontSize', false, '7');
+    document.getElementById('size-large-btn').onclick = () => {
+      document.execCommand('fontSize', false, '7'); // ~70px
     };
 
     document.getElementById('size-small-btn').onclick = () => {
-      els.textArea.classList.add('font-small');
+      document.execCommand('fontSize', false, '6'); // browser base ~62px
+      // Clean up old font tags and apply consistent size
+      const selection = window.getSelection();
+      if (selection.rangeCount) {
+        const range = selection.getRangeAt(0);
+        if (!range.collapsed) {
+          const span = document.createElement('span');
+          span.style.fontSize = '62px';
+          try {
+            range.surroundContents(span);
+          } catch (e) {
+            document.execCommand('fontSize', false, '6');
+          }
+        }
+      }
     };
 
     document.getElementById('clear-btn').onclick = () => {
       document.execCommand('removeFormat');
       document.execCommand('foreColor', false, '#000000');
-      els.textArea.classList.remove('font-small');
     };
 
-    // Download
+    // Download – improved to avoid any black/empty top bar
     document.getElementById('download-btn').onclick = async () => {
       try {
         showToast('Creating image...');
+
         const dataUrl = await htmlToImage.toJpeg(document.getElementById('capture-area'), {
-          quality: 0.94,
-          pixelRatio: 2.3,
+          quality: 0.95,
+          pixelRatio: 2.5,
           backgroundColor: null,
           canvasWidth: 1080,
-          canvasHeight: 1350
+          canvasHeight: 1350,
+          includeQueryParamsInFontURI: true,
+          cacheBust: true
         });
 
         const a = document.createElement('a');
@@ -290,7 +305,7 @@
         a.download = `design-${Date.now()}.jpg`;
         a.click();
 
-        showToast('Downloaded!');
+        showToast('Downloaded successfully!');
       } catch (e) {
         console.error(e);
         showToast('Something went wrong');
