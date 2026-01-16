@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Professional Photo Editor</title>
+  <title>Compass Photo Editor</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,95 +11,122 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
   <style>
-    body { box-sizing: border-box; margin:0; padding:0; }
-
+    body { margin:0; padding:0; box-sizing:border-box; font-family: 'Inter', sans-serif; }
+    
     .canvas-container {
       width: 1080px;
       height: 1350px;
+      margin: 24px auto;
       position: relative;
-      margin: 20px auto;
-      background: #ffffff;           /* Solid white background - prevents top black line */
+      background: white;
       overflow: hidden;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+      border-radius: 8px;
     }
 
     .white-section {
-      width: 1080px;
+      position: absolute;
+      inset: 0 0 auto 0;
       height: 850px;
       background: white;
-      position: absolute;
-      left: 0;
-      top: -20px;                    /* Slight upward shift */
     }
 
     .dark-section {
-      width: 1080px;
+      position: absolute;
+      inset: auto 0 0 0;
       height: 500px;
       background: #282828;
-      position: absolute;
-      left: 0;
-      bottom: 0;
     }
 
     .photo-mask {
+      overflow: hidden;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .photo-mask:active { cursor: grabbing; }
+
+    .main-photo {
       width: 920px;
       height: 1000px;
       position: absolute;
       left: 80px;
-      top: 10px;                     /* Moved up a bit (was 30px) */
-      overflow: hidden;
-      background: #1a1a1a;
-      cursor: pointer;
-      z-index: 5;
+      top: 0;
       border-radius: 20px;
+      background: #1a1a1a;
+      z-index: 5;
     }
 
-    .photo-mask img {
+    .circle-photo {
+      width: 350px;
+      height: 350px;
+      position: absolute;
+      left: 40px;
+      bottom: 380px;
+      border-radius: 50%;
+      border: 5px solid #282828;
+      background: #1a1a1a;
+      z-index: 6;
+      overflow: hidden;
+    }
+
+    .photo-inner {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      background-size: cover;
+      background-position: center;
+      transition: transform 0.08s ease-out;
+      will-change: transform;
     }
 
     .photo-gradient {
       position: absolute;
       inset: 0;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.35) 100%);
+      background: linear-gradient(to bottom, rgba(0,0,0,0.48) 0%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.38) 100%);
       pointer-events: none;
       z-index: 2;
+    }
+
+    .upload-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.2);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      pointer-events: none;
     }
 
     .logo-container {
       position: absolute;
       left: 100px;
-      top: 40px;                     /* Also moved up a bit */
+      top: 40px;
       width: 220px;
       height: 80px;
       z-index: 10;
     }
 
-    .logo-image {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-    }
-
     .text-box {
-      width: 920px;
-      min-height: 280px;
       position: absolute;
       left: 80px;
       bottom: 60px;
+      width: 920px;
+      min-height: 280px;
       background: white;
       border-radius: 20px;
       padding: 40px 60px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
       z-index: 7;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
     }
 
     .text-editor {
       font-family: 'Neue Haas Grotesk Display Pro', 'Helvetica Neue', Arial, sans-serif;
       font-size: 70px;
-      line-height: 1.25;
+      line-height: 1.24;
       color: #000;
       outline: none;
       width: 100%;
@@ -107,214 +134,253 @@
       background: transparent;
     }
 
-    .text-editor .font-small {
+    .text-editor .small {
       font-size: 62px !important;
-      line-height: 1.3;
     }
 
-    .upload-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: rgba(255,255,255,0.75);
-      background: rgba(0,0,0,0.15);
-      z-index: 1;
-    }
-
+    /* Controls */
     .control-panel {
-      max-width: 1080px;
-      margin: 20px auto;
+      max-width: 1100px;
+      margin: 24px auto;
       background: white;
-      padding: 16px 24px;
+      padding: 1.5rem;
       border-radius: 12px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-    }
-
-    .btn {
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      font-family: 'Inter', sans-serif;
-    }
-
-    .btn-primary {
-      background: #3b82f6;
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background: #2563eb;
-    }
-
-    .formatting-toolbar {
-      display: flex;
-      gap: 8px;
-      margin: 12px 0;
-      flex-wrap: wrap;
-    }
-
-    .format-btn {
-      padding: 8px 14px;
-      border: 2px solid #e5e7eb;
-      border-radius: 6px;
-      background: white;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 13px;
-    }
-
-    .format-btn.active, .format-btn:hover {
-      border-color: #3b82f6;
-      background: #eff6ff;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.12);
     }
   </style>
 </head>
-<body style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); min-height:100vh;">
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen">
 
   <div class="control-panel">
-    <h1 class="text-xl font-bold mb-3">Professional Photo Editor</h1>
+    <h1 class="text-2xl font-bold mb-4 text-center md:text-left">Professional Photo Editor</h1>
 
-    <div class="formatting-toolbar">
-      <button id="bold-btn" class="format-btn">Bold</button>
-      <button id="highlight-btn" class="format-btn" style="background:#ff6600; color:white; border-color:#ff6600;">Highlight</button>
-      <button id="size-large-btn" class="format-btn active">Large (70px)</button>
-      <button id="size-small-btn" class="format-btn">Small (62px)</button>
-      <button id="clear-btn" class="format-btn">Clear</button>
+    <div class="flex flex-wrap gap-3 mb-5 justify-center md:justify-start">
+      <button id="upload-main"   class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">Upload Main Photo</button>
+      <button id="upload-circle" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">Upload Circle Photo</button>
+      <button id="download"      class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium">Download JPG</button>
     </div>
 
-    <div class="flex gap-4">
-      <button id="upload-btn" class="btn btn-primary px-6 py-3">Upload Photo</button>
-      <button id="download-btn" class="btn btn-primary px-6 py-3">Download JPG</button>
+    <div class="flex flex-wrap gap-2 justify-center md:justify-start">
+      <button id="bold"       class="px-4 py-2 border-2 border-gray-300 rounded hover:border-blue-500">Bold</button>
+      <button id="highlight"  class="px-4 py-2 border-2 border-gray-300 rounded" style="background:#ff6600;color:white;border-color:#ff6600;">Highlight</button>
+      <button id="size-large" class="px-4 py-2 border-2 border-gray-300 rounded hover:border-blue-500 active:bg-blue-500 active:text-white">70px</button>
+      <button id="size-small" class="px-4 py-2 border-2 border-gray-300 rounded hover:border-blue-500 active:bg-blue-500 active:text-white">62px</button>
+      <button id="clear"      class="px-4 py-2 border-2 border-gray-300 rounded hover:border-red-500 hover:text-red-600">Clear</button>
     </div>
 
-    <input type="file" id="photo-input" accept="image/*" class="hidden">
+    <input type="file" id="file-main"   accept="image/*" class="hidden">
+    <input type="file" id="file-circle" accept="image/*" class="hidden">
   </div>
 
-  <div class="canvas-container" id="capture-area">
+  <div class="canvas-container" id="capture">
     <div class="white-section"></div>
     <div class="dark-section"></div>
 
-    <div class="photo-mask" id="photo-mask">
-      <img id="photo-img" src="" class="hidden">
+    <!-- Main Photo -->
+    <div class="photo-mask main-photo" id="mask-main">
+      <div class="photo-inner" id="inner-main"></div>
       <div class="photo-gradient"></div>
-      <div class="upload-overlay" id="upload-overlay">
-        <svg class="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="upload-overlay">
+        <svg class="w-16 h-16 mb-3" fill="none" stroke="white" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
         </svg>
-        <p class="text-lg font-semibold">Click / tap to upload photo</p>
+        <p class="text-lg font-semibold">Main Photo<br>Drag & wheel to adjust</p>
+      </div>
+    </div>
+
+    <!-- Circle Photo -->
+    <div class="photo-mask circle-photo" id="mask-circle">
+      <div class="photo-inner" id="inner-circle"></div>
+      <div class="upload-overlay">
+        <svg class="w-12 h-12 mb-2" fill="none" stroke="white" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <p class="text-base font-semibold">Circle Photo<br>Drag & wheel</p>
       </div>
     </div>
 
     <div class="logo-container">
-      <img id="logo-img" src="https://compassoffices.github.io/img/logo/compass-w-logo.png" alt="Logo">
+      <img src="https://compassoffices.github.io/img/logo/compass-w-logo.png" alt="Compass Logo">
     </div>
 
     <div class="text-box">
-      <div id="text-area" class="text-editor" contenteditable="true">
+      <div id="text" class="text-editor" contenteditable="true">
         Enter your text here...
       </div>
     </div>
   </div>
 
   <!-- Toast -->
-  <div id="toast" class="fixed bottom-8 right-8 bg-green-600 text-white px-8 py-4 rounded-xl shadow-2xl transform translate-y-40 transition-all duration-300 flex items-center gap-3 z-50 opacity-0">
+  <div id="toast" class="fixed bottom-8 right-8 bg-green-600 text-white px-8 py-4 rounded-xl shadow-2xl transform translate-y-40 opacity-0 transition-all duration-300 flex items-center gap-3 z-50">
     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-    <span id="toast-text">Ready!</span>
+    <span id="toast-msg">Done!</span>
   </div>
 
   <script>
-    const els = {
-      photoInput: document.getElementById('photo-input'),
-      photoMask: document.getElementById('photo-mask'),
-      photoImg: document.getElementById('photo-img'),
-      uploadOverlay: document.getElementById('upload-overlay'),
-      textArea: document.getElementById('text-area'),
-      toast: document.getElementById('toast'),
-      toastText: document.getElementById('toast-text')
-    };
+    // ───────────────────────────────────────────────
+    // Elements
+    // ───────────────────────────────────────────────
+    const capture = document.getElementById('capture');
+    const textEl = document.getElementById('text');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
 
-    // Upload
-    document.getElementById('upload-btn').onclick = () => els.photoInput.click();
-    els.photoMask.onclick = () => els.photoImg.classList.contains('hidden') && els.photoInput.click();
+    const mainMask   = document.getElementById('mask-main');
+    const mainInner  = document.getElementById('inner-main');
+    const mainUpload = mainMask.querySelector('.upload-overlay');
 
-    els.photoInput.onchange = e => {
-      const f = e.target.files[0];
-      if (!f) return;
-      const r = new FileReader();
-      r.onload = ev => {
-        els.photoImg.src = ev.target.result;
-        els.photoImg.classList.remove('hidden');
-        els.uploadOverlay.style.display = 'none';
+    const circleMask  = document.getElementById('mask-circle');
+    const circleInner = document.getElementById('inner-circle');
+    const circleUpload = circleMask.querySelector('.upload-overlay');
+
+    // ───────────────────────────────────────────────
+    // File Uploads
+    // ───────────────────────────────────────────────
+    document.getElementById('upload-main').onclick   = () => document.getElementById('file-main').click();
+    document.getElementById('upload-circle').onclick = () => document.getElementById('file-circle').click();
+
+    document.getElementById('file-main').onchange = e => loadImage(e, mainInner, mainUpload);
+    document.getElementById('file-circle').onchange = e => loadImage(e, circleInner, circleUpload);
+
+    function loadImage(e, targetInner, overlay) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        targetInner.style.backgroundImage = `url(${ev.target.result})`;
+        overlay.style.display = 'none';
       };
-      r.readAsDataURL(f);
-    };
+      reader.readAsDataURL(file);
+    }
 
+    // ───────────────────────────────────────────────
+    // Drag & Zoom for both photos
+    // ───────────────────────────────────────────────
+    function makeDraggableAndZoomable(mask, inner) {
+      let scale = 1;
+      let posX = 0;
+      let posY = 0;
+      let isDragging = false;
+      let startX, startY;
+
+      const updateTransform = () => {
+        inner.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+      };
+
+      mask.addEventListener('mousedown', e => {
+        isDragging = true;
+        startX = e.clientX - posX;
+        startY = e.clientY - posY;
+        mask.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        posX = e.clientX - startX;
+        posY = e.clientY - startY;
+        updateTransform();
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+        mask.style.cursor = 'grab';
+      });
+
+      // Zoom with wheel
+      mask.addEventListener('wheel', e => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        scale = Math.max(0.5, Math.min(3.5, scale + delta));
+        updateTransform();
+      });
+
+      // Also support pinch zoom on touch devices
+      let startDist = 0;
+      mask.addEventListener('touchstart', e => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          const t1 = e.touches[0], t2 = e.touches[1];
+          startDist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+        }
+      }, {passive:false});
+
+      mask.addEventListener('touchmove', e => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          const t1 = e.touches[0], t2 = e.touches[1];
+          const dist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+          const delta = (dist / startDist) - 1;
+          scale = Math.max(0.5, Math.min(3.5, scale * (1 + delta*0.8)));
+          startDist = dist;
+          updateTransform();
+        }
+      }, {passive:false});
+    }
+
+    makeDraggableAndZoomable(mainMask, mainInner);
+    makeDraggableAndZoomable(circleMask, circleInner);
+
+    // ───────────────────────────────────────────────
     // Text formatting
-    document.getElementById('bold-btn').onclick = () => document.execCommand('bold');
-    document.getElementById('highlight-btn').onclick = () => document.execCommand('foreColor', false, '#ff6600');
+    // ───────────────────────────────────────────────
+    document.getElementById('bold').onclick       = () => document.execCommand('bold');
+    document.getElementById('highlight').onclick  = () => document.execCommand('foreColor', false, '#ff6600');
 
-    document.getElementById('size-large-btn').onclick = () => {
-      document.execCommand('fontSize', false, '7'); // ~70px
-    };
+    document.getElementById('size-large').onclick = () => document.execCommand('fontSize', false, '7'); // ~70px
 
-    document.getElementById('size-small-btn').onclick = () => {
+    document.getElementById('size-small').onclick = () => {
       document.execCommand('fontSize', false, '6');
-      // Ensure clean 62px application
       const sel = window.getSelection();
       if (sel.rangeCount && !sel.isCollapsed) {
         const range = sel.getRangeAt(0);
         const span = document.createElement('span');
-        span.style.fontSize = '62px';
+        span.className = 'small';
         try { range.surroundContents(span); } catch {}
       }
     };
 
-    document.getElementById('clear-btn').onclick = () => {
+    document.getElementById('clear').onclick = () => {
       document.execCommand('removeFormat');
       document.execCommand('foreColor', false, '#000000');
     };
 
-    // Download - extra clean capture
-    document.getElementById('download-btn').onclick = async () => {
+    // ───────────────────────────────────────────────
+    // Download
+    // ───────────────────────────────────────────────
+    document.getElementById('download').onclick = async () => {
       try {
-        showToast('Creating image...');
+        showToast('Generating...');
 
-        const dataUrl = await htmlToImage.toJpeg(document.getElementById('capture-area'), {
+        const dataUrl = await htmlToImage.toJpeg(document.getElementById('capture'), {
           quality: 0.96,
-          pixelRatio: 2.4,
-          backgroundColor: '#ffffff',     // Explicit white background
+          pixelRatio: 2.5,
+          backgroundColor: '#ffffff',
           canvasWidth: 1080,
           canvasHeight: 1350,
           includeQueryParamsInFontURI: true,
-          cacheBust: true,
-          imagePlaceholder: 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+          cacheBust: true
         });
 
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = `design-${Date.now()}.jpg`;
+        a.download = `compass-${Date.now()}.jpg`;
         a.click();
 
-        showToast('Downloaded successfully!');
-      } catch (e) {
-        console.error(e);
-        showToast('Something went wrong');
+        showToast('Downloaded!');
+      } catch (err) {
+        console.error(err);
+        showToast('Error occurred');
       }
     };
 
-    function showToast(msg) {
-      els.toastText.textContent = msg;
-      els.toast.classList.remove('translate-y-40','opacity-0');
-      els.toast.classList.add('translate-y-0','opacity-100');
+    function showToast(text) {
+      toastMsg.textContent = text;
+      toast.classList.remove('translate-y-40','opacity-0');
+      toast.classList.add('translate-y-0','opacity-100');
       setTimeout(() => {
-        els.toast.classList.remove('translate-y-0','opacity-100');
-        els.toast.classList.add('translate-y-40','opacity-0');
-      }, 2400);
+        toast.classList.add('translate-y-40','opacity-0');
+      }, 2200);
     }
   </script>
 </body>
