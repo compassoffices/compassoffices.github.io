@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Photo Editor - Two Boxes + Full Fit Background</title>
+  <title>Photo Editor - Two Boxes with Gap + Full Background</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,6 +36,7 @@
       height: 100%;
       z-index: 1;
       overflow: hidden;
+      background: #ffffff; /* fallback */
     }
 
     .background-img {
@@ -89,6 +90,7 @@
       height: 100%;
       background-size: cover;
       background-position: center;
+      background-repeat: no-repeat;
       transition: transform 0.08s ease-out;
       will-change: transform;
     }
@@ -138,7 +140,7 @@
 <body>
 
   <div class="control-panel">
-    <h1 class="text-2xl font-bold mb-4">Photo Editor - Two Rounded Boxes + Full Background</h1>
+    <h1 class="text-2xl font-bold mb-4">Photo Editor</h1>
     <div class="flex flex-wrap gap-4 mb-6">
       <button id="upload-left" class="btn btn-primary">Upload Left Image</button>
       <button id="upload-right" class="btn btn-primary">Upload Right Image</button>
@@ -153,7 +155,7 @@
 
   <div class="canvas-container" id="capture">
     <div class="background-layer" id="bg-layer">
-      <img class="background-img" id="bg-img" alt="background" crossorigin="anonymous">
+      <img class="background-img" id="bg-img" alt="background">
     </div>
 
     <div class="photos-wrapper" id="photos-wrapper">
@@ -164,7 +166,7 @@
             <svg class="w-16 h-16 mb-3" fill="none" stroke="white" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            <p class="text-lg font-semibold">Left Image</p>
+            <p class="text-lg font-semibold">Left Image<br>Drag & zoom to adjust</p>
           </div>
         </div>
       </div>
@@ -176,7 +178,7 @@
             <svg class="w-16 h-16 mb-3" fill="none" stroke="white" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            <p class="text-lg font-semibold">Right Image</p>
+            <p class="text-lg font-semibold">Right Image<br>Drag & zoom</p>
           </div>
         </div>
       </div>
@@ -202,7 +204,6 @@
 
     let blurOn = false;
 
-    // Toggle blur
     document.getElementById('toggle-blur').onclick = () => {
       blurOn = !blurOn;
       bgLayer.classList.toggle('blurred', blurOn);
@@ -211,7 +212,6 @@
       document.getElementById('toggle-blur').classList.toggle('btn-toggle-off', !blurOn);
     };
 
-    // Upload handlers
     document.getElementById('upload-left').onclick  = () => document.getElementById('file-left').click();
     document.getElementById('upload-right').onclick = () => document.getElementById('file-right').click();
     document.getElementById('upload-bg').onclick   = () => document.getElementById('file-bg').click();
@@ -255,7 +255,6 @@
       }
     }
 
-    // Drag & Zoom (same as before)
     function makeDraggableAndZoomable(mask, inner) {
       let scale = 1;
       let posX = 0;
@@ -263,7 +262,9 @@
       let isDragging = false;
       let startX, startY;
 
-      const update = () => inner.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+      const update = () => {
+        inner.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+      };
 
       mask.addEventListener('mousedown', e => {
         isDragging = true;
@@ -288,7 +289,7 @@
       mask.addEventListener('wheel', e => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.05 : 0.05;
-        scale = Math.max(0.5, Math.min(3.5, scale + delta));
+        scale = Math.max(0.3, Math.min(5, scale + delta)); // wider range
         update();
       });
 
@@ -306,7 +307,7 @@
           e.preventDefault();
           const t1 = e.touches[0], t2 = e.touches[1];
           const dist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
-          scale = Math.max(0.5, Math.min(3.5, scale * (dist / startDist)));
+          scale = Math.max(0.3, Math.min(5, scale * (dist / startDist)));
           startDist = dist;
           update();
         }
@@ -316,13 +317,12 @@
     makeDraggableAndZoomable(document.getElementById('mask-left'), innerLeft);
     makeDraggableAndZoomable(document.getElementById('mask-right'), innerRight);
 
-    // Download - background should now fit perfectly
     document.getElementById('download').onclick = async () => {
       try {
         showToast('Generating...');
         const dataUrl = await htmlToImage.toJpeg(capture, {
-          quality: 0.96,
-          pixelRatio: 2.5,
+          quality: 0.95,
+          pixelRatio: 2,
           backgroundColor: '#ffffff',
           canvasWidth: 1080,
           canvasHeight: 1350,
