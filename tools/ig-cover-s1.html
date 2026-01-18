@@ -67,28 +67,26 @@
       z-index: 3;
       pointer-events: none;
     }
-    .text-box {
+    .text-container {
       position: absolute;
       left: 80px;
       bottom: 100px;
-      width: 800px;
-      min-height: 200px;
-      background: #ffffff;
-      border-radius: 8px;
-      padding: 40px 60px;
+      max-width: 800px;
       z-index: 7;
       text-align: left;
     }
-    .text-editor {
+    .line-editor {
+      display: inline-block;
       font-family: 'Inter', sans-serif;
       font-size: 60px;
       line-height: 1.2;
-      color: #000;
-      outline: none;
-      width: 100%;
-      min-height: 120px;
-      background: transparent;
       letter-spacing: 0.02em;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 0 80px;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
     }
     /* Controls */
     .control-panel {
@@ -132,7 +130,6 @@
         <option value="#ffffff">White</option>
         <option value="#ff6600">Orange</option>
       </select>
-      <button id="apply-colors" class="btn btn-primary">Apply Colors</button>
       <button id="random-colors" class="btn btn-primary">Random Colors</button>
       <button id="download" class="btn bg-green-600 hover:bg-green-700 text-white">Download JPG</button>
     </div>
@@ -150,10 +147,8 @@
         <p class="text-lg font-semibold">Background Image<br>Drag & wheel to adjust</p>
       </div>
     </div>
-    <div class="text-box" id="text-box">
-      <div id="text" class="text-editor" contenteditable="true">
-        Enter your text here...
-      </div>
+    <div class="text-container" id="text-container">
+      <!-- Lines will be added here -->
     </div>
   </div>
   <!-- Toast -->
@@ -166,8 +161,7 @@
     // Elements
     // ───────────────────────────────────────────────
     const capture = document.getElementById('capture');
-    const textEl = document.getElementById('text');
-    const textBox = document.getElementById('text-box');
+    const textContainer = document.getElementById('text-container');
     const toast = document.getElementById('toast');
     const toastMsg = document.getElementById('toast-msg');
     const bgMask = document.getElementById('mask-bg');
@@ -184,39 +178,99 @@
       '#000000': ['#ffffff', '#ff6600']
     };
 
-    // Default random colors
-    function setRandomColors() {
-      const boxColor = boxColors[Math.floor(Math.random() * boxColors.length)];
-      const textColors = allowedCombos[boxColor];
-      const textColor = textColors[Math.floor(Math.random() * textColors.length)];
-      applyColors(boxColor, textColor);
-    }
+    let currentBoxColor = '#ffffff';
+    let currentTextColor = '#000000';
 
+    // Function to apply colors
     function applyColors(boxColor, textColor) {
-      textBox.style.backgroundColor = boxColor;
-      textEl.style.color = textColor;
+      const lines = textContainer.querySelectorAll('.line-editor');
+      lines.forEach(line => {
+        line.style.backgroundColor = boxColor;
+        line.style.color = textColor;
+      });
     }
 
-    // Initial random
-    setRandomColors();
-
-    // ───────────────────────────────────────────────
-    // Color Controls
-    // ───────────────────────────────────────────────
-    document.getElementById('random-colors').onclick = setRandomColors;
-
-    document.getElementById('apply-colors').onclick = () => {
-      let boxColor = boxColorSelect.value || boxColors[Math.floor(Math.random() * boxColors.length)];
+    // Function to get and apply colors from selects, with live preview
+    function updateColors() {
+      let boxColor = boxColorSelect.value;
+      if (boxColor === '') {
+        boxColor = boxColors[Math.floor(Math.random() * boxColors.length)];
+      }
       let textColor = textColorSelect.value;
-      if (!textColor) {
+      if (textColor === '') {
         const textColors = allowedCombos[boxColor];
         textColor = textColors[Math.floor(Math.random() * textColors.length)];
       } else if (!allowedCombos[boxColor].includes(textColor)) {
-        alert('Invalid color combination. Please choose a valid text color for the box.');
-        return;
+        const textColors = allowedCombos[boxColor];
+        textColor = textColors[Math.floor(Math.random() * textColors.length)];
       }
+      currentBoxColor = boxColor;
+      currentTextColor = textColor;
       applyColors(boxColor, textColor);
+    }
+
+    // Set initial random colors
+    updateColors();
+
+    // Live update on select change
+    boxColorSelect.onchange = updateColors;
+    textColorSelect.onchange = updateColors;
+
+    // Random colors button
+    document.getElementById('random-colors').onclick = () => {
+      boxColorSelect.value = '';
+      textColorSelect.value = '';
+      updateColors();
     };
+
+    // Create a new line
+    function createLine(text = '') {
+      const line = document.createElement('div');
+      line.className = 'line-editor';
+      line.contentEditable = 'true';
+      line.innerHTML = text;
+      line.style.backgroundColor = currentBoxColor;
+      line.style.color = currentTextColor;
+      line.addEventListener('keydown', handleKeydown);
+      line.addEventListener('input', handleInput);
+      line.addEventListener('focus', () => {
+        if (line.innerHTML === 'Enter your text here...') line.innerHTML = '';
+      });
+      return line;
+    }
+
+    // Initial line
+    const initialLine = createLine('Enter your text here...');
+    textContainer.appendChild(initialLine);
+
+    function handleKeydown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const newLine = createLine('');
+        e.target.after(newLine);
+        newLine.focus();
+      } else if (e.key === 'Backspace') {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          if (range.collapsed && range.startOffset === 0 && e.target.previousSibling) {
+            e.preventDefault();
+            const prev = e.target.previousSibling;
+            prev.focus();
+            const newRange = document.createRange();
+            newRange.selectNodeContents(prev);
+            newRange.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            e.target.remove();
+          }
+        }
+      }
+    }
+
+    function handleInput(e) {
+      if (e.target.innerHTML === '<br>') e.target.innerHTML = '';
+    }
 
     // ───────────────────────────────────────────────
     // File Upload
@@ -295,15 +349,14 @@
     // ───────────────────────────────────────────────
     document.getElementById('download').onclick = async () => {
       try {
-        showToast('Generating...');
+        showToast('Creating...');
         const dataUrl = await htmlToImage.toJpeg(document.getElementById('capture'), {
-          quality: 0.97,
-          pixelRatio: 2.6,
-          backgroundColor: '#ffffff',
+          quality: 0.92,
+          pixelRatio: 2,
           canvasWidth: 1080,
           canvasHeight: 1350,
-          cacheBust: true,
-          imagePlaceholder: 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+          backgroundColor: '#ffffff',
+          cacheBust: true
         });
         const a = document.createElement('a');
         a.href = dataUrl;
@@ -312,7 +365,7 @@
         showToast('Downloaded!');
       } catch (err) {
         console.error(err);
-        showToast('Error');
+        showToast('Export failed');
       }
     };
     function showToast(text) {
