@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,42 +11,37 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     body {
-      margin:0;
-      padding:0;
-      box-sizing:border-box;
-      font-family: 'Inter', sans-serif;
-      background: #f8fafc;
+      margin: 0;
+      padding: 0;
+      background: #f1f5f9;
+      font-family: system-ui, sans-serif;
     }
-  
-    .canvas-container {
+    .preview-wrapper {
       width: 1080px;
       height: 1350px;
-      margin: 32px auto;
-      position: relative;
-      background: #ffffff;
+      margin: 40px auto;
+      background: #e5e7eb;
+      border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.12);
-      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+    }
+    #capture-area {
+      width: 1080px;
+      height: 1350px;
+      position: relative;
+      background: white;
+      overflow: hidden;
     }
     .photo-mask {
-      width: 100%;
-      height: 100%;
       position: absolute;
-      left: 0;
-      top: 0;
-      overflow: hidden;
-      cursor: grab;
-      user-select: none;
-      touch-action: none;
+      inset: 0;
+      z-index: 1;
     }
-    .photo-mask:active { cursor: grabbing; }
     .photo-inner {
       width: 100%;
       height: 100%;
       object-fit: cover;
       object-position: center;
-      transition: transform 0.08s ease-out;
-      will-change: transform;
     }
     .photo-gradient {
       position: absolute;
@@ -90,14 +85,13 @@
       white-space: nowrap;
       overflow: hidden;
     }
-    /* Controls */
     .control-panel {
-      max-width: 1100px;
-      margin: 32px auto;
+      max-width: 1140px;
+      margin: 0 auto 32px;
+      padding: 20px;
       background: white;
-      padding: 1.5rem 2rem;
-      border-radius: 12px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
     }
     .btn {
       padding: 10px 20px;
@@ -140,20 +134,22 @@
     </div>
     <input type="file" id="file-bg" accept="image/*" class="hidden">
   </div>
-  <div class="canvas-container" id="capture">
-    <!-- Background Photo -->
-    <div class="photo-mask" id="mask-bg">
-      <img class="photo-inner" id="inner-bg" crossorigin="anonymous">
-      <div class="photo-gradient"></div>
-      <div class="upload-overlay">
-        <svg class="w-16 h-16 mb-3" fill="none" stroke="white" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-        </svg>
-        <p class="text-lg font-semibold">Background Image<br>Drag & wheel to adjust</p>
+  <div class="preview-wrapper">
+    <div id="capture-area">
+      <!-- Background Photo -->
+      <div class="photo-mask" id="mask-bg">
+        <img class="photo-inner" id="inner-bg" crossorigin="anonymous">
+        <div class="photo-gradient"></div>
+        <div class="upload-overlay">
+          <svg class="w-16 h-16 mb-3" fill="none" stroke="white" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <p class="text-lg font-semibold">Background Image<br>Drag & wheel to adjust</p>
+        </div>
       </div>
-    </div>
-    <div class="text-container" id="text-container">
-      <!-- Lines will be added here -->
+      <div class="text-container" id="text-container">
+        <!-- Lines will be added here -->
+      </div>
     </div>
   </div>
   <!-- Toast -->
@@ -165,7 +161,7 @@
     // ───────────────────────────────────────────────
     // Elements
     // ───────────────────────────────────────────────
-    const capture = document.getElementById('capture');
+    const captureArea = document.getElementById('capture-area');
     const textContainer = document.getElementById('text-container');
     const toast = document.getElementById('toast');
     const bgMask = document.getElementById('mask-bg');
@@ -370,11 +366,7 @@
     document.getElementById('download').onclick = async () => {
       try {
         showToast('Creating...');
-        const originalBorderRadius = capture.style.borderRadius;
-        const originalBoxShadow = capture.style.boxShadow;
-        capture.style.borderRadius = '0';
-        capture.style.boxShadow = 'none';
-        const dataUrl = await htmlToImage.toJpeg(capture, {
+        const dataUrl = await htmlToImage.toJpeg(captureArea, {
           quality: 0.92,
           pixelRatio: 2,
           canvasWidth: 1080,
@@ -384,8 +376,6 @@
           useCORS: true,
           allowTaint: true
         });
-        capture.style.borderRadius = originalBorderRadius;
-        capture.style.boxShadow = originalBoxShadow;
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `photo-${Date.now()}.jpg`;
