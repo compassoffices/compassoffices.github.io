@@ -51,7 +51,7 @@
     .photo-gradient {
       position: absolute;
       inset: 0;
-      background: linear-gradient(to top, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 30%);
+      background: linear-gradient(to top, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0) 30%);
       pointer-events: none;
       z-index: 2;
     }
@@ -70,20 +70,22 @@
     .text-container {
       position: absolute;
       left: 80px;
-      bottom: 100px;
+      bottom: 150px;
       max-width: 800px;
       z-index: 7;
       text-align: left;
+      display: flex;
+      flex-direction: column;
     }
     .line-editor {
-      display: inline-block;
+      width: fit-content;
       font-family: 'Inter', sans-serif;
       font-size: 60px;
-      line-height: 1.2;
+      line-height: 1;
       letter-spacing: 0.02em;
       font-weight: 600;
-      border-radius: 8px;
-      padding: 0 80px;
+      border-radius: 0;
+      padding: 20px 60px;
       margin: 0;
       white-space: nowrap;
       overflow: hidden;
@@ -131,6 +133,9 @@
         <option value="#ff6600">Orange</option>
       </select>
       <button id="random-colors" class="btn btn-primary">Random Colors</button>
+      <label for="leading" class="text-gray-700 font-semibold">Leading:</label>
+      <input type="range" id="leading" min="0.8" max="1.5" step="0.1" value="1" class="w-32">
+      <span id="leading-value" class="text-gray-600">1</span>
       <button id="download" class="btn bg-green-600 hover:bg-green-700 text-white">Download JPG</button>
     </div>
     <input type="file" id="file-bg" accept="image/*" class="hidden">
@@ -152,9 +157,9 @@
     </div>
   </div>
   <!-- Toast -->
-  <div id="toast" class="fixed bottom-8 right-8 bg-green-600 text-white px-8 py-4 rounded-xl shadow-2xl transform translate-y-40 opacity-0 transition-all duration-300 flex items-center gap-3 z-50">
+  <div id="toast" class="fixed bottom-8 right-8 bg-green-600 text-white px-8 py-4 rounded-xl shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-3 z-50">
     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-    <span id="toast-msg">Done!</span>
+    <span id="toast-text">Done!</span>
   </div>
   <script>
     // ───────────────────────────────────────────────
@@ -163,12 +168,13 @@
     const capture = document.getElementById('capture');
     const textContainer = document.getElementById('text-container');
     const toast = document.getElementById('toast');
-    const toastMsg = document.getElementById('toast-msg');
     const bgMask = document.getElementById('mask-bg');
     const bgInner = document.getElementById('inner-bg');
     const bgUpload = bgMask.querySelector('.upload-overlay');
     const boxColorSelect = document.getElementById('box-color');
     const textColorSelect = document.getElementById('text-color');
+    const leadingInput = document.getElementById('leading');
+    const leadingValue = document.getElementById('leading-value');
 
     // Color combinations
     const boxColors = ['#ffffff', '#000000', '#ff6600'];
@@ -223,6 +229,18 @@
       updateColors();
     };
 
+    // Leading control
+    function updateLeading() {
+      const value = leadingInput.value;
+      leadingValue.textContent = value;
+      const lines = textContainer.querySelectorAll('.line-editor');
+      lines.forEach(line => {
+        line.style.lineHeight = value;
+      });
+    }
+    leadingInput.addEventListener('input', updateLeading);
+    updateLeading(); // Initial update
+
     // Create a new line
     function createLine(text = '') {
       const line = document.createElement('div');
@@ -231,6 +249,7 @@
       line.innerHTML = text;
       line.style.backgroundColor = currentBoxColor;
       line.style.color = currentTextColor;
+      line.style.lineHeight = leadingInput.value;
       line.addEventListener('keydown', handleKeydown);
       line.addEventListener('input', handleInput);
       line.addEventListener('focus', () => {
@@ -360,7 +379,7 @@
         });
         const a = document.createElement('a');
         a.href = dataUrl;
-        a.download = `photo-text-${Date.now()}.jpg`;
+        a.download = `photo-${Date.now()}.jpg`;
         a.click();
         showToast('Downloaded!');
       } catch (err) {
@@ -369,10 +388,10 @@
       }
     };
     function showToast(text) {
-      toastMsg.textContent = text;
-      toast.classList.remove('translate-y-40','opacity-0');
+      document.getElementById('toast-text').textContent = text;
+      toast.classList.remove('translate-y-20','opacity-0');
       toast.classList.add('translate-y-0','opacity-100');
-      setTimeout(() => toast.classList.add('translate-y-40','opacity-0'), 2200);
+      setTimeout(() => toast.classList.add('translate-y-20','opacity-0'), 2200);
     }
   </script>
 </body>
