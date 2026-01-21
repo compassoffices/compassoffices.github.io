@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>The Juice – Newsletter Archive</title>
+  <style>
+    :root {
+      --primary: #ff6600;       /* main orange */
+      --primary-dark: #e65c00;  /* slightly darker for depth */
+      --accent: #ff8c3d;        /* lighter orange for buttons/accents */
+      --text: #111827;
+      --bg: #ffffff;            /* pure white */
+      --card-bg: #ffffff;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 3rem 1rem 5rem;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      margin: 0;
+      color: var(--primary-dark);
+      letter-spacing: -0.4px;
+    }
+    .subtitle {
+      font-size: 1.15rem;
+      color: #4b5563;
+      margin-top: 0.6rem;
+      opacity: 0.9;
+    }
+    .carousel-container {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+    .carousel {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      gap: 2rem;
+      padding: 1.5rem 0;
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: #f4a261 #f3f4f6;
+    }
+    .carousel::-webkit-scrollbar {
+      height: 10px;
+    }
+    .carousel::-webkit-scrollbar-track {
+      background: #f3f4f6;
+      border-radius: 10px;
+    }
+    .carousel::-webkit-scrollbar-thumb {
+      background: #f4a261;
+      border-radius: 10px;
+    }
+    .card {
+      flex: 0 0 360px;
+      background: var(--card-bg);
+      border-radius: 1.5rem;
+      overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.08);
+      transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+      scroll-snap-align: start;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .card:hover {
+      transform: translateY(-12px) scale(1.03);
+      box-shadow: 0 30px 60px rgba(255,102,0,0.18);
+    }
+    .card-header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 1.6rem 1.5rem;
+      font-weight: 800;
+      font-size: 1.55rem;
+      text-align: center;
+      letter-spacing: -0.3px;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.35);
+    }
+    .card-body {
+      padding: 2.8rem 2rem;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+    }
+    .description {
+      font-size: 1.12rem;
+      color: #4b5563;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    .btn-read {
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      font-size: 1.18rem;
+      padding: 1.1rem 2.2rem;
+      border-radius: 1rem;
+      transition: all 0.3s;
+      box-shadow: 0 5px 15px rgba(255,140,61,0.3);
+    }
+    .btn-read:hover {
+      background: var(--primary);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(255,102,0,0.4);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 6rem 1rem;
+      font-size: 1.4rem;
+      color: #4b5563;
+      font-weight: 500;
+    }
+    .dots {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 3rem;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      background: #fed7aa;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.4s;
+    }
+    .dot.active {
+      background: var(--primary);
+      transform: scale(1.5);
+      box-shadow: 0 0 0 5px rgba(255,102,0,0.25);
+    }
+
+    @media (max-width: 600px) {
+      .card { flex: 0 0 90vw; }
+      h1 { font-size: 2.4rem; }
+      .card-header { font-size: 1.4rem; padding: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>The Juice Archive</h1>
+    <div class="subtitle">Monthly insights worth your time</div>
+  </header>
+
+  <div class="carousel-container">
+    <div class="carousel" id="carousel">
+      <!-- First card appears here immediately if available -->
+    </div>
+    <div class="dots" id="dots"></div>
+  </div>
+
+  <script>
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRaOt2KLJwBH0qI4t101JOt4pIotRFtTlDaWp8yuVR4g2An_CdJC2NRXPTZOqU-h7BqGt_jdw_1g1Xx/pub?gid=0&single=true&output=csv";
+
+    function parseCSVLine(line) {
+      const result = [];
+      let field = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i+1] === '"') {
+            field += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(field.trim());
+          field = '';
+        } else {
+          field += char;
+        }
+      }
+      result.push(field.trim());
+      return result.map(s => s.replace(/^"|"$/g, '').trim());
+    }
+
+    function createCard(issue, link) {
+      const title = issue ? `Issue #${issue}` : 'Newsletter';
+      const card = document.createElement('a');
+      card.href = link;
+      card.target = "_blank";
+      card.rel = "noopener noreferrer";
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-header">${title}</div>
+        <div class="card-body">
+          <div class="description">Fresh updates and stories — dive in</div>
+          <div class="btn-read">Read Now →</div>
+        </div>
+      `;
+      return card;
+    }
+
+    async function loadAndRender() {
+      const carousel = document.getElementById('carousel');
+      const dots = document.getElementById('dots');
+
+      let hasFirstCard = false;
+
+      try {
+        const res = await fetch(CSV_URL);
+        if (!res.ok) throw new Error('Fetch failed');
+        const text = await res.text();
+
+        const rows = text.split(/\r?\n/).filter(r => r.trim());
+        if (rows.length < 2) throw new Error('No data');
+
+        const data = rows.slice(1).map(parseCSVLine);
+
+        // Show FIRST valid card immediately
+        for (const row of data) {
+          const issue = row[1] || '';
+          const link  = row[2] || '';
+          if (link && /^https?:\/\//i.test(link)) {
+            carousel.appendChild(createCard(issue, link));
+            hasFirstCard = true;
+            break;
+          }
+        }
+
+        if (!hasFirstCard) {
+          carousel.innerHTML = '<div class="empty-state">The archive is currently empty.<br>Check back soon!</div>';
+          return;
+        }
+
+        // Load full list
+        carousel.innerHTML = '';
+        const validItems = [];
+
+        data.forEach(row => {
+          const issue = row[1] || '';
+          const link  = row[2] || '';
+          if (link && /^https?:\/\//i.test(link)) {
+            validItems.push({issue, link});
+            carousel.appendChild(createCard(issue, link));
+          }
+        });
+
+        if (validItems.length === 0) {
+          carousel.innerHTML = '<div class="empty-state">No newsletters found yet.</div>';
+          return;
+        }
+
+        // Dots
+        dots.innerHTML = '';
+        const cards = carousel.querySelectorAll('.card');
+        cards.forEach((_, i) => {
+          const dot = document.createElement('div');
+          dot.className = 'dot';
+          if (i === 0) dot.classList.add('active');
+          dot.onclick = () => {
+            const w = cards[0].offsetWidth + 32;
+            carousel.scrollTo({ left: i * w, behavior: 'smooth' });
+          };
+          dots.appendChild(dot);
+        });
+
+        carousel.addEventListener('scroll', () => {
+          const scroll = carousel.scrollLeft;
+          const w = cards[0].offsetWidth + 32;
+          const idx = Math.round(scroll / w);
+          document.querySelectorAll('.dot').forEach((d, i) => {
+            d.classList.toggle('active', i === idx);
+          });
+        });
+
+      } catch (err) {
+        console.error(err);
+        if (!hasFirstCard) {
+          carousel.innerHTML = '<div class="empty-state">Couldn’t load the archive right now.<br>Please try refreshing.</div>';
+        }
+      }
+    }
+
+    loadAndRender();
+  </script>
+
+</body>
+</html>
