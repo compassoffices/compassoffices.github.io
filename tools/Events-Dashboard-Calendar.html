@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Events Calendar</title>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 16px;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin: 0 0 28px 0;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: clamp(1.8rem, 5vw, 2.4rem);
+            color: white;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #ff9900;
+            font-weight: 500;
+            margin: 0;
+            font-size: clamp(1rem, 3.5vw, 1.15rem);
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 28px;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1 1 160px;
+            max-width: 240px;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #ccc;
+            white-space: nowrap;
+            font-size: 0.95rem;
+        }
+
+        select {
+            background: #1a1a1a;
+            color: #ff9900;
+            border: 2px solid #444;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 1rem;
+            flex: 1;
+            min-width: 0;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ff9900' d='M6 9L2 5h8z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #ff9900;
+            background-color: #222;
+        }
+
+        .calendar-container {
+            background: #111;
+            border-radius: 12px;
+            padding: clamp(16px, 4vw, 24px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+        }
+
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-weight: 700;
+            color: #aaa;
+            padding: 12px 0;
+            border-bottom: 2px solid #333;
+            margin-bottom: 12px;
+            font-size: clamp(0.9rem, 2.5vw, 1.05rem);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+
+        .calendar-day {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            aspect-ratio: 1 / 1.1;
+            padding: 8px;
+            position: relative;
+            transition: all 0.15s;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .calendar-day:hover {
+            background: #252525;
+            border-color: #555;
+        }
+
+        .calendar-day.today {
+            background: #2a1a1a;
+            border: 2px solid #ff4d4d;
+        }
+
+        .calendar-day.has-events {
+            border-color: #51cf66;
+            background: #1a2a1a;
+        }
+
+        .day-number {
+            font-size: clamp(1rem, 3vw, 1.15rem);
+            font-weight: bold;
+            color: #ddd;
+            margin-bottom: 6px;
+        }
+
+        .today .day-number {
+            color: #ff4d4d;
+        }
+
+        .event-indicator {
+            background: #ff9900;
+            color: #000;
+            font-size: clamp(0.7rem, 2vw, 0.78rem);
+            font-weight: 600;
+            padding: 3px 6px;
+            border-radius: 10px;
+            margin: 2px 0;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .no-events-msg {
+            text-align: center;
+            padding: 80px 20px;
+            color: #777;
+            font-size: 1.3rem;
+        }
+
+        .event-count {
+            text-align: center;
+            color: #aaa;
+            margin: 16px 0 24px;
+            font-size: clamp(1rem, 3vw, 1.05rem);
+        }
+
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .filters {
+                flex-direction: column;
+                gap: 12px;
+            }
+            .filter-group {
+                width: 100%;
+                max-width: none;
+            }
+            .calendar-header {
+                font-size: 0.85rem;
+                padding: 8px 0;
+            }
+            .calendar-day {
+                padding: 6px;
+                aspect-ratio: 1 / 1.2;
+            }
+            .event-indicator {
+                font-size: 0.68rem;
+                padding: 2px 5px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            h1 { font-size: 1.9rem; }
+            .calendar-grid { gap: 4px; }
+            .calendar-day { padding: 5px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Events Calendar</h1>
+        <p class="subtitle">Upcoming & Today's Schedule</p>
+    </header>
+
+    <div class="filters">
+        <div class="filter-group">
+            <label>Year:</label>
+            <select id="year-select">
+                <option value="all">All Years</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Month:</label>
+            <select id="month-select">
+                <option value="all">All Months</option>
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Region:</label>
+            <select id="region-select">
+                <option value="all">All Regions</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Location:</label>
+            <select id="location-select">
+                <option value="all">All Locations</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="event-count" class="event-count">Loading events...</div>
+
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
+            <div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        <div id="calendar-grid" class="calendar-grid"></div>
+    </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+const SPREADSHEET_ID = '1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt';
+const GID = '1632866699';
+
+function getCSVUrl() {
+    return `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID}`;
+}
+
+let allEvents = [];
+
+async function loadEvents() {
+    try {
+        const resp = await fetch(getCSVUrl());
+        if (!resp.ok) throw new Error("fetch failed");
+        const csv = await resp.text();
+        allEvents = parseCSV(csv)
+            .map(row => ({
+                ...row,
+                parsedDate: parseDate(row.Date)
+            }))
+            .filter(row => row.parsedDate !== null);
+
+        populateFilters();
+        filterAndRender();
+    } catch (err) {
+        document.getElementById('calendar-grid').innerHTML = `
+            <div class="no-events-msg">
+                Failed to load events<br><small>${err.message}</small>
+            </div>`;
+    }
+}
+
+function parseCSV(text) {
+    const lines = text.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+    return lines.slice(1)
+        .filter(line => line.trim())
+        .map(line => {
+            const values = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+            const obj = {};
+            headers.forEach((h, i) => obj[h] = values[i] || '');
+            return obj;
+        });
+}
+
+function parseDate(str) {
+    if (!str) return null;
+    const match = str.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/) ||
+                   str.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    if (!match) return null;
+
+    if (match[0].includes(str.match(/\d{4}/)[0] + '-')) {
+        return new Date(+match[1], +match[2]-1, +match[3]);
+    } else {
+        return new Date(+match[3], +match[2]-1, +match[1]);
+    }
+}
+
+function populateFilters() {
+    const years = [...new Set(allEvents.map(e => e.parsedDate.getFullYear()))]
+        .sort((a,b)=>b-a);
+    
+    const yearSel = document.getElementById('year-select');
+    years.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        yearSel.appendChild(opt);
+    });
+    yearSel.value = new Date().getFullYear();
+
+    document.getElementById('month-select').value = new Date().getMonth();
+
+    updateRegionFilter();
+    updateLocationFilter();
+}
+
+function updateRegionFilter() {
+    let events = filterByYearAndMonth();
+    const regions = [...new Set(events.map(e => e.Region?.trim()).filter(Boolean))].sort();
+    const sel = document.getElementById('region-select');
+    sel.innerHTML = '<option value="all">All Regions</option>';
+    regions.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        sel.appendChild(opt);
+    });
+}
+
+function updateLocationFilter() {
+    let events = filterByYearAndMonth();
+    if (document.getElementById('region-select').value !== 'all') {
+        const reg = document.getElementById('region-select').value;
+        events = events.filter(e => e.Region === reg);
+    }
+    const locs = [...new Set(events.map(e => e.Location?.trim()).filter(Boolean))].sort();
+    const sel = document.getElementById('location-select');
+    sel.innerHTML = '<option value="all">All Locations</option>';
+    locs.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l;
+        opt.textContent = l;
+        sel.appendChild(opt);
+    });
+}
+
+function filterByYearAndMonth() {
+    let ev = allEvents;
+    const y = document.getElementById('year-select').value;
+    const m = document.getElementById('month-select').value;
+    if (y !== 'all') ev = ev.filter(e => e.parsedDate.getFullYear() === +y);
+    if (m !== 'all') ev = ev.filter(e => e.parsedDate.getMonth() === +m);
+    return ev;
+}
+
+function filterAndRender() {
+    let events = filterByYearAndMonth();
+
+    const region = document.getElementById('region-select').value;
+    const location = document.getElementById('location-select').value;
+
+    if (region !== 'all')   events = events.filter(e => e.Region === region);
+    if (location !== 'all') events = events.filter(e => e.Location === location);
+
+    const countEl = document.getElementById('event-count');
+    countEl.textContent = events.length 
+        ? `${events.length} event${events.length > 1 ? 's' : ''} found`
+        : 'No events match the selected filters';
+
+    renderCalendar(events);
+}
+
+function renderCalendar(events) {
+    const year  = document.getElementById('year-select').value === 'all' 
+        ? new Date().getFullYear() 
+        : +document.getElementById('year-select').value;
+    
+    const month = document.getElementById('month-select').value === 'all' 
+        ? new Date().getMonth() 
+        : +document.getElementById('month-select').value;
+
+    const first = new Date(year, month, 1);
+    const last  = new Date(year, month + 1, 0);
+    const startDay = first.getDay();
+    const daysInMonth = last.getDate();
+
+    let html = '';
+    let day = 1;
+
+    for (let i = 0; i < 42; i++) {
+        if (i < startDay || day > daysInMonth) {
+            html += '<div class="calendar-day"></div>';
+            continue;
+        }
+
+        const date = new Date(year, month, day);
+        const isToday = date.toDateString() === new Date().toDateString();
+        const dayEvents = events.filter(e => e.parsedDate.toDateString() === date.toDateString());
+
+        html += `
+        <div class="calendar-day ${isToday ? 'today' : ''} ${dayEvents.length ? 'has-events' : ''}">
+            <div class="day-number">${day}</div>
+            ${dayEvents.map(e => `<div class="event-indicator" title="${e['Event-Name'] || 'Event'}">${e['Event-Name'] || 'Event'}</div>`).join('')}
+        </div>`;
+        
+        day++;
+    }
+
+    document.getElementById('calendar-grid').innerHTML = html;
+}
+
+// ─── Event listeners ───────────────────────────────────────
+document.getElementById('year-select').addEventListener('change', () => {
+    updateRegionFilter();
+    updateLocationFilter();
+    filterAndRender();
+});
+
+document.getElementById('month-select').addEventListener('change', () => {
+    updateRegionFilter();
+    updateLocationFilter();
+    filterAndRender();
+});
+
+document.getElementById('region-select').addEventListener('change', () => {
+    updateLocationFilter();
+    filterAndRender();
+});
+
+document.getElementById('location-select').addEventListener('change', filterAndRender);
+
+// Start
+loadEvents();
+</script>
+</body>
+</html>
