@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image Resizer</title>
+  <script src="https://unpkg.com/heic2any@0.0.3/dist/heic2any.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #ffe7d7;
+      padding: 2rem;
+      color: #333;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .dropzone-wrapper {
+      border: 2px dashed #91b0b3;
+      color: #92b0b3;
+      position: relative;
+      height: 150px;
+      cursor: pointer;
+      background: white;
+    }
+    .dropzone-desc {
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      top: 50px;
+      font-size: 16px;
+    }
+    .dropzone {
+      position: absolute;
+      outline: none;
+      width: 100%;
+      height: 150px;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .dropzone-wrapper:hover,
+    .dropzone-wrapper.dragover {
+      background: #ecf0f5;
+    }
+    .button-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1rem;
+    }
+    .download-all {
+      display: none;
+      padding: 0.6rem 1.5rem;
+      border: none;
+      border-radius: 6px;
+      background-color: #198754;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .download-all:hover {
+      background-color: #157347;
+    }
+    .preview-zone {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: white;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+    .info {
+      font-size: 0.9rem;
+      margin: 0.5rem 0;
+      color: #555;
+      text-align: center;
+    }
+    .download-link {
+      display: inline-block;
+      margin-top: 0.5rem;
+      padding: 0.4rem 1.2rem;
+      border-radius: 6px;
+      background: #0d6efd;
+      color: white;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .download-link:hover {
+      background: #0b5ed7;
+    }
+  </style>
+</head>
+<body>
+<section>
+  <div class="container">
+    <div class="form-group">
+      <label class="control-label">Website image compress</label>
+      <div class="dropzone-wrapper" id="dropZone">
+        <div class="dropzone-desc">
+          <p>Choose multiple images or drag them here.</p>
+        </div>
+        <input type="file" accept="image/*,image/heic,image/heif" multiple class="dropzone" id="upload" />
+      </div>
+    </div>
+    <!-- Download All Button At Top -->
+    <div class="button-bar">
+      <button class="download-all" id="downloadAll">Download All</button>
+    </div>
+    <!-- Image Grid -->
+    <div class="preview-zone" id="preview"></div>
+  </div>
+</section>
+<script>
+  const upload = document.getElementById("upload");
+  const dropZone = document.getElementById("dropZone");
+  const preview = document.getElementById("preview");
+  const downloadAllBtn = document.getElementById("downloadAll");
+  const MAX_SIZE = 300 * 1024;
+  const TARGET_WIDTH = 1080;
+  const TARGET_HEIGHT = 800;
+  let downloadLinks = [];
+  function formatDateTime() {
+    const now = new Date();
+    return now.toISOString().replace(/[:.]/g, "-");
+  }
+  function handleImage(file) {
+    return new Promise((resolve) => {
+      if (!file || !file.type.startsWith("image/")) return resolve();
+      const processImage = (blob) => {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = () => {
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(blob);
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = TARGET_WIDTH;
+          canvas.height = TARGET_HEIGHT;
+          // Fill background with white (optional, but recommended for consistency)
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          // Calculate scale to fit without cropping
+          const scale = Math.min(TARGET_WIDTH / img.width, TARGET_HEIGHT / img.height);
+          const drawWidth = img.width * scale;
+          const drawHeight = img.height * scale;
+          const offsetX = (TARGET_WIDTH - drawWidth) / 2;
+          const offsetY = (TARGET_HEIGHT - drawHeight) / 2;
+          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+          let quality = 0.9;
+          const compress = () => new Promise((res) => {
+            const loop = () => {
+              canvas.toBlob((blob) => {
+                if (blob.size <= MAX_SIZE || quality < 0.1) {
+                  res({ blob, quality });
+                } else {
+                  quality -= 0.05;
+                  loop();
+                }
+              }, 'image/jpeg', quality);
+            };
+            loop();
+          });
+          compress().then(({ blob, quality }) => {
+            const sizeKB = Math.round(blob.size / 1024);
+            const timestamp = formatDateTime();
+            const originalName = file.name.replace(/\.[^/.]+$/, '');
+            const safeName = originalName.trim().replace(/\s+/g, '-');
+            const filename = `${safeName}-${TARGET_WIDTH}x${TARGET_HEIGHT}-${sizeKB}KB-${timestamp}.jpg`;
+            const url = URL.createObjectURL(blob);
+            const card = document.createElement("div");
+            card.className = "card";
+            const previewCanvas = document.createElement("canvas");
+            previewCanvas.width = canvas.width;
+            previewCanvas.height = canvas.height;
+            previewCanvas.getContext("2d").drawImage(canvas, 0, 0);
+            const info = document.createElement("p");
+            info.className = "info";
+            info.textContent = `${TARGET_WIDTH}×${TARGET_HEIGHT} — ${sizeKB}KB — Quality: ${quality.toFixed(2)}`;
+            const download = document.createElement("a");
+            download.href = url;
+            download.download = filename;
+            download.textContent = `Download Image`;
+            download.className = "download-link";
+            card.appendChild(previewCanvas);
+            card.appendChild(info);
+            card.appendChild(download);
+            preview.appendChild(card);
+            downloadLinks.push({ url, filename });
+            downloadAllBtn.style.display = "inline-block";
+            resolve();
+          });
+        };
+      };
+      if (file.type === "image/heic" || file.type === "image/heif") {
+        heic2any({
+          blob: file,
+          toType: "image/jpeg",
+          quality: 1
+        })
+        .then((convertedBlob) => {
+          processImage(convertedBlob);
+        })
+        .catch((err) => {
+          console.error("HEIC conversion error:", err);
+          resolve();
+        });
+      } else {
+        processImage(file);
+      }
+    });
+  }
+  function handleMultipleImages(fileList) {
+    preview.innerHTML = "";
+    downloadLinks = [];
+    downloadAllBtn.style.display = "none";
+    const files = Array.from(fileList);
+    Promise.all(files.map(handleImage));
+  }
+  upload.addEventListener("change", (e) => {
+    handleMultipleImages(e.target.files);
+  });
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+  });
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    const files = e.dataTransfer.files;
+    upload.files = files;
+    handleMultipleImages(files);
+  });
+  downloadAllBtn.addEventListener("click", () => {
+    downloadLinks.forEach(({ url, filename }, index) => {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, index * 200); // small delay between downloads
+    });
+  });
+</script>
+</body>
+</html>
