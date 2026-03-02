@@ -6,6 +6,7 @@
   <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
   <title>Compass Poster</title>
   <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs" type="module"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -20,7 +21,7 @@
     }
     .container { max-width: 900px; width: 100%; }
     #preview-area {
-      width: 595px;                /* fixed px for better matching */
+      width: 595px;
       height: 842px;
       background: white;
       box-shadow: 0 10px 30px rgba(0,0,0,0.15);
@@ -29,6 +30,7 @@
       border-radius: 8px;
       transition: all 0.2s ease;
       position: relative;
+      cursor: pointer;
     }
     #preview-area.drag-over {
       border: 3px dashed #3b82f6;
@@ -36,7 +38,7 @@
     }
     #image-container {
       width: 595px;
-      height: 752px;               /* 842 - 90 */
+      height: 752px;
       background: white;
       display: flex;
       align-items: center;
@@ -77,6 +79,8 @@
       font-size: 1.2rem;
       pointer-events: none;
       z-index: 10;
+      text-align: center;
+      padding: 20px;
     }
     #file-input { display: none; }
   </style>
@@ -84,13 +88,15 @@
 <body>
 
 <div class="container">
-  <h1 class="text-2xl font-bold mb-6 text-center">Drag & Drop Image → Compass Offices Poster</h1>
+  <h1 class="text-2xl font-bold mb-6 text-center">Drag & Drop file or Image → Compass Offices Poster</h1>
 
   <div id="preview-area">
     <div id="image-container">
       <img id="main-image" src="" alt="" style="display:none;">
       <div id="drop-hint">
-        Drag & drop image here<br>or click to select
+        Drag & drop image (PNG/JPG/WEBP) or PDF here<br>
+        or click to select file<br>
+        (PDF: only first page used)
       </div>
     </div>
     <div id="footer-area">
@@ -100,7 +106,7 @@
     </div>
   </div>
 
-  <input type="file" id="file-input" accept="image/*">
+  <input type="file" id="file-input" accept="image/*,.pdf">
 
   <div class="text-center mt-8">
     <button id="download-btn" 
@@ -109,12 +115,20 @@
       Download A4 JPG (2480 × 3508 px)
     </button>
   </div>
+
+  <p class="text-center text-sm text-gray-500 mt-6">
+    Works with PNG, JPG, WEBP, PDF (first page) • Image centered with white borders if needed • Footer fully visible
+  </p>
 </div>
 
-<script>
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs';
+
 const A4_WIDTH_PX  = 2480;
 const A4_HEIGHT_PX = 3508;
-const FOOTER_PX    = 375;  // ≈90px @ 300dpi (90 * 300 / 72 ≈ 375)
+const FOOTER_PX    = 375;  // ≈90px @ 300dpi
 
 const previewArea  = document.getElementById('preview-area');
 const fileInput    = document.getElementById('file-input');
@@ -122,15 +136,15 @@ const mainImg      = document.getElementById('main-image');
 const dropHint     = document.getElementById('drop-hint');
 const downloadBtn  = document.getElementById('download-btn');
 
-let imageLoaded = false;
+let currentImageSrc = ''; // data URL for preview & high-res
 
-// Click → file select
+// Click to select
 previewArea.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', e => {
   const file = e.target.files?.[0];
-  if (!file || !file.type.startsWith('image/')) return;
-  loadImage(file);
+  if (!file) return;
+  handleFile(file);
 });
 
 // Drag & drop
@@ -146,56 +160,86 @@ fileInput.addEventListener('change', e => {
 
 previewArea.addEventListener('drop', e => {
   const file = e.dataTransfer.files?.[0];
-  if (!file || !file.type.startsWith('image/')) return;
-  loadImage(file);
+  if (!file) return;
+  handleFile(file);
 });
 
-function loadImage(file) {
-  const reader = new FileReader();
-  reader.onload = ev => {
-    mainImg.src = ev.target.result;
+async function handleFile(file) {
+  if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+    alert('Please select an image or PDF file.');
+    return;
+  }
+
+  downloadBtn.disabled = true;
+  dropHint.textContent = 'Processing...';
+
+  try {
+    if (file.type === 'application/pdf') {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      if (pdf.numPages < 1) throw new Error('Empty PDF');
+
+      const page = await pdf.getPage(1);
+      const scale = 2.0; // good quality
+      const viewport = page.getViewport({ scale });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const context = canvas.getContext('2d');
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      currentImageSrc = canvas.toDataURL('image/png');
+    } else {
+      // Regular image
+      currentImageSrc = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = ev => resolve(ev.target.result);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    mainImg.src = currentImageSrc;
     mainImg.style.display = 'block';
     dropHint.style.display = 'none';
-    imageLoaded = true;
     downloadBtn.disabled = false;
-  };
-  reader.readAsDataURL(file);
+  } catch (err) {
+    console.error(err);
+    alert('Error processing file: ' + (err.message || 'Unknown error'));
+    dropHint.textContent = 'Drag & drop image or PDF here\nor click to select file';
+  }
 }
 
 downloadBtn.addEventListener('click', async () => {
   downloadBtn.textContent = "Generating…";
   downloadBtn.disabled = true;
 
-  // Force reflow + wait for images
   await new Promise(r => setTimeout(r, 400));
-  window.dispatchEvent(new Event('resize')); // helps html2canvas sometimes
+  window.dispatchEvent(new Event('resize'));
 
   try {
     const canvas = await html2canvas(previewArea, {
-      scale: A4_WIDTH_PX / 595,     // exact scale to 300 dpi
+      scale: A4_WIDTH_PX / 595,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
       windowWidth: 595,
       windowHeight: 842,
-      dpi: 300,
-      onclone: (doc) => {
-        // Ensure cloned elements have explicit sizes
-        const clonedMain = doc.getElementById('main-image');
-        const clonedFooter = doc.getElementById('footer-image');
-        if (clonedMain) clonedMain.style.imageRendering = 'crisp-edges';
-        if (clonedFooter) clonedFooter.style.imageRendering = 'crisp-edges';
-      }
+      dpi: 300
     });
 
     const link = document.createElement('a');
     link.download = 'a4-poster-with-footer.jpg';
-    link.href = canvas.toDataURL('image/jpeg', 0.96); // higher quality
+    link.href = canvas.toDataURL('image/jpeg', 0.96);
     link.click();
   } catch (err) {
     console.error(err);
-    alert("Generation failed. Try a different browser or smaller image.\nCommon cause: cross-origin footer image.");
+    alert("Generation failed – try again or smaller file.");
   }
 
   downloadBtn.textContent = "Download A4 JPG (2480 × 3508 px)";
