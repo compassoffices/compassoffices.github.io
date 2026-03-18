@@ -520,6 +520,7 @@ select{
     <div class="sec-label">Canvas Size</div>
     <div style="padding:0 8px;">
       <select id="canvasSizeMob" style="width:100%;">
+        <option value="file">Match File</option>
         <option value="4000x4000" selected>4000×4000 (4K)</option>
         <option value="4000x2000">4000×2000 (Wide)</option>
         <option value="custom">Custom…</option>
@@ -659,6 +660,7 @@ select{
     <select id="pdfPage"></select>
   </div>
   <select id="canvasSize" class="hide-mob" title="Output resolution">
+    <option value="file">Match File</option>
     <option value="4000x4000" selected>4000×4000 (4K)</option>
     <option value="4000x2000">4000×2000 (Wide)</option>
     <option value="custom">Custom…</option>
@@ -955,6 +957,11 @@ checkMobile();
 // ════════════════════════════════════════════════════════════════
 function currentPixelSize(){
   const sel = document.getElementById('canvasSize');
+  if(sel.value === 'file'){
+    // Use uploaded image's native size if available
+    if(uploadedImage) return [uploadedImage.width, uploadedImage.height];
+    return [4000, 4000]; // fallback before upload
+  }
   if(sel.value === 'custom'){
     const w = Math.max(100, Math.min(8000, parseInt(document.getElementById('customW').value)||4000));
     const h = Math.max(100, Math.min(8000, parseInt(document.getElementById('customH').value)||4000));
@@ -963,11 +970,22 @@ function currentPixelSize(){
   return sel.value.split('x').map(Number);
 }
 
-function showCustomInputs(show){
-  const d = document.getElementById('customSizeDesk');
-  const m = document.getElementById('customSizeMob');
-  if(d) d.style.display = show ? 'flex' : 'none';
-  if(m) m.style.display = show ? 'flex' : 'none';
+// Called after an image loads — if "Match File" is selected, resize canvas to match.
+// Also updates the option label to show detected dimensions.
+function applyFileSizeIfSelected(){
+  if(!uploadedImage) return;
+  const iw = uploadedImage.width, ih = uploadedImage.height;
+  const label = `Match File (${iw}×${ih})`;
+  // Update both select option labels
+  ['canvasSize','canvasSizeMob'].forEach(id=>{
+    const sel = document.getElementById(id); if(!sel) return;
+    const opt = sel.querySelector('option[value="file"]');
+    if(opt) opt.textContent = label;
+    // If currently set to "file", resize the canvas now
+    if(sel.value === 'file'){
+      initCanvas(iw, ih); redrawCanvas();
+    }
+  });
 }
 
 function applyCustomSize(){
@@ -1022,18 +1040,20 @@ if(window.visualViewport){
   window.visualViewport.addEventListener('resize', onResize);
 }
 
-// Sync canvas size selects and handle custom
+// Sync canvas size selects and handle custom / file options
 document.getElementById('canvasSize').addEventListener('change',e=>{
   const v = e.target.value;
   document.getElementById('canvasSizeMob').value = v;
   showCustomInputs(v === 'custom');
-  if(v !== 'custom') applyCanvasSize();
+  if(v === 'file') { applyFileSizeIfSelected(); }
+  else if(v !== 'custom') applyCanvasSize();
 });
 document.getElementById('canvasSizeMob').addEventListener('change',e=>{
   const v = e.target.value;
   document.getElementById('canvasSize').value = v;
   showCustomInputs(v === 'custom');
-  if(v !== 'custom') applyCanvasSize();
+  if(v === 'file') { applyFileSizeIfSelected(); }
+  else if(v !== 'custom') applyCanvasSize();
 });
 // sync custom W/H between desktop and mobile inputs
 ['customW','customH'].forEach(id=>{
@@ -1054,6 +1074,12 @@ document.getElementById('canvasSizeMob').addEventListener('change',e=>{
     if(d) d.value = el.value;
   });
 });
+function showCustomInputs(show){
+  const d = document.getElementById('customSizeDesk');
+  const m = document.getElementById('customSizeMob');
+  if(d) d.style.display = show ? 'flex' : 'none';
+  if(m) m.style.display = show ? 'flex' : 'none';
+}
 function applyCanvasSize(){
   const[pw,ph]=currentPixelSize();
   initCanvas(pw,ph); redrawCanvas();
@@ -1321,6 +1347,7 @@ function handleFile(file){
       img.onload=()=>{
         uploadedImage=img;
         if(snapEnabled) buildEdgeMap(img);
+        applyFileSizeIfSelected(); // resize canvas if "Match File" is selected
         redrawCanvas();saveState();
         setStatus(`Loaded ${img.width}×${img.height}px`);
       };
@@ -1343,6 +1370,7 @@ function loadPdfPage(n){
       uploadedImage=new Image();
       uploadedImage.onload=()=>{
         edgeData=null; if(snapEnabled) buildEdgeMap(uploadedImage);
+        applyFileSizeIfSelected(); // resize canvas if "Match File" is selected
         redrawCanvas();saveState();setStatus(`PDF p${n}: ${uploadedImage.width}×${uploadedImage.height}`);
       };
       uploadedImage.src=tc.toDataURL('image/png',1);
