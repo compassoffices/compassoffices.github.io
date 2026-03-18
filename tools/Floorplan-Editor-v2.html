@@ -35,8 +35,18 @@
 }
 .ico svg path.fill,.ico svg rect.fill,.ico svg circle.fill,.ico svg polygon.fill{fill:currentColor;stroke:none;}
 
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);
-  display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;}
+html{
+  height:100%;height:100dvh;
+  overflow:hidden;
+}
+body{
+  font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);
+  display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;
+  height:100%;height:100dvh;
+  overflow:hidden;
+  /* prevent iOS rubber-band scroll breaking layout */
+  position:fixed;width:100%;
+}
 
 /* scrollbars */
 ::-webkit-scrollbar{width:3px;height:3px;}
@@ -222,8 +232,12 @@ select{
    CANVAS AREA
 ═══════════════════════════════════════════════════════ */
 .cvwrap{
-  flex:1;overflow:hidden;background:#0a0a0d;
-  display:flex;align-items:center;justify-content:center;position:relative;
+  flex:1;
+  min-height:0; /* critical — prevents flex child from overflowing */
+  overflow:hidden;
+  background:#0a0a0d;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
   touch-action:none;
 }
 #canvas{
@@ -358,14 +372,16 @@ select{
 .rbt.cancel:hover{background:rgba(248,113,113,.1);}
 .rot-hint{font-size:11px;color:var(--text3);line-height:1.5;padding:8px 10px;
   background:var(--surf2);border-radius:7px;border:1px solid var(--border);}
-/* push canvas left when panel open on desktop */
-body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubic-bezier(.4,0,.2,1);}
+/* rotate panel is position:fixed — no margin tricks needed */
 @media(max-width:640px){
-  #rotControls{width:100%;max-width:100%;border-left:none;border-top:1px solid var(--border);
-    top:auto;right:0;left:0;bottom:0;height:auto;max-height:60vh;
-    transform:translateY(100%);border-radius:16px 16px 0 0;}
+  #rotControls{
+    width:100%;max-width:100%;border-left:none;border-top:1px solid var(--border);
+    top:auto;right:0;left:0;bottom:0;height:auto;max-height:55dvh;
+    transform:translateY(100%);border-radius:16px 16px 0 0;
+    overflow-y:auto;
+  }
   #rotControls.open{transform:translateY(0);}
-  body.rot-panel-open .cvwrap{margin-right:0;margin-bottom:0;}
+  body.rot-panel-open .cvwrap{margin-right:0;}
   .rot-btns{grid-template-columns:repeat(6,1fr);}
   .rbt.primary,.rbt.cancel{grid-column:span 3;}
 }
@@ -421,38 +437,40 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
   .abtn.hide-tab{display:none;}
 }
 
-/* Mobile: fully restructured */
+/* Mobile ≤640px */
 @media(max-width:640px){
-  :root{--topbar:52px;--bot:60px;}
+  :root{--topbar:50px;--bot:58px;}
 
-  /* show hamburger, hide desktop tool row + ctrl bar */
+  /* hide desktop-only toolrow + ctrlbar */
+  .toolrow{display:none !important;}
+  .ctrlbar{display:none !important;}
+
+  /* show hamburger */
   .menu-btn{display:flex;}
-  .toolrow{display:none;}
-  .ctrlbar{display:none;}
 
-  /* show mobile FAB toolbar */
-  .mob-tools{display:flex;}
-
-  /* show panel overlay */
+  /* show overlay capability */
   .panel-overlay{display:block;}
 
-  /* topbar: logo + title + spacer + hamburger + upload btn */
+  /* show floating tool strip */
+  .mob-tools{display:flex;}
+
+  /* topbar — compact, no text title */
+  .topbar{padding:0 10px;gap:6px;}
   .topbar h1{display:none;}
-  .topbar .abtn.hide-mob{display:none;}
-  .topbar select{display:none;}
+  .hide-mob{display:none !important;}
 
-  /* canvas fills nicely */
-  .cvwrap{touch-action:none;}
-
-  /* bottom bar simpler */
+  /* bottom bar */
   .bot-status{display:none;}
-  .botbar{justify-content:space-between;padding:0 10px;gap:8px;}
-  .bot-btn{flex:1;justify-content:center;padding:10px 10px;font-size:12px;}
+  .botbar{padding:0 10px;gap:8px;}
+  .bot-btn{flex:1;justify-content:center;padding:10px 8px;font-size:12px;}
 
-  /* pen hint shorter */
-  .pen-hint{font-size:10px;padding:4px 10px;bottom:70px;}
-  .zoom-badge{bottom:70px;}
-  .snap-badge{top:8px;}
+  /* canvas overlays — shift up above FAB + botbar */
+  .pen-hint{font-size:10px;padding:4px 10px;bottom:128px;}
+  .zoom-badge{bottom:128px;right:10px;}
+  .snap-badge{top:8px;right:10px;}
+
+  /* mobile FAB above botbar with clearance */
+  .mob-tools{bottom:68px;}
 }
 </style>
 </head>
@@ -502,11 +520,19 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
     <div class="sec-label">Canvas Size</div>
     <div style="padding:0 8px;">
       <select id="canvasSizeMob" style="width:100%;">
-        <option value="2000x2000">2000×2000 (HD)</option>
-        <option value="3000x3000" selected>3000×3000 (Full HD)</option>
-        <option value="4000x4000">4000×4000 (4K)</option>
-        <option value="4000x2000">4000×2000 (4K Wide)</option>
+        <option value="4000x4000" selected>4000×4000 (4K)</option>
+        <option value="4000x2000">4000×2000 (Wide)</option>
+        <option value="custom">Custom…</option>
       </select>
+      <!-- custom size — mobile panel -->
+      <div id="customSizeMob" style="display:none;gap:6px;align-items:center;margin-top:6px;">
+        <input type="number" id="customWMob" placeholder="Width" min="100" max="8000" value="4000"
+          style="flex:1;padding:7px 8px;background:var(--surf3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-family:inherit;font-size:13px;">
+        <span style="color:var(--text3);font-size:13px;">×</span>
+        <input type="number" id="customHMob" placeholder="Height" min="100" max="8000" value="4000"
+          style="flex:1;padding:7px 8px;background:var(--surf3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-family:inherit;font-size:13px;">
+        <button class="pabtn acc" onclick="applyCustomSize()" style="padding:7px 12px;flex-shrink:0;">Apply</button>
+      </div>
     </div>
 
     <div class="sec-div"></div>
@@ -520,7 +546,7 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
     <button class="ptb" id="pRotateSelBtn" onclick="setTool('rotateSel');closePanel()"><span class="pi ico ico-lg"><svg viewBox="0 0 24 24"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span>Rotate Region<span class="pk">T</span></button>
     <button class="ptb" id="pAnchorBtn"    onclick="setTool('anchor');closePanel()"><span class="pi ico ico-lg"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="19"/><path d="M5 12a7 7 0 0 0 14 0"/></svg></span>Set Anchor<span class="pk">A</span></button>
     <button class="ptb" onclick="resetAnchor();closePanel()"><span class="pi ico ico-lg"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="12" r="1" class="fill"/></svg></span>Reset Anchor</button>
-    <button class="ptb" id="pSnapBtn"      onclick="toggleSnap()"><span class="pi ico ico-lg"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><path d="M6.3 6.3l2.1 2.1m7.2 7.2l2.1 2.1M6.3 17.7l2.1-2.1m7.2-7.2l2.1-2.1"/></svg></span>Edge Snap<span class="pk">N</span></button>
+    <button class="ptb" id="pSnapBtn"      onclick="toggleSnap()"><span class="pi ico ico-lg"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4v7a7 7 0 0 0 14 0V4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="3" y="2" width="4" height="3.5" rx="1" fill="currentColor"/><rect x="17" y="2" width="4" height="3.5" rx="1" fill="currentColor"/></svg></span>Edge Snap<span class="pk">N</span></button>
 
     <div class="sec-div"></div>
     <div class="sec-label">Fill Colour</div>
@@ -543,6 +569,12 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
     <div class="ctrl-row">
       <div class="ctrl-hd"><label>Scale</label><span class="cv" id="scaleValMob">80%</span></div>
       <input type="range" id="scaleSliderMob" min="0.1" max="10" step="0.05" value="0.8">
+    </div>
+    <div style="padding:0 8px;">
+      <button class="pabtn acc" id="fitCropBtnMob" onclick="fitToCrop()" style="display:none;width:100%;">
+        <span class="ico ico-md" style="color:inherit"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span>
+        Fit to Crop Region
+      </button>
     </div>
     <div class="ctrl-row">
       <div class="ctrl-hd"><label>X Position</label><span class="cv" id="xValMob">0</span></div>
@@ -623,11 +655,19 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
     <select id="pdfPage"></select>
   </div>
   <select id="canvasSize" class="hide-mob" title="Output resolution">
-    <option value="2000x2000">2000×2000 (HD)</option>
-    <option value="3000x3000" selected>3000×3000</option>
-    <option value="4000x4000">4000×4000 (4K)</option>
-    <option value="4000x2000">4000×2000 wide</option>
+    <option value="4000x4000" selected>4000×4000 (4K)</option>
+    <option value="4000x2000">4000×2000 (Wide)</option>
+    <option value="custom">Custom…</option>
   </select>
+  <!-- custom size row — desktop -->
+  <div id="customSizeDesk" class="hide-mob" style="display:none;align-items:center;gap:4px;flex-shrink:0;">
+    <input type="number" id="customW" placeholder="W" min="100" max="8000" value="4000"
+      style="width:62px;padding:4px 6px;background:var(--surf3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-family:inherit;font-size:11px;">
+    <span style="color:var(--text3);font-size:12px;">×</span>
+    <input type="number" id="customH" placeholder="H" min="100" max="8000" value="4000"
+      style="width:62px;padding:4px 6px;background:var(--surf3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-family:inherit;font-size:11px;">
+    <button class="abtn sml" onclick="applyCustomSize()" style="color:var(--accent);border-color:rgba(255,102,0,.3);">Apply</button>
+  </div>
   <div class="vsep hide-mob"></div>
   <button class="abtn hide-mob" onclick="undo()" title="Ctrl+Z">↶</button>
   <button class="abtn hide-mob" onclick="redo()" title="Ctrl+Y">↷</button>
@@ -672,7 +712,7 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
   </button>
   <div class="vsep"></div>
   <button class="tb" id="snapBtn"     onclick="toggleSnap()"         title="Edge snap (N)">
-    <span class="ti ico ico-lg"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><path d="M6.3 6.3l2.1 2.1m7.2 7.2l2.1 2.1M6.3 17.7l2.1-2.1m7.2-7.2l2.1-2.1"/></svg></span>
+    <span class="ti ico ico-lg"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4v7a7 7 0 0 0 14 0V4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="3" y="2" width="4" height="3.5" rx="1" fill="currentColor"/><rect x="17" y="2" width="4" height="3.5" rx="1" fill="currentColor"/></svg></span>
     <span class="tl">Snap</span>
   </button>
   <div class="vsep"></div>
@@ -715,6 +755,10 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
   <div class="pill"><label>Scale</label>
     <input type="range" id="scaleSlider" min="0.1" max="10" step="0.05" value="0.8">
     <span class="val" id="scaleValue">80%</span></div>
+  <button class="abtn sml" id="fitCropBtn" onclick="fitToCrop()" title="Scale & centre view to the cropped region" style="color:var(--accent);border-color:rgba(255,102,0,.3);display:none;">
+    <span class="ico ico-sm" style="color:inherit"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span>
+    Fit Crop
+  </button>
   <div class="pill"><label>X</label>
     <input type="range" id="xSlider" min="-1500" max="1500" step="1" value="0">
     <span class="val" id="xOffVal">0</span></div>
@@ -760,7 +804,7 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
     <button class="tb" id="mPenBtn"       onclick="setTool('pen')"><span class="ti ico ico-md"><svg viewBox="0 0 24 24"><path d="M12 19l-7 2 2-7L16 5a2 2 0 0 1 3 3L12 19z"/><line x1="16" y1="5" x2="19" y2="8"/></svg></span></button>
     <button class="tb" id="mSelBtn"       onclick="setTool('selection')"><span class="ti ico ico-md"><svg viewBox="0 0 24 24"><polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><polyline points="15 21 21 21 21 15"/></svg></span></button>
     <button class="tb" id="mRotateSelBtn" onclick="setTool('rotateSel')"><span class="ti ico ico-md"><svg viewBox="0 0 24 24"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/></svg></span></button>
-    <button class="tb" id="mSnapBtn"      onclick="toggleSnap()"><span class="ti ico ico-md"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg></span></button>
+    <button class="tb" id="mSnapBtn"      onclick="toggleSnap()"><span class="ti ico ico-md"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4v7a7 7 0 0 0 14 0V4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="3" y="2" width="4" height="3.5" rx="1" fill="currentColor"/><rect x="17" y="2" width="4" height="3.5" rx="1" fill="currentColor"/></svg></span></button>
     <button class="tb" id="mClosePenBtn"  style="display:none;color:var(--green);" onclick="closePen()"><span class="ti ico ico-md"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></button>
     <button class="tb" id="mCancelPenBtn" style="display:none;color:var(--red);"   onclick="cancelPen()"><span class="ti ico ico-md"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></button>
   </div>
@@ -808,7 +852,7 @@ body.rot-panel-open .cvwrap{margin-right:220px;transition:margin-right .22s cubi
       </div>
     </div>
     <div class="rot-hint">
-      💡 Draw a box on the canvas to select a region, then drag the <strong style="color:var(--accent)">orange handle</strong> to rotate. Move the <strong style="color:white">white pivot dot</strong> to change the centre.
+      Draw a box on the canvas to select a region, then drag the <strong style="color:var(--accent)">orange handle</strong> to rotate. Move the <strong style="color:white">white pivot dot</strong> to change the centre.
     </div>
     <div class="rot-section" style="margin-top:auto;padding-top:8px;gap:6px;">
       <button class="rbt cancel" onclick="cancelRotate()">✕ Cancel</button>
@@ -862,7 +906,7 @@ let anchorImgX=null, anchorImgY=null;
 let fillOpacity=0.4;
 let activeFillColor='#ef4444';
 let undoStack=[], redoStack=[];
-let snapEnabled=false;
+let snapEnabled=true;
 let edgeData=null, edgeImgW=0, edgeImgH=0;
 const SNAP_R=18;
 let logicalW=800, logicalH=800;
@@ -887,43 +931,123 @@ function closePanel(){
     document.getElementById('panelOverlay').style.display='none'; }, 260);
 }
 
-// Show mobile upload btn on small screens
-function checkMobile(){ document.getElementById('mobUploadBtn').style.display=window.innerWidth<=640?'inline-flex':'none'; }
-window.addEventListener('resize', checkMobile); checkMobile();
+// Mobile upload button visibility — handled purely by CSS .hide-mob,
+// but we still need to toggle the JS-controlled mobUploadBtn
+function checkMobile(){
+  const mob = window.innerWidth <= 640;
+  const btn = document.getElementById('mobUploadBtn');
+  if(btn) btn.style.display = mob ? 'inline-flex' : 'none';
+}
+window.addEventListener('resize', checkMobile);
+checkMobile();
 
 // ════════════════════════════════════════════════════════════════
 // HIGH-RES CANVAS
 // ════════════════════════════════════════════════════════════════
 function currentPixelSize(){
-  // Both desktop and mobile selects stay in sync
-  const sel=document.getElementById('canvasSize');
+  const sel = document.getElementById('canvasSize');
+  if(sel.value === 'custom'){
+    const w = Math.max(100, Math.min(8000, parseInt(document.getElementById('customW').value)||4000));
+    const h = Math.max(100, Math.min(8000, parseInt(document.getElementById('customH').value)||4000));
+    return [w, h];
+  }
   return sel.value.split('x').map(Number);
+}
+
+function showCustomInputs(show){
+  const d = document.getElementById('customSizeDesk');
+  const m = document.getElementById('customSizeMob');
+  if(d) d.style.display = show ? 'flex' : 'none';
+  if(m) m.style.display = show ? 'flex' : 'none';
+}
+
+function applyCustomSize(){
+  const w = Math.max(100, Math.min(8000, parseInt(document.getElementById('customW').value)||4000));
+  const h = Math.max(100, Math.min(8000, parseInt(document.getElementById('customH').value)||4000));
+  // keep mob inputs in sync
+  const mw = document.getElementById('customWMob');
+  const mh = document.getElementById('customHMob');
+  if(mw) mw.value = w;
+  if(mh) mh.value = h;
+  initCanvas(w, h); redrawCanvas();
+  setStatus(`Canvas: ${w}×${h}px`);
 }
 function initCanvas(pw,ph){
   canvas.width=pw; canvas.height=ph; fitCanvasCSS(pw,ph);
 }
 function fitCanvasCSS(pw,ph){
-  const wr=cvwrap.getBoundingClientRect();
-  const avW=wr.width*0.94, avH=wr.height*0.94;
-  const ratio=pw/ph;
+  // Use cvwrap's actual rendered size — defer one frame if not laid out yet
+  const wr = cvwrap.getBoundingClientRect();
+  if(wr.width===0||wr.height===0){
+    requestAnimationFrame(()=>fitCanvasCSS(pw,ph)); return;
+  }
+  const pad = 0.94;
+  const avW = wr.width  * pad;
+  const avH = wr.height * pad;
+  const ratio = pw/ph;
   let cw,ch;
-  if(avW/avH>ratio){ch=avH;cw=ch*ratio;}else{cw=avW;ch=cw/ratio;}
+  if(avW/avH > ratio){ ch=avH; cw=ch*ratio; }
+  else               { cw=avW; ch=cw/ratio; }
+  // clamp so it never exceeds viewport
+  cw = Math.min(cw, wr.width  - 8);
+  ch = Math.min(ch, wr.height - 8);
   logicalW=cw; logicalH=ch;
-  canvas.style.width=cw+'px'; canvas.style.height=ch+'px';
+  canvas.style.width  = cw+'px';
+  canvas.style.height = ch+'px';
 }
-window.addEventListener('resize',()=>{ const[pw,ph]=currentPixelSize(); fitCanvasCSS(pw,ph); placeAnchorRing(); });
 
-// Sync canvas size selects
+// Debounced resize — avoids thrashing during mobile browser chrome show/hide
+let _resizeTimer=null;
+function onResize(){
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(()=>{
+    const[pw,ph]=currentPixelSize();
+    fitCanvasCSS(pw,ph);
+    placeAnchorRing();
+    applyZoom();
+  }, 80);
+}
+window.addEventListener('resize', onResize);
+// Also listen to visualViewport for mobile (handles browser chrome appearing)
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', onResize);
+}
+
+// Sync canvas size selects and handle custom
 document.getElementById('canvasSize').addEventListener('change',e=>{
-  document.getElementById('canvasSizeMob').value=e.target.value;
-  applyCanvasSize();
+  const v = e.target.value;
+  document.getElementById('canvasSizeMob').value = v;
+  showCustomInputs(v === 'custom');
+  if(v !== 'custom') applyCanvasSize();
 });
 document.getElementById('canvasSizeMob').addEventListener('change',e=>{
-  document.getElementById('canvasSize').value=e.target.value;
-  applyCanvasSize();
+  const v = e.target.value;
+  document.getElementById('canvasSize').value = v;
+  showCustomInputs(v === 'custom');
+  if(v !== 'custom') applyCanvasSize();
+});
+// sync custom W/H between desktop and mobile inputs
+['customW','customH'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('change',()=>{
+    const mId = id + 'Mob';
+    const m = document.getElementById(mId);
+    if(m) m.value = el.value;
+  });
+});
+['customWMob','customHMob'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('change',()=>{
+    const dId = id.replace('Mob','');
+    const d = document.getElementById(dId);
+    if(d) d.value = el.value;
+  });
 });
 function applyCanvasSize(){
-  const[pw,ph]=currentPixelSize(); initCanvas(pw,ph); redrawCanvas();
+  const[pw,ph]=currentPixelSize();
+  initCanvas(pw,ph); redrawCanvas();
   setStatus(`Canvas: ${pw}×${ph}px`);
 }
 
@@ -1086,7 +1210,7 @@ function toggleSnap(){
   });
   snapBadge.style.display=snapEnabled?'block':'none';
   if(snapEnabled&&uploadedImage&&!edgeData) buildEdgeMap(uploadedImage);
-  setStatus(snapEnabled?'🧲 Edge snap ON':'Edge snap OFF');
+  setStatus(snapEnabled?'Edge snap ON':'Edge snap OFF');
 }
 function showSnapInd(snapped,sx,sy){
   if(!snapEnabled||!snapped){snapDot.style.display='none';snapH.style.display='none';snapV.style.display='none';return;}
@@ -1221,7 +1345,7 @@ function restoreState(s){
   ['scaleValue','scaleValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=Math.round(s.sc*100)+'%';});
   ['rotationSlider','rotSliderMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.value=s.rot;});
   ['rotationValue','rotValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=s.rot*90+'°';});
-  placeAnchorRing();applyZoom();redrawCanvas();
+  placeAnchorRing();applyZoom();redrawCanvas();updateFitCropBtn();
 }
 function undo(){if(!undoStack.length){setStatus('Nothing to undo');return;}redoStack.push(snapState());restoreState(undoStack.pop());setStatus('Undone');}
 function redo(){if(!redoStack.length){setStatus('Nothing to redo');return;}undoStack.push(snapState());restoreState(redoStack.pop());setStatus('Redone');}
@@ -1360,7 +1484,7 @@ canvas.addEventListener('mouseup',e=>{
   if(w<4||h<4){currentRect=null;return;}
   const nx=Math.min(startX,startX+currentRect.width),ny=Math.min(startY,startY+currentRect.height);
   if(currentTool==='rectangle') eraseFills.push({type:'rect',x:nx,y:ny,width:w,height:h});
-  else if(currentTool==='selection') selectionRect={x:nx,y:ny,width:w,height:h};
+  else if(currentTool==='selection'){ selectionRect={x:nx,y:ny,width:w,height:h}; updateFitCropBtn(); }
   else if(currentTool==='color') colorFills.push({type:'rect',x:nx,y:ny,width:w,height:h,fill:activeFillColor==='ERASE'?'#fff':activeFillColor,opacity:fillOpacity});
   else if(currentTool==='rotateSel'){
     // show rotate widget — don't push to history yet
@@ -1493,7 +1617,7 @@ canvas.addEventListener('touchend',e=>{
         if(w>=6&&h>=6){
           const nx=Math.min(startX,startX+currentRect.width),ny=Math.min(startY,startY+currentRect.height);
           if(currentTool==='rectangle') eraseFills.push({type:'rect',x:nx,y:ny,width:w,height:h});
-          else if(currentTool==='selection') selectionRect={x:nx,y:ny,width:w,height:h};
+          else if(currentTool==='selection'){ selectionRect={x:nx,y:ny,width:w,height:h}; updateFitCropBtn(); }
           else if(currentTool==='color') colorFills.push({type:'rect',x:nx,y:ny,width:w,height:h,fill:activeFillColor==='ERASE'?'#fff':activeFillColor,opacity:fillOpacity});
           else if(currentTool==='rotateSel'){
             redoStack=[];undoStack.pop();
@@ -1593,9 +1717,103 @@ function redrawCanvas(forDL,g2,c2){
 }
 
 // ════════════════════════════════════════════════════════════════
+// FIT TO CROP
+// Computes the scale + offset so the cropped region fills the canvas
+// perfectly, then animates there smoothly.
+// ════════════════════════════════════════════════════════════════
+function updateFitCropBtn(){
+  const show = !!selectionRect;
+  ['fitCropBtn','fitCropBtnMob'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display=show?'inline-flex':'none';
+  });
+}
+
+function fitToCrop(){
+  if(!selectionRect||!uploadedImage) return;
+  saveState();
+
+  const {x,y,width:sw,height:sh} = selectionRect;
+  const rot = +document.getElementById('rotationSlider').value*90*Math.PI/180;
+
+  // We need to find scale + offset so that after xform the selection
+  // corners map to the canvas edges.
+  // The selection is in image-space. After xform:
+  //   canvas_px = (img_pt * sc) rotated + canvasCentre + offset
+  // We want the selection to fill the canvas with a small 3% padding.
+  const [pw,ph] = currentPixelSize();
+  const pad = 0.97; // 3% padding on each side
+
+  // Selection centre in image-space
+  const scx = x + sw/2;
+  const scy = y + sh/2;
+
+  // The selection's bounding box in canvas-space after rotation (at sc=1, offset=0):
+  // rotate the four corners and find axis-aligned bounding box
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  function rotPt(ix,iy){ return { rx:ix*cos-iy*sin, ry:ix*sin+iy*cos }; }
+  const corners = [
+    rotPt(x,     y),
+    rotPt(x+sw,  y),
+    rotPt(x,     y+sh),
+    rotPt(x+sw,  y+sh)
+  ];
+  const minRX = Math.min(...corners.map(c=>c.rx));
+  const maxRX = Math.max(...corners.map(c=>c.rx));
+  const minRY = Math.min(...corners.map(c=>c.ry));
+  const maxRY = Math.max(...corners.map(c=>c.ry));
+  const bbW = maxRX - minRX; // bounding box width at sc=1
+  const bbH = maxRY - minRY;
+
+  // Scale so bounding box fits the canvas
+  const scaleX = (pw * pad) / bbW;
+  const scaleY = (ph * pad) / bbH;
+  const newSc  = Math.min(scaleX, scaleY);
+
+  // Offset so the selection centre maps to the canvas centre
+  const centreRot = rotPt(scx, scy);
+  const newOX = -centreRot.rx * newSc;
+  const newOY = -centreRot.ry * newSc;
+
+  // Clamp scale to slider range
+  const clampedSc = Math.max(0.1, Math.min(10, newSc));
+
+  // Apply — animate with small RAF loop for smoothness
+  const startSc  = +document.getElementById('scaleSlider').value;
+  const startOX  = imageOffsetX;
+  const startOY  = imageOffsetY;
+  const duration = 320;
+  const t0       = performance.now();
+
+  function ease(t){ return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2; } // easeInOut
+
+  function step(now){
+    const t = Math.min(1, (now-t0)/duration);
+    const e = ease(t);
+    const sc  = startSc + (clampedSc - startSc) * e;
+    const ox  = startOX + (newOX     - startOX) * e;
+    const oy  = startOY + (newOY     - startOY) * e;
+
+    imageOffsetX = ox; imageOffsetY = oy;
+    ['xSlider','xSliderMob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=ox; });
+    ['ySlider','ySliderMob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=oy; });
+    ['xOffVal','xValMob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=Math.round(ox); });
+    ['yOffVal','yValMob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=Math.round(oy); });
+
+    ['scaleSlider','scaleSliderMob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=sc; });
+    ['scaleValue','scaleValMob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=Math.round(sc*100)+'%'; });
+
+    redrawCanvas();
+
+    if(t<1) requestAnimationFrame(step);
+    else setStatus('Fitted to crop region — use Scale slider to fine-tune');
+  }
+  requestAnimationFrame(step);
+}
+
+// ════════════════════════════════════════════════════════════════
 // CLEAR / DOWNLOAD
 // ════════════════════════════════════════════════════════════════
-function clearAll(){ saveState();eraseFills=[];colorFills=[];selectionRect=null;penPoints=[];redrawCanvas();setStatus('Canvas cleared'); }
+function clearAll(){ saveState();eraseFills=[];colorFills=[];selectionRect=null;penPoints=[];redrawCanvas();updateFitCropBtn();setStatus('Canvas cleared'); }
 function downloadImage(){
   if(!uploadedImage){alert('Upload a floorplan first');return;}
   const[pw,ph]=currentPixelSize();
@@ -1918,6 +2136,11 @@ document.addEventListener('touchend',()=>{ rotDraggingHandle=false; rotDraggingP
   initCanvas(pw,ph);
   setTool('drag');
   applyZoom();
+  // snap is ON by default — activate all button states + badge
+  ['snapBtn','pSnapBtn','mSnapBtn'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.classList.add('snap-on');
+  });
+  snapBadge.style.display='block';
   requestAnimationFrame(()=>{ fitCanvasCSS(pw,ph); applyZoom(); });
 })();
 </script>
