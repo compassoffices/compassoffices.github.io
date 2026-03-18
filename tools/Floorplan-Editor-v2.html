@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Floorplan Editor</title>
+<link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #111114; --surf: #1c1c22; --surf2: #26262e; --surf3: #303039;
+  --border: #3a3a44; --accent: #ff6600; --text: #f0f0f4;
+  --text2: #9898a8; --text3: #55555f; --green: #34d399; --red: #f87171; --blue: #60a5fa;
+  --r: 7px; --bar1: 54px; --bar2: 52px; --bar3: 46px; --bot: 62px;
+}
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+
+.bar1, .bar2, .bar3 {
+  display: flex; align-items: center; padding: 0 12px; gap: 8px;
+  flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+}
+.bar1::-webkit-scrollbar, .bar2::-webkit-scrollbar, .bar3::-webkit-scrollbar { display: none; }
+.bar1 { height: var(--bar1); background: var(--surf); border-bottom: 1px solid var(--border); }
+.bar2 { height: var(--bar2); background: var(--surf); border-bottom: 1px solid var(--border); gap: 3px; }
+.bar3 { height: var(--bar3); background: var(--surf2); border-bottom: 1px solid var(--border); gap: 6px; }
+.bar1 img { height: 26px; filter: brightness(1.1); flex-shrink: 0; }
+.bar1 h1  { font-size: 14px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.vsep { width: 1px; height: 26px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
+
+.tb {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; padding: 5px 9px; border-radius: var(--r); border: 1px solid transparent;
+  background: transparent; color: var(--text2); font-family: inherit; font-size: 10px; font-weight: 500;
+  cursor: pointer; transition: background .12s, color .12s, border-color .12s;
+  white-space: nowrap; flex-shrink: 0; min-width: 48px;
+}
+.tb:hover  { background: var(--surf2); color: var(--text); }
+.tb.active { background: rgba(255,102,0,.14); border-color: rgba(255,102,0,.38); color: var(--accent); }
+.tb .ti { font-size: 17px; line-height: 1; }
+.tb .tl { font-size: 10px; line-height: 1; }
+
+/* snap active glow */
+.tb.snap-on { background: rgba(52,211,153,.12); border-color: rgba(52,211,153,.4); color: var(--green); }
+
+.pill {
+  display: flex; align-items: center; gap: 5px; background: var(--surf3);
+  border: 1px solid var(--border); border-radius: var(--r); padding: 3px 9px; flex-shrink: 0;
+}
+.pill label { font-size: 10px; color: var(--text3); white-space: nowrap; }
+.pill .val  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent); min-width: 28px; text-align: right; }
+
+input[type="range"] {
+  -webkit-appearance: none; height: 3px; background: var(--border);
+  border-radius: 2px; outline: none; cursor: pointer; flex-shrink: 0;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+}
+.rw55 { width: 55px; } .rw70 { width: 70px; } .rw90 { width: 90px; }
+
+select {
+  background: var(--surf3); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--r); padding: 5px 8px; font-family: inherit; font-size: 11px;
+  cursor: pointer; flex-shrink: 0;
+}
+
+.abtn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
+  border-radius: var(--r); border: 1px solid var(--border); background: var(--surf2);
+  color: var(--text2); font-family: inherit; font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all .12s; white-space: nowrap; flex-shrink: 0;
+}
+.abtn:hover { background: var(--surf3); color: var(--text); }
+.abtn.acc  { color: var(--accent); border-color: rgba(255,102,0,.32); }
+.abtn.acc:hover { background: rgba(255,102,0,.1); }
+.abtn.link { color: var(--blue); border-color: rgba(96,165,250,.3); }
+.abtn.link:hover { background: rgba(96,165,250,.1); }
+.abtn.sml  { padding: 4px 8px; font-size: 11px; }
+
+.sw-wrap { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.sw {
+  width: 21px; height: 21px; border-radius: 5px; cursor: pointer;
+  border: 2px solid transparent; transition: transform .1s, border-color .1s;
+  flex-shrink: 0; position: relative;
+}
+.sw:hover { transform: scale(1.2); }
+.sw.sel   { border-color: white; box-shadow: 0 0 0 2px var(--accent); }
+.sw.erase { background: repeating-conic-gradient(#555 0% 25%,#333 0% 50%) 0 0/8px 8px; }
+
+input[type="color"] {
+  width: 26px; height: 21px; border: 1px solid var(--border); border-radius: 5px;
+  cursor: pointer; background: none; padding: 1px; flex-shrink: 0;
+}
+
+/* ── CANVAS AREA ── */
+.cvwrap {
+  flex: 1; overflow: hidden; background: #0a0a0d;
+  display: flex; align-items: center; justify-content: center; position: relative;
+}
+#canvas {
+  display: block; background: white;
+  box-shadow: 0 8px 48px rgba(0,0,0,.7);
+  border-radius: 3px; transform-origin: center center;
+  /* CSS size ≠ pixel size — set by JS for HiDPI */
+}
+
+/* snap indicator — green dot that follows snapped position */
+.snap-dot {
+  position: absolute; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--green);
+  border: 2px solid white;
+  box-shadow: 0 0 6px rgba(52,211,153,.8);
+  pointer-events: none; transform: translate(-50%,-50%);
+  display: none; z-index: 30; transition: left .04s, top .04s;
+}
+/* snap crosshair lines */
+.snap-h, .snap-v {
+  position: absolute; pointer-events: none; display: none; z-index: 29;
+  background: rgba(52,211,153,.35);
+}
+.snap-h { height: 1px; left: 0; right: 0; }
+.snap-v { width: 1px;  top: 0; bottom: 0; }
+
+.anchor-ring {
+  position: absolute; width: 12px; height: 12px;
+  border: 2px solid var(--accent); border-radius: 50%;
+  transform: translate(-50%,-50%); pointer-events: none; display: none; z-index: 20;
+}
+.zoom-badge {
+  position: absolute; bottom: 12px; right: 14px;
+  background: rgba(28,28,34,.9); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 12px;
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text2);
+  pointer-events: none; backdrop-filter: blur(6px);
+}
+.pen-hint {
+  position: absolute; bottom: 12px; left: 14px;
+  background: rgba(28,28,34,.9); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 12px;
+  font-size: 11px; color: var(--text2); pointer-events: none; display: none; backdrop-filter: blur(6px);
+}
+.cdot {
+  position: absolute; width: 8px; height: 8px; border-radius: 50%;
+  border: 2px solid white; background: var(--accent); pointer-events: none;
+  transform: translate(-50%,-50%); display: none; z-index: 10;
+}
+
+/* snap badge */
+.snap-badge {
+  position: absolute; top: 10px; right: 14px;
+  background: rgba(52,211,153,.18); border: 1px solid rgba(52,211,153,.4);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 11px; color: var(--green); pointer-events: none; display: none; backdrop-filter: blur(6px);
+}
+
+/* ── BOTTOM BAR ── */
+.botbar {
+  position: sticky; bottom: 0; height: var(--bot); background: var(--surf);
+  border-top: 1px solid var(--border); display: flex; align-items: center;
+  padding: 0 16px; gap: 10px; flex-shrink: 0; z-index: 100;
+}
+.bot-status { flex: 1; font-size: 12px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-status span { color: var(--text2); }
+.bot-btn {
+  display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px;
+  border-radius: var(--r); border: none; font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .13s; white-space: nowrap; flex-shrink: 0;
+}
+.bot-btn.clr { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.25); }
+.bot-btn.clr:hover { background: rgba(248,113,113,.22); }
+.bot-btn.dl  { background: var(--accent); color: white; }
+.bot-btn.dl:hover  { background: #e55a00; }
+
+.file-input { display: none; }
+
+@media (max-width: 700px) {
+  :root { --bar1: 48px; --bar2: 48px; --bar3: 42px; --bot: 56px; }
+  .bar1 h1 { display: none; }
+  .tb .tl  { display: none; }
+  .tb      { min-width: 34px; padding: 5px 5px; }
+  .pill label { display: none; }
+  .rw90 { width: 55px; } .rw70 { width: 48px; } .rw55 { width: 40px; }
+  .bot-btn { padding: 8px 13px; font-size: 12px; }
+  .abtn    { padding: 5px 9px; font-size: 11px; }
+  .hide-sm { display: none; }
+}
+@media (max-width: 400px) { .bot-btn .btn-lbl { display: none; } }
+
+::-webkit-scrollbar { height: 3px; width: 3px; }
+::-webkit-scrollbar-thumb { background: var(--surf3); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ══ BAR 1: BRAND + UPLOAD ══════════════════════════════════ -->
+<div class="bar1">
+  <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg"
+       alt="Compass" onerror="this.style.display='none'">
+  <h1>Floorplan Editor</h1>
+  <div class="vsep"></div>
+  <input type="file" id="fileInput" class="file-input" accept="image/*,application/pdf">
+  <button class="abtn acc" onclick="document.getElementById('fileInput').click()">📁 Upload Floorplan</button>
+  <a href="https://compassoffices.sharepoint.com/:f:/g/sales/IgDr52xIHYUhRIaBFp9nR96eAaWCUuWXWFdtsq89IdyUdy4?e=d93Nj6"
+     target="_blank" rel="noopener" class="abtn link">🗂️ <span class="hide-sm">Download Compass Offices Floorplans</span></a>
+  <div id="pageSelector" style="display:none;"><select id="pdfPage"></select></div>
+  <select id="canvasSize" title="Output resolution">
+    <option value="2000x2000">2000×2000 (HD)</option>
+    <option value="3000x3000" selected>3000×3000 (Full HD)</option>
+    <option value="4000x4000">4000×4000 (4K)</option>
+    <option value="4000x2000">4000×2000 (4K wide)</option>
+    <option value="3000x2000">3000×2000 (Wide)</option>
+  </select>
+  <div class="vsep"></div>
+  <button class="abtn" onclick="undo()" title="Ctrl+Z">↶ Undo</button>
+  <button class="abtn" onclick="redo()" title="Ctrl+Y">↷ Redo</button>
+</div>
+
+<!-- ══ BAR 2: TOOLS + COLOUR ══════════════════════════════════ -->
+<div class="bar2">
+  <button class="tb" id="dragBtn" onclick="setTool('drag')" title="Pan image (H)">
+    <span class="ti">✋</span><span class="tl">Pan</span>
+  </button>
+  <div class="vsep"></div>
+  <button class="tb" id="rectangleBtn" onclick="setTool('rectangle')" title="Erase rectangle (R)">
+    <span class="ti">▭</span><span class="tl">Erase Box</span>
+  </button>
+  <button class="tb" id="erasePenBtn" onclick="setTool('erasePen')" title="Erase polygon pen (E)">
+    <span class="ti">🧽</span><span class="tl">Erase Pen</span>
+  </button>
+  <div class="vsep"></div>
+  <button class="tb" id="colorBtn" onclick="setTool('color')" title="Colour fill rectangle (C)">
+    <span class="ti">🎨</span><span class="tl">Color Box</span>
+  </button>
+  <button class="tb" id="penBtn" onclick="setTool('pen')" title="Colour fill polygon (P)">
+    <span class="ti">✒️</span><span class="tl">Color Pen</span>
+  </button>
+  <div class="vsep"></div>
+  <button class="tb" id="selectionBtn" onclick="setTool('selection')" title="Crop mask (S)">
+    <span class="ti">✂️</span><span class="tl">Crop</span>
+  </button>
+  <div class="vsep"></div>
+
+  <!-- SNAP TOGGLE -->
+  <button class="tb" id="snapBtn" onclick="toggleSnap()" title="Edge snap — auto-align pen/crop to floorplan lines (N)">
+    <span class="ti">🧲</span><span class="tl">Snap</span>
+  </button>
+  <div class="vsep"></div>
+
+  <div class="sw-wrap" id="swatchRow"></div>
+  <input type="color" id="customColor" value="#ff6600" title="Custom colour" onchange="pickCustomColor()">
+  <div class="vsep"></div>
+  <div class="pill">
+    <label>Opacity</label>
+    <input type="range" class="rw70" id="opacitySlider" min="5" max="100" step="5" value="40">
+    <span class="val" id="opacityVal">40%</span>
+  </div>
+  <div class="vsep"></div>
+  <button class="abtn" id="closePenBtn"  style="display:none; color:var(--green); border-color:rgba(52,211,153,.3);" onclick="closePen()">✔ Close</button>
+  <button class="abtn" id="cancelPenBtn" style="display:none; color:var(--red); border-color:rgba(248,113,113,.3);"  onclick="cancelPen()">✕ Cancel</button>
+  <div class="vsep"></div>
+  <button class="tb" id="anchorBtn" onclick="setTool('anchor')" title="Pin zoom anchor on image (A)">
+    <span class="ti">📌</span><span class="tl">Anchor</span>
+  </button>
+  <button class="tb" onclick="resetAnchor()" title="Reset anchor">
+    <span class="ti">⊙</span><span class="tl">Reset</span>
+  </button>
+</div>
+
+<!-- ══ BAR 3: IMAGE CONTROLS ══════════════════════════════════ -->
+<div class="bar3">
+  <div class="pill">
+    <label>Rotate</label>
+    <input type="range" class="rw55" id="rotationSlider" min="0" max="3" step="1" value="0">
+    <span class="val" id="rotationValue">0°</span>
+  </div>
+  <div class="pill">
+    <label>Scale</label>
+    <input type="range" class="rw90" id="scaleSlider" min="0.1" max="10" step="0.05" value="0.8">
+    <span class="val" id="scaleValue">80%</span>
+  </div>
+  <div class="pill">
+    <label>X</label>
+    <input type="range" class="rw90" id="xSlider" min="-1500" max="1500" step="1" value="0">
+    <span class="val" id="xOffVal">0</span>
+  </div>
+  <div class="pill">
+    <label>Y</label>
+    <input type="range" class="rw90" id="ySlider" min="-1500" max="1500" step="1" value="0">
+    <span class="val" id="yOffVal">0</span>
+  </div>
+  <div class="vsep"></div>
+  <div class="pill">
+    <label>Zoom</label>
+    <button class="abtn sml" onclick="changeZoom(-0.1)">−</button>
+    <input type="range" class="rw90" id="zoomSlider" min="0.1" max="3" step="0.05" value="0.7">
+    <button class="abtn sml" onclick="changeZoom(0.1)">+</button>
+    <span class="val" id="zoomValue">70%</span>
+  </div>
+  <button class="abtn sml" onclick="changeZoom(0)">1:1</button>
+</div>
+
+<!-- ══ CANVAS ════════════════════════════════════════════════ -->
+<div class="cvwrap" id="cvwrap">
+  <canvas id="canvas"></canvas>
+  <div class="cdot"        id="cdot"></div>
+  <div class="snap-dot"    id="snapDot"></div>
+  <div class="snap-h"      id="snapH"></div>
+  <div class="snap-v"      id="snapV"></div>
+  <div class="anchor-ring" id="anchorRing"></div>
+  <div class="zoom-badge"  id="zoomBadge">70%</div>
+  <div class="pen-hint"    id="penHint">Click to add points · Double-click or Enter to close · 🧲 Snap active</div>
+  <div class="snap-badge"  id="snapBadge">🧲 Edge Snap ON</div>
+</div>
+
+<!-- ══ STICKY BOTTOM BAR ═════════════════════════════════════ -->
+<div class="botbar">
+  <div class="bot-status"><span id="statusText">Upload a floorplan to start</span></div>
+  <button class="bot-btn clr" onclick="clearAll()">🗑️ <span class="btn-lbl">Clear All</span></button>
+  <button class="bot-btn dl"  onclick="downloadImage()">💾 <span class="btn-lbl">Download JPG</span></button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// REFS
+// ═══════════════════════════════════════════════════════════════════
+const canvas       = document.getElementById('canvas');
+const ctx          = canvas.getContext('2d');
+const cvwrap       = document.getElementById('cvwrap');
+const statusEl     = document.getElementById('statusText');
+const penHint      = document.getElementById('penHint');
+const cdot         = document.getElementById('cdot');
+const snapDot      = document.getElementById('snapDot');
+const snapH        = document.getElementById('snapH');
+const snapV        = document.getElementById('snapV');
+const anchorRing   = document.getElementById('anchorRing');
+const cancelPenBtn = document.getElementById('cancelPenBtn');
+const closePenBtn  = document.getElementById('closePenBtn');
+const snapBadge    = document.getElementById('snapBadge');
+const snapBtn      = document.getElementById('snapBtn');
+
+// ═══════════════════════════════════════════════════════════════════
+// HIGH-RES CANVAS SETUP
+// ═══════════════════════════════════════════════════════════════════
+// We use a logical size for layout, but the canvas pixel buffer is
+// DISPLAY_SCALE × larger for crisp rendering on any screen.
+// The CSS width/height is set to the *logical* size (fit to screen).
+const DISPLAY_SCALE = window.devicePixelRatio || 2; // minimum 2×
+
+let logicalW = 800, logicalH = 800; // CSS display size (fitted to viewport)
+
+function initCanvas(pw, ph) {
+  // pw, ph = pixel dimensions of the output canvas
+  canvas.width  = pw;
+  canvas.height = ph;
+  // Fit CSS size to viewport while keeping aspect ratio
+  fitCanvasCSS(pw, ph);
+}
+
+function fitCanvasCSS(pw, ph) {
+  const wrap = cvwrap.getBoundingClientRect();
+  const avW  = wrap.width  * 0.92;
+  const avH  = wrap.height * 0.92;
+  const ratio = pw / ph;
+  let cw, ch;
+  if (avW / avH > ratio) { ch = avH; cw = ch * ratio; }
+  else                   { cw = avW; ch = cw / ratio; }
+  logicalW = cw; logicalH = ch;
+  canvas.style.width  = cw + 'px';
+  canvas.style.height = ch + 'px';
+}
+
+window.addEventListener('resize', () => {
+  const [pw,ph] = currentPixelSize();
+  fitCanvasCSS(pw, ph);
+  placeAnchorRing();
+});
+
+function currentPixelSize() {
+  return document.getElementById('canvasSize').value.split('x').map(Number);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════
+let uploadedImage = null, pdfDoc = null;
+let eraseFills    = [];
+let colorFills    = [];
+let selectionRect = null;
+let penPoints     = [];
+let penMode       = '';
+
+let currentTool   = 'drag';
+let isDrawing     = false, startX, startY, currentRect = null;
+let isDragging    = false, dragSX, dragSY, dragSOX, dragSOY;
+let imageOffsetX  = 0, imageOffsetY = 0;
+let viewZoom      = 0.7;
+let anchorImgX    = null, anchorImgY = null;
+let fillOpacity   = 0.4;
+let activeFillColor = '#ef4444';
+let undoStack = [], redoStack = [];
+
+// ── Edge snap ──────────────────────────────────────────────────────
+let snapEnabled   = false;
+let edgeData      = null;   // Float32Array: magnitude map in IMAGE pixel space
+let edgeImgW      = 0, edgeImgH = 0;
+const SNAP_RADIUS_IMG = 18; // search radius in image pixels
+
+// ═══════════════════════════════════════════════════════════════════
+// PALETTE
+// ═══════════════════════════════════════════════════════════════════
+const palette = [
+  '#ef4444','#f97316','#eab308','#22c55e','#14b8a6',
+  '#3b82f6','#8b5cf6','#ec4899','#000000','#ffffff'
+];
+function buildPalette() {
+  const row = document.getElementById('swatchRow'); row.innerHTML = '';
+  palette.forEach(hex => {
+    const s = document.createElement('div');
+    s.className = 'sw'; s.style.background = hex;
+    if (hex === '#ffffff') s.style.border = '2px solid #555';
+    s.onclick = () => { activeFillColor = hex; selSwatch(s); };
+    row.appendChild(s);
+  });
+  row.children[0].classList.add('sel');
+}
+function selSwatch(el) { document.querySelectorAll('.sw').forEach(s=>s.classList.remove('sel')); el.classList.add('sel'); }
+buildPalette();
+function pickCustomColor() { activeFillColor = document.getElementById('customColor').value; document.querySelectorAll('.sw').forEach(s=>s.classList.remove('sel')); }
+
+document.getElementById('opacitySlider').addEventListener('input', e => {
+  fillOpacity = e.target.value / 100;
+  document.getElementById('opacityVal').textContent = e.target.value + '%';
+  colorFills.forEach(f => { f.opacity = fillOpacity; });
+  redrawCanvas();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// CANVAS SIZE
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('canvasSize').addEventListener('change', () => {
+  const [pw,ph] = currentPixelSize();
+  initCanvas(pw, ph); redrawCanvas();
+  setStatus(`Canvas: ${pw}×${ph}px`);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// SLIDERS
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('rotationSlider').addEventListener('input', e => {
+  document.getElementById('rotationValue').textContent = e.target.value*90+'°';
+  saveState(); redrawCanvas();
+});
+document.getElementById('scaleSlider').addEventListener('input', e => {
+  document.getElementById('scaleValue').textContent = Math.round(e.target.value*100)+'%';
+  saveState(); redrawCanvas();
+});
+document.getElementById('xSlider').addEventListener('input', e => {
+  imageOffsetX = +e.target.value; document.getElementById('xOffVal').textContent = e.target.value; redrawCanvas();
+});
+document.getElementById('ySlider').addEventListener('input', e => {
+  imageOffsetY = +e.target.value; document.getElementById('yOffVal').textContent = e.target.value; redrawCanvas();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// ZOOM
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('zoomSlider').addEventListener('input', e => { viewZoom = +e.target.value; applyZoom(); });
+function applyZoom() {
+  document.getElementById('zoomValue').textContent = Math.round(viewZoom*100)+'%';
+  document.getElementById('zoomBadge').textContent  = Math.round(viewZoom*100)+'%';
+  if (anchorImgX !== null) {
+    const {cx,cy} = imageToCanvas(anchorImgX, anchorImgY);
+    const sx = cx / canvas.width  * logicalW;
+    const sy = cy / canvas.height * logicalH;
+    canvas.style.transformOrigin = `${sx}px ${sy}px`;
+  } else { canvas.style.transformOrigin = 'center center'; }
+  canvas.style.transform = `scale(${viewZoom})`;
+}
+function changeZoom(d) {
+  viewZoom = d===0 ? 1 : Math.max(0.1, Math.min(3, viewZoom+d));
+  document.getElementById('zoomSlider').value = viewZoom; applyZoom();
+}
+cvwrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  viewZoom = Math.max(0.1, Math.min(3, viewZoom+(e.deltaY>0?-0.07:0.07)));
+  document.getElementById('zoomSlider').value = viewZoom; applyZoom();
+}, {passive:false});
+
+// Anchor
+function resetAnchor() {
+  anchorImgX=anchorImgY=null; anchorRing.style.display='none';
+  canvas.style.transformOrigin='center center'; applyZoom();
+  document.getElementById('anchorBtn').classList.remove('active');
+  setStatus('Anchor reset');
+}
+function placeAnchorRing() {
+  if (anchorImgX===null) { anchorRing.style.display='none'; return; }
+  const {cx,cy} = imageToCanvas(anchorImgX, anchorImgY);
+  const cr=canvas.getBoundingClientRect(), wr=cvwrap.getBoundingClientRect();
+  const sx=(cr.left-wr.left)+(cx/canvas.width*cr.width);
+  const sy=(cr.top -wr.top )+(cy/canvas.height*cr.height);
+  anchorRing.style.display='block'; anchorRing.style.left=sx+'px'; anchorRing.style.top=sy+'px';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EDGE SNAP — Sobel edge detection on uploaded image
+// ═══════════════════════════════════════════════════════════════════
+function buildEdgeMap(img) {
+  // Render image to an offscreen canvas at native resolution (capped for perf)
+  const MAX = 3000;
+  let w = img.width, h = img.height;
+  if (w > MAX || h > MAX) { const s=MAX/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+  const oc = document.createElement('canvas'); oc.width=w; oc.height=h;
+  const ox = oc.getContext('2d');
+  ox.drawImage(img, 0, 0, w, h);
+  const id = ox.getImageData(0,0,w,h);
+  const px = id.data;
+  // Grayscale
+  const gray = new Float32Array(w*h);
+  for (let i=0;i<w*h;i++) { gray[i]=(px[i*4]*0.299+px[i*4+1]*0.587+px[i*4+2]*0.114)/255; }
+  // Sobel
+  const mag = new Float32Array(w*h);
+  for (let y=1;y<h-1;y++) {
+    for (let x=1;x<w-1;x++) {
+      const tl=gray[(y-1)*w+(x-1)], tc=gray[(y-1)*w+x], tr=gray[(y-1)*w+(x+1)];
+      const ml=gray[y*w+(x-1)],                          mr=gray[y*w+(x+1)];
+      const bl=gray[(y+1)*w+(x-1)], bc=gray[(y+1)*w+x], br=gray[(y+1)*w+(x+1)];
+      const gx = -tl - 2*ml - bl + tr + 2*mr + br;
+      const gy = -tl - 2*tc - tr + bl + 2*bc + br;
+      mag[y*w+x] = Math.sqrt(gx*gx+gy*gy);
+    }
+  }
+  edgeData=mag; edgeImgW=w; edgeImgH=h;
+  setStatus(`Edge map built (${w}×${h}) — Snap ready`);
+}
+
+// Given a point in IMAGE-space coords, find the nearest strong edge within SNAP_RADIUS
+function snapToEdge(ix, iy) {
+  if (!edgeData || !snapEnabled) return {x:ix, y:iy, snapped:false};
+  // Scale from image-display coords to edge-map coords
+  const scaleX = edgeImgW / (uploadedImage ? uploadedImage.width : edgeImgW);
+  const scaleY = edgeImgH / (uploadedImage ? uploadedImage.height : edgeImgH);
+  // Offset: image coords centre at (0,0), edge map is 0-based
+  const ex = (ix + (uploadedImage ? uploadedImage.width/2  : 0)) * scaleX;
+  const ey = (iy + (uploadedImage ? uploadedImage.height/2 : 0)) * scaleY;
+
+  const r = Math.round(SNAP_RADIUS_IMG * scaleX);
+  const x0=Math.max(1,Math.round(ex)-r), x1=Math.min(edgeImgW-2,Math.round(ex)+r);
+  const y0=Math.max(1,Math.round(ey)-r), y1=Math.min(edgeImgH-2,Math.round(ey)+r);
+
+  let bestMag=-1, bestEx=ex, bestEy=ey;
+  for (let sy=y0;sy<=y1;sy++) {
+    for (let sx=x0;sx<=x1;sx++) {
+      const m=edgeData[sy*edgeImgW+sx];
+      if (m>bestMag) { bestMag=m; bestEx=sx; bestEy=sy; }
+    }
+  }
+  const THRESHOLD = 0.08;
+  if (bestMag < THRESHOLD) return {x:ix, y:iy, snapped:false};
+
+  // Convert best edge-map pos back to image coords
+  const snappedIX = bestEx/scaleX - (uploadedImage ? uploadedImage.width/2  : 0);
+  const snappedIY = bestEy/scaleY - (uploadedImage ? uploadedImage.height/2 : 0);
+  return {x:snappedIX, y:snappedIY, snapped:true};
+}
+
+function toggleSnap() {
+  snapEnabled = !snapEnabled;
+  snapBtn.classList.toggle('snap-on', snapEnabled);
+  snapBadge.style.display = snapEnabled ? 'block' : 'none';
+  if (snapEnabled && uploadedImage && !edgeData) buildEdgeMap(uploadedImage);
+  setStatus(snapEnabled ? '🧲 Edge snap ON — pen/crop will auto-align to floorplan lines' : 'Edge snap OFF');
+}
+
+// Show snap indicator on screen
+function showSnapIndicator(snapped, screenX, screenY) {
+  if (!snapEnabled || !snapped) {
+    snapDot.style.display='none'; snapH.style.display='none'; snapV.style.display='none'; return;
+  }
+  snapDot.style.display='block'; snapDot.style.left=screenX+'px'; snapDot.style.top=screenY+'px';
+  snapH.style.display='block';   snapH.style.top=screenY+'px';
+  snapV.style.display='block';   snapV.style.left=screenX+'px';
+}
+function hideSnapIndicator() {
+  snapDot.style.display='none'; snapH.style.display='none'; snapV.style.display='none';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TOOLS
+// ═══════════════════════════════════════════════════════════════════
+function setTool(t) {
+  if ((currentTool==='pen'||currentTool==='erasePen') && t!==currentTool) cancelPen(true);
+  currentTool=t;
+  ['dragBtn','rectangleBtn','erasePenBtn','colorBtn','penBtn','selectionBtn','anchorBtn'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.classList.remove('active');
+  });
+  const map={drag:'dragBtn',rectangle:'rectangleBtn',erasePen:'erasePenBtn',
+             color:'colorBtn',pen:'penBtn',selection:'selectionBtn',anchor:'anchorBtn'};
+  if(map[t]) document.getElementById(map[t]).classList.add('active');
+  const cur={drag:'grab',rectangle:'crosshair',erasePen:'crosshair',
+             color:'cell',pen:'crosshair',selection:'crosshair',anchor:'crosshair'};
+  canvas.style.cursor=cur[t]||'default';
+  const isPen=t==='pen'||t==='erasePen';
+  penHint.style.display      = isPen?'block':'none';
+  cancelPenBtn.style.display = isPen?'inline-flex':'none';
+  closePenBtn.style.display  = 'none';
+  if(t==='pen')     penMode='color';
+  if(t==='erasePen') penMode='erase';
+}
+
+document.addEventListener('keydown', e => {
+  if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  const km={h:'drag',r:'rectangle',e:'erasePen',c:'color',p:'pen',s:'selection',a:'anchor',n:'snap'};
+  if(km[e.key.toLowerCase()]==='snap') { toggleSnap(); return; }
+  if(km[e.key.toLowerCase()]) setTool(km[e.key.toLowerCase()]);
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();redo();}
+  if(e.key==='Escape') cancelPen();
+  if(e.key==='Enter'&&penPoints.length>=3) closePen();
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file=e.target.files[0]; if(!file) return;
+  undoStack=[]; redoStack=[];
+  uploadedImage=null; eraseFills=[]; colorFills=[]; selectionRect=null;
+  edgeData=null; edgeImgW=0; edgeImgH=0;
+  imageOffsetX=0; imageOffsetY=0;
+  ['xSlider','ySlider'].forEach(id=>document.getElementById(id).value=0);
+  document.getElementById('xOffVal').textContent='0'; document.getElementById('yOffVal').textContent='0';
+
+  const reader=new FileReader();
+  if(file.type==='application/pdf') {
+    reader.onload=ev=>{
+      pdfjsLib.getDocument(new Uint8Array(ev.target.result)).promise.then(pdf=>{
+        pdfDoc=pdf;
+        const sel=document.getElementById('pdfPage'); sel.innerHTML='';
+        for(let i=1;i<=pdf.numPages;i++){const o=document.createElement('option');o.value=i;o.textContent=`Page ${i}`;sel.appendChild(o);}
+        document.getElementById('pageSelector').style.display='flex';
+        loadPdfPage(1);
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        uploadedImage=img;
+        if(snapEnabled) buildEdgeMap(img);
+        redrawCanvas(); saveState();
+        setStatus(`Loaded ${img.width}×${img.height}px — canvas ${canvas.width}×${canvas.height}px`);
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+function loadPdfPage(n) {
+  pdfDoc.getPage(n).then(page=>{
+    // Render PDF at 6× scale for maximum quality
+    const vp=page.getViewport({scale:6});
+    const tc=document.createElement('canvas'); tc.width=vp.width; tc.height=vp.height;
+    page.render({canvasContext:tc.getContext('2d'),viewport:vp}).promise.then(()=>{
+      uploadedImage=new Image();
+      uploadedImage.onload=()=>{
+        edgeData=null;
+        if(snapEnabled) buildEdgeMap(uploadedImage);
+        redrawCanvas(); saveState();
+        setStatus(`PDF p${n}: ${uploadedImage.width}×${uploadedImage.height}px (6× render)`);
+      };
+      uploadedImage.src=tc.toDataURL('image/png',1);
+    });
+  });
+}
+document.getElementById('pdfPage').addEventListener('change', e=>{
+  eraseFills=[]; colorFills=[]; selectionRect=null; edgeData=null; loadPdfPage(+e.target.value);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════════════════════════
+function snap_() {
+  return {
+    ef:JSON.parse(JSON.stringify(eraseFills)), cf:JSON.parse(JSON.stringify(colorFills)),
+    sel:selectionRect?{...selectionRect}:null,
+    ox:imageOffsetX,oy:imageOffsetY,
+    sc:+document.getElementById('scaleSlider').value,
+    rot:+document.getElementById('rotationSlider').value,
+    aix:anchorImgX,aiy:anchorImgY
+  };
+}
+function saveState(){ undoStack.push(snap_()); if(undoStack.length>80) undoStack.shift(); redoStack=[]; }
+function restore(s){
+  eraseFills=JSON.parse(JSON.stringify(s.ef)); colorFills=JSON.parse(JSON.stringify(s.cf));
+  selectionRect=s.sel?{...s.sel}:null;
+  imageOffsetX=s.ox; imageOffsetY=s.oy; anchorImgX=s.aix; anchorImgY=s.aiy;
+  document.getElementById('xSlider').value=s.ox; document.getElementById('xOffVal').textContent=s.ox;
+  document.getElementById('ySlider').value=s.oy; document.getElementById('yOffVal').textContent=s.oy;
+  document.getElementById('scaleSlider').value=s.sc; document.getElementById('scaleValue').textContent=Math.round(s.sc*100)+'%';
+  document.getElementById('rotationSlider').value=s.rot; document.getElementById('rotationValue').textContent=s.rot*90+'°';
+  placeAnchorRing(); applyZoom(); redrawCanvas();
+}
+function undo(){ if(!undoStack.length){setStatus('Nothing to undo');return;} redoStack.push(snap_()); restore(undoStack.pop()); setStatus('Undone'); }
+function redo(){ if(!redoStack.length){setStatus('Nothing to redo');return;} undoStack.push(snap_()); restore(redoStack.pop()); setStatus('Redone'); }
+
+// ═══════════════════════════════════════════════════════════════════
+// COORDINATE HELPERS
+// ═══════════════════════════════════════════════════════════════════
+// Raw CSS mouse → canvas pixel coords
+function getMouse(e) {
+  const r=canvas.getBoundingClientRect();
+  return {
+    cx:(e.clientX-r.left)*(canvas.width /r.width),
+    cy:(e.clientY-r.top )*(canvas.height/r.height)
+  };
+}
+// Canvas pixel → image-space (image centred at 0,0)
+function toImage(cx,cy) {
+  const rot=+document.getElementById('rotationSlider').value*90*Math.PI/180;
+  const sc =+document.getElementById('scaleSlider').value;
+  const rx=cx-(canvas.width/2+imageOffsetX), ry=cy-(canvas.height/2+imageOffsetY);
+  const cos=Math.cos(-rot),sin=Math.sin(-rot),inv=1/sc;
+  return {x:(rx*cos-ry*sin)*inv, y:(rx*sin+ry*cos)*inv};
+}
+// Image-space → canvas pixel
+function imageToCanvas(ix,iy) {
+  const rot=+document.getElementById('rotationSlider').value*90*Math.PI/180;
+  const sc =+document.getElementById('scaleSlider').value;
+  const cos=Math.cos(rot),sin=Math.sin(rot);
+  return {cx:(ix*cos-iy*sin)*sc+canvas.width/2+imageOffsetX,
+          cy:(ix*sin+iy*cos)*sc+canvas.height/2+imageOffsetY};
+}
+// Canvas pixel → screen position (within cvwrap)
+function canvasToScreen(cx,cy) {
+  const cr=canvas.getBoundingClientRect(), wr=cvwrap.getBoundingClientRect();
+  return {
+    sx:(cr.left-wr.left)+(cx/canvas.width *cr.width),
+    sy:(cr.top -wr.top )+(cy/canvas.height*cr.height)
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PEN
+// ═══════════════════════════════════════════════════════════════════
+function cancelPen(silent) {
+  penPoints=[];
+  if(!silent){ penHint.style.display='none'; cancelPenBtn.style.display='none'; closePenBtn.style.display='none'; }
+  hideSnapIndicator(); redrawCanvas();
+}
+function closePen() {
+  if(penPoints.length<3) return;
+  saveState();
+  if(penMode==='erase') { eraseFills.push({type:'polygon',points:[...penPoints]}); }
+  else { colorFills.push({type:'polygon',points:[...penPoints],fill:activeFillColor,opacity:fillOpacity}); }
+  penPoints=[]; closePenBtn.style.display='none'; hideSnapIndicator(); redrawCanvas();
+  setStatus(penMode==='erase'?'Erase polygon done':`Color polygon added (${colorFills.length})`);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MOUSE EVENTS
+// ═══════════════════════════════════════════════════════════════════
+canvas.addEventListener('mousedown', e => {
+  if(!uploadedImage) return;
+  const {cx,cy}=getMouse(e);
+  let ip=toImage(cx,cy);
+
+  if(currentTool==='anchor') {
+    saveState(); anchorImgX=ip.x; anchorImgY=ip.y;
+    placeAnchorRing(); applyZoom(); setTool('drag');
+    document.getElementById('anchorBtn').classList.remove('active');
+    setStatus('Anchor pinned — zoom centres on this point');
+    return;
+  }
+
+  if(['rectangle','selection','color'].includes(currentTool)) {
+    // snap for selection (crop)
+    if(currentTool==='selection') { const s=snapToEdge(ip.x,ip.y); ip={x:s.x,y:s.y}; }
+    saveState(); startX=ip.x; startY=ip.y;
+    currentRect={x:ip.x,y:ip.y,width:0,height:0}; isDrawing=true;
+  } else if(currentTool==='drag') {
+    isDragging=true; dragSX=cx; dragSY=cy; dragSOX=imageOffsetX; dragSOY=imageOffsetY;
+    canvas.style.cursor='grabbing';
+  } else if(currentTool==='pen'||currentTool==='erasePen') {
+    const s=snapToEdge(ip.x,ip.y);
+    penPoints.push({x:s.x,y:s.y}); redrawCanvas(); drawPenPrev(cx,cy);
+    closePenBtn.style.display=penPoints.length>=3?'inline-flex':'none';
+    setStatus(`${penMode==='erase'?'Erase':'Color'} pen: ${penPoints.length} pt(s)${s.snapped?' [snapped]':''} — Enter/dblclick to close`);
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  const {cx,cy}=getMouse(e);
+  let ip=toImage(cx,cy);
+  const isPen=currentTool==='pen'||currentTool==='erasePen';
+
+  // cursor dot
+  if(isPen) {
+    cdot.style.display='block';
+    const r=canvas.getBoundingClientRect();
+    cdot.style.left=e.clientX-r.left+'px'; cdot.style.top=e.clientY-r.top+'px';
+  } else { cdot.style.display='none'; }
+
+  // snap preview while hovering (pen + crop)
+  if((isPen||currentTool==='selection') && !isDrawing) {
+    const s=snapToEdge(ip.x,ip.y);
+    if(s.snapped) {
+      const sc=imageToCanvas(s.x,s.y);
+      const {sx,sy}=canvasToScreen(sc.cx,sc.cy);
+      showSnapIndicator(true,sx,sy);
+    } else { hideSnapIndicator(); }
+  }
+
+  if(isDrawing && ['rectangle','selection','color'].includes(currentTool)) {
+    // snap endpoint for selection
+    if(currentTool==='selection') { const s=snapToEdge(ip.x,ip.y); ip={x:s.x,y:s.y}; }
+    currentRect.width=ip.x-startX; currentRect.height=ip.y-startY;
+    redrawCanvas();
+    const rot=+document.getElementById('rotationSlider').value*90*Math.PI/180;
+    const sc =+document.getElementById('scaleSlider').value;
+    ctx.save();
+    ctx.translate(canvas.width/2+imageOffsetX,canvas.height/2+imageOffsetY);
+    ctx.rotate(rot); ctx.scale(sc,sc);
+    if(currentTool==='color') {
+      ctx.globalAlpha=fillOpacity; ctx.fillStyle=activeFillColor;
+      ctx.fillRect(currentRect.x,currentRect.y,currentRect.width,currentRect.height);
+      ctx.globalAlpha=1; ctx.strokeStyle=activeFillColor; ctx.lineWidth=2/sc;
+      ctx.strokeRect(currentRect.x,currentRect.y,currentRect.width,currentRect.height);
+    } else if(currentTool==='selection') {
+      ctx.fillStyle='rgba(96,165,250,0.15)';
+      ctx.fillRect(currentRect.x,currentRect.y,currentRect.width,currentRect.height);
+      ctx.strokeStyle='#60a5fa'; ctx.setLineDash([8/sc,4/sc]); ctx.lineWidth=2/sc;
+      ctx.strokeRect(currentRect.x,currentRect.y,currentRect.width,currentRect.height); ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle='rgba(255,255,255,.7)';
+      ctx.fillRect(currentRect.x,currentRect.y,currentRect.width,currentRect.height);
+      ctx.strokeStyle='rgba(248,113,113,.7)'; ctx.setLineDash([6/sc,3/sc]); ctx.lineWidth=2/sc;
+      ctx.strokeRect(currentRect.x,currentRect.y,currentRect.width,currentRect.height); ctx.setLineDash([]);
+    }
+    ctx.restore();
+  } else if(isDragging && currentTool==='drag') {
+    imageOffsetX=dragSOX+(cx-dragSX); imageOffsetY=dragSOY+(cy-dragSY);
+    document.getElementById('xSlider').value=imageOffsetX;
+    document.getElementById('xOffVal').textContent=Math.round(imageOffsetX);
+    document.getElementById('ySlider').value=imageOffsetY;
+    document.getElementById('yOffVal').textContent=Math.round(imageOffsetY);
+    placeAnchorRing(); redrawCanvas();
+  } else if(isPen && penPoints.length>0) {
+    redrawCanvas(); drawPenPrev(cx,cy);
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  if(currentTool==='drag'){ isDragging=false; canvas.style.cursor='grab'; return; }
+  if(!isDrawing) return; isDrawing=false;
+  const w=Math.abs(currentRect.width), h=Math.abs(currentRect.height);
+  if(w<4||h<4){ currentRect=null; return; }
+  const nx=Math.min(startX,startX+currentRect.width);
+  const ny=Math.min(startY,startY+currentRect.height);
+  if(currentTool==='rectangle'){ eraseFills.push({type:'rect',x:nx,y:ny,width:w,height:h}); setStatus(`Erase box (${eraseFills.length})`); }
+  else if(currentTool==='selection'){ selectionRect={x:nx,y:ny,width:w,height:h}; setStatus('Crop mask applied'); }
+  else if(currentTool==='color'){ colorFills.push({type:'rect',x:nx,y:ny,width:w,height:h,fill:activeFillColor,opacity:fillOpacity}); setStatus(`Color fill (${colorFills.length})`); }
+  currentRect=null; redrawCanvas();
+});
+
+canvas.addEventListener('mouseleave', ()=>{ if(isDragging) isDragging=false; cdot.style.display='none'; hideSnapIndicator(); });
+canvas.addEventListener('dblclick',   ()=>{ if((currentTool==='pen'||currentTool==='erasePen')&&penPoints.length>=3) closePen(); });
+
+// touch pan
+canvas.addEventListener('touchstart', e=>{
+  if(e.touches.length===1&&currentTool==='drag'){
+    const t=e.touches[0]; const {cx,cy}=getMouse({clientX:t.clientX,clientY:t.clientY});
+    isDragging=true; dragSX=cx; dragSY=cy; dragSOX=imageOffsetX; dragSOY=imageOffsetY;
+  }
+},{passive:true});
+canvas.addEventListener('touchmove', e=>{
+  if(e.touches.length===1&&isDragging){
+    e.preventDefault();
+    const t=e.touches[0]; const {cx,cy}=getMouse({clientX:t.clientX,clientY:t.clientY});
+    imageOffsetX=dragSOX+(cx-dragSX); imageOffsetY=dragSOY+(cy-dragSY);
+    placeAnchorRing(); redrawCanvas();
+  }
+},{passive:false});
+canvas.addEventListener('touchend', ()=>{ isDragging=false; });
+
+// ═══════════════════════════════════════════════════════════════════
+// PEN PREVIEW
+// ═══════════════════════════════════════════════════════════════════
+function drawPenPrev(mcx,mcy) {
+  if(!penPoints.length) return;
+  const rot=+document.getElementById('rotationSlider').value*90*Math.PI/180;
+  const sc =+document.getElementById('scaleSlider').value;
+  let im=toImage(mcx,mcy);
+  const sn=snapToEdge(im.x,im.y);
+  if(sn.snapped){ im={x:sn.x,y:sn.y}; const cc=imageToCanvas(sn.x,sn.y); const {sx,sy}=canvasToScreen(cc.cx,cc.cy); showSnapIndicator(true,sx,sy); }
+  else hideSnapIndicator();
+
+  ctx.save();
+  ctx.translate(canvas.width/2+imageOffsetX,canvas.height/2+imageOffsetY);
+  ctx.rotate(rot); ctx.scale(sc,sc);
+  const isErase=penMode==='erase';
+
+  if(penPoints.length>=2){
+    ctx.globalAlpha=isErase?0.45:fillOpacity*0.5;
+    ctx.fillStyle=isErase?'#ffffff':activeFillColor;
+    ctx.beginPath(); ctx.moveTo(penPoints[0].x,penPoints[0].y);
+    penPoints.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.lineTo(im.x,im.y); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  ctx.strokeStyle=isErase?'rgba(248,113,113,.8)':activeFillColor;
+  ctx.lineWidth=2/sc; ctx.setLineDash([6/sc,3/sc]);
+  ctx.beginPath(); ctx.moveTo(penPoints[0].x,penPoints[0].y);
+  penPoints.slice(1).forEach(p=>ctx.lineTo(p.x,p.y)); ctx.lineTo(im.x,im.y); ctx.stroke(); ctx.setLineDash([]);
+
+  penPoints.forEach((p,i)=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,5/sc,0,Math.PI*2);
+    ctx.fillStyle=i===0?'#34d399':'white'; ctx.fill();
+    ctx.strokeStyle='#111'; ctx.lineWidth=1.5/sc; ctx.stroke();
+  });
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════
+function drawGrid() {
+  // Grid at roughly every 100px on screen regardless of canvas size
+  const step = Math.round(canvas.width / 30);
+  ctx.strokeStyle='rgba(0,0,0,0.04)'; ctx.lineWidth=1;
+  for(let x=0;x<=canvas.width;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+  for(let y=0;y<=canvas.height;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+}
+function xform(g,c){
+  const rot=+document.getElementById('rotationSlider').value*90*Math.PI/180;
+  const sc =+document.getElementById('scaleSlider').value;
+  g.translate(c.width/2+imageOffsetX,c.height/2+imageOffsetY);
+  g.rotate(rot); g.scale(sc,sc);
+}
+function drawShape(g,f,fill){
+  g.fillStyle=fill;
+  if(f.type==='rect') g.fillRect(f.x,f.y,f.width,f.height);
+  else if(f.type==='polygon'&&f.points.length>=3){
+    g.beginPath(); g.moveTo(f.points[0].x,f.points[0].y);
+    f.points.slice(1).forEach(p=>g.lineTo(p.x,p.y)); g.closePath(); g.fill();
+  }
+}
+
+function redrawCanvas(forDL,g2,c2){
+  const g=forDL?g2:ctx, c=forDL?c2:canvas;
+  g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+  g.clearRect(0,0,c.width,c.height); g.fillStyle='white'; g.fillRect(0,0,c.width,c.height);
+  if(uploadedImage){
+    g.save(); xform(g,c);
+    g.drawImage(uploadedImage,-uploadedImage.width/2,-uploadedImage.height/2); g.restore();
+  }
+  if(selectionRect){
+    g.save(); xform(g,c); g.fillStyle='white';
+    const L=100000; g.beginPath(); g.rect(-L,-L,L*2,L*2);
+    g.rect(selectionRect.x,selectionRect.y,selectionRect.width,selectionRect.height);
+    g.fill('evenodd'); g.restore();
+  }
+  colorFills.forEach(f=>{ g.save(); xform(g,c); g.globalAlpha=f.opacity; drawShape(g,f,f.fill); g.globalAlpha=1; g.restore(); });
+  eraseFills.forEach(f=>{ g.save(); xform(g,c); drawShape(g,f,'white'); g.restore(); });
+  if(!forDL){ drawGrid(); placeAnchorRing(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CLEAR / DOWNLOAD
+// ═══════════════════════════════════════════════════════════════════
+function clearAll(){
+  saveState(); eraseFills=[]; colorFills=[]; selectionRect=null; penPoints=[];
+  redrawCanvas(); setStatus('Canvas cleared');
+}
+function downloadImage(){
+  if(!uploadedImage){alert('Upload a floorplan first');return;}
+  const [pw,ph]=currentPixelSize();
+  const dc=document.createElement('canvas'); dc.width=pw; dc.height=ph;
+  const dctx=dc.getContext('2d');
+  dctx.imageSmoothingEnabled=true; dctx.imageSmoothingQuality='high';
+  redrawCanvas(true,dctx,dc);
+  setStatus('Preparing high-res download…');
+  dc.toBlob(b=>{
+    const u=URL.createObjectURL(b),a=document.createElement('a');
+    a.href=u; a.download=`floorplan_${pw}x${ph}.jpg`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
+    setStatus(`Downloaded ${pw}×${ph}px JPG`);
+  },'image/jpeg',0.97);
+}
+function setStatus(msg){ statusEl.textContent=msg; }
+
+// ═══════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════
+(function init(){
+  const [pw,ph]=currentPixelSize();
+  initCanvas(pw,ph);
+  setTool('drag');
+  applyZoom();
+  // re-fit on load
+  requestAnimationFrame(()=>{ fitCanvasCSS(pw,ph); applyZoom(); });
+})();
+</script>
+</body>
+</html>
