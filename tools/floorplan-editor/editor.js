@@ -462,9 +462,12 @@ function handleFile(file){
       const img=new Image();
       img.onload=()=>{
         uploadedImage=img;
+        // Store the original — used by clearAll to restore
+        _origImageDataUrl = ev.target.result;
+        _currentImageDataUrl = ev.target.result;
         if(snapEnabled) buildEdgeMap(img);
-        applyFileSizeIfSelected(); // resize canvas if "Match File" is selected
-        redrawCanvas();saveState();
+        applyFileSizeIfSelected();
+        redrawCanvas(); saveState(true); // include image in first state
         setStatus(`Loaded ${img.width}×${img.height}px`);
       };
       img.src=ev.target.result;
@@ -485,9 +488,12 @@ function loadPdfPage(n){
     page.render({canvasContext:tc.getContext('2d'),viewport:vp}).promise.then(()=>{
       uploadedImage=new Image();
       uploadedImage.onload=()=>{
+        const dataUrl = tc.toDataURL('image/png',1);
+        _origImageDataUrl = dataUrl;
+        _currentImageDataUrl = dataUrl;
         edgeData=null; if(snapEnabled) buildEdgeMap(uploadedImage);
-        applyFileSizeIfSelected(); // resize canvas if "Match File" is selected
-        redrawCanvas();saveState();setStatus(`PDF p${n}: ${uploadedImage.width}×${uploadedImage.height}`);
+        applyFileSizeIfSelected();
+        redrawCanvas(); saveState(true); setStatus(`PDF p${n}: ${uploadedImage.width}×${uploadedImage.height}`);
       };
       uploadedImage.src=tc.toDataURL('image/png',1);
     });
@@ -497,28 +503,94 @@ function loadPdfPage(n){
 // ════════════════════════════════════════════════════════════════
 // HISTORY
 // ════════════════════════════════════════════════════════════════
-function snapState(){
+// ── Snapshot includes uploadedImage when it was modified (wand/rotate)
+// Other operations pass includeImage=false — image ref is preserved by walking back.
+let _origImageDataUrl = null;    // first image loaded — used by clearAll to restore
+let _currentImageDataUrl = null; // tracks what's currently in uploadedImage
+
+function imgToDataUrl(img){
+  if(!img) return null;
+  const tc=document.createElement('canvas');
+  tc.width=img.width; tc.height=img.height;
+  tc.getContext('2d').drawImage(img,0,0);
+  return tc.toDataURL('image/png',1);
+}
+
+function snapState(includeImage){
   const sc=+document.getElementById('scaleSlider').value||0.8;
   const rot=+document.getElementById('rotationSlider').value||0;
-  return{ef:JSON.parse(JSON.stringify(eraseFills)),cf:JSON.parse(JSON.stringify(colorFills)),
-    sel:selectionRect?{...selectionRect}:null,ox:imageOffsetX,oy:imageOffsetY,sc,rot,aix:anchorImgX,aiy:anchorImgY};
+  return{
+    ef:JSON.parse(JSON.stringify(eraseFills)),
+    cf:JSON.parse(JSON.stringify(colorFills)),
+    sel:selectionRect?{...selectionRect}:null,
+    ox:imageOffsetX, oy:imageOffsetY, sc, rot,
+    aix:anchorImgX, aiy:anchorImgY,
+    imgData: includeImage ? imgToDataUrl(uploadedImage) : null
+  };
 }
-function saveState(){undoStack.push(snapState());if(undoStack.length>80) undoStack.shift();redoStack=[];}
-function restoreState(s){
-  eraseFills=JSON.parse(JSON.stringify(s.ef));colorFills=JSON.parse(JSON.stringify(s.cf));
-  selectionRect=s.sel?{...s.sel}:null;imageOffsetX=s.ox;imageOffsetY=s.oy;anchorImgX=s.aix;anchorImgY=s.aiy;
+
+function saveState(includeImage){
+  undoStack.push(snapState(includeImage||false));
+  if(undoStack.length>40) undoStack.shift();
+  redoStack=[];
+}
+
+// Walk the undo stack backwards to find the most recent saved image
+function findImageInStack(stack){
+  for(let i=stack.length-1;i>=0;i--){
+    if(stack[i].imgData) return stack[i].imgData;
+  }
+  return _origImageDataUrl;
+}
+
+function restoreState(s, stackForImage){
+  eraseFills=JSON.parse(JSON.stringify(s.ef));
+  colorFills=JSON.parse(JSON.stringify(s.cf));
+  selectionRect=s.sel?{...s.sel}:null;
+  imageOffsetX=s.ox; imageOffsetY=s.oy;
+  anchorImgX=s.aix; anchorImgY=s.aiy;
   ['xSlider','xSliderMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.value=s.ox;});
-  ['xOffVal','xValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=s.ox;});
+  ['xOffVal','xValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=Math.round(s.ox);});
   ['ySlider','ySliderMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.value=s.oy;});
-  ['yOffVal','yValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=s.oy;});
+  ['yOffVal','yValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=Math.round(s.oy);});
   ['scaleSlider','scaleSliderMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.value=s.sc;});
   ['scaleValue','scaleValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=Math.round(s.sc*100)+'%';});
   ['rotationSlider','rotSliderMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.value=s.rot;});
   ['rotationValue','rotValMob'].forEach(id=>{const el=document.getElementById(id);if(el) el.textContent=s.rot*90+'°';});
-  placeAnchorRing();applyZoom();redrawCanvas();updateFitCropBtn();
+
+  // Restore image: use this state's imgData, or walk stack to find most recent
+  const targetUrl = s.imgData || (stackForImage ? findImageInStack(stackForImage) : _origImageDataUrl);
+  if(targetUrl && targetUrl !== _currentImageDataUrl){
+    const img=new Image();
+    img.onload=()=>{
+      uploadedImage=img; _currentImageDataUrl=targetUrl;
+      edgeData=null; if(snapEnabled) buildEdgeMap(img);
+      placeAnchorRing(); applyZoom(); redrawCanvas(); updateFitCropBtn();
+    };
+    img.src=targetUrl;
+  } else {
+    placeAnchorRing(); applyZoom(); redrawCanvas(); updateFitCropBtn();
+  }
 }
-function undo(){if(!undoStack.length){setStatus('Nothing to undo');return;}redoStack.push(snapState());restoreState(undoStack.pop());setStatus('Undone');}
-function redo(){if(!redoStack.length){setStatus('Nothing to redo');return;}undoStack.push(snapState());restoreState(redoStack.pop());setStatus('Redone');}
+
+function undo(){
+  if(!undoStack.length){setStatus('Nothing to undo');return;}
+  // Save current state to redo stack (without image — we resolve on restore)
+  redoStack.push(snapState(false));
+  const s=undoStack.pop();
+  // For undo: the image to show is either in s.imgData (if that state had a bake)
+  // or the most recent imgData in what remains of undoStack
+  restoreState(s, undoStack);
+  setStatus('Undone');
+}
+function redo(){
+  if(!redoStack.length){setStatus('Nothing to redo');return;}
+  undoStack.push(snapState(false));
+  const s=redoStack.pop();
+  // For redo: image is in s.imgData, or walk the full undo stack (now including the pushed state)
+  restoreState(s, undoStack);
+  setStatus('Redone');
+}
 
 // ════════════════════════════════════════════════════════════════
 // COORD HELPERS
@@ -1054,7 +1126,23 @@ function fitToCrop(){
 // ════════════════════════════════════════════════════════════════
 // CLEAR / DOWNLOAD
 // ════════════════════════════════════════════════════════════════
-function clearAll(){ saveState();eraseFills=[];colorFills=[];selectionRect=null;penPoints=[];redrawCanvas();updateFitCropBtn();setStatus('Canvas cleared'); }
+function clearAll(){
+  saveState(true); // save including current image before clearing
+  eraseFills=[];colorFills=[];selectionRect=null;penPoints=[];
+  // Restore the original uploaded image (before any wand/rotate modifications)
+  if(_origImageDataUrl && _origImageDataUrl !== _currentImageDataUrl){
+    const img=new Image();
+    img.onload=()=>{
+      uploadedImage=img; _currentImageDataUrl=_origImageDataUrl;
+      edgeData=null; if(snapEnabled) buildEdgeMap(img);
+      redrawCanvas(); updateFitCropBtn();
+    };
+    img.src=_origImageDataUrl;
+  } else {
+    redrawCanvas(); updateFitCropBtn();
+  }
+  setStatus('Canvas cleared — fills removed, original image restored');
+}
 function downloadImage(){
   if(!uploadedImage){alert('Upload a floorplan first');return;}
   const[pw,ph]=currentPixelSize();
@@ -1273,18 +1361,19 @@ function applyRotate(){
   ng.restore();
 
   // 5. Swap uploadedImage for the baked result
-  saveState();
+  saveState(true); // ← save BEFORE modifying (includes current image)
+  const dataUrl = nc.toDataURL('image/png', 1);
   const newImg   = new Image();
-  const prevRegion = rotRegion;
   const prevAngle  = rotAngleDeg;
   newImg.onload = () => {
     uploadedImage = newImg;
-    edgeData = null;                            // invalidate edge map
+    _currentImageDataUrl = dataUrl; // track for undo
+    edgeData = null;
     cancelRotate(true);
     redrawCanvas();
     setStatus(`Rotation applied (${prevAngle.toFixed(1)}°)`);
   };
-  newImg.src = nc.toDataURL('image/png', 1);
+  newImg.src = dataUrl;
 }
 
 // Handle drag on the rotate handle
@@ -1629,7 +1718,7 @@ function wandApply(action){
   if(!wandMask||!uploadedImage) return;
   const iw=wandIW, ih=wandIH;
   if(action==='fill'||action==='erase'){
-    saveState();
+    saveState(true); // ← save current image BEFORE baking wand into it
     const nc=document.createElement('canvas');nc.width=iw;nc.height=ih;
     const ng=nc.getContext('2d');ng.drawImage(uploadedImage,0,0);
     const existing=ng.getImageData(0,0,iw,ih).data;
@@ -1645,11 +1734,16 @@ function wandApply(action){
       }else{d2[pi]=existing[pi];d2[pi+1]=existing[pi+1];d2[pi+2]=existing[pi+2];d2[pi+3]=existing[pi+3];}
     }
     ng.putImageData(id2,0,0);
+    const dataUrl=nc.toDataURL('image/png',1);
     const newImg=new Image();
-    newImg.onload=()=>{uploadedImage=newImg;edgeData=null;wandClose();redrawCanvas();setStatus(`Wand ${action} applied`);};
-    newImg.src=nc.toDataURL('image/png',1);
+    newImg.onload=()=>{
+      uploadedImage=newImg;
+      _currentImageDataUrl=dataUrl; // track the new image
+      edgeData=null;wandClose();redrawCanvas();setStatus(`Wand ${action} applied`);
+    };
+    newImg.src=dataUrl;
   } else if(action==='crop'){
-    saveState();
+    saveState(false);
     let x0=iw,y0=ih,x1=0,y1=0;
     for(let y=0;y<ih;y++)for(let x=0;x<iw;x++){if(wandMask[y*iw+x]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
     selectionRect={x:x0-iw/2,y:y0-ih/2,width:x1-x0+1,height:y1-y0+1};
