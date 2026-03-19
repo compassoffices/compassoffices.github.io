@@ -1,682 +1,638 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Staff EDM Banner Editor</title>
-  <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet">
-<style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1"/>
+  <title>EDM Banner Editor</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:    #0d0d10;
+      --s1:    #16161b;
+      --s2:    #1d1d23;
+      --s3:    #24242c;
+      --b1:    #2b2b36;
+      --b2:    #3a3a48;
+      --acc:   #ff6600;
+      --al:    rgba(255,102,0,.11);
+      --am:    rgba(255,102,0,.28);
+      --tx:    #ececef;
+      --tx2:   #8888a0;
+      --tx3:   #46465a;
+      --th:    46px;
+      --bh:    56px;
+      --sw:    296px;
     }
-    body {
-      font-family: 'Neue Haas Grotesk Display Pro', sans-serif;
-      padding: 2rem;
-      background: #ffffff;
-      color: #000000;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html, body { height:100%; }
+    body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--tx); overflow-x:hidden; }
+
+    /* ICONS */
+    .ic { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .ic svg { fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+    .ic-s svg { width:11px; height:11px; }
+    .ic-m svg { width:14px; height:14px; }
+    .ic-l svg { width:17px; height:17px; }
+
+    /* TOPBAR */
+    .topbar {
+      position:sticky; top:0; z-index:300;
+      height:var(--th); background:var(--s1); border-bottom:1px solid var(--b1);
+      display:flex; align-items:center; gap:.5rem; padding:0 .85rem; flex-shrink:0;
     }
-    .editor {
-      max-width: 1000px;
-      width: 100%;
-      background: #ffffff;
-      padding: 2.5rem;
-      border-radius: 20px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    .brand { display:flex; align-items:center; gap:.36rem; font-size:.71rem; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--acc); white-space:nowrap; flex-shrink:0; }
+    .brand-sep { color:var(--tx3); font-weight:400; }
+    .tsep { width:1px; height:15px; background:var(--b1); flex-shrink:0; }
+    .tf { display:flex; align-items:center; gap:.32rem; }
+    .tf label { font-size:.64rem; color:var(--tx2); white-space:nowrap; }
+    select.ts { background:var(--s3); border:1px solid var(--b1); color:var(--tx); padding:.2rem .38rem; border-radius:4px; font-size:.69rem; font-family:'DM Mono',monospace; cursor:pointer; outline:none; }
+    select.ts:focus { border-color:var(--acc); }
+    .mbtn { margin-left:auto; display:none; align-items:center; justify-content:center; width:27px; height:27px; background:var(--s3); border:1px solid var(--b1); border-radius:4px; cursor:pointer; color:var(--tx2); flex-shrink:0; }
+    .mbtn:hover { color:var(--tx); }
+
+    /* APP */
+    .app { display:flex; height:calc(100vh - var(--th) - var(--bh)); overflow:hidden; }
+
+    /* SIDEBAR */
+    .sidebar { width:var(--sw); min-width:var(--sw); background:var(--s1); border-right:1px solid var(--b1); overflow-y:auto; overflow-x:hidden; flex-shrink:0; }
+    .sidebar::-webkit-scrollbar { width:3px; }
+    .sidebar::-webkit-scrollbar-thumb { background:var(--b2); border-radius:99px; }
+
+    /* ACCORDION */
+    .acc { border-bottom:1px solid var(--b1); }
+    .acc-hd { display:flex; align-items:center; justify-content:space-between; padding:.6rem .8rem; cursor:pointer; user-select:none; background:var(--s1); transition:background .1s; }
+    .acc-hd:hover { background:var(--s2); }
+    .acc-title { display:flex; align-items:center; gap:.4rem; font-size:.64rem; font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--tx2); }
+    .pip { width:5px; height:5px; border-radius:50%; background:var(--acc); opacity:0; transition:opacity .2s; flex-shrink:0; }
+    .acc-title.lit .pip { opacity:1; }
+    .chev { color:var(--tx3); transition:transform .18s; }
+    .acc.open .chev { transform:rotate(180deg); }
+    .acc-bd { display:none; padding:.72rem .8rem .82rem; background:var(--s2); }
+    .acc.open .acc-bd { display:block; }
+
+    /* FORM */
+    .f { margin-bottom:.55rem; }
+    .f:last-child { margin-bottom:0; }
+    .fl { display:block; font-size:.59rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--tx2); margin-bottom:.22rem; }
+    input[type=number], select, textarea { width:100%; background:var(--s3); border:1px solid var(--b1); color:var(--tx); padding:.33rem .44rem; border-radius:4px; font-size:.75rem; font-family:'DM Sans',sans-serif; outline:none; transition:border-color .12s, box-shadow .12s; }
+    input[type=number]:focus, select:focus, textarea:focus { border-color:var(--acc); box-shadow:0 0 0 3px var(--al); }
+    textarea { resize:vertical; min-height:54px; line-height:1.5; }
+    select option { background:var(--s3); }
+    .rr { display:flex; align-items:center; gap:.36rem; }
+    .rr input[type=range] { flex:1; -webkit-appearance:none; height:3px; background:var(--s3); border-radius:99px; border:none; cursor:pointer; padding:0; outline:none; }
+    .rr input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--acc); box-shadow:0 0 4px var(--am); cursor:pointer; }
+    .rr input[type=number] { width:44px; flex-shrink:0; font-family:'DM Mono',monospace; font-size:.67rem; text-align:center; }
+    .g2 { display:grid; grid-template-columns:1fr 1fr; gap:.38rem; }
+    .g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.38rem; }
+    input[type=color] { width:24px; height:24px; border:1px solid var(--b1); border-radius:3px; cursor:pointer; padding:2px; background:var(--s3); flex-shrink:0; }
+    /* toggle */
+    .togrow { display:flex; align-items:center; justify-content:space-between; }
+    .togrow .fl { margin:0; }
+    .tog { position:relative; width:30px; height:16px; }
+    .tog input { opacity:0; width:0; height:0; }
+    .tog-s { position:absolute; inset:0; background:var(--s3); border:1px solid var(--b1); border-radius:99px; cursor:pointer; transition:.14s; }
+    .tog-s::before { content:''; position:absolute; width:10px; height:10px; left:2px; top:2px; background:var(--tx3); border-radius:50%; transition:.14s; }
+    .tog input:checked + .tog-s { background:var(--acc); border-color:var(--acc); }
+    .tog input:checked + .tog-s::before { transform:translateX(14px); background:#fff; }
+    /* divider */
+    .sdiv { font-size:.57rem; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:var(--tx3); margin:.68rem 0 .4rem; padding-top:.58rem; border-top:1px solid var(--b1); display:flex; align-items:center; gap:.32rem; }
+    .sb { font-size:.56rem; color:var(--tx3); background:var(--s1); border:1px solid var(--b1); border-radius:3px; padding:.07rem .26rem; font-family:'DM Mono',monospace; text-transform:none; letter-spacing:0; }
+    /* upload */
+    .upz { border:1.5px dashed var(--b2); border-radius:5px; padding:.52rem .46rem; text-align:center; background:var(--s3); cursor:pointer; transition:border-color .14s, background .14s; }
+    .upz:hover { border-color:var(--acc); background:var(--al); }
+    .upz label { cursor:pointer; display:block; }
+    .upz input { display:none; }
+    .upz-icon { color:var(--tx3); display:flex; justify-content:center; margin-bottom:.16rem; }
+    .upz-txt { font-size:.69rem; color:var(--tx2); }
+    .upz-nm { font-size:.61rem; color:var(--acc); margin-top:.14rem; font-family:'DM Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* dpad */
+    .dpad { display:grid; grid-template-areas:". u ." "l . r" ". d ."; grid-template-columns:24px 24px 24px; gap:2px; flex-shrink:0; }
+    .dpb { width:24px; height:24px; border-radius:4px; background:var(--s3); border:1px solid var(--b1); color:var(--tx2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .1s, color .1s; }
+    .dpb:hover { background:var(--acc); border-color:var(--acc); color:#fff; }
+    .du{grid-area:u} .dd{grid-area:d} .dl{grid-area:l} .dr{grid-area:r}
+    .mvrow { display:flex; align-items:center; gap:.52rem; }
+    .mvcrd { flex:1; }
+
+    /* CANVAS */
+    .canvas-area { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:1rem .85rem .85rem; overflow:auto; background:var(--bg); gap:.5rem; }
+    .canvas-wrap { position:relative; max-width:100%; }
+    canvas { display:block; border-radius:3px; border:1px solid var(--b2); box-shadow:0 6px 28px rgba(0,0,0,.55); max-width:100%; height:auto; touch-action:none; cursor:grab; }
+    canvas:active { cursor:grabbing; }
+    .cmeta { display:flex; align-items:center; gap:.38rem; flex-wrap:wrap; justify-content:center; }
+    .ctag { font-size:.61rem; color:var(--tx3); font-family:'DM Mono',monospace; background:var(--s1); border:1px solid var(--b1); padding:.13rem .35rem; border-radius:3px; }
+
+    /* BOTTOM BAR */
+    .dl-bar { position:fixed; bottom:0; left:0; right:0; height:var(--bh); background:rgba(22,22,27,.97); backdrop-filter:blur(14px); border-top:1px solid var(--b1); display:flex; align-items:center; justify-content:center; gap:.8rem; z-index:400; }
+    .dl-info { font-size:.67rem; color:var(--tx3); font-family:'DM Mono',monospace; }
+    .btn-dl { display:inline-flex; align-items:center; gap:.38rem; padding:.44rem 1.25rem; background:var(--acc); color:#fff; border:none; border-radius:5px; font-family:'DM Sans',sans-serif; font-size:.79rem; font-weight:600; cursor:pointer; letter-spacing:.02em; box-shadow:0 3px 10px var(--am); transition:transform .12s, box-shadow .12s; }
+    .btn-dl:hover { transform:translateY(-1px); box-shadow:0 5px 16px rgba(255,102,0,.42); }
+    .btn-dl:active { transform:none; }
+
+    /* RESPONSIVE */
+    @media (max-width:720px) {
+      :root { --sw:100%; }
+      .app { flex-direction:column; height:auto; overflow:visible; }
+      .sidebar { width:100%; min-width:unset; border-right:none; border-bottom:1px solid var(--b1); max-height:0; overflow:hidden; transition:max-height .28s ease; }
+      .sidebar.open { max-height:10000px; overflow:visible; }
+      .mbtn { display:flex; }
+      .brand-sep { display:none; }
+      .canvas-area { padding:.8rem .5rem .8rem; }
     }
-    .editor:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-    }
-    h2 {
-      font-size: 2rem;
-      margin-bottom: 2rem;
-      color: #000000;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      background: linear-gradient(135deg, #ff6600 0%, #e55a00 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    h3 {
-      font-size: 1.3rem;
-      margin: 2rem 0 1rem;
-      color: #000000;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 2px solid #000000;
-    }
-    canvas {
-      display: block;
-      max-width: 100%;
-      height: auto;
-      margin: 2rem auto;
-      border-radius: 12px;
-      border: 2px solid #000000;
-      background: #f8faff;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-      cursor: grab;
-    }
-    canvas:active {
-      cursor: grabbing;
-    }
-    .row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 1.2rem;
-      margin-bottom: 2rem;
-    }
-    .control-group {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 1.2rem;
-      margin-bottom: 1.5rem;
-    }
-    label {
-      display: flex;
-      flex-direction: column;
-      font-size: 0.95rem;
-      font-weight: 500;
-      color: #000000;
-    }
-    label input[type="checkbox"] {
-      width: auto;
-      margin-top: 0.5rem;
-    }
-    input, select, textarea {
-      width: 100%;
-      padding: 0.75rem;
-      margin-top: 0.4rem;
-      border: 1px solid #000000;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      transition: all 0.2s ease;
-      background: #ffffff;
-    }
-    input:focus, select:focus, textarea:focus {
-      outline: none;
-      border-color: #000000;
-      box-shadow: 0 0 0 3px rgba(0,0,0,0.1);
-      background: #fffaf0;
-    }
-    textarea {
-      height: 90px;
-      resize: vertical;
-      font-family: inherit;
-    }
-    .input-group {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    input[type="range"] {
-      flex: 1;
-    }
-    input[type="number"] {
-      width: 70px;
-      padding: 0.5rem 0.25rem;
-    }
-    .btn {
-      padding: 1rem 2.5rem;
-      background: #ff6600;
-      color: #ffffff;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 1.1rem;
-      font-weight: 500;
-      transition: all 0.3s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.75rem;
-      box-shadow: 0 4px 15px rgba(255, 102, 0, 0.3);
-    }
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(255, 102, 0, 0.4);
-    }
-    .image-controls {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-      margin: 1.5rem 0;
-      padding: 1rem;
-      background: #f8faff;
-      border-radius: 10px;
-      border: 1px solid #000000;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-    }
-    .image-controls strong {
-      font-weight: 600;
-      color: #000000;
-      font-size: 1rem;
-    }
-    .image-controls button {
-      padding: 0.75rem;
-      font-size: 1.1rem;
-      background: #ffffff;
-      border: 1px solid #000000;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    }
-    .image-controls button:hover {
-      background: #fffaf0;
-      border-color: #000000;
-      transform: translateY(-1px);
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-    }
-    .upload-section {
-      margin: 1.5rem 0;
-      padding: 1rem;
-      background: #f8faff;
-      border-radius: 10px;
-      border: 2px dashed #000000;
-      text-align: center;
-      transition: all 0.2s ease;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-    }
-    .upload-section:hover {
-      border-color: #000000;
-      background: #fff8e8;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    }
-    .upload-section label {
-      cursor: pointer;
-      font-size: 1rem;
-      color: #ff6600;
-      font-weight: 500;
-    }
-    select option {
-      background: #ffffff;
-      color: #000000;
+    @media (max-width:420px) {
+      :root { --th:42px; }
+      .topbar { padding:0 .55rem; gap:.36rem; }
+      .tsep, .tf { display:none; }
+      .g3 { grid-template-columns:1fr 1fr; }
+      .canvas-area { padding:.55rem .2rem .55rem; }
+      .acc-hd { padding:.52rem .68rem; }
+      .acc-bd  { padding:.6rem .68rem .7rem; }
     }
   </style>
 </head>
 <body>
-<div class="editor">
-  <h2>Staff EDM Banner Editor</h2>
-  <div class="row">
-    <label>Layout Size:
-      <select id="layoutSelect">
-        <option value="385x300">385×300</option>
-        <option value="680x200">680×200</option>
-        <option value="680x150">680×150</option>
-        <option value="680x300" selected>680×300</option>
-        <option value="800x800">800×800</option>
-      </select>
-    </label>
-    <label>Overlay Effect:
-      <select id="overlayEffect">
-        <option value="none">None</option>
-        <option value="gradient" selected>Black Gradient</option>
-        <option value="dark">Dark Transparent</option>
-      </select>
-    </label>
-    <label>Overlay Opacity:
-      <div class="input-group">
-        <input type="range" id="overlayOpacity" min="0.1" max="1" step="0.1" value="0.3" />
-        <input type="number" id="overlayOpacityNum" min="0.1" max="1" step="0.1" value="0.3" />
+
+<!-- SVG SPRITE -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-img"  viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></symbol>
+  <symbol id="i-logo" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+  <symbol id="i-txt"  viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></symbol>
+  <symbol id="i-dl"   viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="i-up"   viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+  <symbol id="i-dn"   viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></symbol>
+  <symbol id="i-lt"   viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+  <symbol id="i-rt"   viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+  <symbol id="i-upl"  viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></symbol>
+</svg>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand">
+    <span class="ic ic-m"><svg><use href="#i-grid"/></svg></span>
+    EDM <span class="brand-sep">/ Banner Editor</span>
+  </div>
+  <div class="tsep"></div>
+  <div class="tf">
+    <label>Canvas</label>
+    <select class="ts" id="layoutSelect">
+      <option value="385x300" selected>385 × 300</option>
+      <option value="680x150">680 × 150</option>
+      <option value="680x200">680 × 200</option>
+      <option value="680x300">680 × 300</option>
+      <option value="800x800">800 × 800</option>
+    </select>
+  </div>
+  <button class="mbtn" id="menuBtn" aria-label="Toggle panel">
+    <span class="ic ic-m"><svg><use href="#i-menu"/></svg></span>
+  </button>
+</header>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+
+    <!-- BACKGROUND -->
+    <div class="acc open" id="acc-img">
+      <div class="acc-hd" onclick="toggleAcc('acc-img')">
+        <div class="acc-title" id="at-img"><span class="ic ic-m"><svg><use href="#i-img"/></svg></span><span class="pip"></span>Background</div>
+        <span class="chev ic ic-s"><svg><use href="#i-chev"/></svg></span>
       </div>
-    </label>
-  </div>
-  <div class="upload-section">
-    <label>Upload Image:
-      <input type="file" id="uploadImage" accept="image/*" />
-    </label>
-  </div>
-  <label>Zoom Image:
-    <div class="input-group">
-      <input type="range" id="zoomSlider" min="0.05" max="5" step="0.05" value="1" />
-      <input type="number" id="zoomNum" min="0.05" max="5" step="0.05" value="1" />
+      <div class="acc-bd">
+        <div class="f"><div class="upz"><label><input type="file" id="uploadImage" accept="image/*"/>
+          <div class="upz-icon"><span class="ic ic-l"><svg><use href="#i-upl"/></svg></span></div>
+          <div class="upz-txt">Upload background image</div>
+          <div class="upz-nm" id="imgName">No file chosen</div>
+        </label></div></div>
+        <div class="f"><label class="fl">Zoom</label>
+          <div class="rr"><input type="range" id="zoomSlider" min=".05" max="5" step=".05" value="1"/><input type="number" id="zoomNum" min=".05" max="5" step=".05" value="1"/></div>
+        </div>
+        <div class="f"><label class="fl">Overlay</label>
+          <select id="overlayEffect"><option value="none">None</option><option value="gradient" selected>Black Gradient</option><option value="dark">Dark Fill</option></select>
+        </div>
+        <div class="f"><label class="fl">Opacity</label>
+          <div class="rr"><input type="range" id="overlayOpacity" min=".05" max="1" step=".05" value=".3"/><input type="number" id="overlayOpacityNum" min=".05" max="1" step=".05" value=".3"/></div>
+        </div>
+        <div class="sdiv">Position</div>
+        <div class="mvrow">
+          <div class="dpad">
+            <button class="dpb du" onclick="moveImg(0,-8)"><span class="ic ic-s"><svg><use href="#i-up"/></svg></span></button>
+            <button class="dpb dd" onclick="moveImg(0,8)"><span class="ic ic-s"><svg><use href="#i-dn"/></svg></span></button>
+            <button class="dpb dl" onclick="moveImg(-8,0)"><span class="ic ic-s"><svg><use href="#i-lt"/></svg></span></button>
+            <button class="dpb dr" onclick="moveImg(8,0)"><span class="ic ic-s"><svg><use href="#i-rt"/></svg></span></button>
+          </div>
+          <div class="mvcrd g2">
+            <div><label class="fl">X</label><input type="number" id="offsetX" value="0" step="1"/></div>
+            <div><label class="fl">Y</label><input type="number" id="offsetY" value="0" step="1"/></div>
+          </div>
+        </div>
+      </div>
     </div>
-  </label>
-  <div class="row">
-    <label>Offset X:
-      <input type="number" id="offsetX" min="-2000" max="2000" step="1" value="0" />
-    </label>
-    <label>Offset Y:
-      <input type="number" id="offsetY" min="-2000" max="2000" step="1" value="0" />
-    </label>
-  </div>
-  <div class="image-controls">
-    <strong>Move Image:</strong>
-    <button onclick="moveImage(0, -20)">⬆️</button>
-    <button onclick="moveImage(0, 20)">⬇️</button>
-    <button onclick="moveImage(-20, 0)">⬅️</button>
-    <button onclick="moveImage(20, 0)">➡️</button>
-  </div>
-  <!-- NEW: Logo upload section (exactly matching the style) -->
-  <div class="upload-section">
-    <label>Upload Logo (PNG/JPG):
-      <input type="file" id="uploadLogo" accept="image/*" />
-    </label>
-  </div>
-  <div class="row">
-    <label>Logo Size (px):
-      <div class="input-group">
-        <input type="range" id="logoSize" min="10" max="200" step="1" value="160" />
-        <input type="number" id="logoSizeNum" min="10" max="200" step="1" value="160" />
+
+    <!-- LOGO -->
+    <div class="acc" id="acc-logo">
+      <div class="acc-hd" onclick="toggleAcc('acc-logo')">
+        <div class="acc-title" id="at-logo"><span class="ic ic-m"><svg><use href="#i-logo"/></svg></span><span class="pip"></span>Logo</div>
+        <span class="chev ic ic-s"><svg><use href="#i-chev"/></svg></span>
       </div>
-    </label>
-    <label>Logo Position X:
-      <input type="number" id="logoPosX" step="1" value="20" />
-    </label>
-    <label>Logo Position Y:
-      <input type="number" id="logoPosY" step="1" value="130" />
-    </label>
-  </div>
-  <canvas id="editorCanvas"></canvas>
-  <h3>📝 Text 1</h3>
-  <textarea id="text1" placeholder="Text 1..."></textarea>
-  <div class="control-group">
-    <label>Size
-      <div class="input-group">
-        <input type="range" id="textSize1" min="10" max="80" step="1" value="40" />
-        <input type="number" id="textSize1Num" min="10" max="80" step="1" value="40" />
+      <div class="acc-bd">
+        <div class="f"><div class="upz"><label><input type="file" id="uploadLogo" accept="image/*"/>
+          <div class="upz-icon"><span class="ic ic-l"><svg><use href="#i-upl"/></svg></span></div>
+          <div class="upz-txt">Upload logo — ratio preserved</div>
+          <div class="upz-nm" id="logoName">No file chosen</div>
+        </label></div></div>
+        <div class="f"><label class="fl">Width (px) <span class="sb">snap 8</span></label>
+          <div class="rr"><input type="range" id="logoSize" min="8" max="400" step="8" value="120"/><input type="number" id="logoSizeNum" min="8" max="400" step="8" value="120"/></div>
+        </div>
+        <div class="sdiv">Position <span class="sb">snap 8</span></div>
+        <div class="mvrow">
+          <div class="dpad">
+            <button class="dpb du" onclick="moveLogo(0,-8)"><span class="ic ic-s"><svg><use href="#i-up"/></svg></span></button>
+            <button class="dpb dd" onclick="moveLogo(0,8)"><span class="ic ic-s"><svg><use href="#i-dn"/></svg></span></button>
+            <button class="dpb dl" onclick="moveLogo(-8,0)"><span class="ic ic-s"><svg><use href="#i-lt"/></svg></span></button>
+            <button class="dpb dr" onclick="moveLogo(8,0)"><span class="ic ic-s"><svg><use href="#i-rt"/></svg></span></button>
+          </div>
+          <div class="mvcrd g2">
+            <div><label class="fl">X</label><input type="number" id="logoPosX" step="8" value="0"/></div>
+            <div><label class="fl">Y</label><input type="number" id="logoPosY" step="8" value="0"/></div>
+          </div>
+        </div>
       </div>
-    </label>
-    <label>Color <input type="color" id="textColor1" value="#ffffff" /></label>
-    <label>Align
-      <select id="textAlign1">
-        <option value="center">Center</option>
-        <option value="left" selected>Left</option>
-        <option value="right">Right</option>
-      </select>
-    </label>
-    <label>Weight
-      <select id="fontWeight1">
-        <option value="normal">Light</option>
-        <option value="bold" selected>Bold</option>
-      </select>
-    </label>
-    <label>Shadow <input type="checkbox" id="shadow1" checked /></label>
-    <label>Shadow Color <input type="color" id="shadowColor1" value="#000000" /></label>
-    <label>Shadow X
-      <div class="input-group">
-        <input type="range" id="shadowX1" min="-20" max="20" step="1" value="2" />
-        <input type="number" id="shadowX1Num" min="-20" max="20" step="1" value="2" />
+    </div>
+
+    <!-- TEXT 1 -->
+    <div class="acc" id="acc-t1">
+      <div class="acc-hd" onclick="toggleAcc('acc-t1')">
+        <div class="acc-title" id="at-t1"><span class="ic ic-m"><svg><use href="#i-txt"/></svg></span><span class="pip"></span>Text 1</div>
+        <span class="chev ic ic-s"><svg><use href="#i-chev"/></svg></span>
       </div>
-    </label>
-    <label>Shadow Y
-      <div class="input-group">
-        <input type="range" id="shadowY1" min="-20" max="20" step="1" value="2" />
-        <input type="number" id="shadowY1Num" min="-20" max="20" step="1" value="2" />
+      <div class="acc-bd">
+        <div class="f"><label class="fl">Content</label><textarea id="text1" placeholder="Enter text…"></textarea></div>
+        <div class="f"><label class="fl">Size</label>
+          <div class="rr"><input type="range" id="textSize1" min="8" max="120" step="1" value="40"/><input type="number" id="textSize1Num" min="8" max="120" step="1" value="40"/></div>
+        </div>
+        <div class="f g3">
+          <div><label class="fl">Color</label><input type="color" id="textColor1" value="#ffffff"/></div>
+          <div><label class="fl">Align</label><select id="textAlign1"><option value="left" selected>Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
+          <div><label class="fl">Weight</label><select id="fontWeight1"><option value="normal">Light</option><option value="bold" selected>Bold</option></select></div>
+        </div>
+        <div class="sdiv">Shadow</div>
+        <div class="f togrow"><label class="fl">Enable</label><label class="tog"><input type="checkbox" id="shadow1" checked/><span class="tog-s"></span></label></div>
+        <div class="f"><label class="fl">Color</label><input type="color" id="shadowColor1" value="#000000"/></div>
+        <div class="f g3">
+          <div><label class="fl">X</label><div class="rr"><input type="range" id="shadowX1" min="-20" max="20" step="1" value="2"/><input type="number" id="shadowX1Num" value="2"/></div></div>
+          <div><label class="fl">Y</label><div class="rr"><input type="range" id="shadowY1" min="-20" max="20" step="1" value="2"/><input type="number" id="shadowY1Num" value="2"/></div></div>
+          <div><label class="fl">Blur</label><div class="rr"><input type="range" id="shadowBlur1" min="0" max="50" step="1" value="20"/><input type="number" id="shadowBlur1Num" value="20"/></div></div>
+        </div>
+        <div class="sdiv">Position <span class="sb">snap 8</span></div>
+        <div class="f g2">
+          <div><label class="fl">X</label><input type="number" id="textPosX1" step="8" value="16"/></div>
+          <div><label class="fl">Y</label><input type="number" id="textPosY1" step="8" value="168"/></div>
+        </div>
       </div>
-    </label>
-    <label>Shadow Blur
-      <div class="input-group">
-        <input type="range" id="shadowBlur1" min="0" max="50" step="1" value="20" />
-        <input type="number" id="shadowBlur1Num" min="0" max="50" step="1" value="20" />
+    </div>
+
+    <!-- TEXT 2 -->
+    <div class="acc" id="acc-t2">
+      <div class="acc-hd" onclick="toggleAcc('acc-t2')">
+        <div class="acc-title" id="at-t2"><span class="ic ic-m"><svg><use href="#i-txt"/></svg></span><span class="pip"></span>Text 2</div>
+        <span class="chev ic ic-s"><svg><use href="#i-chev"/></svg></span>
       </div>
-    </label>
-  </div>
-  <div class="row">
-    <label>Position X:
-      <input type="number" id="textPosX1" step="1" value="20" />
-    </label>
-    <label>Position Y:
-      <input type="number" id="textPosY1" step="1" value="192" />
-    </label>
-  </div>
-  <h3>📝 Text 2</h3>
-  <textarea id="text2" placeholder="Text 2..."></textarea>
-  <div class="control-group">
-    <label>Size
-      <div class="input-group">
-        <input type="range" id="textSize2" min="10" max="80" step="1" value="30" />
-        <input type="number" id="textSize2Num" min="10" max="80" step="1" value="30" />
+      <div class="acc-bd">
+        <div class="f"><label class="fl">Content</label><textarea id="text2" placeholder="Enter text…"></textarea></div>
+        <div class="f"><label class="fl">Size</label>
+          <div class="rr"><input type="range" id="textSize2" min="8" max="120" step="1" value="26"/><input type="number" id="textSize2Num" min="8" max="120" step="1" value="26"/></div>
+        </div>
+        <div class="f g3">
+          <div><label class="fl">Color</label><input type="color" id="textColor2" value="#ffffff"/></div>
+          <div><label class="fl">Align</label><select id="textAlign2"><option value="left" selected>Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
+          <div><label class="fl">Weight</label><select id="fontWeight2"><option value="normal" selected>Light</option><option value="bold">Bold</option></select></div>
+        </div>
+        <div class="sdiv">Shadow</div>
+        <div class="f togrow"><label class="fl">Enable</label><label class="tog"><input type="checkbox" id="shadow2" checked/><span class="tog-s"></span></label></div>
+        <div class="f"><label class="fl">Color</label><input type="color" id="shadowColor2" value="#000000"/></div>
+        <div class="f g3">
+          <div><label class="fl">X</label><div class="rr"><input type="range" id="shadowX2" min="-20" max="20" step="1" value="2"/><input type="number" id="shadowX2Num" value="2"/></div></div>
+          <div><label class="fl">Y</label><div class="rr"><input type="range" id="shadowY2" min="-20" max="20" step="1" value="2"/><input type="number" id="shadowY2Num" value="2"/></div></div>
+          <div><label class="fl">Blur</label><div class="rr"><input type="range" id="shadowBlur2" min="0" max="50" step="1" value="20"/><input type="number" id="shadowBlur2Num" value="20"/></div></div>
+        </div>
+        <div class="sdiv">Position <span class="sb">snap 8</span></div>
+        <div class="f g2">
+          <div><label class="fl">X</label><input type="number" id="textPosX2" step="8" value="16"/></div>
+          <div><label class="fl">Y</label><input type="number" id="textPosY2" step="8" value="240"/></div>
+        </div>
       </div>
-    </label>
-    <label>Color <input type="color" id="textColor2" value="#ffffff" /></label>
-    <label>Align
-      <select id="textAlign2">
-        <option value="center">Center</option>
-        <option value="left" selected>Left</option>
-        <option value="right">Right</option>
-      </select>
-    </label>
-    <label>Weight
-      <select id="fontWeight2">
-        <option value="normal" selected>Light</option>
-        <option value="bold">Bold</option>
-      </select>
-    </label>
-    <label>Shadow <input type="checkbox" id="shadow2" checked /></label>
-    <label>Shadow Color <input type="color" id="shadowColor2" value="#000000" /></label>
-    <label>Shadow X
-      <div class="input-group">
-        <input type="range" id="shadowX2" min="-20" max="20" step="1" value="2" />
-        <input type="number" id="shadowX2Num" min="-20" max="20" step="1" value="2" />
-      </div>
-    </label>
-    <label>Shadow Y
-      <div class="input-group">
-        <input type="range" id="shadowY2" min="-20" max="20" step="1" value="2" />
-        <input type="number" id="shadowY2Num" min="-20" max="20" step="1" value="2" />
-      </div>
-    </label>
-    <label>Shadow Blur
-      <div class="input-group">
-        <input type="range" id="shadowBlur2" min="0" max="50" step="1" value="20" />
-        <input type="number" id="shadowBlur2Num" min="0" max="50" step="1" value="20" />
-      </div>
-    </label>
-  </div>
-  <div class="row">
-    <label>Position X:
-      <input type="number" id="textPosX2" step="1" value="20" />
-    </label>
-    <label>Position Y:
-      <input type="number" id="textPosY2" step="1" value="258" />
-    </label>
-  </div>
-  <button class="btn" onclick="downloadImage()">⬇️ Download Image</button>
+    </div>
+
+  </aside>
+
+  <main class="canvas-area">
+    <div class="canvas-wrap">
+      <canvas id="editorCanvas"></canvas>
+    </div>
+    <div class="cmeta">
+      <span class="ctag" id="cTag">385 × 300 px</span>
+      <span class="ctag">Drag image freely</span>
+      <span class="ctag">Text &amp; logo snap 8px</span>
+    </div>
+  </main>
 </div>
+
+<div class="dl-bar">
+  <span class="dl-info" id="dlLabel">385 × 300 px</span>
+  <button class="btn-dl" onclick="downloadImage()">
+    <span class="ic ic-m"><svg><use href="#i-dl"/></svg></span>
+    Download JPG
+  </button>
+</div>
+
 <script>
-  const canvas = document.getElementById('editorCanvas');
-  const ctx = canvas.getContext('2d');
-  const layoutSelect = document.getElementById('layoutSelect');
-  const overlayEffect = document.getElementById('overlayEffect');
-  const overlayOpacity = document.getElementById('overlayOpacity');
-  const overlayOpacityNum = document.getElementById('overlayOpacityNum');
-  const uploadImage = document.getElementById('uploadImage');
-  const uploadLogo = document.getElementById('uploadLogo');
-  const zoomSlider = document.getElementById('zoomSlider');
-  const zoomNum = document.getElementById('zoomNum');
-  const offsetX = document.getElementById('offsetX');
-  const offsetY = document.getElementById('offsetY');
-  const logoSize = document.getElementById('logoSize');
-  const logoSizeNum = document.getElementById('logoSizeNum');
-  const logoPosX = document.getElementById('logoPosX');
-  const logoPosY = document.getElementById('logoPosY');
-  const text1 = document.getElementById('text1');
-  const textSize1 = document.getElementById('textSize1');
-  const textSize1Num = document.getElementById('textSize1Num');
-  const textColor1 = document.getElementById('textColor1');
-  const textAlign1 = document.getElementById('textAlign1');
-  const fontWeight1 = document.getElementById('fontWeight1');
-  const shadow1 = document.getElementById('shadow1');
-  const shadowColor1 = document.getElementById('shadowColor1');
-  const shadowX1 = document.getElementById('shadowX1');
-  const shadowX1Num = document.getElementById('shadowX1Num');
-  const shadowY1 = document.getElementById('shadowY1');
-  const shadowY1Num = document.getElementById('shadowY1Num');
-  const shadowBlur1 = document.getElementById('shadowBlur1');
-  const shadowBlur1Num = document.getElementById('shadowBlur1Num');
-  const textPosX1 = document.getElementById('textPosX1');
-  const textPosY1 = document.getElementById('textPosY1');
-  const text2 = document.getElementById('text2');
-  const textSize2 = document.getElementById('textSize2');
-  const textSize2Num = document.getElementById('textSize2Num');
-  const textColor2 = document.getElementById('textColor2');
-  const textAlign2 = document.getElementById('textAlign2');
-  const fontWeight2 = document.getElementById('fontWeight2');
-  const shadow2 = document.getElementById('shadow2');
-  const shadowColor2 = document.getElementById('shadowColor2');
-  const shadowX2 = document.getElementById('shadowX2');
-  const shadowX2Num = document.getElementById('shadowX2Num');
-  const shadowY2 = document.getElementById('shadowY2');
-  const shadowY2Num = document.getElementById('shadowY2Num');
-  const shadowBlur2 = document.getElementById('shadowBlur2');
-  const shadowBlur2Num = document.getElementById('shadowBlur2Num');
-  const textPosX2 = document.getElementById('textPosX2');
-  const textPosY2 = document.getElementById('textPosY2');
-  let image = null;
-  let logo = null;
-  let zoom = 1;
-  let offset = { x: 0, y: 0 };
-  let textPos1 = { x: 0, y: 0 };
-  let textPos2 = { x: 0, y: 0 };
-  let draggingText = null;
-  let draggingImage = false;
-  let dragging = false;
-  let dragStart = { x: 0, y: 0 };
-  const scale = 2;
-  function setCanvasSize() {
-    const [w, h] = layoutSelect.value.split('x').map(Number);
-    canvas.width = w * scale;
-    canvas.height = h * scale;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
-    zoom = 1;
-    zoomSlider.value = 1;
-    zoomNum.value = 1;
-    offset = { x: 0, y: 0 };
-    offsetX.value = 0;
-    offsetY.value = 0;
-    logoPosX.max = w;
-    logoPosY.max = h;
-    logoPosY.value = h - 90; // default: small logo at bottom-left
-    textPos1 = { x: 20 * scale, y: 192 * scale };
-    textPosX1.value = 20;
-    textPosY1.value = 192;
-    textPosX1.min = 0; textPosX1.max = w;
-    textPosY1.min = 0; textPosY1.max = h;
-    textPos2 = { x: 20 * scale, y: 258 * scale };
-    textPosX2.value = 20;
-    textPosY2.value = 258;
-    textPosX2.min = 0; textPosX2.max = w;
-    textPosY2.min = 0; textPosY2.max = h;
-    render();
+const SNAP = 8, SC = 2;
+const canvas = document.getElementById('editorCanvas');
+const ctx    = canvas.getContext('2d');
+const E      = id => document.getElementById(id);
+const sn     = v  => Math.round(v / SNAP) * SNAP;
+
+let image = null, logo = null;
+let zoom  = 1;
+let cW = 385, cH = 300;
+
+// positions — imgOff in canvas px (×SC), logoPos & tp* in logical px
+let imgOff  = { x:0, y:0 };
+let logoPos = { x:0, y:0 };
+let tp1     = { x:0, y:0 };   // logical px
+let tp2     = { x:0, y:0 };
+
+// drag
+let dragging = false, dragWhat = null;
+// start-of-drag snapshots (all in logical px)
+let ds_ptr   = { x:0, y:0 };  // pointer start, in canvas px
+let ds_img   = { x:0, y:0 };  // imgOff start, canvas px
+let ds_logo  = { x:0, y:0 };
+let ds_tp1   = { x:0, y:0 };
+let ds_tp2   = { x:0, y:0 };
+
+// ── accordion / menu ──────────────────────────────
+function toggleAcc(id) { E(id).classList.toggle('open'); }
+E('menuBtn').onclick   = () => E('sidebar').classList.toggle('open');
+
+// ── canvas setup ─────────────────────────────────
+function setCanvasSize() {
+  [cW, cH] = E('layoutSelect').value.split('x').map(Number);
+  canvas.width  = cW * SC;
+  canvas.height = cH * SC;
+  canvas.style.width  = cW + 'px';
+  canvas.style.height = cH + 'px';
+
+  zoom = 1; E('zoomSlider').value = 1; E('zoomNum').value = 1;
+  imgOff = { x:0, y:0 };
+  E('offsetX').value = 0; E('offsetY').value = 0;
+
+  const lw = parseInt(E('logoSize').value);
+  logoPos = { x: sn(cW - lw - 16), y: sn(16) };
+  E('logoPosX').value = logoPos.x;
+  E('logoPosY').value = logoPos.y;
+
+  tp1 = { x: sn(16), y: sn(cH * .56) };
+  E('textPosX1').value = tp1.x; E('textPosY1').value = tp1.y;
+  tp2 = { x: sn(16), y: sn(cH * .76) };
+  E('textPosX2').value = tp2.x; E('textPosY2').value = tp2.y;
+
+  E('cTag').textContent    = `${cW} × ${cH} px`;
+  E('dlLabel').textContent = `${cW} × ${cH} px`;
+  render();
+}
+
+// ── render ────────────────────────────────────────
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!image) {
+    const sq = 12 * SC;
+    for (let cy = 0; cy < canvas.height; cy += sq)
+      for (let cx = 0; cx < canvas.width; cx += sq) {
+        ctx.fillStyle = ((cx/sq + cy/sq) % 2 === 0) ? '#16161b' : '#1d1d23';
+        ctx.fillRect(cx, cy, sq, sq);
+      }
+  } else {
+    const iw = image.width * zoom, ih = image.height * zoom;
+    ctx.drawImage(image, (canvas.width - iw) / 2 + imgOff.x,
+                         (canvas.height - ih) / 2 + imgOff.y, iw, ih);
   }
-  function drawTextBlock(text, size, color, align, weight, pos, shadowEnabled, shadowOptions) {
-    if (!text) return;
-    ctx.save();
-    if (shadowEnabled) {
-      ctx.shadowColor = shadowOptions.color;
-      ctx.shadowOffsetX = shadowOptions.x * scale;
-      ctx.shadowOffsetY = shadowOptions.y * scale;
-      ctx.shadowBlur = shadowOptions.blur * scale;
-    }
-    ctx.fillStyle = color;
-    ctx.font = `${weight} ${size * scale}px 'Neue Haas Grotesk Display Pro', sans-serif`;
-    ctx.textAlign = align;
-    ctx.textBaseline = 'middle';
-    const x = pos.x;
-    const y = pos.y;
-    const lines = text.split('\n');
-    lines.forEach((line, i) => ctx.fillText(line, x, y + i * size * scale));
-    ctx.restore();
+
+  const op = parseFloat(E('overlayOpacity').value);
+  if (E('overlayEffect').value === 'dark') {
+    ctx.fillStyle = `rgba(0,0,0,${op})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else if (E('overlayEffect').value === 'gradient') {
+    const g = ctx.createLinearGradient(0, canvas.height, 0, 0);
+    g.addColorStop(0, `rgba(0,0,0,${op})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  function render() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (image) {
-      const iw = image.width * zoom;
-      const ih = image.height * zoom;
-      const dx = (canvas.width - iw) / 2 + offset.x;
-      const dy = (canvas.height - ih) / 2 + offset.y;
-      ctx.drawImage(image, dx, dy, iw, ih);
-    }
-    const opacity = parseFloat(overlayOpacity.value);
-    if (overlayEffect.value === 'dark') {
-      ctx.fillStyle = `rgba(0,0,0,${opacity})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    } else if (overlayEffect.value === 'gradient') {
-      const grad = ctx.createLinearGradient(0, canvas.height, 0, 0);
-      grad.addColorStop(0, `rgba(0,0,0,${opacity})`);
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    if (logo) {
-      const size = parseFloat(logoSize.value) * scale;
-      const x = parseFloat(logoPosX.value) * scale;
-      const y = parseFloat(logoPosY.value) * scale;
-      ctx.drawImage(logo, x, y, size, size);
-    }
-    drawTextBlock(text1.value, parseFloat(textSize1.value), textColor1.value, textAlign1.value, fontWeight1.value, textPos1,
-      shadow1.checked, {
-        color: shadowColor1.value,
-        x: parseFloat(shadowX1.value),
-        y: parseFloat(shadowY1.value),
-        blur: parseFloat(shadowBlur1.value)
-      });
-    drawTextBlock(text2.value, parseFloat(textSize2.value), textColor2.value, textAlign2.value, fontWeight2.value, textPos2,
-      shadow2.checked, {
-        color: shadowColor2.value,
-        x: parseFloat(shadowX2.value),
-        y: parseFloat(shadowY2.value),
-        blur: parseFloat(shadowBlur2.value)
-      });
+
+  if (logo) {
+    const tw = parseInt(E('logoSize').value) * SC;
+    const th = tw / (logo.naturalWidth / logo.naturalHeight);
+    ctx.drawImage(logo, logoPos.x * SC, logoPos.y * SC, tw, th);
   }
-  function moveImage(dx, dy) {
-    offset.x += dx * scale;
-    offset.y += dy * scale;
-    offsetX.value = Math.round(offset.x / scale);
-    offsetY.value = Math.round(offset.y / scale);
-    render();
+
+  drawTxt(E('text1').value, +E('textSize1').value, E('textColor1').value,
+    E('textAlign1').value, E('fontWeight1').value, tp1, E('shadow1').checked,
+    { c:E('shadowColor1').value, x:+E('shadowX1').value, y:+E('shadowY1').value, b:+E('shadowBlur1').value });
+  drawTxt(E('text2').value, +E('textSize2').value, E('textColor2').value,
+    E('textAlign2').value, E('fontWeight2').value, tp2, E('shadow2').checked,
+    { c:E('shadowColor2').value, x:+E('shadowX2').value, y:+E('shadowY2').value, b:+E('shadowBlur2').value });
+}
+
+function drawTxt(text, size, color, align, weight, pos, shOn, sh) {
+  if (!text.trim()) return;
+  ctx.save();
+  if (shOn) { ctx.shadowColor = sh.c; ctx.shadowOffsetX = sh.x*SC; ctx.shadowOffsetY = sh.y*SC; ctx.shadowBlur = sh.b*SC; }
+  ctx.fillStyle = color;
+  ctx.font      = `${weight} ${size*SC}px 'DM Sans',sans-serif`;
+  ctx.textAlign = align; ctx.textBaseline = 'top';
+  // pos is in logical px; draw at ×SC
+  text.split('\n').forEach((l,i) => ctx.fillText(l, pos.x*SC, pos.y*SC + i*size*SC*1.25));
+  ctx.restore();
+}
+
+// ── d-pad ─────────────────────────────────────────
+function moveImg(dx, dy) {
+  imgOff.x += dx * SC; imgOff.y += dy * SC;
+  E('offsetX').value = Math.round(imgOff.x / SC);
+  E('offsetY').value = Math.round(imgOff.y / SC);
+  render();
+}
+function moveLogo(dx, dy) {
+  logoPos.x = sn(logoPos.x + dx);
+  logoPos.y = sn(logoPos.y + dy);
+  E('logoPosX').value = logoPos.x;
+  E('logoPosY').value = logoPos.y;
+  render();
+}
+
+// ── hit tests (all in canvas px) ─────────────────
+function hitLogo(mx, my) {
+  if (!logo) return false;
+  const tw = parseInt(E('logoSize').value) * SC;
+  const th = tw / (logo.naturalWidth / logo.naturalHeight);
+  const lx = logoPos.x * SC, ly = logoPos.y * SC;
+  return mx >= lx-6 && mx <= lx+tw+6 && my >= ly-6 && my <= ly+th+6;
+}
+function hitTxt(pos, mx, my, size, lines) {
+  const s = size * SC;
+  const px = pos.x * SC, py = pos.y * SC;
+  return mx >= px-8 && mx <= px + canvas.width * .9
+      && my >= py-8 && my <= py + s * 1.25 * lines + 8;
+}
+
+// ── pointer helper ────────────────────────────────
+function pxy(e) {
+  const r = canvas.getBoundingClientRect();
+  const s = e.touches ? e.touches[0] : e;
+  return {
+    x: (s.clientX - r.left) / r.width  * canvas.width,
+    y: (s.clientY - r.top)  / r.height * canvas.height
+  };
+}
+
+// ── drag handlers (snap-from-start strategy) ──────
+// Snap works by computing total delta from drag-start,
+// snapping the result relative to start position.
+// This prevents jitter and gives clean grid movement.
+
+function onDown(e) {
+  e.preventDefault();
+  const p = pxy(e);
+  const l1 = (E('text1').value||'').split('\n').length;
+  const l2 = (E('text2').value||'').split('\n').length;
+  dragWhat = null;
+  if      (hitLogo(p.x, p.y))                                                         dragWhat = 'logo';
+  else if (E('text1').value.trim() && hitTxt(tp1,p.x,p.y,+E('textSize1').value,l1))   dragWhat = 'text1';
+  else if (E('text2').value.trim() && hitTxt(tp2,p.x,p.y,+E('textSize2').value,l2))   dragWhat = 'text2';
+  else                                                                                  dragWhat = 'image';
+  // snapshot start state
+  ds_ptr  = { ...p };
+  ds_img  = { ...imgOff };
+  ds_logo = { ...logoPos };
+  ds_tp1  = { ...tp1 };
+  ds_tp2  = { ...tp2 };
+  dragging = true;
+}
+
+function onMove(e) {
+  if (!dragging) return;
+  e.preventDefault();
+  const p  = pxy(e);
+  // total delta from drag start, in canvas px
+  const dx = p.x - ds_ptr.x;
+  const dy = p.y - ds_ptr.y;
+  // logical px delta
+  const ldx = dx / SC;
+  const ldy = dy / SC;
+
+  if (dragWhat === 'image') {
+    // free move — no snap
+    imgOff.x = Math.round(ds_img.x + dx);
+    imgOff.y = Math.round(ds_img.y + dy);
+    E('offsetX').value = Math.round(imgOff.x / SC);
+    E('offsetY').value = Math.round(imgOff.y / SC);
+  } else if (dragWhat === 'logo') {
+    // snap: compute target from start, snap that
+    logoPos.x = sn(ds_logo.x + ldx);
+    logoPos.y = sn(ds_logo.y + ldy);
+    E('logoPosX').value = logoPos.x;
+    E('logoPosY').value = logoPos.y;
+  } else if (dragWhat === 'text1') {
+    tp1.x = sn(ds_tp1.x + ldx);
+    tp1.y = sn(ds_tp1.y + ldy);
+    E('textPosX1').value = tp1.x;
+    E('textPosY1').value = tp1.y;
+  } else if (dragWhat === 'text2') {
+    tp2.x = sn(ds_tp2.x + ldx);
+    tp2.y = sn(ds_tp2.y + ldy);
+    E('textPosX2').value = tp2.x;
+    E('textPosY2').value = tp2.y;
   }
-  function insideText(pos, mouseX, mouseY, size, lineCount = 1) {
-    const scaledSize = size * scale;
-    return mouseX >= pos.x - 400 && mouseX <= pos.x + 400 &&
-           mouseY >= pos.y - scaledSize / 2 && mouseY <= pos.y + (scaledSize * lineCount) + scaledSize / 2;
-  }
-  canvas.addEventListener('mousedown', e => {
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * scale;
-    const y = (e.clientY - rect.top) * scale;
-    const size1 = parseFloat(textSize1.value);
-    const lines1 = text1.value ? text1.value.split('\n').length : 0;
-    const size2 = parseFloat(textSize2.value);
-    const lines2 = text2.value ? text2.value.split('\n').length : 0;
-    draggingText = null;
-    draggingImage = false;
-    if (lines1 > 0 && insideText(textPos1, x, y, size1, lines1)) {
-      draggingText = 'text1';
-    } else if (lines2 > 0 && insideText(textPos2, x, y, size2, lines2)) {
-      draggingText = 'text2';
-    } else {
-      draggingImage = true;
-    }
-    dragStart = { x, y };
-    dragging = true;
+  render();
+}
+
+function onUp() { dragging = false; dragWhat = null; }
+
+canvas.addEventListener('mousedown',  onDown);
+canvas.addEventListener('mousemove',  onMove);
+canvas.addEventListener('mouseup',    onUp);
+canvas.addEventListener('mouseleave', onUp);
+canvas.addEventListener('touchstart', onDown, { passive:false });
+canvas.addEventListener('touchmove',  onMove, { passive:false });
+canvas.addEventListener('touchend',   onUp);
+
+// ── download ──────────────────────────────────────
+function downloadImage() {
+  const ts = new Date().toISOString().replace(/[:.]/g,'-');
+  const a  = document.createElement('a');
+  a.download = `edm-${cW}x${cH}-${ts}.jpg`;
+  a.href     = canvas.toDataURL('image/jpeg', 0.92);
+  a.click();
+}
+
+// ── file upload ───────────────────────────────────
+function loadFile(inId, nmId, cb) {
+  E(inId).addEventListener('change', ev => {
+    const f = ev.target.files[0];
+    if (!f || !f.type.startsWith('image/')) return;
+    E(nmId).textContent = f.name;
+    const fr = new FileReader();
+    fr.onload = () => { const i = new Image(); i.onload = () => cb(i); i.src = fr.result; };
+    fr.readAsDataURL(f);
   });
-  canvas.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * scale;
-    const y = (e.clientY - rect.top) * scale;
-    const dx = x - dragStart.x;
-    const dy = y - dragStart.y;
-    dragStart = { x, y };
-    if (draggingText === 'text1') {
-      textPos1.x += dx;
-      textPos1.y += dy;
-      textPosX1.value = Math.round(textPos1.x / scale);
-      textPosY1.value = Math.round(textPos1.y / scale);
-      render();
-    } else if (draggingText === 'text2') {
-      textPos2.x += dx;
-      textPos2.y += dy;
-      textPosX2.value = Math.round(textPos2.x / scale);
-      textPosY2.value = Math.round(textPos2.y / scale);
-      render();
-    } else if (draggingImage) {
-      offset.x += dx;
-      offset.y += dy;
-      offsetX.value = Math.round(offset.x / scale);
-      offsetY.value = Math.round(offset.y / scale);
-      render();
-    }
-  });
-  canvas.addEventListener('mouseup', () => {
-    dragging = false;
-    draggingText = null;
-    draggingImage = false;
-  });
-  canvas.addEventListener('mouseleave', () => {
-    dragging = false;
-    draggingText = null;
-    draggingImage = false;
-  });
-  function downloadImage() {
-    const now = new Date().toISOString().replace(/[:.]/g, '-');
-    const link = document.createElement('a');
-    link.download = `image-${layoutSelect.value}-${now}.jpg`;
-    link.href = canvas.toDataURL('image/jpeg', 0.8); // Adjusted quality to 0.8 for good quality with smaller file size
-    link.click();
-  }
-  uploadImage.addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        image = img;
-        render();
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-  uploadLogo.addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        logo = img;
-        render();
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-  // Synced listeners (including new logo size)
-  overlayOpacity.addEventListener('input', () => { overlayOpacityNum.value = overlayOpacity.value; render(); });
-  overlayOpacityNum.addEventListener('input', () => { overlayOpacity.value = overlayOpacityNum.value; render(); });
-  zoomSlider.addEventListener('input', () => { zoomNum.value = zoomSlider.value; zoom = parseFloat(zoomSlider.value); render(); });
-  zoomNum.addEventListener('input', () => { zoomSlider.value = zoomNum.value; zoom = parseFloat(zoomNum.value); render(); });
-  logoSize.addEventListener('input', () => { logoSizeNum.value = logoSize.value; render(); });
-  logoSizeNum.addEventListener('input', () => { logoSize.value = logoSizeNum.value; render(); });
-  textSize1.addEventListener('input', () => { textSize1Num.value = textSize1.value; render(); });
-  textSize1Num.addEventListener('input', () => { textSize1.value = textSize1Num.value; render(); });
-  shadowX1.addEventListener('input', () => { shadowX1Num.value = shadowX1.value; render(); });
-  shadowX1Num.addEventListener('input', () => { shadowX1.value = shadowX1Num.value; render(); });
-  shadowY1.addEventListener('input', () => { shadowY1Num.value = shadowY1.value; render(); });
-  shadowY1Num.addEventListener('input', () => { shadowY1.value = shadowY1Num.value; render(); });
-  shadowBlur1.addEventListener('input', () => { shadowBlur1Num.value = shadowBlur1.value; render(); });
-  shadowBlur1Num.addEventListener('input', () => { shadowBlur1.value = shadowBlur1Num.value; render(); });
-  textSize2.addEventListener('input', () => { textSize2Num.value = textSize2.value; render(); });
-  textSize2Num.addEventListener('input', () => { textSize2.value = textSize2Num.value; render(); });
-  shadowX2.addEventListener('input', () => { shadowX2Num.value = shadowX2.value; render(); });
-  shadowX2Num.addEventListener('input', () => { shadowX2.value = shadowX2Num.value; render(); });
-  shadowY2.addEventListener('input', () => { shadowY2Num.value = shadowY2.value; render(); });
-  shadowY2Num.addEventListener('input', () => { shadowY2.value = shadowY2Num.value; render(); });
-  shadowBlur2.addEventListener('input', () => { shadowBlur2Num.value = shadowBlur2.value; render(); });
-  shadowBlur2Num.addEventListener('input', () => { shadowBlur2.value = shadowBlur2Num.value; render(); });
-  offsetX.addEventListener('input', () => { offset.x = parseFloat(offsetX.value) * scale; render(); });
-  offsetY.addEventListener('input', () => { offset.y = parseFloat(offsetY.value) * scale; render(); });
-  logoPosX.addEventListener('input', render);
-  logoPosY.addEventListener('input', render);
-  textPosX1.addEventListener('input', () => { textPos1.x = parseFloat(textPosX1.value) * scale; render(); });
-  textPosY1.addEventListener('input', () => { textPos1.y = parseFloat(textPosY1.value) * scale; render(); });
-  textPosX2.addEventListener('input', () => { textPos2.x = parseFloat(textPosX2.value) * scale; render(); });
-  textPosY2.addEventListener('input', () => { textPos2.y = parseFloat(textPosY2.value) * scale; render(); });
-  layoutSelect.addEventListener('change', setCanvasSize);
-  [
-    overlayEffect,
-    text1, textColor1, fontWeight1,
-    shadow1, shadowColor1,
-    text2, textColor2, fontWeight2,
-    shadow2, shadowColor2,
-    textAlign1, textAlign2
-  ].forEach(el => el.addEventListener('change', render));
-  setCanvasSize();
+}
+loadFile('uploadImage', 'imgName', img => { image = img; E('at-img').classList.add('lit'); render(); });
+loadFile('uploadLogo',  'logoName', img => {
+  logo = img;
+  E('at-logo').classList.add('lit');
+  const lw = parseInt(E('logoSize').value);
+  logoPos = { x: sn(cW - lw - 16), y: sn(16) };
+  E('logoPosX').value = logoPos.x;
+  E('logoPosY').value = logoPos.y;
+  render();
+});
+
+// ── range ↔ number sync ───────────────────────────
+function pair(rId, nId, cb) {
+  E(rId).addEventListener('input', () => { E(nId).value = E(rId).value; cb && cb(); });
+  E(nId).addEventListener('input', () => { E(rId).value = E(nId).value; cb && cb(); });
+}
+pair('overlayOpacity','overlayOpacityNum', render);
+pair('zoomSlider','zoomNum', () => { zoom = +E('zoomSlider').value; render(); });
+pair('logoSize','logoSizeNum', render);
+pair('textSize1','textSize1Num', render);
+pair('shadowX1','shadowX1Num', render);
+pair('shadowY1','shadowY1Num', render);
+pair('shadowBlur1','shadowBlur1Num', render);
+pair('textSize2','textSize2Num', render);
+pair('shadowX2','shadowX2Num', render);
+pair('shadowY2','shadowY2Num', render);
+pair('shadowBlur2','shadowBlur2Num', render);
+
+// ── manual position inputs ────────────────────────
+E('offsetX').addEventListener('input', () => { imgOff.x = +E('offsetX').value * SC; render(); });
+E('offsetY').addEventListener('input', () => { imgOff.y = +E('offsetY').value * SC; render(); });
+E('logoPosX').addEventListener('input', () => { logoPos.x = sn(+E('logoPosX').value); E('logoPosX').value = logoPos.x; render(); });
+E('logoPosY').addEventListener('input', () => { logoPos.y = sn(+E('logoPosY').value); E('logoPosY').value = logoPos.y; render(); });
+E('textPosX1').addEventListener('input', () => { tp1.x = sn(+E('textPosX1').value); render(); });
+E('textPosY1').addEventListener('input', () => { tp1.y = sn(+E('textPosY1').value); render(); });
+E('textPosX2').addEventListener('input', () => { tp2.x = sn(+E('textPosX2').value); render(); });
+E('textPosY2').addEventListener('input', () => { tp2.y = sn(+E('textPosY2').value); render(); });
+
+// ── change listeners ──────────────────────────────
+['overlayEffect','text1','textColor1','fontWeight1','shadow1','shadowColor1','textAlign1',
+ 'text2','textColor2','fontWeight2','shadow2','shadowColor2','textAlign2']
+  .forEach(id => { E(id).addEventListener('input', render); E(id).addEventListener('change', render); });
+
+E('layoutSelect').addEventListener('change', setCanvasSize);
+setCanvasSize();
 </script>
 </body>
 </html>
