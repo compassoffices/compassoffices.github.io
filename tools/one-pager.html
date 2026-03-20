@@ -1409,13 +1409,18 @@ function gen(){
     ja:   {seats:'席数',type:'タイプ',rent:'月額賃料',mgmt:'共益管理費',init:'初期費用',avail:'入居可能時期'},
   }[LANG]||{seats:'Seats',type:'Type',rent:'Monthly Rent',mgmt:'Mgmt Fee',init:'Initial Cost',avail:'Available'};
 
-  // ── SMART SPECS LAYOUT ────────────────────────────────
-  // Decide columns and font size based on:
-  //   - number of spec rows
-  //   - number of pricing rows (they push footer up = less body height)
   const nSpecs    = specRows.length;
   const nPricing  = S.rows.length;
   const hasExtra  = trLines.length > 0 || amenChecked.length > 0;
+
+  // ── DENSITY-AWARE FONT SCALING ───────────────────────
+  // Count total content units. Few items → scale font UP to fill A4.
+  const totalItems = nSpecs + (nPricing * 2) + trLines.length + checked.length + amenChecked.length;
+  const densityScale = totalItems <= 8  ? 1.12
+                     : totalItems <= 14 ? 1.0
+                     : totalItems <= 20 ? 0.9
+                     : 0.82;
+  const slideFS = `clamp(${(11*densityScale).toFixed(1)}px, ${(1.52*densityScale).toFixed(2)}vw, ${(15.8*densityScale).toFixed(1)}px)`;
 
   // Score = how much vertical pressure we're under
   // more specs + more pricing + transport → go wider columns + smaller font
@@ -1452,6 +1457,7 @@ function gen(){
     return `<span style="width:.4em"></span>`;
   })() : '';
 
+  document.getElementById('slide').style.fontSize = slideFS;
   document.getElementById('slide').innerHTML=`
 
   <!-- TOP BAR — logo · name · address · city -->
@@ -1604,6 +1610,14 @@ function gen(){
 // ══════════════════════════════════════════════════════════
 function printSlide(){
   const styles=document.querySelector('style').textContent;
+  // Get the density-scaled font-size that gen() set on the slide
+  const slideEl = document.getElementById('slide');
+  const currentFS = slideEl.style.fontSize || '16px';
+  // For print at 297mm (1122px @ 96dpi), convert the vw-based clamp to a flat px
+  // We parse the max value from clamp(min, vw, MAX) and use that for print
+  const maxMatch = currentFS.match(/,\s*([\d.]+)px\)/);
+  const printFS = maxMatch ? `${(parseFloat(maxMatch[1]) * 1.015).toFixed(1)}px` : '16px';
+
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="UTF-8">
@@ -1615,12 +1629,12 @@ html,body{width:297mm;height:210mm;overflow:hidden;}
 .slide{
   width:297mm!important;height:210mm!important;
   aspect-ratio:unset!important;border-radius:0!important;
-  border:none!important;font-size:14px!important;
+  border:none!important;font-size:${printFS}!important;
 }
 ${styles}
 </style>
 </head><body>
-<div class="slide">${document.getElementById('slide').innerHTML}</div>
+<div class="slide">${slideEl.innerHTML}</div>
 </body></html>`);
   w.document.close();
   w.onload=()=>setTimeout(()=>w.print(),800);
