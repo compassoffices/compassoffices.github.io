@@ -71,6 +71,37 @@ select{appearance:none;
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .frow .field{margin-bottom:0;}
 
+/* ── JSON LIBRARY ── */
+.json-search-wrap{position:relative;}
+.json-search{width:100%;padding:9px 12px 9px 36px;border:1px solid var(--bd);border-radius:6px;
+  font-size:14px;font-family:inherit;color:var(--drk);background:var(--wh);
+  outline:none;transition:border-color .15s;}
+.json-search:focus{border-color:var(--o);}
+.json-search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--xlt);pointer-events:none;}
+.json-dropdown{
+  position:absolute;z-index:500;top:calc(100% + 4px);left:0;right:0;
+  background:var(--wh);border:1px solid var(--bd);border-radius:8px;
+  box-shadow:0 4px 20px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;
+  display:none;
+}
+.json-dropdown.open{display:block;}
+.json-opt{
+  padding:9px 12px;font-size:13px;color:var(--drk);cursor:pointer;
+  border-bottom:1px solid var(--bd);transition:background .1s;
+  display:flex;align-items:center;gap:8px;
+}
+.json-opt:last-child{border-bottom:none;}
+.json-opt:hover{background:var(--olt);color:var(--o);}
+.json-opt .json-city{font-size:10px;color:var(--xlt);margin-left:auto;flex-shrink:0;}
+.json-upload-row{display:flex;gap:8px;align-items:center;margin-top:6px;}
+.json-upload-btn{
+  flex:1;padding:8px 12px;border:1.5px dashed var(--bd);border-radius:6px;
+  background:var(--wh);color:var(--xlt);font-size:12.5px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all .15s;text-align:center;
+}
+.json-upload-btn:hover{border-color:var(--o);color:var(--o);}
+
 /* URL row */
 .url-row{display:flex;gap:8px;margin-bottom:6px;}
 .url-row input{flex:1;}
@@ -555,6 +586,33 @@ select{appearance:none;
     <!-- ── Location ── -->
     <div class="panel on" id="p-loc">
       <div id="fetch-status"></div>
+
+      <!-- JSON Library -->
+      <div class="slabel">📂 Location Library</div>
+      <div class="field">
+        <label class="fl">Search or select a saved location — or upload JSON files below</label>
+        <div class="json-search-wrap" id="json-search-wrap">
+          <svg class="json-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input class="json-search" id="json-search" type="text"
+            placeholder="Type to search saved locations…"
+            oninput="filterJsonLib(this.value)"
+            onfocus="showJsonDropdown()"
+            onblur="setTimeout(hideJsonDropdown,150)"
+            autocomplete="off">
+          <div class="json-dropdown" id="json-dropdown"></div>
+        </div>
+        <div class="json-upload-row">
+          <label class="json-upload-btn" title="Upload one or more JSON location files">
+            <input type="file" accept=".json,application/json" multiple style="display:none"
+              onchange="loadJsonFiles(event)">
+            ＋ Upload JSON file(s)
+          </label>
+          <button class="del-btn" title="Clear library" onclick="clearJsonLib()" style="width:32px;height:32px;flex-shrink:0">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+        <p class="note-txt" style="margin-top:4px">JSON files are stored in your browser — they persist across sessions.</p>
+      </div>
 
       <div class="slabel" data-i18n="sec_url">Location URL</div>
       <div class="field">
@@ -1758,6 +1816,188 @@ function showStatus(m,t){
 }
 
 // ══════════════════════════════════════════════════════════
+//  JSON LOCATION LIBRARY
+// ══════════════════════════════════════════════════════════
+const LIB_KEY = 'co_location_library';
+
+// Load library from localStorage
+function getLib(){ try{ return JSON.parse(localStorage.getItem(LIB_KEY)||'[]'); }catch{ return []; } }
+function saveLib(lib){ localStorage.setItem(LIB_KEY, JSON.stringify(lib)); }
+
+// Upload JSON files → add to library
+function loadJsonFiles(e){
+  const files = Array.from(e.target.files);
+  const lib = getLib();
+  let loaded = 0;
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try{
+        const data = JSON.parse(ev.target.result);
+        if(!data.name) throw new Error('Missing "name" field');
+        // Replace if same name already exists
+        const idx = lib.findIndex(l=>l.name===data.name);
+        if(idx>=0) lib[idx]=data; else lib.push(data);
+        loaded++;
+        saveLib(lib);
+        showStatus(`✅ "${data.name}" added to library (${lib.length} total).`,'s-ok');
+        renderJsonDropdown(lib, document.getElementById('json-search').value);
+      }catch(err){
+        showStatus(`⚠️ ${file.name}: ${err.message}`,'s-err');
+      }
+    };
+    reader.readAsText(file);
+  });
+  e.target.value = '';
+}
+
+function clearJsonLib(){
+  if(!confirm('Clear all saved locations from the library?')) return;
+  localStorage.removeItem(LIB_KEY);
+  renderJsonDropdown([], '');
+  showStatus('Library cleared.','s-info');
+}
+
+// Filter the dropdown by search query
+function filterJsonLib(q){
+  const lib = getLib();
+  renderJsonDropdown(lib, q);
+  showJsonDropdown();
+}
+
+function renderJsonDropdown(lib, q=''){
+  const dd = document.getElementById('json-dropdown');
+  const filtered = lib.filter(l=>
+    !q || l.name.toLowerCase().includes(q.toLowerCase()) ||
+    (l.city||'').toLowerCase().includes(q.toLowerCase())
+  );
+  if(!filtered.length){
+    dd.innerHTML = `<div class="json-opt" style="color:var(--xlt);cursor:default">
+      ${lib.length ? 'No matches' : 'No saved locations — upload JSON files below'}
+    </div>`;
+  } else {
+    dd.innerHTML = filtered.map((l,i)=>`
+      <div class="json-opt" onmousedown="loadFromLib(${lib.indexOf(l)})">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        ${l.name}
+        <span class="json-city">${l.city||''}</span>
+      </div>`).join('');
+  }
+}
+
+function showJsonDropdown(){
+  const lib = getLib();
+  renderJsonDropdown(lib, document.getElementById('json-search').value);
+  document.getElementById('json-dropdown').classList.add('open');
+}
+function hideJsonDropdown(){
+  document.getElementById('json-dropdown').classList.remove('open');
+}
+
+// Load a location from the library into all form fields
+function loadFromLib(idx){
+  const lib = getLib();
+  const p = lib[idx];
+  if(!p) return;
+  applyLocationData(p);
+  document.getElementById('json-search').value = p.name;
+  hideJsonDropdown();
+  showStatus(`✅ "${p.name}" loaded from library.`,'s-ok');
+  gen();
+}
+
+// Core function: fill all fields from a data object
+function applyLocationData(p){
+  const sv=(id,v)=>{if(v!=null&&v!==''){const el=document.getElementById(id);if(el)el.value=v;}};
+  sv('n-main', p.name);
+  sv('addr',   p.address);
+  sv('floor',  p.floor);
+  sv('purl',   p.page_url||p.url||'');
+
+  // City
+  if(p.city){
+    const sel=document.getElementById('city');
+    for(const o of sel.options) if(o.text.toLowerCase()===p.city.toLowerCase()){sel.value=o.value;break;}
+  }
+
+  // Transport — array of {text, iconId} objects OR flat strings
+  const trArr = p.transport || [p.transport1, p.transport2].filter(Boolean);
+  if(trArr.length){ initTransport(trArr); renderTransport(); }
+
+  // Specs
+  const sp = p.specs||{};
+  sv('s-struct', sp.structure   || p.structure);
+  sv('s-comp',   sp.completion  || p.completion);
+  sv('s-ceil',   sp.ceiling     || p.ceiling);
+  sv('s-fa',     sp.floor_area  || p.floor_area);
+  sv('s-ca',     sp.common_area || p.common_area);
+  sv('s-oa',     sp.oa          || p.oa);
+  sv('s-el',     sp.elevators   || p.elevators);
+  sv('s-ac',     sp.ac          || p.ac);
+  sv('s-net',    sp.network     || p.network);
+  sv('s-fac',    sp.facilities  || p.facilities);
+  sv('s-hrs',    sp.hours       || p.hours);
+  sv('s-park',   sp.parking     || p.parking);
+
+  // Custom info block
+  sv('custom-title', p.custom_title);
+  if(p.custom_body){
+    const cbe = document.getElementById('custom-body-editor');
+    if(cbe) cbe.innerHTML = p.custom_body;
+    sv('custom-body', p.custom_body);
+  }
+
+  // Pricing
+  if(p.pricing?.length){
+    S.rows=[];
+    p.pricing.filter(r=>r.seats||r.rent).forEach(r=>
+      addRow(r.seats||'',r.type||'',r.rent||'',r.mgmt||'',r.init||'',r.avail||r.available||'')
+    );
+  }
+
+  // Partner logo from URL
+  if(p.partner_logo_url){
+    showStatus('Loading partner logo…','s-info');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = ()=>{
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img,0,0);
+      S.partnerLogo = canvas.toDataURL();
+      document.getElementById('pl-prev').innerHTML =
+        `<img src="${S.partnerLogo}" style="max-height:44px;border-radius:6px;border:1px solid var(--bd);">`;
+      gen();
+    };
+    img.onerror = ()=>{
+      // Fallback: use URL directly (works if CORS allows it)
+      S.partnerLogo = p.partner_logo_url;
+      document.getElementById('pl-prev').innerHTML =
+        `<img src="${S.partnerLogo}" style="max-height:44px;border-radius:6px;border:1px solid var(--bd);" onerror="this.style.opacity='.3'">`;
+      gen();
+    };
+    img.src = p.partner_logo_url;
+  }
+
+  // Logo separator
+  if(p.logo_separator && ['x','bar','none'].includes(p.logo_separator)){
+    setSep(p.logo_separator);
+  }
+
+  // Amenity icons toggle
+  if(p.amenities){
+    AMENITY_ICONS.forEach(a=>{ a.on = p.amenities.includes(a.id); });
+    renderAmenities();
+  }
+
+  // Benefits on/off
+  if(p.benefits_on){
+    BENEFITS.forEach(b=>{ b.on = p.benefits_on.includes(b.id); });
+    renderBenefits();
+  }
+}
+
+// ══════════════════════════════════════════════════════════
 //  HELPERS
 // ══════════════════════════════════════════════════════════
 const g=id=>(document.getElementById(id)||{}).value||'';
@@ -2123,6 +2363,7 @@ renderBenefits();
 renderAmenities();
 renderRows();
 applyI18n();
+renderJsonDropdown(getLib());  // pre-load library dropdown
 addTransport('MTR Central Station — direct access','tr_metro');
 addTransport('Central Ferry Piers — 3 min walk','tr_ferry');
 </script>
