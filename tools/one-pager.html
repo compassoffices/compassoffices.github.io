@@ -1153,6 +1153,9 @@ function setLang(lc){
   renderBenefits();
   renderAmenities();
   renderRows();
+  // Re-apply loaded location in new language
+  if(LAST_LOCATION) applyLocationData(LAST_LOCATION);
+  gen();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1876,12 +1879,15 @@ function renderJsonDropdown(lib, q=''){
       ${lib.length ? 'No matches' : 'No saved locations — upload JSON files below'}
     </div>`;
   } else {
-    dd.innerHTML = filtered.map((l,i)=>`
+  dd.innerHTML = filtered.map((l,i)=>{
+      const displayName = typeof l.name==='object' ? (l.name[LANG]||l.name.en||Object.values(l.name)[0]) : l.name;
+      return `
       <div class="json-opt" onmousedown="loadFromLib(${lib.indexOf(l)})">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        ${l.name}
+        ${displayName}
         <span class="json-city">${l.city||''}</span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 }
 
@@ -1894,37 +1900,49 @@ function hideJsonDropdown(){
   document.getElementById('json-dropdown').classList.remove('open');
 }
 
-// Load a location from the library into all form fields
+let LAST_LOCATION = null; // tracks last loaded JSON location
+
 function loadFromLib(idx){
   const lib = getLib();
   const p = lib[idx];
   if(!p) return;
+  LAST_LOCATION = p;
   applyLocationData(p);
-  document.getElementById('json-search').value = p.name;
+  document.getElementById('json-search').value = typeof p.name==='object' ? (p.name.en||Object.values(p.name)[0]) : p.name;
   hideJsonDropdown();
-  showStatus(`✅ "${p.name}" loaded from library.`,'s-ok');
+  showStatus(`✅ "${typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name}" loaded from library.`,'s-ok');
   gen();
 }
 
 // Core function: fill all fields from a data object
 function applyLocationData(p){
-  const sv=(id,v)=>{if(v!=null&&v!==''){const el=document.getElementById(id);if(el)el.value=v;}};
+  // Resolve a field — if it's a {en,zh-hant,zh-hans,ja} object pick current lang, else use as-is
+  const r = v => {
+    if(v && typeof v === 'object' && !Array.isArray(v)){
+      return v[LANG] || v.en || v['zh-hant'] || v['zh-hans'] || v.ja || '';
+    }
+    return v || '';
+  };
+
+  const sv=(id,v)=>{const val=r(v);if(val){const el=document.getElementById(id);if(el)el.value=val;}};
   sv('n-main', p.name);
   sv('addr',   p.address);
   sv('floor',  p.floor);
   sv('purl',   p.page_url||p.url||'');
 
-  // City
-  if(p.city){
+  // City — plain string only (city names are universal)
+  const cityVal = r(p.city);
+  if(cityVal){
     const sel=document.getElementById('city');
-    for(const o of sel.options) if(o.text.toLowerCase()===p.city.toLowerCase()){sel.value=o.value;break;}
+    for(const o of sel.options) if(o.text.toLowerCase()===cityVal.toLowerCase()){sel.value=o.value;break;}
   }
 
-  // Transport — array of {text, iconId} objects OR flat strings
-  const trArr = p.transport || [p.transport1, p.transport2].filter(Boolean);
+  // Transport — supports {en:[…], ja:[…]} OR a plain array
+  const trRaw = p.transport || [p.transport1, p.transport2].filter(Boolean);
+  const trArr = Array.isArray(trRaw) ? trRaw : (trRaw[LANG] || trRaw.en || trRaw.ja || []);
   if(trArr.length){ initTransport(trArr); renderTransport(); }
 
-  // Specs
+  // Specs — each value can be a plain string or {en,zh-hant,zh-hans,ja}
   const sp = p.specs||{};
   sv('s-struct', sp.structure   || p.structure);
   sv('s-comp',   sp.completion  || p.completion);
@@ -1939,19 +1957,22 @@ function applyLocationData(p){
   sv('s-hrs',    sp.hours       || p.hours);
   sv('s-park',   sp.parking     || p.parking);
 
-  // Custom info block
+  // Custom info block — supports multilingual strings
   sv('custom-title', p.custom_title);
-  if(p.custom_body){
+  const customBodyVal = r(p.custom_body);
+  if(customBodyVal){
     const cbe = document.getElementById('custom-body-editor');
-    if(cbe) cbe.innerHTML = p.custom_body;
-    sv('custom-body', p.custom_body);
+    if(cbe) cbe.innerHTML = customBodyVal;
+    const cbh = document.getElementById('custom-body');
+    if(cbh) cbh.value = customBodyVal;
   }
 
-  // Pricing
+  // Pricing — each row field supports multilingual too
   if(p.pricing?.length){
     S.rows=[];
-    p.pricing.filter(r=>r.seats||r.rent).forEach(r=>
-      addRow(r.seats||'',r.type||'',r.rent||'',r.mgmt||'',r.init||'',r.avail||r.available||'')
+    p.pricing.filter(row=>row.seats||row.rent).forEach(row=>
+      addRow(r(row.seats)||'', r(row.type)||'', r(row.rent)||'',
+             r(row.mgmt)||'',  r(row.init)||'', r(row.avail||row.available)||'')
     );
   }
 
