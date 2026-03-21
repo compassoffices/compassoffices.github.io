@@ -3,500 +3,971 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Office Listing Editor</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Compass Offices — Location JSON Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --o:#FF6600;--olt:#FFF3EB;
-  --blk:#1A1A1A;--drk:#333;--mid:#555;--lt:#888;--xlt:#BBBBBB;
-  --bd:#E5E5E5;--bg:#F5F5F5;--wh:#FFFFFF;
+  --o:#FF6600; --olt:#FFF3EB; --o2:#e55a00;
+  --blk:#111; --drk:#222; --mid:#555; --lt:#888; --xlt:#BBBBBB;
+  --bd:#E5E5E5; --bg:#F7F7F7; --wh:#FFFFFF;
+  --radius:10px; --shadow:0 2px 8px rgba(0,0,0,.06),0 8px 32px rgba(0,0,0,.1);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Hanken Grotesk',sans-serif;background:var(--bg);color:var(--drk);
-     height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+body{
+  font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;
+  background:var(--bg); color:var(--drk);
+  min-height:100vh; padding-bottom:80px;
+  -webkit-font-smoothing:antialiased;
+}
 
-/* HEADER */
-header{background:var(--wh);border-bottom:1px solid var(--bd);height:54px;
-       padding:0 22px;display:flex;align-items:center;justify-content:space-between;z-index:300;}
-.hbrand{display:flex;align-items:center;gap:12px;}
-.hlogo-fb{font-size:14px;font-weight:800;color:var(--o);}
-.hdiv{width:1px;height:16px;background:var(--bd);}
-.htag{font-size:11px;font-weight:600;color:var(--xlt);text-transform:uppercase;letter-spacing:.09em;}
-.hright{display:flex;align-items:center;gap:10px;}
-.status-pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;
-  background:#F0FDF4;color:#166534;border:1px solid #BBF7D0;}
-.hbtn{padding:8px 18px;font-size:13px;font-weight:700;border-radius:6px;cursor:pointer;
-      font-family:inherit;border:none;background:var(--o);color:var(--wh);
-      display:flex;align-items:center;gap:6px;transition:background .15s;}
-.hbtn:hover{background:#e55a00;}
-.hbtn-ghost{padding:8px 14px;font-size:13px;font-weight:600;border-radius:6px;cursor:pointer;
-      font-family:inherit;border:1.5px solid var(--bd);background:var(--wh);color:var(--mid);
-      display:flex;align-items:center;gap:6px;transition:all .15s;}
-.hbtn-ghost:hover{border-color:var(--o);color:var(--o);}
+/* ── TOP HEADER ── */
+.topbar{
+  background:var(--wh); border-bottom:1px solid var(--bd);
+  padding:0 32px; height:56px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:100;
+  box-shadow:0 1px 0 var(--bd), 0 2px 12px rgba(0,0,0,.04);
+}
+.topbar-brand{display:flex;align-items:center;gap:14px;}
+.topbar-logo{height:20px;display:block;}
+.topbar-div{width:1px;height:18px;background:var(--bd);}
+.topbar-title{font-size:13px;font-weight:700;color:var(--mid);letter-spacing:.02em;}
+.topbar-actions{display:flex;gap:10px;align-items:center;}
 
-/* LAYOUT */
-.app{display:grid;grid-template-columns:420px 1fr;height:calc(100vh - 54px);}
+/* ── LAYOUT ── */
+.container{max-width:900px;margin:0 auto;padding:32px 24px 0;}
 
-/* SIDEBAR */
-.sidebar{background:var(--wh);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;}
-.tabnav{display:flex;border-bottom:1px solid var(--bd);flex-shrink:0;}
-.tab{flex:1;padding:13px 4px 11px;font-size:11px;font-weight:700;text-transform:uppercase;
-     letter-spacing:.06em;border:none;background:transparent;cursor:pointer;color:var(--xlt);
-     border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:inherit;}
-.tab:hover{color:var(--drk);}
-.tab.on{color:var(--o);border-bottom-color:var(--o);}
-.panels{flex:1;overflow-y:auto;}
-.panel{display:none;padding:20px 18px 80px;}
-.panel.on{display:block;}
+/* ── STEP INDICATOR ── */
+.steps{display:flex;gap:0;margin-bottom:32px;border-radius:12px;overflow:hidden;
+  border:1px solid var(--bd);background:var(--wh);}
+.step-btn{
+  flex:1;padding:14px 10px;background:var(--wh);border:none;
+  font-family:inherit;font-size:12px;font-weight:600;color:var(--xlt);
+  cursor:pointer;transition:all .15s;border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.step-btn:last-child{border-right:none;}
+.step-btn .snum{
+  width:24px;height:24px;border-radius:50%;border:1.5px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;transition:all .15s;
+}
+.step-btn.active{color:var(--o);background:var(--olt);}
+.step-btn.active .snum{background:var(--o);border-color:var(--o);color:#fff;}
+.step-btn.done{color:var(--mid);}
+.step-btn.done .snum{background:#22c55e;border-color:#22c55e;color:#fff;}
 
-/* FORM */
-.slabel{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
-        color:var(--xlt);margin:20px 0 10px;display:flex;align-items:center;gap:7px;}
-.slabel:first-child{margin-top:0;}
-.slabel::after{content:'';flex:1;height:1px;background:var(--bd);}
-.field{margin-bottom:10px;}
-.fl{display:block;font-size:10.5px;font-weight:600;color:var(--lt);margin-bottom:5px;letter-spacing:.01em;}
-.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.frow .field{margin-bottom:0;}
+/* ── CARD ── */
+.card{background:var(--wh);border:1px solid var(--bd);border-radius:var(--radius);
+  padding:28px 28px;margin-bottom:20px;box-shadow:var(--shadow);}
+.card-title{font-size:17px;font-weight:800;color:var(--blk);margin-bottom:4px;
+  display:flex;align-items:center;gap:10px;}
+.card-title-icon{width:32px;height:32px;background:var(--olt);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.card-title-icon svg{width:16px;height:16px;color:var(--o);}
+.card-sub{font-size:12.5px;color:var(--lt);margin-bottom:22px;line-height:1.5;}
 
+/* ── LANG TABS ── */
+.lang-tabs{display:flex;gap:2px;background:var(--bg);border:1px solid var(--bd);
+  border-radius:8px;padding:3px;margin-bottom:10px;width:fit-content;}
+.ltab{padding:5px 13px;border:none;background:transparent;color:var(--lt);
+  font-size:11.5px;font-weight:700;border-radius:6px;cursor:pointer;
+  font-family:inherit;transition:all .12s;}
+.ltab.on{background:var(--wh);color:var(--o);box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.lang-panel{display:none;} .lang-panel.on{display:block;}
+
+/* ── FIELDS ── */
+.field{margin-bottom:16px;}
+.field:last-child{margin-bottom:0;}
+.fl{display:block;font-size:10.5px;font-weight:700;color:var(--lt);
+  margin-bottom:5px;letter-spacing:.02em;text-transform:uppercase;}
+.fl-opt{font-weight:500;color:var(--xlt);text-transform:none;font-size:9.5px;margin-left:4px;}
 input[type=text],input[type=url],textarea,select{
-  width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:6px;
+  width:100%;padding:9px 12px;border:1.5px solid var(--bd);border-radius:8px;
   font-size:13.5px;font-family:inherit;color:var(--drk);background:var(--wh);
-  outline:none;transition:border-color .15s;line-height:1.45;}
+  outline:none;transition:border-color .15s;line-height:1.5;}
 input:focus,textarea:focus,select:focus{border-color:var(--o);}
-textarea{resize:vertical;min-height:60px;}
+textarea{resize:vertical;min-height:72px;}
+select{appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23BBB' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.frow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.frow .field,.frow3 .field{margin-bottom:0;}
 
-/* SEPARATOR BUTTONS */
-.sep-opts{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px;}
-.sep-opt{padding:6px 11px;border:1.5px solid var(--bd);border-radius:6px;
-  background:var(--wh);color:var(--mid);font-size:13px;font-weight:600;
-  cursor:pointer;font-family:inherit;transition:all .15s;line-height:1;}
-.sep-opt:hover{border-color:var(--o);color:var(--o);}
-.sep-opt.on{background:var(--o);border-color:var(--o);color:var(--wh);}
+/* ── TRANSPORT ROWS ── */
+.tr-rows{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;}
+.tr-row{display:flex;gap:8px;align-items:center;padding:8px 10px;
+  border:1.5px solid var(--bd);border-radius:8px;background:var(--bg);}
+.tr-row select{flex:0 0 140px;font-size:12.5px;padding:6px 30px 6px 8px;}
+.tr-row input{flex:1;font-size:13px;padding:6px 10px;}
+.tr-del-btn{width:28px;height:28px;border:none;background:transparent;
+  color:var(--xlt);cursor:pointer;border-radius:6px;display:flex;
+  align-items:center;justify-content:center;flex-shrink:0;transition:color .12s;}
+.tr-del-btn:hover{color:#DC2626;}
+.add-btn{width:100%;padding:9px;border:1.5px dashed var(--bd);border-radius:8px;
+  background:transparent;color:var(--xlt);font-size:12.5px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:6px;}
+.add-btn:hover{border-color:var(--o);color:var(--o);}
 
-/* TRANSPORT ROWS */
-.tr-list{display:flex;flex-direction:column;gap:5px;}
-.tr-row{display:flex;align-items:center;gap:7px;padding:7px 9px;
-        border:1.5px solid var(--bd);border-radius:8px;background:var(--wh);}
-.tr-ico-btn{width:32px;height:32px;flex-shrink:0;border:1.5px solid var(--o);
-            border-radius:8px;background:var(--olt);cursor:pointer;
-            display:flex;align-items:center;justify-content:center;
-            color:var(--o);transition:all .15s;padding:0;}
-.tr-ico-btn:hover{background:var(--o);color:var(--wh);}
-.tr-ico-btn svg{width:15px;height:15px;pointer-events:none;}
-.tr-input{flex:1;border:none;background:transparent;font-family:inherit;
-          font-size:13px;color:var(--drk);outline:none;padding:0;min-width:0;}
-.tr-input::placeholder{color:var(--xlt);}
-.tr-del{width:20px;height:20px;background:transparent;border:none;color:var(--xlt);
-        cursor:pointer;display:flex;align-items:center;justify-content:center;
-        flex-shrink:0;border-radius:3px;transition:color .15s;padding:0;}
-.tr-del:hover{color:#DC2626;}
-.tr-add{width:100%;padding:8px;border:1px dashed var(--bd);border-radius:8px;
-        background:transparent;color:var(--xlt);font-size:12.5px;font-weight:600;
-        cursor:pointer;font-family:inherit;transition:all .15s;margin-top:4px;
-        display:flex;align-items:center;justify-content:center;gap:6px;}
-.tr-add:hover{border-color:var(--o);color:var(--o);}
+/* ── AMENITY GRID ── */
+.amen-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px;}
+.amen-chip{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:10px 6px;border:1.5px solid var(--bd);border-radius:8px;
+  cursor:pointer;transition:all .12s;background:var(--wh);text-align:center;
+}
+.amen-chip.on{border-color:var(--o);background:var(--olt);}
+.amen-chip svg{width:18px;height:18px;color:var(--xlt);transition:color .12s;}
+.amen-chip.on svg{color:var(--o);}
+.amen-chip span{font-size:10px;font-weight:600;color:var(--xlt);line-height:1.2;}
+.amen-chip.on span{color:var(--o);}
 
-/* AMENITY CHIPS */
-.amen-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
-.amen-item{display:flex;align-items:center;gap:7px;padding:8px 10px;
-           border:1.5px solid var(--bd);border-radius:8px;cursor:pointer;
-           font-size:12px;font-weight:500;color:var(--lt);transition:all .15s;user-select:none;}
-.amen-item:hover{border-color:var(--o);color:var(--drk);}
-.amen-item.on{border-color:var(--o);color:var(--drk);background:var(--olt);}
-.amen-item .aico{width:14px;height:14px;flex-shrink:0;color:var(--bd);transition:color .15s;}
-.amen-item.on .aico,.amen-item:hover .aico{color:var(--o);}
+/* ── PRICING ROWS ── */
+.pr-rows{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+.pr-row-card{border:1.5px solid var(--bd);border-radius:8px;padding:14px;background:var(--bg);}
+.pr-row-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.pr-row-lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--xlt);}
+.del-btn{width:22px;height:22px;border:none;background:transparent;
+  color:var(--xlt);cursor:pointer;border-radius:4px;display:flex;
+  align-items:center;justify-content:center;transition:color .12s;}
+.del-btn:hover{color:#DC2626;}
 
-/* ICON PICKER */
-.ico-picker{position:fixed;z-index:9999;background:var(--wh);border:1px solid var(--bd);
-  border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.15);padding:10px;width:232px;display:none;}
-.ico-picker.open{display:block;}
-.ico-picker-title{font-size:10px;font-weight:800;text-transform:uppercase;
-                  letter-spacing:.08em;color:var(--xlt);margin-bottom:8px;}
-.ico-picker-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;}
-.ico-opt{display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:6px 3px;border:1.5px solid transparent;border-radius:6px;cursor:pointer;transition:all .12s;}
-.ico-opt:hover{border-color:var(--o);background:var(--olt);}
-.ico-opt.sel{border-color:var(--o);background:var(--olt);}
-.ico-opt svg{width:16px;height:16px;color:var(--drk);}
-.ico-opt:hover svg,.ico-opt.sel svg{color:var(--o);}
-.ico-opt span{font-size:9px;color:var(--xlt);text-align:center;line-height:1.2;}
+/* ── PARTNER LOGO ── */
+.logo-preview{margin-top:8px;display:flex;align-items:center;gap:10px;}
+.logo-preview img{max-height:40px;border-radius:6px;border:1px solid var(--bd);display:none;}
+.logo-preview .logo-url-txt{font-size:11px;color:var(--lt);word-break:break-all;}
 
-/* BOTTOM ACTIONS */
-.gen-wrap{padding:12px 18px;border-top:1px solid var(--bd);background:var(--wh);
-  flex-shrink:0;display:flex;gap:8px;}
-.gen-btn{flex:1;padding:11px;background:var(--o);border:none;border-radius:8px;
-         color:var(--wh);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
-         display:flex;align-items:center;justify-content:center;gap:7px;transition:all .2s;}
-.gen-btn:hover{background:#e55a00;transform:translateY(-1px);}
-.gen-btn-ghost{padding:11px 16px;border:1.5px solid var(--bd);border-radius:8px;
-  background:var(--wh);color:var(--mid);font-size:13px;font-weight:600;
-  cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all .15s;}
-.gen-btn-ghost:hover{border-color:var(--o);color:var(--o);}
+/* ── SEP BTNS ── */
+.sep-row{display:flex;gap:6px;}
+.sep-btn{padding:6px 14px;border:1.5px solid var(--bd);border-radius:6px;
+  background:var(--wh);color:var(--mid);font-size:12px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all .12s;}
+.sep-btn:hover{border-color:var(--o);color:var(--o);}
+.sep-btn.on{background:var(--o);border-color:var(--o);color:#fff;}
 
-/* RIGHT: JSON PREVIEW */
-.preview{background:var(--bg);overflow:hidden;display:flex;flex-direction:column;}
-.preview-topbar{padding:14px 22px;border-bottom:1px solid var(--bd);background:var(--wh);
-  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.preview-topbar-left{display:flex;align-items:center;gap:10px;}
-.preview-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--xlt);}
-.json-filename{font-size:12px;font-weight:600;color:var(--mid);background:var(--bg);
-  border:1px solid var(--bd);border-radius:5px;padding:4px 10px;}
-.copy-btn{padding:6px 14px;border:1.5px solid var(--bd);border-radius:6px;background:var(--wh);
-  color:var(--mid);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
-  display:flex;align-items:center;gap:5px;transition:all .15s;}
-.copy-btn:hover{border-color:var(--o);color:var(--o);}
-.json-wrap{flex:1;padding:18px 22px 40px;overflow-y:auto;}
-.json-card{background:var(--wh);border:1px solid var(--bd);border-radius:10px;
-  padding:20px 22px;box-shadow:0 1px 4px rgba(0,0,0,.04);}
-pre{font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12.5px;
-    line-height:1.8;color:var(--mid);white-space:pre-wrap;word-break:break-all;}
-.jk{color:#0369a1;}
-.js{color:#c25200;}
-.jn{color:#6f42c1;}
-.jb{color:#166534;}
-.jnull{color:#DC2626;}
+/* ── BOTTOM BAR ── */
+.bottom-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--wh);border-top:1px solid var(--bd);
+  padding:12px 32px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 -4px 20px rgba(0,0,0,.06);
+  z-index:100;
+}
+.nav-btns{display:flex;gap:10px;}
+.btn-prev{padding:10px 22px;border:1.5px solid var(--bd);border-radius:8px;
+  background:var(--wh);color:var(--mid);font-size:13.5px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:all .15s;}
+.btn-prev:hover{border-color:var(--o);color:var(--o);}
+.btn-next{padding:10px 22px;border:none;border-radius:8px;
+  background:var(--o);color:#fff;font-size:13.5px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:background .15s;
+  display:flex;align-items:center;gap:7px;}
+.btn-next:hover{background:var(--o2);}
+.btn-download{padding:10px 24px;border:none;border-radius:8px;
+  background:var(--blk);color:#fff;font-size:13.5px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:background .15s;
+  display:flex;align-items:center;gap:7px;}
+.btn-download:hover{background:#333;}
 
-::-webkit-scrollbar{width:4px;}
-::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
+/* ── JSON PREVIEW ── */
+.json-preview-wrap{position:relative;}
+.json-box{
+  background:#0F1117;color:#e2e8f0;border-radius:10px;
+  padding:20px;font-family:'Courier New',monospace;font-size:12px;
+  line-height:1.7;overflow-x:auto;white-space:pre;max-height:500px;overflow-y:auto;
+  border:1px solid #2D3748;
+}
+.json-key{color:#7dd3fc;}
+.json-str{color:#86efac;}
+.json-num{color:#fbbf24;}
+.json-bool{color:#f9a8d4;}
+.json-null{color:#94a3b8;}
+.copy-btn{
+  position:absolute;top:12px;right:12px;
+  padding:5px 12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  color:#fff;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:background .12s;
+}
+.copy-btn:hover{background:rgba(255,255,255,.2);}
+
+/* ── SECTION STEPS ── */
+.step-page{display:none;} .step-page.on{display:block;}
+.section-head{margin-bottom:22px;}
+.section-head h2{font-size:22px;font-weight:900;color:var(--blk);margin-bottom:4px;}
+.section-head p{font-size:13px;color:var(--lt);}
+
+/* ── NOTE ── */
+.note{font-size:11.5px;color:var(--xlt);margin-top:5px;line-height:1.5;}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;
+  font-weight:700;letter-spacing:.04em;}
+.badge-opt{background:#F0F0F0;color:var(--xlt);}
+.badge-req{background:var(--olt);color:var(--o);}
+
+/* ── DIVIDER ── */
+.divider{height:1px;background:var(--bd);margin:20px 0;}
+
+/* ── CUSTOM BODY RICH ── */
+.rich-wrap{display:flex;flex-direction:column;gap:5px;}
+.rich-bar{display:flex;gap:4px;}
+.rich-bar-btn{padding:4px 9px;border:1.5px solid var(--bd);border-radius:5px;
+  background:var(--wh);font-size:11.5px;font-weight:700;cursor:pointer;
+  font-family:inherit;color:var(--mid);transition:all .12s;line-height:1.3;}
+.rich-bar-btn:hover{border-color:var(--o);color:var(--o);}
+.rich-bar-btn.orange{color:var(--o);border-color:var(--o);}
+.rich-editor{min-height:80px;padding:9px 12px;border:1.5px solid var(--bd);
+  border-radius:8px;font-size:13.5px;font-family:inherit;color:var(--drk);
+  background:var(--wh);outline:none;line-height:1.6;transition:border-color .15s;}
+.rich-editor:focus{border-color:var(--o);}
+.rich-editor:empty:before{content:attr(placeholder);color:var(--xlt);pointer-events:none;}
+.rich-editor b{font-weight:700;}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="hbrand">
-    <div class="hlogo-fb">compass</div>
-    <div class="hdiv"></div>
-    <div class="htag">Listing Editor</div>
+<div class="topbar">
+  <div class="topbar-brand">
+    <img class="topbar-logo"
+      src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ob.svg"
+      onerror="this.style.display='none'" alt="Compass Offices">
+    <div class="topbar-div"></div>
+    <span class="topbar-title">Location JSON Builder</span>
   </div>
-  <div class="hright">
-    <div class="status-pill" id="statusPill">Ready</div>
-    <button class="hbtn-ghost" onclick="loadDefaults()">
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-      Reset
-    </button>
-    <button class="hbtn" onclick="downloadJSON()">
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  <div class="topbar-actions">
+    <button class="btn-download" onclick="downloadJSON()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
       Download JSON
     </button>
   </div>
-</header>
-
-<div class="app">
-
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <div class="tabnav">
-      <button class="tab on" onclick="showTab('info',this)">Info</button>
-      <button class="tab" onclick="showTab('specs',this)">Specs</button>
-      <button class="tab" onclick="showTab('transport',this)">Transport</button>
-      <button class="tab" onclick="showTab('amenities',this)">Amenities</button>
-    </div>
-
-    <div class="panels">
-
-      <!-- INFO -->
-      <div class="panel on" id="tab-info">
-        <div class="slabel">Basic Info</div>
-        <div class="frow">
-          <div class="field"><label class="fl">Building Name</label><input type="text" id="f_name" oninput="updateJSON()"></div>
-          <div class="field"><label class="fl">City</label><input type="text" id="f_city" oninput="updateJSON()"></div>
-        </div>
-        <div class="field" style="margin-top:10px"><label class="fl">Address</label><input type="text" id="f_address" oninput="updateJSON()"></div>
-        <div class="frow">
-          <div class="field"><label class="fl">Floor</label><input type="text" id="f_floor" oninput="updateJSON()"></div>
-          <div class="field">
-            <label class="fl">Logo Separator</label>
-            <div class="sep-opts" id="sep_opts"></div>
-          </div>
-        </div>
-        <div class="slabel">URLs</div>
-        <div class="field"><label class="fl">Page URL</label><input type="url" id="f_page_url" oninput="updateJSON()"></div>
-        <div class="field"><label class="fl">Partner Logo URL</label><input type="url" id="f_partner_logo_url" oninput="updateJSON()"></div>
-      </div>
-
-      <!-- SPECS -->
-      <div class="panel" id="tab-specs">
-        <div class="slabel">Building</div>
-        <div class="frow">
-          <div class="field"><label class="fl">Completion Year</label><input type="text" id="s_completion" oninput="updateJSON()"></div>
-          <div class="field"><label class="fl">Elevators</label><input type="text" id="s_elevators" oninput="updateJSON()"></div>
-        </div>
-        <div class="frow">
-          <div class="field"><label class="fl">Ceiling Height</label><input type="text" id="s_ceiling" oninput="updateJSON()"></div>
-          <div class="field"><label class="fl">OA Height</label><input type="text" id="s_oa" oninput="updateJSON()"></div>
-        </div>
-        <div class="field"><label class="fl">Structure</label><input type="text" id="s_structure" oninput="updateJSON()"></div>
-
-        <div class="slabel">Area</div>
-        <div class="frow">
-          <div class="field"><label class="fl">Floor Area</label><input type="text" id="s_floor_area" oninput="updateJSON()"></div>
-          <div class="field"><label class="fl">Common Area</label><input type="text" id="s_common_area" oninput="updateJSON()"></div>
-        </div>
-
-        <div class="slabel">Services</div>
-        <div class="field"><label class="fl">Air Conditioning</label><input type="text" id="s_ac" oninput="updateJSON()"></div>
-        <div class="field"><label class="fl">Network</label><input type="text" id="s_network" oninput="updateJSON()"></div>
-        <div class="field"><label class="fl">Facilities</label><input type="text" id="s_facilities" oninput="updateJSON()"></div>
-        <div class="frow">
-          <div class="field"><label class="fl">Hours</label><input type="text" id="s_hours" oninput="updateJSON()"></div>
-          <div class="field"><label class="fl">Parking</label><input type="text" id="s_parking" oninput="updateJSON()"></div>
-        </div>
-      </div>
-
-      <!-- TRANSPORT -->
-      <div class="panel" id="tab-transport">
-        <div class="slabel">Transport Links</div>
-        <div class="tr-list" id="transport_list"></div>
-        <button class="tr-add" onclick="addTransport()">
-          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Transport Link
-        </button>
-      </div>
-
-      <!-- AMENITIES -->
-      <div class="panel" id="tab-amenities">
-        <div class="slabel">Amenities Available</div>
-        <div class="amen-grid" id="amenities_grid"></div>
-        <div class="slabel">Benefits Enabled</div>
-        <div class="amen-grid" id="benefits_grid"></div>
-      </div>
-
-    </div>
-
-    <div class="gen-wrap">
-      <button class="gen-btn-ghost" onclick="copyJSON()">
-        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy
-      </button>
-      <button class="gen-btn" onclick="downloadJSON()">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download JSON
-      </button>
-    </div>
-  </div>
-
-  <!-- JSON PREVIEW -->
-  <div class="preview">
-    <div class="preview-topbar">
-      <div class="preview-topbar-left">
-        <div class="preview-label">JSON Output</div>
-        <div class="json-filename" id="jsonFilename">china-building.json</div>
-      </div>
-      <button class="copy-btn" onclick="copyJSON()">
-        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy JSON
-      </button>
-    </div>
-    <div class="json-wrap">
-      <div class="json-card">
-        <pre id="jsonPreview"></pre>
-      </div>
-    </div>
-  </div>
-
 </div>
 
-<!-- Icon Picker Popover -->
-<div class="ico-picker" id="icoPicker">
-  <div class="ico-picker-title">Choose Icon</div>
-  <div class="ico-picker-grid" id="icoPickerGrid"></div>
+<div class="container">
+
+  <!-- Step indicator -->
+  <div class="steps" id="steps">
+    <button class="step-btn active" onclick="goStep(0)">
+      <span class="snum">1</span>Basic Info
+    </button>
+    <button class="step-btn" onclick="goStep(1)">
+      <span class="snum">2</span>Specs
+    </button>
+    <button class="step-btn" onclick="goStep(2)">
+      <span class="snum">3</span>Transport
+    </button>
+    <button class="step-btn" onclick="goStep(3)">
+      <span class="snum">4</span>Pricing
+    </button>
+    <button class="step-btn" onclick="goStep(4)">
+      <span class="snum">5</span>Amenities
+    </button>
+    <button class="step-btn" onclick="goStep(5)">
+      <span class="snum">6</span>Custom
+    </button>
+    <button class="step-btn" onclick="goStep(6)">
+      <span class="snum">7</span>Preview
+    </button>
+  </div>
+
+  <!-- ═══ STEP 1: Basic Info ═══ -->
+  <div class="step-page on" id="page-0">
+    <div class="section-head">
+      <h2>Basic Information</h2>
+      <p>Core location details — fill in all languages you need</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+        Location Name <span class="badge badge-req">Required</span>
+      </div>
+      <p class="card-sub">The building or centre name — enter per language</p>
+      <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'name')">EN</button><button class="ltab" onclick="switchLang(this,'name')">繁體</button><button class="ltab" onclick="switchLang(this,'name')">简体</button><button class="ltab" onclick="switchLang(this,'name')">日本語</button></div>
+      <div class="lang-panel on" data-group="name" data-lang="en"><div class="field"><input type="text" id="name_en" placeholder="China Building"></div></div>
+      <div class="lang-panel" data-group="name" data-lang="zh-hant"><div class="field"><input type="text" id="name_tc" placeholder="華人行"></div></div>
+      <div class="lang-panel" data-group="name" data-lang="zh-hans"><div class="field"><input type="text" id="name_sc" placeholder="华人行"></div></div>
+      <div class="lang-panel" data-group="name" data-lang="ja"><div class="field"><input type="text" id="name_ja" placeholder="チャイナビルディング"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+        City &amp; Floor
+      </div>
+      <div class="frow">
+        <div class="field">
+          <label class="fl">City <span class="badge badge-req">Required</span></label>
+          <select id="city">
+            <option value="Hong Kong">Hong Kong</option>
+            <option value="Tokyo">Tokyo</option>
+            <option value="Osaka">Osaka</option>
+            <option value="Melbourne">Melbourne</option>
+            <option value="Sydney">Sydney</option>
+            <option value="Singapore">Singapore</option>
+            <option value="Manila">Manila</option>
+            <option value="Kuala Lumpur">Kuala Lumpur</option>
+            <option value="Ho Chi Minh City">Ho Chi Minh City</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="fl">Floor / Unit</label>
+          <input type="text" id="floor" placeholder="18-19F">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+        Address
+      </div>
+      <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'addr')">EN</button><button class="ltab" onclick="switchLang(this,'addr')">繁體</button><button class="ltab" onclick="switchLang(this,'addr')">简体</button><button class="ltab" onclick="switchLang(this,'addr')">日本語</button></div>
+      <div class="lang-panel on" data-group="addr" data-lang="en"><div class="field"><input type="text" id="addr_en" placeholder="29 Queen's Road Central, Central, Hong Kong"></div></div>
+      <div class="lang-panel" data-group="addr" data-lang="zh-hant"><div class="field"><input type="text" id="addr_tc" placeholder="香港中環皇后大道中29號"></div></div>
+      <div class="lang-panel" data-group="addr" data-lang="zh-hans"><div class="field"><input type="text" id="addr_sc" placeholder="香港中环皇后大道中29号"></div></div>
+      <div class="lang-panel" data-group="addr" data-lang="ja"><div class="field"><input type="text" id="addr_ja" placeholder="香港セントラル、クイーンズロード29号"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        Page URL
+      </div>
+      <div class="field">
+        <label class="fl">Compass Offices location page URL</label>
+        <input type="url" id="page_url" placeholder="https://www.compassoffices.com/locations/china-building/">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <div class="card-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        Partner / Building Logo <span class="badge badge-opt">Optional</span>
+      </div>
+      <p class="card-sub">A public URL to the partner or building logo image (PNG, SVG or JPG)</p>
+      <div class="field">
+        <label class="fl">Logo Image URL</label>
+        <input type="url" id="partner_logo_url" placeholder="https://example.com/building-logo.png" oninput="previewLogo(this.value)">
+        <div class="logo-preview">
+          <img id="logo-img-preview" alt="logo preview">
+          <span class="logo-url-txt" id="logo-url-txt"></span>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl">Logo Separator Style</label>
+        <div class="sep-row">
+          <button class="sep-btn on" id="sep-x" onclick="setSep('x',this)">× Cross</button>
+          <button class="sep-btn" id="sep-bar" onclick="setSep('bar',this)">| Bar</button>
+          <button class="sep-btn" id="sep-none" onclick="setSep('none',this)">None</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 2: Specs ═══ -->
+  <div class="step-page" id="page-1">
+    <div class="section-head">
+      <h2>Building Specifications</h2>
+      <p>Technical building details — plain values or multilingual</p>
+    </div>
+    <div class="card">
+      <div class="frow">
+        <div class="field"><label class="fl">Completion Year</label><input type="text" id="s_comp" placeholder="2025"></div>
+        <div class="field"><label class="fl">Ceiling Height</label><input type="text" id="s_ceil" placeholder="2.9m"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label class="fl">OA Floor</label><input type="text" id="s_oa" placeholder="100mm"></div>
+        <div class="field"><label class="fl">Elevators</label><input type="text" id="s_el" placeholder="6"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label class="fl">Floor Area</label><input type="text" id="s_fa" placeholder="390 tsubo"></div>
+        <div class="field"><label class="fl">Common Area</label><input type="text" id="s_ca" placeholder="60 tsubo"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label class="fl">Access Hours</label><input type="text" id="s_hrs" placeholder="24/7"></div>
+        <div class="field"><label class="fl">Parking</label><input type="text" id="s_park" placeholder="Available"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title" style="margin-bottom:12px">Multilingual Spec Fields</p>
+      <p class="card-sub">These fields often differ per language — fill each tab</p>
+
+      <div class="field"><label class="fl">Structure</label>
+        <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'struct')">EN</button><button class="ltab" onclick="switchLang(this,'struct')">繁體</button><button class="ltab" onclick="switchLang(this,'struct')">简体</button><button class="ltab" onclick="switchLang(this,'struct')">日本語</button></div>
+        <div class="lang-panel on" data-group="struct" data-lang="en"><input type="text" id="struct_en" placeholder="Steel frame, seismic isolation, B3-21F"></div>
+        <div class="lang-panel" data-group="struct" data-lang="zh-hant"><input type="text" id="struct_tc" placeholder="鋼結構，隔震，B3-21樓"></div>
+        <div class="lang-panel" data-group="struct" data-lang="zh-hans"><input type="text" id="struct_sc" placeholder="钢结构，隔震，B3-21层"></div>
+        <div class="lang-panel" data-group="struct" data-lang="ja"><input type="text" id="struct_ja" placeholder="鉄骨造・免震構造、B3〜21階"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field"><label class="fl">AC System</label>
+        <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'ac')">EN</button><button class="ltab" onclick="switchLang(this,'ac')">繁體</button><button class="ltab" onclick="switchLang(this,'ac')">简体</button><button class="ltab" onclick="switchLang(this,'ac')">日本語</button></div>
+        <div class="lang-panel on" data-group="ac" data-lang="en"><input type="text" id="ac_en" placeholder="Block AC, weekdays 9:00–18:00"></div>
+        <div class="lang-panel" data-group="ac" data-lang="zh-hant"><input type="text" id="ac_tc" placeholder="中央空調，平日9:00–18:00"></div>
+        <div class="lang-panel" data-group="ac" data-lang="zh-hans"><input type="text" id="ac_sc" placeholder="中央空调，平日9:00–18:00"></div>
+        <div class="lang-panel" data-group="ac" data-lang="ja"><input type="text" id="ac_ja" placeholder="個別空調、平日9:00〜18:00"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field"><label class="fl">Network</label>
+        <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'net')">EN</button><button class="ltab" onclick="switchLang(this,'net')">繁體</button><button class="ltab" onclick="switchLang(this,'net')">简体</button><button class="ltab" onclick="switchLang(this,'net')">日本語</button></div>
+        <div class="lang-panel on" data-group="net" data-lang="en"><input type="text" id="net_en" placeholder="Free Wi-Fi + dedicated line available"></div>
+        <div class="lang-panel" data-group="net" data-lang="zh-hant"><input type="text" id="net_tc" placeholder="免費Wi-Fi + 專線"></div>
+        <div class="lang-panel" data-group="net" data-lang="zh-hans"><input type="text" id="net_sc" placeholder="免费Wi-Fi + 专线"></div>
+        <div class="lang-panel" data-group="net" data-lang="ja"><input type="text" id="net_ja" placeholder="フリーWi-Fi・専用回線"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field"><label class="fl">Facilities</label>
+        <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'fac')">EN</button><button class="ltab" onclick="switchLang(this,'fac')">繁體</button><button class="ltab" onclick="switchLang(this,'fac')">简体</button><button class="ltab" onclick="switchLang(this,'fac')">日本語</button></div>
+        <div class="lang-panel on" data-group="fac" data-lang="en"><input type="text" id="fac_en" placeholder="Lounge, 3 meeting rooms, phone booths"></div>
+        <div class="lang-panel" data-group="fac" data-lang="zh-hant"><input type="text" id="fac_tc" placeholder="休息室、3間會議室、電話亭"></div>
+        <div class="lang-panel" data-group="fac" data-lang="zh-hans"><input type="text" id="fac_sc" placeholder="休息室、3间会议室、电话亭"></div>
+        <div class="lang-panel" data-group="fac" data-lang="ja"><input type="text" id="fac_ja" placeholder="ラウンジ・会議室3室・フォンブース"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 3: Transport ═══ -->
+  <div class="step-page" id="page-2">
+    <div class="section-head">
+      <h2>Transport Access</h2>
+      <p>Add transport lines per language — each with an icon</p>
+    </div>
+    <div class="card">
+      <div class="lang-tabs">
+        <button class="ltab on" onclick="switchTransportLang(this,'en')">EN</button>
+        <button class="ltab" onclick="switchTransportLang(this,'zh-hant')">繁體</button>
+        <button class="ltab" onclick="switchTransportLang(this,'zh-hans')">简体</button>
+        <button class="ltab" onclick="switchTransportLang(this,'ja')">日本語</button>
+      </div>
+      <div id="tr-panels">
+        <div class="tr-lang-panel on" data-trlang="en">
+          <div class="tr-rows" id="tr-rows-en"></div>
+          <button class="add-btn" onclick="addTrRow('en')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add transport line
+          </button>
+        </div>
+        <div class="tr-lang-panel" data-trlang="zh-hant">
+          <div class="tr-rows" id="tr-rows-zh-hant"></div>
+          <button class="add-btn" onclick="addTrRow('zh-hant')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新增路線
+          </button>
+        </div>
+        <div class="tr-lang-panel" data-trlang="zh-hans">
+          <div class="tr-rows" id="tr-rows-zh-hans"></div>
+          <button class="add-btn" onclick="addTrRow('zh-hans')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            添加路线
+          </button>
+        </div>
+        <div class="tr-lang-panel" data-trlang="ja">
+          <div class="tr-rows" id="tr-rows-ja"></div>
+          <button class="add-btn" onclick="addTrRow('ja')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            交通路線を追加
+          </button>
+        </div>
+      </div>
+      <p class="note" style="margin-top:10px">Available icons: Metro · Train · Bus · Walk · Ferry · Car · Airport</p>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 4: Pricing ═══ -->
+  <div class="step-page" id="page-3">
+    <div class="section-head">
+      <h2>Pricing Rows</h2>
+      <p>Office pricing options — supports multilingual text per cell</p>
+    </div>
+    <div class="card">
+      <div class="pr-rows" id="pr-rows"></div>
+      <button class="add-btn" onclick="addPrRow()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add pricing row
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 5: Amenities & Benefits ═══ -->
+  <div class="step-page" id="page-4">
+    <div class="section-head">
+      <h2>Amenities &amp; Benefits</h2>
+      <p>Toggle which amenity icons and benefits appear on the slide</p>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:6px">Amenity Icons</div>
+      <p class="card-sub">Click to toggle on/off — orange = shown on slide</p>
+      <div class="amen-grid" id="amen-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:6px">Benefits</div>
+      <p class="card-sub">Toggle which bullet points appear in the Benefits section</p>
+      <div class="amen-grid" id="ben-grid"></div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 6: Custom Block ═══ -->
+  <div class="step-page" id="page-5">
+    <div class="section-head">
+      <h2>Custom Info Block</h2>
+      <p>The free-text section shown below Transport on the slide (e.g. 募集概要)</p>
+    </div>
+    <div class="card">
+      <div class="field"><label class="fl">Section Title</label>
+        <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'ctitle')">EN</button><button class="ltab" onclick="switchLang(this,'ctitle')">繁體</button><button class="ltab" onclick="switchLang(this,'ctitle')">简体</button><button class="ltab" onclick="switchLang(this,'ctitle')">日本語</button></div>
+        <div class="lang-panel on" data-group="ctitle" data-lang="en"><input type="text" id="ctitle_en" placeholder="Overview"></div>
+        <div class="lang-panel" data-group="ctitle" data-lang="zh-hant"><input type="text" id="ctitle_tc" placeholder="招募概要"></div>
+        <div class="lang-panel" data-group="ctitle" data-lang="zh-hans"><input type="text" id="ctitle_sc" placeholder="招募概要"></div>
+        <div class="lang-panel" data-group="ctitle" data-lang="ja"><input type="text" id="ctitle_ja" placeholder="募集概要"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="field"><label class="fl">Content <span class="fl-opt">(select text → B or 🟠 for styling)</span></label>
+        <div class="lang-tabs"><button class="ltab on" onclick="switchLang(this,'cbody')">EN</button><button class="ltab" onclick="switchLang(this,'cbody')">繁體</button><button class="ltab" onclick="switchLang(this,'cbody')">简体</button><button class="ltab" onclick="switchLang(this,'cbody')">日本語</button></div>
+        <div class="lang-panel on" data-group="cbody" data-lang="en">
+          <div class="rich-wrap">
+            <div class="rich-bar">
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('bold','cbody_en')"><b>B</b></button>
+              <button class="rich-bar-btn orange" onmousedown="event.preventDefault();richFmt('orange','cbody_en')">● Orange</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('black','cbody_en')" style="color:#333">● Black</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('clear','cbody_en')">✕ Clear</button>
+            </div>
+            <div class="rich-editor" id="cbody_en" contenteditable="true" placeholder="Available from 1 month. Flexible terms and customisable spaces to suit your needs."></div>
+          </div>
+        </div>
+        <div class="lang-panel" data-group="cbody" data-lang="zh-hant">
+          <div class="rich-wrap">
+            <div class="rich-bar">
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('bold','cbody_tc')"><b>B</b></button>
+              <button class="rich-bar-btn orange" onmousedown="event.preventDefault();richFmt('orange','cbody_tc')">● Orange</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('black','cbody_tc')" style="color:#333">● Black</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('clear','cbody_tc')">✕ Clear</button>
+            </div>
+            <div class="rich-editor" id="cbody_tc" contenteditable="true" placeholder="最短1個月起，靈活租用。除刊登區域外，亦可提供其他樓層。"></div>
+          </div>
+        </div>
+        <div class="lang-panel" data-group="cbody" data-lang="zh-hans">
+          <div class="rich-wrap">
+            <div class="rich-bar">
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('bold','cbody_sc')"><b>B</b></button>
+              <button class="rich-bar-btn orange" onmousedown="event.preventDefault();richFmt('orange','cbody_sc')">● Orange</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('black','cbody_sc')" style="color:#333">● Black</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('clear','cbody_sc')">✕ Clear</button>
+            </div>
+            <div class="rich-editor" id="cbody_sc" contenteditable="true" placeholder="最短1个月起，灵活租用。除刊登区域外，亦可提供其他楼层。"></div>
+          </div>
+        </div>
+        <div class="lang-panel" data-group="cbody" data-lang="ja">
+          <div class="rich-wrap">
+            <div class="rich-bar">
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('bold','cbody_ja')"><b>B</b></button>
+              <button class="rich-bar-btn orange" onmousedown="event.preventDefault();richFmt('orange','cbody_ja')">● Orange</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('black','cbody_ja')" style="color:#333">● Black</button>
+              <button class="rich-bar-btn" onmousedown="event.preventDefault();richFmt('clear','cbody_ja')">✕ Clear</button>
+            </div>
+            <div class="rich-editor" id="cbody_ja" contenteditable="true" placeholder="最短1ヶ月からの短期利用、掲載区画以外もご案内可能。お客様ごとのご利用ニーズに合わせて区画をカスタマイズ、ご提案いたします。"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 7: Preview & Download ═══ -->
+  <div class="step-page" id="page-6">
+    <div class="section-head">
+      <h2>JSON Preview</h2>
+      <p>Review your generated JSON — then download or copy</p>
+    </div>
+    <div class="card">
+      <div class="json-preview-wrap">
+        <button class="copy-btn" onclick="copyJSON()">Copy</button>
+        <div class="json-box" id="json-box"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="bottom-bar">
+  <div class="nav-btns">
+    <button class="btn-prev" id="btn-prev" onclick="prevStep()" style="display:none">← Back</button>
+  </div>
+  <div class="nav-btns">
+    <button class="btn-next" id="btn-next" onclick="nextStep()">
+      Continue →
+    </button>
+    <button class="btn-download" id="btn-dl2" style="display:none" onclick="downloadJSON()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+      Download JSON
+    </button>
+  </div>
 </div>
 
 <script>
-const DEFAULTS = {
-  name:"China Building",city:"Hong Kong",floor:"18-19F",
-  address:"29 Queen's Road Central, Central, Hong Kong",
-  page_url:"https://www.compassoffices.com/locations/china-building/",
-  partner_logo_url:"https://example.com/partner-logo.png",
-  logo_separator:"x",
-  transport:[
-    {text:"MTR Central Station — direct access (Exit J2)",iconId:"tr_metro"},
-    {text:"Central Ferry Piers — 5 min walk",iconId:"tr_ferry"}
-  ],
-  specs:{
-    structure:"Steel frame, seismic isolation, B3-21F",completion:"2025",
-    ceiling:"2.9m",floor_area:"390 tsubo",common_area:"60 tsubo",oa:"100mm",
-    elevators:"6",ac:"Block AC, weekdays 9:00–18:00",
-    network:"Free Wi-Fi + dedicated line available",
-    facilities:"Lounge, 3 meeting rooms, phone booths",hours:"24/7",parking:"Available"
-  },
-  amenities:["concierge","lounge","drinks","flexible","deposit","furniture","utilities","access24","norestore"],
-  benefits_on:["concierge","lounge","drinks","flexible","deposit","furniture","utilities","access24","norestore"]
-};
-
-const AMENITY_OPTIONS=[
-  {id:"concierge",label:"Concierge"},{id:"lounge",label:"Lounge"},
-  {id:"drinks",label:"Drinks"},{id:"flexible",label:"Flexible"},
-  {id:"deposit",label:"No Deposit"},{id:"furniture",label:"Furniture"},
-  {id:"utilities",label:"Utilities"},{id:"access24",label:"24/7 Access"},
-  {id:"norestore",label:"No Restore"},{id:"printing",label:"Printing"},
-  {id:"mail",label:"Mail"},{id:"events",label:"Events"},
+// ── DATA STATE ──────────────────────────────────────────────
+const TRANSPORT_ICONS = [
+  {id:'tr_metro', label:'Metro/MTR'},
+  {id:'tr_train', label:'Train/JR'},
+  {id:'tr_bus',   label:'Bus'},
+  {id:'tr_walk',  label:'Walk'},
+  {id:'tr_ferry', label:'Ferry'},
+  {id:'tr_car',   label:'Car'},
+  {id:'tr_airport',label:'Airport'},
 ];
 
-const TRANSPORT_ICONS=[
-  {id:"tr_metro",label:"Metro",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="16" rx="3"/><path d="M8 18l-2 4m10-4l2 4M8 10h8M9 6h6"/></svg>`},
-  {id:"tr_bus",label:"Bus",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h8M3 10h18M7 18h.01M17 18h.01"/><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M5 6V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2"/><circle cx="7" cy="18" r="1.5"/><circle cx="17" cy="18" r="1.5"/></svg>`},
-  {id:"tr_ferry",label:"Ferry",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/><path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.81 7.76"/><path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M12 5v4"/></svg>`},
-  {id:"tr_train",label:"Train",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>`},
-  {id:"tr_tram",label:"Tram",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="12" height="13" rx="2"/><path d="M7 18l-1 3m11-3l1 3M3 11h18M10 2h4"/></svg>`},
-  {id:"tr_walk",label:"Walk",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm1 3-2 4-3 1 2 2-1 4 4-2 1-4 2 1z"/><path d="M10 12l-2 6M17 12l1 5"/></svg>`},
-  {id:"tr_taxi",label:"Taxi",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1L2 11v5h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>`},
-  {id:"tr_bike",label:"Bike",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`},
-  {id:"tr_parking",label:"Park",svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>`},
+const AMENITY_DEFS = [
+  {id:'concierge', label:'Concierge', icon:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'},
+  {id:'lounge',    label:'Lounge',    icon:'M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0zM6 18v4M18 18v4'},
+  {id:'drinks',    label:'Drinks',    icon:'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3'},
+  {id:'flexible',  label:'Flexible',  icon:'M3 4h18v18H3zM16 2v2M8 2v2M3 10h18'},
+  {id:'deposit',   label:'Deposit',   icon:'M2 5h20v14H2zM2 10h20'},
+  {id:'furniture', label:'Furnished', icon:'M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0z'},
+  {id:'utilities', label:'Utilities', icon:'M13 2L3 14h9l-1 8 10-12h-9l1-8z'},
+  {id:'access24',  label:'24/7',      icon:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2'},
+  {id:'phonebooth',label:'Phone Booth',icon:'M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.52 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 3.12 4.2 2 2 0 0 1 5.09 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L9.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z'},
+  {id:'parking',   label:'Parking',   icon:'M6 19V5h7a4 4 0 0 1 0 8H6M6 13h7'},
+  {id:'norestore', label:'No Restore',icon:'M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'},
+  {id:'security',  label:'Security',  icon:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'},
 ];
 
-const SEP_OPTIONS=['x','×','|','/','·','&'];
-let transportItems=[];
-let currentIcoPicker=null;
+const BENEFIT_DEFS = [
+  {id:'concierge', label:'Concierge on-site'},
+  {id:'lounge',    label:'Lounge & meeting rooms'},
+  {id:'drinks',    label:'Coffee, drinks & kitchen'},
+  {id:'flexible',  label:'Flexible contracts'},
+  {id:'deposit',   label:'Refundable deposit'},
+  {id:'furniture', label:'Fully furnished'},
+  {id:'utilities', label:'Utilities included'},
+  {id:'access24',  label:'24-hour access'},
+  {id:'norestore', label:'No restoration required'},
+  {id:'phonebooth',label:'Phone booths'},
+  {id:'parking',   label:'Parking available'},
+  {id:'security',  label:'Security card access'},
+];
 
-function showTab(id,btn){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+let CURRENT_STEP = 0;
+const TOTAL_STEPS = 7;
+let SEP = 'x';
+let TRANSPORT = {en:[], 'zh-hant':[], 'zh-hans':[], ja:[]};
+let AMENITIES_ON = new Set(['concierge','lounge','drinks','flexible','deposit','furniture','utilities','access24','norestore']);
+let BENEFITS_ON  = new Set(['concierge','lounge','drinks','flexible','deposit','furniture','utilities','access24','norestore']);
+let PR_ROWS = [];
+
+// ── INIT ──────────────────────────────────────────────────
+function init(){
+  renderAmenGrid();
+  renderBenGrid();
+  addTrRow('en');
+  updateNav();
+}
+
+// ── STEP NAVIGATION ──────────────────────────────────────
+function goStep(n){
+  document.querySelectorAll('.step-page').forEach((p,i)=>p.classList.toggle('on',i===n));
+  document.querySelectorAll('.step-btn').forEach((b,i)=>{
+    b.classList.remove('active','done');
+    if(i===n) b.classList.add('active');
+    else if(i<n) b.classList.add('done');
+  });
+  CURRENT_STEP = n;
+  if(n===6) renderJSONPreview();
+  window.scrollTo({top:0,behavior:'smooth'});
+  updateNav();
+}
+
+function nextStep(){ if(CURRENT_STEP<TOTAL_STEPS-1) goStep(CURRENT_STEP+1); }
+function prevStep(){ if(CURRENT_STEP>0) goStep(CURRENT_STEP-1); }
+
+function updateNav(){
+  document.getElementById('btn-prev').style.display = CURRENT_STEP>0?'':'none';
+  const isLast = CURRENT_STEP===TOTAL_STEPS-1;
+  document.getElementById('btn-next').style.display = isLast?'none':'';
+  document.getElementById('btn-dl2').style.display  = isLast?'':'none';
+}
+
+// ── LANG TABS ────────────────────────────────────────────
+function switchLang(btn, group){
+  const tabs = btn.parentElement.querySelectorAll('.ltab');
+  const langs = ['en','zh-hant','zh-hans','ja'];
+  const idx = Array.from(tabs).indexOf(btn);
+  tabs.forEach((t,i)=>t.classList.toggle('on',i===idx));
+  // Find panels in parent card
+  const card = btn.closest('.card,.field');
+  card.querySelectorAll(`.lang-panel[data-group="${group}"]`).forEach((p,i)=>p.classList.toggle('on',i===idx));
+}
+
+// ── PARTNER LOGO ──────────────────────────────────────────
+function setSep(v, btn){
+  SEP = v;
+  document.querySelectorAll('.sep-btn').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+}
+
+function previewLogo(url){
+  const img = document.getElementById('logo-img-preview');
+  const txt = document.getElementById('logo-url-txt');
+  if(url){
+    img.src = url;
+    img.style.display = 'block';
+    txt.textContent = url;
+  } else {
+    img.style.display = 'none';
+    txt.textContent = '';
+  }
+}
+
+// ── TRANSPORT ─────────────────────────────────────────────
+function switchTransportLang(btn, lang){
+  btn.parentElement.querySelectorAll('.ltab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  document.getElementById('tab-'+id).classList.add('on');
+  document.querySelectorAll('.tr-lang-panel').forEach(p=>p.classList.toggle('on',p.dataset.trlang===lang));
 }
 
-function buildSepOpts(){
-  const wrap=document.getElementById('sep_opts');
-  wrap.innerHTML='';
-  SEP_OPTIONS.forEach(s=>{
-    const b=document.createElement('button');
-    b.className='sep-opt';b.textContent=s;
-    b.onclick=()=>{wrap.querySelectorAll('.sep-opt').forEach(x=>x.classList.remove('on'));b.classList.add('on');updateJSON();};
-    wrap.appendChild(b);
-  });
+function addTrRow(lang){
+  const row = {id: Date.now()+Math.random(), iconId:'tr_metro', text:''};
+  if(!TRANSPORT[lang]) TRANSPORT[lang]=[];
+  TRANSPORT[lang].push(row);
+  renderTrRows(lang);
 }
-function getSep(){const on=document.querySelector('#sep_opts .sep-opt.on');return on?on.textContent:'x';}
-function setSep(val){document.querySelectorAll('#sep_opts .sep-opt').forEach(b=>b.classList.toggle('on',b.textContent===val));}
 
-function buildAmenityGrid(containerId){
-  const grid=document.getElementById(containerId);grid.innerHTML='';
-  AMENITY_OPTIONS.forEach(opt=>{
-    const item=document.createElement('div');item.className='amen-item';item.dataset.id=opt.id;
-    item.innerHTML=`<svg class="aico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>${opt.label}`;
-    item.onclick=()=>{item.classList.toggle('on');updateJSON();};
-    grid.appendChild(item);
-  });
+function delTrRow(lang, id){
+  TRANSPORT[lang] = TRANSPORT[lang].filter(r=>r.id!==id);
+  renderTrRows(lang);
 }
-function getChecked(containerId){return[...document.querySelectorAll(`#${containerId} .amen-item.on`)].map(el=>el.dataset.id);}
-function setChecked(containerId,values){document.querySelectorAll(`#${containerId} .amen-item`).forEach(el=>el.classList.toggle('on',values.includes(el.dataset.id)));}
 
-function buildIconPicker(){
-  const grid=document.getElementById('icoPickerGrid');grid.innerHTML='';
-  TRANSPORT_ICONS.forEach(ico=>{
-    const opt=document.createElement('div');opt.className='ico-opt';opt.dataset.id=ico.id;
-    opt.innerHTML=`${ico.svg}<span>${ico.label}</span>`;
-    opt.onclick=()=>{
-      if(!currentIcoPicker)return;
-      const idx=parseInt(currentIcoPicker.dataset.idx);
-      transportItems[idx].iconId=ico.id;
-      currentIcoPicker.innerHTML=TRANSPORT_ICONS.find(i=>i.id===ico.id)?.svg||'';
-      grid.querySelectorAll('.ico-opt').forEach(o=>o.classList.remove('sel'));
-      opt.classList.add('sel');closeIconPicker();updateJSON();
-    };
-    grid.appendChild(opt);
-  });
+function renderTrRows(lang){
+  const container = document.getElementById(`tr-rows-${lang}`);
+  if(!container) return;
+  container.innerHTML = (TRANSPORT[lang]||[]).map(row=>`
+    <div class="tr-row">
+      <select onchange="updTr('${lang}',${row.id},'iconId',this.value)">
+        ${TRANSPORT_ICONS.map(ic=>`<option value="${ic.id}"${ic.id===row.iconId?' selected':''}>${ic.label}</option>`).join('')}
+      </select>
+      <input type="text" value="${row.text}" placeholder="Station name, travel time…"
+        oninput="updTr('${lang}',${row.id},'text',this.value)">
+      <button class="tr-del-btn" onclick="delTrRow('${lang}',${row.id})">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`).join('');
 }
-function openIconPicker(btn,idx){
-  const picker=document.getElementById('icoPicker');currentIcoPicker=btn;
-  const rect=btn.getBoundingClientRect();
-  picker.style.top=(rect.bottom+6)+'px';
-  picker.style.left=Math.min(rect.left,window.innerWidth-246)+'px';
-  const curId=transportItems[idx]?.iconId;
-  document.querySelectorAll('.ico-opt').forEach(o=>o.classList.toggle('sel',o.dataset.id===curId));
-  picker.classList.add('open');
-}
-function closeIconPicker(){document.getElementById('icoPicker').classList.remove('open');currentIcoPicker=null;}
-document.addEventListener('click',e=>{if(!e.target.closest('.ico-picker')&&!e.target.closest('.tr-ico-btn'))closeIconPicker();});
 
-function renderTransport(){
-  const list=document.getElementById('transport_list');list.innerHTML='';
-  transportItems.forEach((item,i)=>{
-    const ico=TRANSPORT_ICONS.find(t=>t.id===item.iconId)||TRANSPORT_ICONS[0];
-    const row=document.createElement('div');row.className='tr-row';
-    row.innerHTML=`
-      <button class="tr-ico-btn" data-idx="${i}" onclick="openIconPicker(this,${i})">${ico.svg}</button>
-      <input class="tr-input" type="text" placeholder="e.g. MTR Central — 3 min walk"
-        value="${esc(item.text)}" oninput="transportItems[${i}].text=this.value;updateJSON()">
-      <button class="tr-del" onclick="removeTransport(${i})" title="Remove">
-        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>`;
-    list.appendChild(row);
-  });
+function updTr(lang, id, field, val){
+  const row = (TRANSPORT[lang]||[]).find(r=>r.id===id);
+  if(row) row[field]=val;
 }
-function addTransport(){transportItems.push({text:'',iconId:'tr_metro'});renderTransport();updateJSON();}
-function removeTransport(i){transportItems.splice(i,1);renderTransport();updateJSON();}
 
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function v(id){return document.getElementById(id)?.value||'';}
-function sv(id,val){const el=document.getElementById(id);if(el)el.value=val||'';}
+// ── PRICING ───────────────────────────────────────────────
+function addPrRow(){
+  PR_ROWS.push({id:Date.now()+Math.random(),seats:'',type:'',rent:'',mgmt:'',init:'',avail:''});
+  renderPrRows();
+}
+
+function delPrRow(id){
+  PR_ROWS = PR_ROWS.filter(r=>r.id!==id);
+  renderPrRows();
+}
+
+function updPr(id, field, val){
+  const r = PR_ROWS.find(r=>r.id===id);
+  if(r) r[field]=val;
+}
+
+function renderPrRows(){
+  const c = document.getElementById('pr-rows');
+  if(!PR_ROWS.length){ c.innerHTML='<p style="font-size:13px;color:var(--xlt);padding:8px 0">No pricing rows yet — click Add below.</p>'; return; }
+  c.innerHTML = PR_ROWS.map(r=>`
+    <div class="pr-row-card">
+      <div class="pr-row-head">
+        <span class="pr-row-lbl">Pricing Row</span>
+        <button class="del-btn" onclick="delPrRow(${r.id})">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="frow3" style="margin-bottom:10px">
+        <div class="field"><label class="fl">Seats</label><input type="text" value="${r.seats}" oninput="updPr(${r.id},'seats',this.value)" placeholder="1–5"></div>
+        <div class="field"><label class="fl">Type</label><input type="text" value="${r.type}" oninput="updPr(${r.id},'type',this.value)" placeholder="Window"></div>
+        <div class="field"><label class="fl">Monthly Rent</label><input type="text" value="${r.rent}" oninput="updPr(${r.id},'rent',this.value)" placeholder="HK$4,000/desk"></div>
+      </div>
+      <div class="frow3">
+        <div class="field"><label class="fl">Mgmt Fee</label><input type="text" value="${r.mgmt}" oninput="updPr(${r.id},'mgmt',this.value)" placeholder="HK$500/desk"></div>
+        <div class="field"><label class="fl">Initial Cost</label><input type="text" value="${r.init}" oninput="updPr(${r.id},'init',this.value)" placeholder="3 months deposit"></div>
+        <div class="field"><label class="fl">Available</label><input type="text" value="${r.avail}" oninput="updPr(${r.id},'avail',this.value)" placeholder="Immediate"></div>
+      </div>
+    </div>`).join('');
+}
+
+// ── AMENITY / BENEFIT GRIDS ───────────────────────────────
+function renderAmenGrid(){
+  document.getElementById('amen-grid').innerHTML = AMENITY_DEFS.map(a=>`
+    <div class="amen-chip${AMENITIES_ON.has(a.id)?' on':''}" onclick="toggleAmen('${a.id}',this)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${a.icon}"/></svg>
+      <span>${a.label}</span>
+    </div>`).join('');
+}
+
+function toggleAmen(id, el){
+  if(AMENITIES_ON.has(id)) AMENITIES_ON.delete(id);
+  else AMENITIES_ON.add(id);
+  el.classList.toggle('on', AMENITIES_ON.has(id));
+  el.querySelector('svg').style.color = AMENITIES_ON.has(id)?'var(--o)':'var(--xlt)';
+}
+
+function renderBenGrid(){
+  document.getElementById('ben-grid').innerHTML = BENEFIT_DEFS.map(b=>`
+    <div class="amen-chip${BENEFITS_ON.has(b.id)?' on':''}" onclick="toggleBen('${b.id}',this)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <span>${b.label}</span>
+    </div>`).join('');
+}
+
+function toggleBen(id, el){
+  if(BENEFITS_ON.has(id)) BENEFITS_ON.delete(id);
+  else BENEFITS_ON.add(id);
+  el.classList.toggle('on', BENEFITS_ON.has(id));
+}
+
+// ── RICH TEXT ─────────────────────────────────────────────
+function richFmt(cmd, editorId){
+  const el = document.getElementById(editorId);
+  if(!el) return;
+  el.focus();
+  if(cmd==='bold') document.execCommand('bold',false,null);
+  else if(cmd==='orange') document.execCommand('foreColor',false,'#FF6600');
+  else if(cmd==='black') document.execCommand('foreColor',false,'#333333');
+  else if(cmd==='clear') document.execCommand('removeFormat',false,null);
+}
+
+// ── BUILD JSON ────────────────────────────────────────────
+function g(id){ const el=document.getElementById(id); return el?(el.innerHTML||el.value||'').trim():''; }
+
+function ml(en,tc,sc,ja){
+  // If all the same (or only EN filled), return string. Otherwise return object.
+  const vals = {en,tc,sc,ja};
+  const filled = Object.values(vals).filter(Boolean);
+  if(!filled.length) return '';
+  if(tc==='' && sc==='' && ja==='' && en) return en; // EN only
+  if(filled.every(v=>v===filled[0])) return filled[0]; // all same
+  const obj = {};
+  if(en) obj.en=en; if(tc) obj['zh-hant']=tc; if(sc) obj['zh-hans']=sc; if(ja) obj.ja=ja;
+  return Object.keys(obj).length===1 ? Object.values(obj)[0] : obj;
+}
 
 function buildJSON(){
-  return{
-    name:v('f_name'),city:v('f_city'),floor:v('f_floor'),
-    address:v('f_address'),page_url:v('f_page_url'),
-    partner_logo_url:v('f_partner_logo_url'),logo_separator:getSep(),
-    transport:transportItems.map(t=>({text:t.text,iconId:t.iconId})),
-    specs:{
-      structure:v('s_structure'),completion:v('s_completion'),ceiling:v('s_ceiling'),
-      floor_area:v('s_floor_area'),common_area:v('s_common_area'),oa:v('s_oa'),
-      elevators:v('s_elevators'),ac:v('s_ac'),network:v('s_network'),
-      facilities:v('s_facilities'),hours:v('s_hours'),parking:v('s_parking'),
-    },
-    amenities:getChecked('amenities_grid'),
-    benefits_on:getChecked('benefits_grid'),
-  };
-}
+  const data = {};
 
-function highlight(obj){
-  return JSON.stringify(obj,null,2).replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{
-    if(/^"/.test(m))return/:$/.test(m)?`<span class="jk">${m}</span>`:`<span class="js">${m}</span>`;
-    if(/true|false/.test(m))return`<span class="jb">${m}</span>`;
-    if(/null/.test(m))return`<span class="jnull">${m}</span>`;
-    return`<span class="jn">${m}</span>`;
+  // Name
+  const name = ml(g('name_en'),g('name_tc'),g('name_sc'),g('name_ja'));
+  if(name) data.name = name;
+
+  // City / Floor
+  data.city = document.getElementById('city').value;
+  const floor = g('floor'); if(floor) data.floor = floor;
+
+  // Address
+  const addr = ml(g('addr_en'),g('addr_tc'),g('addr_sc'),g('addr_ja'));
+  if(addr) data.address = addr;
+
+  // URL
+  const url = g('page_url'); if(url) data.page_url = url;
+
+  // Partner logo
+  const logoUrl = g('partner_logo_url');
+  if(logoUrl){ data.partner_logo_url = logoUrl; data.logo_separator = SEP; }
+
+  // Transport — only include langs that have entries
+  const trObj = {};
+  Object.entries(TRANSPORT).forEach(([lang,rows])=>{
+    const valid = rows.filter(r=>r.text.trim());
+    if(valid.length) trObj[lang] = valid.map(r=>({text:r.text.trim(), iconId:r.iconId}));
   });
+  if(Object.keys(trObj).length){
+    // If all langs identical in iconId pattern, simplify
+    const langs = Object.keys(trObj);
+    data.transport = langs.length===1 ? trObj[langs[0]] : trObj;
+  }
+
+  // Specs
+  const specs = {};
+  const sa = (k,id)=>{ const v=g(id); if(v) specs[k]=v; };
+  const saml = (k,en,tc,sc,ja)=>{ const v=ml(g(en),g(tc),g(sc),g(ja)); if(v) specs[k]=v; };
+  saml('structure','struct_en','struct_tc','struct_sc','struct_ja');
+  sa('completion','s_comp'); sa('ceiling','s_ceil'); sa('oa','s_oa');
+  sa('elevators','s_el'); sa('floor_area','s_fa'); sa('common_area','s_ca');
+  sa('hours','s_hrs'); sa('parking','s_park');
+  saml('ac','ac_en','ac_tc','ac_sc','ac_ja');
+  saml('network','net_en','net_tc','net_sc','net_ja');
+  saml('facilities','fac_en','fac_tc','fac_sc','fac_ja');
+  if(Object.keys(specs).length) data.specs = specs;
+
+  // Custom block
+  const ctitle = ml(g('ctitle_en'),g('ctitle_tc'),g('ctitle_sc'),g('ctitle_ja'));
+  if(ctitle) data.custom_title = ctitle;
+  const cbody = ml(
+    document.getElementById('cbody_en')?.innerHTML.trim()||'',
+    document.getElementById('cbody_tc')?.innerHTML.trim()||'',
+    document.getElementById('cbody_sc')?.innerHTML.trim()||'',
+    document.getElementById('cbody_ja')?.innerHTML.trim()||''
+  );
+  if(cbody && cbody!=='<br>') data.custom_body = cbody;
+
+  // Pricing
+  const pricing = PR_ROWS.filter(r=>r.seats||r.rent).map(r=>({
+    seats:r.seats, type:r.type, rent:r.rent, mgmt:r.mgmt, init:r.init, avail:r.avail
+  }));
+  if(pricing.length) data.pricing = pricing;
+
+  // Amenities & Benefits
+  data.amenities   = [...AMENITIES_ON];
+  data.benefits_on = [...BENEFITS_ON];
+
+  return data;
 }
 
-function updateJSON(){
-  const obj=buildJSON();
-  document.getElementById('jsonPreview').innerHTML=highlight(obj);
-  document.getElementById('jsonFilename').textContent=(obj.name||'listing').toLowerCase().replace(/\s+/g,'-')+'.json';
-  document.getElementById('statusPill').textContent='Updated ✓';
+// ── JSON PREVIEW ──────────────────────────────────────────
+function syntaxHL(obj){
+  return JSON.stringify(obj,null,2)
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m=>{
+      let cls='json-num';
+      if(/^"/.test(m)){ cls=/:\s*$/.test(m)?'json-key':'json-str'; }
+      else if(/true|false/.test(m)) cls='json-bool';
+      else if(/null/.test(m)) cls='json-null';
+      return `<span class="${cls}">${m}</span>`;
+    });
+}
+
+function renderJSONPreview(){
+  document.getElementById('json-box').innerHTML = syntaxHL(buildJSON());
+}
+
+function copyJSON(){
+  navigator.clipboard.writeText(JSON.stringify(buildJSON(),null,2)).then(()=>{
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.textContent='Copy',1500);
+  });
 }
 
 function downloadJSON(){
-  const obj=buildJSON();
-  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download=(obj.name||'listing').toLowerCase().replace(/\s+/g,'-')+'.json';a.click();
-  document.getElementById('statusPill').textContent='Downloaded ✓';
-}
-function copyJSON(){
-  navigator.clipboard.writeText(JSON.stringify(buildJSON(),null,2)).then(()=>{
-    const p=document.getElementById('statusPill');p.textContent='Copied!';
-    setTimeout(()=>p.textContent='Updated ✓',1500);
-  });
+  const data = buildJSON();
+  const name = (typeof data.name==='object' ? (data.name.en||Object.values(data.name)[0]) : data.name)||'location';
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${slug}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
-function loadDefaults(data=DEFAULTS){
-  sv('f_name',data.name);sv('f_city',data.city);sv('f_floor',data.floor);
-  sv('f_address',data.address);sv('f_page_url',data.page_url);sv('f_partner_logo_url',data.partner_logo_url);
-  setSep(data.logo_separator||'x');
-  transportItems=(data.transport||[]).map(t=>({...t}));renderTransport();
-  const s=data.specs||{};
-  sv('s_structure',s.structure);sv('s_completion',s.completion);sv('s_ceiling',s.ceiling);
-  sv('s_floor_area',s.floor_area);sv('s_common_area',s.common_area);sv('s_oa',s.oa);
-  sv('s_elevators',s.elevators);sv('s_ac',s.ac);sv('s_network',s.network);
-  sv('s_facilities',s.facilities);sv('s_hours',s.hours);sv('s_parking',s.parking);
-  setChecked('amenities_grid',data.amenities||[]);
-  setChecked('benefits_grid',data.benefits_on||[]);
-  updateJSON();
-}
-
-buildSepOpts();buildAmenityGrid('amenities_grid');buildAmenityGrid('benefits_grid');buildIconPicker();loadDefaults();
+// ── INIT ──────────────────────────────────────────────────
+init();
 </script>
 </body>
 </html>
