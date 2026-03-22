@@ -1078,6 +1078,41 @@ let BENEFITS_ON  = new Set(['concierge','lounge','drinks','flexible','deposit','
 let PR_ROWS = [];
 
 // ── INIT ──────────────────────────────────────────────────
+const LANG_LABELS = {en:'EN',tc:'繁體',sc:'简体',ja:'日本語'};
+const LANG_KEYS   = ['en','tc','sc','ja'];
+const LANG_CODES  = {en:'en',tc:'zh-hant',sc:'zh-hans',ja:'ja'};
+const CUR_LANG_KEY = ()=>({en:'en','zh-hant':'tc','zh-hans':'sc',ja:'ja'}[CURRENT_LANG]||'en');
+
+var SPEC_LABELS = {
+  en:        {lbl_comp:'Completion Year', lbl_ceil:'Ceiling Height', lbl_oa:'OA Floor',
+              lbl_el:'Elevators', lbl_fa:'Floor Area', lbl_ca:'Common Area',
+              lbl_hrs:'Access Hours', lbl_park:'Parking',
+              lbl_struct:'Structure', lbl_ac:'AC System', lbl_net:'Network', lbl_fac:'Facilities'},
+  'zh-hant': {lbl_comp:'竣工年份', lbl_ceil:'天花板高度', lbl_oa:'OA地板',
+              lbl_el:'電梯', lbl_fa:'樓面面積', lbl_ca:'公共區域',
+              lbl_hrs:'使用時間', lbl_park:'停車場',
+              lbl_struct:'結構', lbl_ac:'空調系統', lbl_net:'網絡環境', lbl_fac:'公共設施'},
+  'zh-hans': {lbl_comp:'竣工年份', lbl_ceil:'天花板高度', lbl_oa:'OA地板',
+              lbl_el:'电梯', lbl_fa:'楼面面积', lbl_ca:'公共区域',
+              lbl_hrs:'使用时间', lbl_park:'停车场',
+              lbl_struct:'结构', lbl_ac:'空调系统', lbl_net:'网络环境', lbl_fac:'公共设施'},
+  ja:        {lbl_comp:'竣工年月', lbl_ceil:'天井高', lbl_oa:'OAフロア',
+              lbl_el:'エレベーター', lbl_fa:'基準階面積', lbl_ca:'共用部面積',
+              lbl_hrs:'使用時間', lbl_park:'駐車場',
+              lbl_struct:'構造', lbl_ac:'空調', lbl_net:'ネット環境', lbl_fac:'共用部概要'},
+};
+
+const SPEC_RICH_IDS_B = ['s_comp','s_ceil','s_oa','s_el','s_fa','s_ca','s_hrs','s_park',
+  'struct_en','struct_tc','struct_sc','struct_ja',
+  'ac_en','ac_tc','ac_sc','ac_ja',
+  'net_en','net_tc','net_sc','net_ja',
+  'fac_en','fac_tc','fac_sc','fac_ja'];
+
+const JLIB_KEY = 'cojson_library';
+function getJLib(){ try{return JSON.parse(localStorage.getItem(JLIB_KEY)||'[]');}catch{return[];} }
+function saveJLib(lib){ localStorage.setItem(JLIB_KEY, JSON.stringify(lib)); }
+let LIB_ALL = getJLib();
+
 function init(){
   renderAmenGrid();
   renderBenGrid();
@@ -1188,10 +1223,6 @@ function updTrText(id, lang, val){
   const r = TRANSPORT.find(r=>r.id===id); if(r) r.texts[lang]=val;
 }
 
-const LANG_LABELS = {en:'EN',tc:'繁體',sc:'简体',ja:'日本語'};
-const LANG_KEYS   = ['en','tc','sc','ja'];
-const LANG_CODES  = {en:'en',tc:'zh-hant',sc:'zh-hans',ja:'ja'};
-const CUR_LANG_KEY = ()=>({en:'en','zh-hant':'tc','zh-hans':'sc',ja:'ja'}[CURRENT_LANG]||'en');
 
 function renderTrList(){
   const c2 = document.getElementById('tr-unified-list');
@@ -1339,11 +1370,6 @@ function richFmt(cmd, editorId){
 }
 
 // ── BUILD JSON ────────────────────────────────────────────
-const SPEC_RICH_IDS_B = ['s_comp','s_ceil','s_oa','s_el','s_fa','s_ca','s_hrs','s_park',
-  'struct_en','struct_tc','struct_sc','struct_ja',
-  'ac_en','ac_tc','ac_sc','ac_ja',
-  'net_en','net_tc','net_sc','net_ja',
-  'fac_en','fac_tc','fac_sc','fac_ja'];
 function g(id){
   const el = document.getElementById(id);
   if(!el) return '';
@@ -1678,24 +1704,13 @@ async function loadFromJsonFolder(){
   }
 }
 
-// ── LIVE JSON PREVIEW ────────────────────────────────────────
-function renderJSONPreview(){
-  const box = document.getElementById('json-box');
-  if(!box) return;
-  box.innerHTML = syntaxHL(buildJSON());
-}
-
 // Auto-update preview on any input/change in the form
 document.addEventListener('input',  ()=>renderJSONPreview());
 document.addEventListener('change', ()=>renderJSONPreview());
 document.addEventListener('click',  ()=>setTimeout(renderJSONPreview, 50));
 
 // ── JSON LIBRARY (server + uploaded files) ─────────────────
-const JLIB_KEY = 'cojson_library';
-function getJLib(){ try{return JSON.parse(localStorage.getItem(JLIB_KEY)||'[]');}catch{return[];} }
-function saveJLib(lib){ localStorage.setItem(JLIB_KEY, JSON.stringify(lib)); }
 
-let LIB_ALL = getJLib();
 
 function toggleLibDropdown(){
   const dd = document.getElementById('lib-dropdown');
@@ -1823,24 +1838,6 @@ function downloadIndexJson(){
 
 
 // ── SPEC FIELD LABELS per language ─────────────────────────
-var SPEC_LABELS = {
-  en:        {lbl_comp:'Completion Year', lbl_ceil:'Ceiling Height', lbl_oa:'OA Floor',
-              lbl_el:'Elevators', lbl_fa:'Floor Area', lbl_ca:'Common Area',
-              lbl_hrs:'Access Hours', lbl_park:'Parking',
-              lbl_struct:'Structure', lbl_ac:'AC System', lbl_net:'Network', lbl_fac:'Facilities'},
-  'zh-hant': {lbl_comp:'竣工年份', lbl_ceil:'天花板高度', lbl_oa:'OA地板',
-              lbl_el:'電梯', lbl_fa:'樓面面積', lbl_ca:'公共區域',
-              lbl_hrs:'使用時間', lbl_park:'停車場',
-              lbl_struct:'結構', lbl_ac:'空調系統', lbl_net:'網絡環境', lbl_fac:'公共設施'},
-  'zh-hans': {lbl_comp:'竣工年份', lbl_ceil:'天花板高度', lbl_oa:'OA地板',
-              lbl_el:'电梯', lbl_fa:'楼面面积', lbl_ca:'公共区域',
-              lbl_hrs:'使用时间', lbl_park:'停车场',
-              lbl_struct:'结构', lbl_ac:'空调系统', lbl_net:'网络环境', lbl_fac:'公共设施'},
-  ja:        {lbl_comp:'竣工年月', lbl_ceil:'天井高', lbl_oa:'OAフロア',
-              lbl_el:'エレベーター', lbl_fa:'基準階面積', lbl_ca:'共用部面積',
-              lbl_hrs:'使用時間', lbl_park:'駐車場',
-              lbl_struct:'構造', lbl_ac:'空調', lbl_net:'ネット環境', lbl_fac:'共用部概要'},
-};
 
 function applySpecLabels(){
   const lbls = SPEC_LABELS[CURRENT_LANG] || SPEC_LABELS.en;
@@ -1848,6 +1845,7 @@ function applySpecLabels(){
     el.textContent = lbls[el.dataset.specLbl] || el.textContent;
   });
 }
+
 
 </script>
 </body>
