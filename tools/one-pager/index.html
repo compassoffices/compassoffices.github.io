@@ -283,6 +283,12 @@ select{appearance:none;
 }
 .spec-rb:hover{border-color:var(--o);color:var(--o);}
 .spec-rb.orange{color:var(--o);border-color:var(--o);}
+
+/* Rich editors — consistent line height */
+.spec-rich-editor,.rich-editor,.tr-rich-editor{
+  white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;
+}
+
 .spec-rich-editor{
   padding:5px 9px;border:1px solid var(--bd);border-radius:6px;
   font-size:11.5px;font-family:inherit;color:var(--drk);
@@ -468,9 +474,9 @@ select{appearance:none;
 
 /* Spec cards */
 .sl-specs-grid{display:grid;gap:calc(var(--fs)*0.14) calc(var(--fs)*0.18);}
-.sl-spec-card{display:flex;flex-direction:column;gap:1px;
+.sl-spec-card{display:flex;flex-direction:column;gap:1px;min-width:0;
   padding:calc(var(--fs)*0.2) calc(var(--fs)*0.28);
-  background:#F7F7F7;border-radius:4px;border:1px solid #ECECEC;min-width:0;overflow:hidden;}
+  background:#F7F7F7;border-radius:4px;border:1px solid #ECECEC;overflow:hidden;}
 .sl-spec-lbl{font-size:calc(var(--fs)*0.52);font-weight:700;color:#C8C8C8;
   text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
 .sl-spec-val{font-size:calc(var(--fs)*0.85);font-weight:500;color:var(--drk);
@@ -2276,15 +2282,54 @@ function gen(){
   else if (nSpecs<=8 && nPricing<=2)              {cols=3;sizeKey='sm';}
   else                                             {cols=4;sizeKey='xs';}
 
-  const specGridHTML = specRows.length ? `
-    <div class="sl-specs-grid" data-size="${sizeKey}"
-         style="grid-template-columns:repeat(${cols},1fr)">
-      ${specRows.map(s=>`
-        <div class="sl-spec-card">
+  // Smart spec grid — height-aware packing
+  const stripTags = h => (h||'').replace(/<[^>]*>/g,'');
+
+  const specGridHTML = specRows.length ? (()=>{
+    // Estimate rendered line count for each card value
+    // charsPerLine depends on col width; narrower cols = fewer chars
+    const charsPerLine = cols <= 2 ? 28 : cols === 3 ? 20 : 16;
+    const estLines = s => {
+      const raw = stripTags(s.v);
+      // Count explicit <br> as extra lines
+      const brLines = (s.v.match(/<br\s*\/?>/gi)||[]).length;
+      return Math.ceil(raw.length / charsPerLine) + brLines;
+    };
+
+    // Assign row-span: cards with 3+ estimated lines get row-span 2
+    // Cards with 5+ lines get row-span 3 (capped at 3)
+    const withSpan = specRows.map(s => {
+      const lines = estLines(s);
+      let rowSpan = 1;
+      if(cols >= 2 && lines >= 3) rowSpan = 2;
+      if(cols >= 2 && lines >= 5) rowSpan = 3;
+      return {...s, lines, rowSpan};
+    });
+
+    // Build grid: place cards into a cols-wide grid tracking row heights
+    // Use a column-height tracker so short cards fill gaps beside tall ones
+    const colHeights = new Array(cols).fill(0);
+    const placed = withSpan.map(s => {
+      // Find the column with minimum height
+      const minH = Math.min(...colHeights);
+      const col  = colHeights.indexOf(minH);
+      const row  = colHeights[col];
+      colHeights[col] += s.rowSpan;
+      return {...s, gridCol: col+1, gridRow: row+1};
+    });
+
+    // Total rows needed
+    const totalRows = Math.max(...colHeights);
+
+    return `<div class="sl-specs-grid" data-size="${sizeKey}"
+         style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${totalRows},auto)">
+      ${placed.map(s=>`
+        <div class="sl-spec-card" style="grid-column:${s.gridCol};grid-row:${s.gridRow}${s.rowSpan>1?` / span ${s.rowSpan}`:''}">
           <div class="sl-spec-lbl">${s.k}</div>
           <div class="sl-spec-val">${s.v}</div>
         </div>`).join('')}
-    </div>` : '';
+    </div>`;
+  })() : '';
 
   const fpFlex = nPricing>=3?'0 0 32%':nPricing>=1?'0 0 38%':'0 0 44%';
 
@@ -2659,6 +2704,60 @@ document.addEventListener('click', e => {
       }
     }, 120);
   }
+});
+
+// ── RICH EDITOR: controlled Enter key & clean paste ──────────
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if(!el.isContentEditable) return;
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    // Insert <br> then a zero-width text node so cursor lands after it
+    const sel = window.getSelection();
+    if(!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const br = document.createElement('br');
+    range.insertNode(br);
+    // Insert a trailing <br> if this is the last node (so cursor appears on new line)
+    if(!br.nextSibling || (br.nextSibling.nodeType===3 && br.nextSibling.textContent==='')) {
+      const trail = document.createElement('br');
+      br.parentNode.insertBefore(trail, br.nextSibling);
+    }
+    range.setStartAfter(br);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    // Trigger gen for onepager
+    if(typeof gen === 'function') gen();
+    if(typeof renderJSONPreview === 'function') renderJSONPreview();
+  }
+});
+
+// Clean paste — strip HTML tags, keep plain text + line breaks
+document.addEventListener('paste', e => {
+  const el = e.target;
+  if(!el.isContentEditable) return;
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if(!text) return;
+  const sel = window.getSelection();
+  if(!sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  // Insert text with line breaks preserved as <br>
+  const lines = text.split(/\r?\n/);
+  const frag = document.createDocumentFragment();
+  lines.forEach((line, i) => {
+    if(i > 0) frag.appendChild(document.createElement('br'));
+    if(line) frag.appendChild(document.createTextNode(line));
+  });
+  range.insertNode(frag);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  if(typeof gen === 'function') gen();
+  if(typeof renderJSONPreview === 'function') renderJSONPreview();
 });
 
 // ── MOBILE PREVIEW TOGGLE ──────────────────────────────────
