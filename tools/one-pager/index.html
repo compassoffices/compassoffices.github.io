@@ -222,6 +222,16 @@ select{appearance:none;
 .tr-input{flex:1;border:none;background:transparent;font-family:inherit;
           font-size:12.5px;color:var(--drk);outline:none;padding:0;min-width:0;}
 .tr-input::placeholder{color:var(--xlt);}
+.tr-rich-mini{display:flex;gap:2px;flex-shrink:0;}
+.tr-rich-editor{width:100%;padding:5px 9px;border:1px solid var(--bd);border-radius:6px;
+  font-size:12.5px;font-family:inherit;color:var(--drk);
+  background:var(--wh);outline:none;line-height:1.5;min-height:30px;
+  transition:border-color .15s;}
+.tr-rich-editor:focus{border-color:var(--o);}
+.tr-rich-editor:empty:before{content:attr(placeholder);color:var(--xlt);pointer-events:none;}
+.tr-rich-editor b{font-weight:700;}
+.tr-rich-editor small{font-size:.75em;color:var(--lt);}
+.tr-rich-editor [style*="color"]{color:#FF6600;}
 .tr-del{width:18px;height:18px;background:transparent;border:none;
         color:var(--xlt);cursor:pointer;display:flex;align-items:center;
         justify-content:center;flex-shrink:0;border-radius:3px;
@@ -477,6 +487,9 @@ select{appearance:none;
 .sl-trans{display:flex;align-items:center;gap:calc(var(--fs)*0.38);padding:calc(var(--fs)*0.15) 0;}
 .sl-ticon{width:calc(var(--fs)*1.15);height:calc(var(--fs)*1.15);flex-shrink:0;color:var(--o);}
 .sl-trans-txt{font-size:calc(var(--fs)*0.82);color:var(--mid);line-height:1.35;}
+.sl-trans-txt b{font-weight:700;color:var(--drk);}
+.sl-trans-txt small{font-size:.8em;color:var(--lt);}
+.sl-trans-txt [style*="color"]{color:#FF6600 !important;}
 
 /* Amenity icons */
 .sl-icon-grid{display:flex;flex-wrap:wrap;gap:calc(var(--fs)*0.2);}
@@ -1450,10 +1463,9 @@ function initTransport(lines){
 function addTransport(text='', iconId='tr_metro'){
   TRANSPORT.push({id:'tr_'+Date.now(), iconId, text});
   renderTransport();
-  // focus new input
   setTimeout(()=>{
-    const inputs = document.querySelectorAll('#tr-list .tr-input');
-    if(inputs.length) inputs[inputs.length-1].focus();
+    const editors = document.querySelectorAll('#tr-list .tr-rich-editor');
+    if(editors.length) editors[editors.length-1].focus();
   }, 40);
 }
 
@@ -1464,23 +1476,54 @@ function renderTransport(){
   if(!list) return;
   list.innerHTML = TRANSPORT.map((t)=>{
     const iconSvg = IC[t.iconId] || IC.tr_metro;
-    const safe = (t.text||'').replace(/"/g,'&quot;');
+    const eid = 'tr-ed-'+t.id;
     return `
-    <div class="tr-row">
-      <button class="tr-ico-btn" onclick="openTrPicker('${t.id}',this)" title="Change icon">${iconSvg}</button>
-      <input class="tr-input" oninput="gen()" type="text" value="${safe}"
-             oninput="updateTr('${t.id}',this.value)"
-             placeholder="e.g. MTR Central — 2 min walk">
-      <button class="tr-del" onclick="delTransport('${t.id}')">
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
+    <div class="tr-row" style="flex-direction:column;align-items:stretch;gap:5px;padding:8px 10px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="tr-ico-btn" onclick="openTrPicker('${t.id}',this)" title="Change icon">${iconSvg}</button>
+        <div class="tr-rich-mini">
+          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('bold','${eid}')"><b>B</b></button>
+          <button class="spec-rb orange" onmousedown="event.preventDefault();trRichOp('orange','${eid}')">●</button>
+          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('black','${eid}')" style="color:#333">●</button>
+          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('small','${eid}')" style="color:var(--lt)">S↓</button>
+          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('clear','${eid}')">✕</button>
+        </div>
+        <button class="tr-del" onclick="delTransport('${t.id}')">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="tr-rich-editor" id="${eid}" contenteditable="true"
+           data-tr-id="${t.id}"
+           oninput="updateTrHtml('${t.id}',this);gen();"
+           placeholder="e.g. MTR Central — 2 min walk">${t.text||''}</div>
     </div>`;
   }).join('');
 }
 
+function updateTrHtml(id, el){
+  const t=TRANSPORT.find(t=>t.id===id);
+  if(t){ let h=(el.innerHTML||'').trim(); if(h==='<br>')h=''; t.text=h; }
+}
 function updateTr(id, val){ const t=TRANSPORT.find(t=>t.id===id); if(t) t.text=val; }
+
+function trRichOp(cmd, editorId){
+  const el=document.getElementById(editorId); if(!el) return;
+  el.focus();
+  if(cmd==='bold')        document.execCommand('bold',false,null);
+  else if(cmd==='orange') document.execCommand('foreColor',false,'#FF6600');
+  else if(cmd==='black')  document.execCommand('foreColor',false,'#333333');
+  else if(cmd==='clear')  document.execCommand('removeFormat',false,null);
+  else if(cmd==='small'){
+    const sel=window.getSelection();
+    if(sel&&sel.rangeCount&&!sel.isCollapsed){
+      const range=sel.getRangeAt(0);
+      const small=document.createElement('small');
+      try{range.surroundContents(small);}
+      catch(e){const frag=range.extractContents();small.appendChild(frag);range.insertNode(small);}
+    }
+  }
+  updateTrHtml(el.dataset.trId, el); gen();
+}
 
 // Transport icon picker (reuses the same popover, different list)
 let _trPickerId = null;
@@ -2195,7 +2238,7 @@ function gen(){
   const city   = g('city')||'Hong Kong';
   const floor  = g('floor');
   const purl   = g('purl');
-  const trLines= TRANSPORT.filter(t=>t.text.trim());
+  const trLines= TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
 
   const specRows=[
     g('s-struct') && {k:sl('struct'), v:g('s-struct')},
