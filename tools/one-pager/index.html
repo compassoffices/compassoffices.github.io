@@ -2117,6 +2117,28 @@ function applyLocationData(p){
     BENEFITS.forEach(b=>{ b.on = p.benefits_on.includes(b.id); });
     renderBenefits();
   }
+
+  // Photos from URL array
+  if(p.photos?.length){
+    S.photos = [];
+    const thumbs = document.getElementById('ph-thumbs');
+    if(thumbs) thumbs.innerHTML = '';
+    p.photos.slice(0,3).forEach((url,i)=>{
+      S.photos[i] = url;
+      if(thumbs){
+        const d = document.createElement('div'); d.className='thumb';
+        d.innerHTML=`<img src="${url}" onerror="this.style.opacity='.3'"><button class="trm" onclick="rmPhoto(${i})">✕</button>`;
+        thumbs.appendChild(d);
+      }
+    });
+  }
+
+  // Floor plan from URL
+  if(p.floorplan_url){
+    S.floorplan = p.floorplan_url;
+    const prev = document.getElementById('fp-prev');
+    if(prev) prev.innerHTML = `<img src="${p.floorplan_url}" style="max-height:80px;border-radius:6px;border:1px solid var(--bd);" onerror="this.style.opacity='.3'">`;
+  }
 }
 
 // ── HELPERS ──────────────────────────────────────────────
@@ -2221,7 +2243,7 @@ function gen(){
 
   // ── Build shared top bar HTML (reused for both pages) ──
   const topBarHTML=(pg)=>`
-  <div class="${pg===2?'p2-top':'sl-top'}">
+  <div class="${pg===2?'p2-top':'sl-top'}" data-edit="loc:n-main" data-edit-hint="✏️ Edit name &amp; address">
     <div class="sl-logos">
       <div class="sl-cologo">
         <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ob.svg"
@@ -2256,7 +2278,7 @@ function gen(){
   <div class="sl-body">
 
     <!-- LEFT: 3 equal stacked photos + amenity icon grid -->
-    <div class="sl-photos">
+    <div class="sl-photos" data-edit="media:ph-up" data-edit-hint="📷 Upload photos">
       <div class="sl-ph-stack" style="flex:${photoAreaFlex}">
         <div class="sl-ph-cell">
           ${S.photos[0]?`<img src="${S.photos[0]}">`:`${noph()}`}
@@ -2269,7 +2291,7 @@ function gen(){
         </div>
       </div>
       ${amenChecked.length?`
-      <div class="sl-amen-below">
+      <div class="sl-amen-below" data-edit="price:amen-grid" data-edit-hint="✏️ Edit amenities">
         <div class="sl-amen-below-grid">
           ${amenChecked.map(a=>`
             <div class="sl-amen-cell" title="${amenLabel(a)}">
@@ -2281,7 +2303,7 @@ function gen(){
     </div>
 
     <!-- CENTRE: Specs + transport only -->
-    <div class="sl-specs">
+    <div class="sl-specs" data-edit="specs:s-struct" data-edit-hint="✏️ Edit building specs">
       <div class="sl-specs-inner">
         ${specRows.length?`
         <div class="sl-section ${trLines.length?'shrink':'grow'}">
@@ -2290,7 +2312,7 @@ function gen(){
         </div>`:''}
         ${trLines.length?`
         <div class="sl-section shrink">
-          <div class="sl-sec">${sl('transport')}</div>
+          <div class="sl-sec" data-edit="loc:tr-list" data-edit-hint="✏️ Edit transport">${sl('transport')}</div>
           <div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">
             ${trLines.map(t=>{
               const iconInner=(IC[t.iconId]||IC.tr_metro).match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||'';
@@ -2303,7 +2325,7 @@ function gen(){
         </div>`:''}
         ${(g('custom-title')||(document.getElementById('custom-body-editor')?.innerHTML||'').trim())?`
         <div class="sl-section shrink">
-          <div class="sl-custom-block">
+          <div class="sl-custom-block" data-edit="loc:custom-title" data-edit-hint="✏️ Edit custom block">
             ${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''}
             ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}
           </div>
@@ -2313,7 +2335,7 @@ function gen(){
 
     <!-- RIGHT: Floor plan + Benefits below -->
     <div class="sl-right">
-      <div class="sl-fp" style="flex:${fpFlex}">
+      <div class="sl-fp" style="flex:${fpFlex}" data-edit="media:fp-up" data-edit-hint="📐 Upload floor plan">
         ${S.floorplan
           ?`<img src="${S.floorplan}" style="width:100%;height:100%;object-fit:contain;display:block;">`
           :`<div class="sl-fp-ph">
@@ -2327,7 +2349,7 @@ function gen(){
            </div>`}
       </div>
       ${checked.length?`
-      <div class="sl-merits-wrap">
+      <div class="sl-merits-wrap" data-edit="price:ben-list" data-edit-hint="✏️ Edit benefits">
         <div class="sl-merits-ttl">${bTitle}</div>
         <ul class="sl-merits">
           ${checked.map(b=>{
@@ -2352,7 +2374,7 @@ function gen(){
   </div>
 
   <!-- FOOTER: Pricing -->
-  <div class="sl-foot">
+  <div class="sl-foot" data-edit="price:pr-rows" data-edit-hint="✏️ Edit pricing">
     ${S.rows.length?`
     <table class="sl-ptbl">
       <thead><tr>
@@ -2536,6 +2558,39 @@ updateLibStatus();
 })();
 addTransport('MTR Central Station — direct access','tr_metro');
 addTransport('Central Ferry Piers — 3 min walk','tr_ferry');
+// ── CLICK-TO-EDIT: click any slide region → jump to tab & field ──
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-edit]');
+  if(!el) return;
+  // Only handle clicks inside .slide or .slide2
+  if(!el.closest('#slide,#slide2')) return;
+  const [tab, fieldId] = (el.dataset.edit||'').split(':');
+  if(!tab) return;
+  // Open the tab
+  openTab(tab);
+  // Scroll sidebar to top of that panel
+  const panel = document.getElementById('p-'+tab);
+  if(panel) panel.scrollTop = 0;
+  // Scroll to and flash the target field
+  if(fieldId){
+    setTimeout(()=>{
+      const target = document.getElementById(fieldId);
+      if(!target) return;
+      target.scrollIntoView({behavior:'smooth', block:'center'});
+      // Flash orange
+      const wrap = target.closest('.field,.tr-list,.ben-list,.amen-grid,.pr-row,div') || target;
+      const flashEl = target.closest('.field') || target;
+      flashEl.classList.remove('edit-flash');
+      void flashEl.offsetWidth; // reflow
+      flashEl.classList.add('edit-flash');
+      // Focus if it's an input
+      if(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.contentEditable==='true'){
+        setTimeout(()=>target.focus(), 300);
+      }
+    }, 120);
+  }
+});
+
 </script>
 </body>
 </html>
