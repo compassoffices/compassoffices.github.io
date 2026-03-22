@@ -258,7 +258,25 @@ select{appearance:none;
 .pr-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
 .pr-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--xlt);}
 
-/* Mobile preview toggle button */
+/* ── CO CUSTOM ICONS ── */
+img.co-icon-img{
+  filter:brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
+  display:block;
+}
+.sl-amen-cell img.co-icon-img,
+.sl-icell img.co-icon-img,
+.p2-amen-cell img.co-icon-img,
+.sl-ticon-img{
+  width:calc(var(--fs)*1.05);height:calc(var(--fs)*1.05);flex-shrink:0;
+  filter:brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
+}
+.sl-merit img.co-icon-img{
+  width:calc(var(--fs)*0.85);height:calc(var(--fs)*0.85);flex-shrink:0;
+  filter:brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
+}
+.sl-ticon-img{
+  width:calc(var(--fs)*0.9)!important;height:calc(var(--fs)*0.9)!important;
+}
 .mob-preview-btn{
   display:none;
   padding:10px 16px;border:1.5px solid var(--bd);border-radius:8px;
@@ -453,7 +471,7 @@ select{appearance:none;
   display:flex;flex-direction:column;align-items:center;gap:2px;
   overflow:hidden;
 }
-.sl-amen-cell svg{
+.sl-amen-cell svg,.sl-amen-cell img{
   width:calc(var(--fs)*1.05);height:calc(var(--fs)*1.05);color:var(--o);flex-shrink:0;
 }
 .sl-amen-cell span{
@@ -501,7 +519,7 @@ select{appearance:none;
 /* Amenity icons */
 .sl-icon-grid{display:flex;flex-wrap:wrap;gap:calc(var(--fs)*0.2);}
 .sl-icell{display:flex;flex-direction:column;align-items:center;gap:3px;width:calc(11.1% - calc(var(--fs)*0.2));}
-.sl-icell svg{width:calc(var(--fs)*1.1);height:calc(var(--fs)*1.1);color:var(--o);}
+.sl-icell svg,.sl-icell img{width:calc(var(--fs)*1.1);height:calc(var(--fs)*1.1);color:var(--o);}
 .sl-icell span{font-size:calc(var(--fs)*0.48);color:var(--xlt);text-align:center;line-height:1.2;word-break:break-word;}
 
 /* Right col */
@@ -517,7 +535,7 @@ select{appearance:none;
 .sl-merits{list-style:none;display:flex;flex-direction:column;gap:calc(var(--fs)*0.18);
   flex:1;overflow:hidden;min-height:0;}
 .sl-merit{display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:visible;flex-shrink:0;}
-.sl-merit svg{width:calc(var(--fs)*0.85);height:calc(var(--fs)*0.85);flex-shrink:0;color:var(--o);}
+.sl-merit svg,.sl-merit img{width:calc(var(--fs)*0.85);height:calc(var(--fs)*0.85);flex-shrink:0;color:var(--o);}
 .sl-merit span{flex:1;color:var(--mid);line-height:1.3;white-space:nowrap;overflow:visible;}
 
 /* Custom info block (募集概要 etc.) */
@@ -615,7 +633,7 @@ select{appearance:none;
 .p2-amen-cell{
   display:flex;flex-direction:column;align-items:center;gap:2px;overflow:hidden;
 }
-.p2-amen-cell svg{width:calc(var(--fs)*1.0);height:calc(var(--fs)*1.0);color:var(--o);}
+.p2-amen-cell svg,.p2-amen-cell img{width:calc(var(--fs)*1.0);height:calc(var(--fs)*1.0);color:var(--o);}
 .p2-amen-cell span{
   font-size:calc(var(--fs)*0.42);color:var(--xlt);
   text-align:center;line-height:1.2;white-space:normal;word-break:break-word;width:100%;
@@ -1745,6 +1763,23 @@ const IC_LIST = [
 // Full icon list includes CO icons
 const ALL_ICONS_LIST = [...IC_LIST, ...CO_ICONS];
 
+// Returns full icon HTML for a benefit — handles both SVG and CO img
+function getBenIconHtml(b){
+  const id = b.iconId !== undefined ? b.iconId : b.id;
+  const html = renderIcHtml(id);
+  if(!html){
+    // fallback tick
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  }
+  // CO icon — already an <img>
+  if(html.startsWith('<img')){
+    return html;
+  }
+  // Built-in SVG — extract inner and re-wrap (preserves sizing via CSS)
+  const inner = html.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1] || '';
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+}
+
 function getBenIcon(b){
   const id = b.iconId !== undefined ? b.iconId : b.id;
   return (id && (renderIcHtml(id)||IC[id]||'')) ? (renderIcHtml(id)||IC[id]||'') : TICK_SVG;
@@ -2508,9 +2543,13 @@ function gen(){
           <div class="sl-sec" data-edit="loc:tr-list" data-edit-hint="Edit transport">${sl('transport')}</div>
           <div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">
             ${trLines.map(t=>{
-              const iconInner=((renderIcHtml(t.iconId)||IC[t.iconId]||'')||IC.tr_metro).match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||'';
+              const trIconHtml = renderIcHtml(t.iconId) || IC[t.iconId] || IC.tr_metro;
+              const trIsImg = trIconHtml.startsWith('<img');
+              const trIconEl = trIsImg
+                ? trIconHtml.replace('co-icon-img', 'co-icon-img sl-ticon-img')
+                : `<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;
               return `<div class="sl-trans">
-                <svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${iconInner}</svg>
+                ${trIconEl}
                 <span class="sl-trans-txt">${t.text}</span>
               </div>`;
             }).join('')}
@@ -2546,7 +2585,6 @@ function gen(){
         <div class="sl-merits-ttl">${bTitle}</div>
         <ul class="sl-merits">
           ${checked.map(b=>{
-            const inner=getBenIcon(b).match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||'';
             // Scale font down for longer text — keep to single line
             // Base 0.82em. At ~40 chars starts shrinking. At 80+ chars hits min 0.52em.
             const len = b.text.length;
@@ -2555,8 +2593,9 @@ function gen(){
                          : len <= 62 ? 0.65
                          : len <= 75 ? 0.58
                          : 0.52;
+            const iconHtml = getBenIconHtml(b);
             return `<li class="sl-merit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>
+              ${iconHtml}
               <span style="font-size:calc(var(--fs)*${fScale})">${b.text}</span>
             </li>`;
           }).join('')}
@@ -2664,6 +2703,12 @@ function printSlide(){
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 ${allCss}
+
+/* CO icon filter for print */
+img.co-icon-img{
+  filter: brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
+  display:block;
+}
 
 /* ═══ PRINT OVERRIDES — always last, always win ═══ */
 @page { size: A4 landscape; margin: 0; }
