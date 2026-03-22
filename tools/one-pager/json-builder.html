@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compass Offices — Location JSON Builder</title>
-  <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -381,6 +380,7 @@ select{appearance:none;
 }
 .spec-rb:hover{border-color:var(--o);color:var(--o);}
 .spec-rb.orange{color:var(--o);border-color:var(--o);}
+.spec-rb-editor{white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;}
 .spec-rb-editor{
   padding:5px 9px;border:1.5px solid var(--bd);border-radius:7px;
   font-size:12px;font-family:inherit;color:var(--drk);
@@ -400,6 +400,19 @@ select{appearance:none;
 .glbtn.on{background:var(--wh);color:var(--o);box-shadow:0 1px 4px rgba(0,0,0,.1);}
 
 /* ── TRANSPORT new style ── */
+
+/* Transport icon picker button */
+.tr-ico-pick-btn{
+  flex-shrink:0;width:40px;height:40px;
+  border:1.5px solid var(--bd);border-radius:8px;
+  background:var(--wh);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;padding:0;
+}
+.tr-ico-pick-btn:hover{border-color:var(--o);background:var(--olt);}
+.tr-ico-pick-btn img.co-icon-img{width:22px;height:22px;}
+.tr-ico-pick-btn svg{width:22px;height:22px;color:var(--o);}
+
 .tr-unified-row{
   border:1.5px solid var(--bd);border-radius:10px;padding:12px 14px;
   margin-bottom:10px;background:var(--bg);
@@ -416,9 +429,47 @@ select{appearance:none;
 .tr-lang-row input{flex:1;font-size:12px;padding:5px 9px;}
 .tr-rich-wrap{flex:1;display:flex;flex-direction:column;gap:3px;}
 .tr-rich-bar{display:flex;gap:2px;flex-wrap:wrap;}
+
+/* ── CO CUSTOM ICONS ── */
+.co-icon-img{
+  filter: invert(42%) sepia(93%) saturate(1352%) hue-rotate(1deg) brightness(104%) contrast(103%);
+  display:block;
+}
+.amen-chip img.co-icon-img{width:18px;height:18px;}
+.amen-chip.on img.co-icon-img{filter: invert(42%) sepia(93%) saturate(1352%) hue-rotate(1deg) brightness(104%) contrast(103%);}
+/* Co icon picker */
+.co-icon-picker{
+  position:fixed;z-index:9999;
+  background:var(--wh);border:1px solid var(--bd);border-radius:10px;
+  box-shadow:0 4px 24px rgba(0,0,0,.15);
+  padding:10px;width:300px;display:none;
+}
+.co-icon-picker.open{display:block;}
+.co-ico-tabs{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:8px;}
+.co-ico-tab{flex:1;padding:5px;border:none;background:transparent;font-size:10px;
+  font-weight:700;color:var(--xlt);cursor:pointer;font-family:inherit;
+  border-bottom:2px solid transparent;transition:all .12s;}
+.co-ico-tab.on{color:var(--o);border-bottom-color:var(--o);}
+.co-ico-panel{display:none;}
+.co-ico-panel.on{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;max-height:180px;overflow-y:auto;}
+.co-ico-opt{display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:5px 3px;border:1.5px solid transparent;border-radius:6px;cursor:pointer;transition:all .12s;}
+.co-ico-opt:hover{border-color:var(--o);background:var(--olt);}
+.co-ico-opt img{width:20px;height:20px;}
+.co-ico-opt span{font-size:8px;color:var(--xlt);text-align:center;line-height:1.2;}
 </style>
 </head>
 <body>
+
+
+<div class="co-icon-picker" id="co-ico-picker">
+  <div class="co-ico-tabs">
+    <button class="co-ico-tab on" onclick="switchCoIcoTab('builtin',this)">Built-in</button>
+    <button class="co-ico-tab" onclick="switchCoIcoTab('co',this)">CO Icons</button>
+  </div>
+  <div class="co-ico-panel on" id="co-ico-builtin"></div>
+  <div class="co-ico-panel" id="co-ico-custom"></div>
+</div>
 
 <div class="topbar">
   <div class="topbar-brand">
@@ -1109,6 +1160,23 @@ const SPEC_RICH_IDS_B = ['s_comp','s_ceil','s_oa','s_el','s_fa','s_ca','s_hrs','
   'net_en','net_tc','net_sc','net_ja',
   'fac_en','fac_tc','fac_sc','fac_ja'];
 
+// ── CO CUSTOM ICONS — loaded from icon/icons.json ─────────
+let CO_ICONS = []; // populated by loadCoIcons()
+
+async function loadCoIcons(){
+  try{
+    const base = location.href.replace(/[^/]*$/, '');
+    const res = await fetch(base + 'icon/icons.json', {cache:'no-cache'});
+    if(!res.ok) throw new Error('icon/icons.json not found');
+    CO_ICONS = await res.json();
+    // Invalidate any cached CO picker panel so it re-renders with loaded icons
+    const panels = document.querySelectorAll('[data-loaded]');
+    panels.forEach(p => delete p.dataset.loaded);
+  } catch(e){
+    console.warn('CO icons not loaded:', e.message);
+  }
+}
+
 const JLIB_KEY = 'cojson_library';
 function getJLib(){ try{return JSON.parse(localStorage.getItem(JLIB_KEY)||'[]');}catch{return[];} }
 function saveJLib(lib){ localStorage.setItem(JLIB_KEY, JSON.stringify(lib)); }
@@ -1120,6 +1188,7 @@ function init(){
   addTrRow();
   renderTrList();
   applySpecLabels();
+  loadCoIcons();
   renderJSONPreview();
 }
 
@@ -1232,9 +1301,10 @@ function renderTrList(){
   c2.innerHTML = TRANSPORT.map(row=>`
     <div class="tr-unified-row">
       <div class="tr-unified-head">
-        <select onchange="updTrIcon(${row.id},this.value)">
-          ${TRANSPORT_ICONS.map(ic=>`<option value="${ic.id}"${ic.id===row.iconId?' selected':''}>${ic.label}</option>`).join('')}
-        </select>
+        <button class="tr-ico-pick-btn" onclick="openTrIconPicker(${row.id},this)" title="Change icon">
+          ${renderTrIcon(row.iconId)}
+        </button>
+        <span style="font-size:11px;color:var(--xlt);flex:1">Click icon to change</span>
         <button class="tr-del-btn" onclick="delTrRow(${row.id})">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -1304,9 +1374,13 @@ function renderPrRows(){
 // ── AMENITY / BENEFIT GRIDS ───────────────────────────────
 function renderAmenGrid(){
   document.getElementById('amen-grid').innerHTML = AMENITY_DEFS.map(a=>`
-    <div class="amen-chip${AMENITIES_ON.has(a.id)?' on':''}" onclick="toggleAmen('${a.id}',this)">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${a.icon}"/></svg>
-      <span>${a.label}</span>
+    <div class="amen-chip${AMENITIES_ON.has(a.id)?' on':''}" style="position:relative">
+      <div onclick="toggleAmen('${a.id}',this.parentElement)" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
+        ${getChipIcon(a.id)}
+        <span>${a.label}</span>
+      </div>
+      <button onclick="event.stopPropagation();openCoIconPicker('amen','${a.id}',this)"
+        style="position:absolute;top:2px;right:2px;border:none;background:transparent;cursor:pointer;padding:1px;color:var(--xlt);font-size:8px;line-height:1">⚙</button>
     </div>`).join('');
 }
 
@@ -1319,9 +1393,13 @@ function toggleAmen(id, el){
 
 function renderBenGrid(){
   document.getElementById('ben-grid').innerHTML = BENEFIT_DEFS.map(b=>`
-    <div class="amen-chip${BENEFITS_ON.has(b.id)?' on':''}" onclick="toggleBen('${b.id}',this)">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      <span>${b.label}</span>
+    <div class="amen-chip${BENEFITS_ON.has(b.id)?' on':''}" style="position:relative">
+      <div onclick="toggleBen('${b.id}',this.parentElement)" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
+        ${getChipIcon(b.id)}
+        <span>${b.label}</span>
+      </div>
+      <button onclick="event.stopPropagation();openCoIconPicker('ben','${b.id}',this)"
+        style="position:absolute;top:2px;right:2px;border:none;background:transparent;cursor:pointer;padding:1px;color:var(--xlt);font-size:8px;line-height:1">⚙</button>
     </div>`).join('');
 }
 
@@ -1473,6 +1551,8 @@ function buildJSON(){
   // Amenities & Benefits
   data.amenities   = [...AMENITIES_ON];
   data.benefits_on = [...BENEFITS_ON];
+  if(window.ICON_OVERRIDES && Object.keys(window.ICON_OVERRIDES).length)
+    data.icon_overrides = {...window.ICON_OVERRIDES};
 
   // Media image URLs
   const photos = [g('photo_1'),g('photo_2'),g('photo_3')].filter(Boolean);
@@ -1671,6 +1751,73 @@ function updTrRich(id, lk, el){
 }
 
 
+// Render icon for transport row (built-in SVG or CO img)
+function renderTrIcon(iconId){
+  if(!iconId) iconId = 'tr_metro';
+  if(iconId.startsWith('co_')){
+    const ico = CO_ICONS.find(c=>c.id===iconId);
+    if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:22px;height:22px" alt="${ico.label}">`;
+  }
+  const TR_PATHS = {
+    tr_metro:  ['M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z','M4 11h16','M12 3v8','M7 17.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z','M14 17.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z'],
+    tr_train:  ['M3 4h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z','M16 14v2','M8 14v2','M3 10h18'],
+    tr_bus:    ['M8 6v6','M3 6h18l1 8H2L3 6z','M3 6V4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2','M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z','M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
+    tr_walk:   ['M12 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z','M9 8l1 5 2-2 2 4','M14.5 8l-1.5 3H9','M10 16l-1 4','M14 16l1 4'],
+    tr_ferry:  ['M4 17H2l2-9h16l1.5 7H18','M8 12V8','M12 12V7','M16 12V9'],
+    tr_car:    ['M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14l4 4v6a2 2 0 0 1-2 2h-2','M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z','M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
+    tr_airport:['M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 4s-2 1-3.5 2.5L11 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z'],
+  };
+  const paths = TR_PATHS[iconId] || TR_PATHS.tr_metro;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px">${paths.map(p=>`<path d="${p}"/>`).join('')}</svg>`;
+}
+
+let _trIconPickerId = null;
+
+function openTrIconPicker(rowId, btn){
+  _trIconPickerId = rowId;
+  const picker = document.getElementById('co-ico-picker');
+  const row = TRANSPORT.find(r=>String(r.id)===String(rowId));
+  const curId = row?.iconId || 'tr_metro';
+  // Builtin tab
+  const builtinPanel = document.getElementById('co-ico-builtin');
+  builtinPanel.innerHTML = TRANSPORT_ICONS.map(ic=>`
+    <div class="co-ico-opt${ic.id===curId?' sel':''}" onclick="selectTrIconPicker('${ic.id}')" title="${ic.label}">
+      ${renderTrIcon(ic.id)}
+      <span>${ic.label.split('/')[0].slice(0,6)}</span>
+    </div>`).join('');
+  // CO tab
+  const coPanel = document.getElementById('co-ico-custom');
+  coPanel.innerHTML = CO_ICONS.map(ic=>`
+    <div class="co-ico-opt${ic.id===curId?' sel':''}" onclick="selectTrIconPicker('${ic.id}')" title="${ic.label}">
+      <img src="${ic.url}" class="co-icon-img" style="width:20px;height:20px" alt="${ic.label}">
+      <span>${ic.label.split(' ')[0].slice(0,6)}</span>
+    </div>`).join('');
+  coPanel.dataset.loaded = '1';
+  // Reset tabs to builtin
+  document.querySelectorAll('.co-ico-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  document.querySelectorAll('.co-ico-panel').forEach((p,i)=>p.classList.toggle('on',i===0));
+  const r = btn.getBoundingClientRect();
+  picker.style.top  = (r.bottom+6)+'px';
+  picker.style.left = Math.min(r.left, window.innerWidth-310)+'px';
+  picker.classList.add('open');
+  setTimeout(()=>document.addEventListener('click', closeTrIconPickerOutside, {once:true}), 20);
+}
+
+function selectTrIconPicker(iconId){
+  if(_trIconPickerId===null) return;
+  updTrIcon(_trIconPickerId, iconId);
+  renderTrList();
+  document.getElementById('co-ico-picker').classList.remove('open');
+  _trIconPickerId = null;
+  renderJSONPreview();
+}
+
+function closeTrIconPickerOutside(e){
+  const p = document.getElementById('co-ico-picker');
+  if(p && !p.contains(e.target)) p.classList.remove('open');
+  else setTimeout(()=>document.addEventListener('click', closeTrIconPickerOutside, {once:true}), 20);
+}
+
 async function loadFromJsonFolder(){
   const btn = document.querySelector('[onclick="loadFromJsonFolder()"]');
   const orig = btn?.innerHTML;
@@ -1847,6 +1994,140 @@ function applySpecLabels(){
   });
 }
 
+
+// ── RICH EDITOR: controlled Enter key & clean paste ──────────
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if(!el.isContentEditable) return;
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    const sel = window.getSelection();
+    if(!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const br = document.createElement('br');
+    range.insertNode(br);
+    if(!br.nextSibling || (br.nextSibling.nodeType===3 && br.nextSibling.textContent==='')){
+      br.parentNode.insertBefore(document.createElement('br'), br.nextSibling);
+    }
+    range.setStartAfter(br);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    if(typeof renderJSONPreview==='function') renderJSONPreview();
+  }
+});
+
+document.addEventListener('paste', e => {
+  const el = e.target;
+  if(!el.isContentEditable) return;
+  e.preventDefault();
+  const text = (e.clipboardData||window.clipboardData).getData('text/plain');
+  if(!text) return;
+  const sel = window.getSelection();
+  if(!sel||!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const lines = text.split(/\r?\n/);
+  const frag = document.createDocumentFragment();
+  lines.forEach((line,i)=>{
+    if(i>0) frag.appendChild(document.createElement('br'));
+    if(line) frag.appendChild(document.createTextNode(line));
+  });
+  range.insertNode(frag);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  if(typeof renderJSONPreview==='function') renderJSONPreview();
+});
+
+// ── CO ICON PICKER (amenity & benefit chips) ─────────────────
+let _coPickerTarget = null; // {type:'amen'|'ben', id:string}
+const BUILTIN_ICONS_B = [
+  {id:'concierge',d:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'},
+  {id:'lounge',d:'M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0zM6 18v4M18 18v4'},
+  {id:'drinks',d:'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3'},
+  {id:'flexible',d:'M3 4h18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM16 2v4M8 2v4M2 10h20'},
+  {id:'deposit',d:'M2 5h20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM2 10h20'},
+  {id:'furniture',d:'M2 7h20a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM8 7V5a4 4 0 0 1 8 0v2M12 12v4M10 14h4'},
+  {id:'utilities',d:'M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01'},
+  {id:'access24',d:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2'},
+  {id:'phonebooth',d:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.14 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.05 3h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 10.9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 18z'},
+  {id:'parking',d:'M2 3h20a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 17V7h4a3 3 0 0 1 0 6H9'},
+  {id:'norestore',d:'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'},
+  {id:'security',d:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'},
+  {id:'phonebooth2',d:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.14 13.5'},
+];
+
+function openCoIconPicker(type, id, btn){
+  _coPickerTarget = {type, id};
+  const picker = document.getElementById('co-ico-picker');
+  // Populate builtin panel
+  const builtinPanel = document.getElementById('co-ico-builtin');
+  const curId = type==='amen' ? (AMENITIES_ON.has(id) ? id : '') : (BENEFITS_ON.has(id) ? id : '');
+  builtinPanel.innerHTML = BUILTIN_ICONS_B.map(ic=>`
+    <div class="co-ico-opt" onclick="selectCoIcon('${ic.id}')" title="${ic.id}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${AMENITIES_ON.has(id)||BENEFITS_ON.has(id)?'#FF6600':'#BBBBBB'}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${ic.d}"/></svg>
+      <span>${ic.id.slice(0,7)}</span>
+    </div>`).join('');
+  // Populate CO panel
+  const coPanel = document.getElementById('co-ico-custom');
+  if(!coPanel.dataset.loaded){
+    coPanel.innerHTML = CO_ICONS.map(ic=>`
+      <div class="co-ico-opt" onclick="selectCoIcon('${ic.id}')" title="${ic.label}">
+        <img src="${ic.url}" class="co-icon-img" style="width:20px;height:20px" alt="${ic.label}">
+        <span>${ic.label.split(' ')[0].slice(0,6)}</span>
+      </div>`).join('');
+    coPanel.dataset.loaded='1';
+  }
+  // Reset to builtin tab
+  switchCoIcoTab('builtin', document.querySelector('.co-ico-tab'));
+  // Position near button
+  const r = btn.getBoundingClientRect();
+  picker.style.top  = (r.bottom+6)+'px';
+  picker.style.left = Math.min(r.left, window.innerWidth-310)+'px';
+  picker.classList.add('open');
+  setTimeout(()=>document.addEventListener('click', closeCoPickerOutside, {once:true}), 20);
+}
+
+function switchCoIcoTab(tab, btn){
+  document.querySelectorAll('.co-ico-tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.co-ico-panel').forEach(p=>p.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  document.getElementById('co-ico-'+(tab==='co'?'custom':'builtin')).classList.add('on');
+}
+
+function selectCoIcon(iconId){
+  if(!_coPickerTarget) return;
+  const {type, id} = _coPickerTarget;
+  // Store icon assignment in a map
+  if(!window.ICON_OVERRIDES) window.ICON_OVERRIDES = {};
+  window.ICON_OVERRIDES[id] = iconId;
+  // Re-render
+  if(type==='amen') renderAmenGrid();
+  else renderBenGrid();
+  document.getElementById('co-ico-picker').classList.remove('open');
+  _coPickerTarget = null;
+  renderJSONPreview();
+}
+
+function closeCoPickerOutside(e){
+  const p = document.getElementById('co-ico-picker');
+  if(p && !p.contains(e.target)) p.classList.remove('open');
+  else setTimeout(()=>document.addEventListener('click', closeCoPickerOutside, {once:true}), 20);
+}
+
+function getChipIcon(id){
+  const override = window.ICON_OVERRIDES?.[id];
+  if(!override) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  if(override.startsWith('co_')){
+    const ico = CO_ICONS.find(c=>c.id===override);
+    if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ico.label}">`;
+  }
+  const found = BUILTIN_ICONS_B.find(i=>i.id===override);
+  if(found) return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${found.d}"/></svg>`;
+  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+}
 
 </script>
 </body>
