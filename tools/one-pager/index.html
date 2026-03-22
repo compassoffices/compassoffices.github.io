@@ -2405,58 +2405,53 @@ function printSlide(){
   const page1El = document.getElementById('slide');
   const page2El = document.getElementById('slide2');
 
-  // Calculate --fs for true A4 width (297mm = 1122px at 96dpi), no preview boost
+  // --fs for true A4 at 96dpi (297mm = 1122px), no preview boost
   const previewW = document.querySelector('.slide-wrap')?.offsetWidth || 620;
   const printFs  = Math.max(13, Math.min(19, 16 * 1122 / previewW)).toFixed(1) + 'px';
 
-  // Extract only slide-relevant CSS from the page stylesheet
-  const allCss = document.querySelector('style')?.textContent || '';
-  // Keep only rules that mention slide/sl-/p2- classes (skip app UI rules)
-  const slideRules = allCss
-    .split(/(?=\n[^\s\/])/)
-    .filter(r => /\.sl-|\.slide|\.p2-|\.noph|@keyframes|:root/.test(r))
+  // Grab ALL page CSS — print overrides at the end will win via cascade
+  const allCss = Array.from(document.styleSheets)
+    .flatMap(ss=>{ try{ return Array.from(ss.cssRules).map(r=>r.cssText); }catch{ return []; } })
     .join('\n');
 
-  const w = window.open('', '_blank');
+  const w = window.open('','_blank');
   if(!w){ alert('Pop-up blocked — please allow pop-ups for this page.'); return; }
 
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
-/* ── Base reset ── */
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body{background:#fff;}
+${allCss}
 
-/* ── Slide rules from main stylesheet ── */
-${slideRules}
+/* ═══ PRINT OVERRIDES — always last, always win ═══ */
+@page { size: A4 landscape; margin: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 297mm; background: #fff; overflow: visible; }
 
-/* ── Print overrides — must come last ── */
-@page{size:A4 landscape;margin:0;}
-.page-wrap{
-  width:297mm;height:210mm;
-  overflow:hidden;
-  page-break-after:always;break-after:page;
+.page-wrap {
+  width: 297mm; height: 210mm;
+  overflow: hidden; display: block;
+  page-break-after: always; break-after: page;
 }
-.page-wrap:last-child{page-break-after:avoid;break-after:avoid;}
-.slide,.slide2{
-  --fs:${printFs}!important;
-  width:297mm!important;height:210mm!important;
-  aspect-ratio:unset!important;border-radius:0!important;
-  border:none!important;box-shadow:none!important;
-  font-size:var(--fs)!important;
+.page-wrap:last-child { page-break-after: avoid; break-after: avoid; }
+
+.slide, .slide2 {
+  --fs: ${printFs} !important;
+  width: 297mm !important;
+  height: 210mm !important;
+  aspect-ratio: unset !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: var(--fs) !important;
+  overflow: hidden !important;
 }
 </style>
 </head><body>
-<div class="page-wrap">
-  <div class="slide">${page1El.innerHTML}</div>
-</div>
-<div class="page-wrap">
-  <div class="slide2">${page2El.innerHTML}</div>
-</div>
+<div class="page-wrap"><div class="slide">${page1El.innerHTML}</div></div>
+<div class="page-wrap"><div class="slide2">${page2El.innerHTML}</div></div>
 </body></html>`);
   w.document.close();
-  // Wait for fonts to load before printing
   w.onload = () => setTimeout(() => w.print(), 1200);
 }
 
