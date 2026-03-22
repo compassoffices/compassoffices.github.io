@@ -436,8 +436,8 @@ select{appearance:none;
   filter: brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
   display:block;
 }
-.amen-chip img.co-icon-img{width:18px;height:18px;}
-.amen-chip.on img.co-icon-img{filter: brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);}
+.amen-chip img.co-icon-img{width:18px;height:18px;opacity:.35;transition:opacity .12s, filter .12s;}
+.amen-chip.on img.co-icon-img{opacity:1;filter:brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);}
 /* Co icon picker */
 .co-icon-picker{
   position:fixed;z-index:9999;
@@ -1389,7 +1389,9 @@ function toggleAmen(id, el){
   if(AMENITIES_ON.has(id)) AMENITIES_ON.delete(id);
   else AMENITIES_ON.add(id);
   el.classList.toggle('on', AMENITIES_ON.has(id));
-  el.querySelector('svg').style.color = AMENITIES_ON.has(id)?'var(--o)':'var(--xlt)';
+  // Colour the icon — works for both svg and img (img uses CSS filter via .on)
+  const svg = el.querySelector('svg');
+  if(svg) svg.style.color = AMENITIES_ON.has(id) ? 'var(--o)' : 'var(--xlt)';
 }
 
 function renderBenGrid(){
@@ -2045,44 +2047,62 @@ document.addEventListener('paste', e => {
 // ── CO ICON PICKER (amenity & benefit chips) ─────────────────
 let _coPickerTarget = null; // {type:'amen'|'ben', id:string}
 const BUILTIN_ICONS_B = [
-  {id:'concierge',d:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'},
-  {id:'lounge',d:'M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0zM6 18v4M18 18v4'},
-  {id:'drinks',d:'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3'},
-  {id:'flexible',d:'M3 4h18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM16 2v4M8 2v4M2 10h20'},
-  {id:'deposit',d:'M2 5h20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM2 10h20'},
-  {id:'furniture',d:'M2 7h20a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM8 7V5a4 4 0 0 1 8 0v2M12 12v4M10 14h4'},
-  {id:'utilities',d:'M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01'},
-  {id:'access24',d:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2'},
-  {id:'phonebooth',d:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.14 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.05 3h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 10.9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 18z'},
-  {id:'parking',d:'M2 3h20a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 17V7h4a3 3 0 0 1 0 6H9'},
-  {id:'norestore',d:'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'},
-  {id:'security',d:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'},
-  {id:'phonebooth2',d:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.14 13.5'},
+  {id:'concierge', label:'Concierge', d:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'},
+  {id:'lounge',    label:'Lounge',    d:'M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0zM6 18v4M18 18v4'},
+  {id:'drinks',    label:'Drinks',    d:'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3'},
+  {id:'flexible',  label:'Flexible',  d:'M3 4h18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM16 2v4M8 2v4M2 10h20'},
+  {id:'deposit',   label:'Deposit',   d:'M2 5h20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM2 10h20'},
+  {id:'furniture', label:'Furnished', d:'M2 7h20a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM8 7V5a4 4 0 0 1 8 0v2M12 12v4M10 14h4'},
+  {id:'utilities', label:'Utilities', d:'M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01'},
+  {id:'access24',  label:'24/7',      d:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2'},
+  {id:'phonebooth',label:'Phone',     d:'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.14 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.05 3h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 10.9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 18z'},
+  {id:'parking',   label:'Parking',   d:'M2 3h20a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 17V7h4a3 3 0 0 1 0 6H9'},
+  {id:'norestore', label:'No Restore',d:'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'},
+  {id:'security',  label:'Security',  d:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'},
 ];
+
+function getChipIcon(id){
+  const override = window.ICON_OVERRIDES?.[id];
+  const resolvedId = override || id;
+  if(resolvedId && resolvedId.startsWith('co_')){
+    const ico = CO_ICONS.find(c=>c.id===resolvedId);
+    if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ico.label}">`;
+  }
+  const found = BUILTIN_ICONS_B.find(i=>i.id===resolvedId);
+  if(found) return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${found.d}"/></svg>`;
+  // Default tick
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+}
 
 function openCoIconPicker(type, id, btn){
   _coPickerTarget = {type, id};
   const picker = document.getElementById('co-ico-picker');
-  // Populate builtin panel
+  const curOverride = window.ICON_OVERRIDES?.[id] || id;
+
+  // Builtin tab — always repopulate
   const builtinPanel = document.getElementById('co-ico-builtin');
-  const curId = type==='amen' ? (AMENITIES_ON.has(id) ? id : '') : (BENEFITS_ON.has(id) ? id : '');
   builtinPanel.innerHTML = BUILTIN_ICONS_B.map(ic=>`
-    <div class="co-ico-opt" onclick="selectCoIcon('${ic.id}')" title="${ic.id}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${AMENITIES_ON.has(id)||BENEFITS_ON.has(id)?'#FF6600':'#BBBBBB'}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${ic.d}"/></svg>
-      <span>${ic.id.slice(0,7)}</span>
+    <div class="co-ico-opt${ic.id===curOverride?' sel':''}" onclick="selectCoIcon('${ic.id}')" title="${ic.label}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${ic.d}"/></svg>
+      <span>${ic.label.slice(0,7)}</span>
     </div>`).join('');
-  // Populate CO panel
+
+  // CO tab — always repopulate with current CO_ICONS
   const coPanel = document.getElementById('co-ico-custom');
-  if(!coPanel.dataset.loaded){
+  if(CO_ICONS.length){
     coPanel.innerHTML = CO_ICONS.map(ic=>`
-      <div class="co-ico-opt" onclick="selectCoIcon('${ic.id}')" title="${ic.label}">
+      <div class="co-ico-opt${ic.id===curOverride?' sel':''}" onclick="selectCoIcon('${ic.id}')" title="${ic.label}">
         <img src="${ic.url}" class="co-icon-img" style="width:20px;height:20px" alt="${ic.label}">
         <span>${ic.label.split(' ')[0].slice(0,6)}</span>
       </div>`).join('');
-    coPanel.dataset.loaded='1';
+  } else {
+    coPanel.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center">CO icons loading…<br>Make sure icon/icons.json is on your server</div>';
   }
+
   // Reset to builtin tab
-  switchCoIcoTab('builtin', document.querySelector('.co-ico-tab'));
+  document.querySelectorAll('.co-ico-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  document.querySelectorAll('.co-ico-panel').forEach((p,i)=>p.classList.toggle('on',i===0));
+
   // Position near button
   const r = btn.getBoundingClientRect();
   picker.style.top  = (r.bottom+6)+'px';
@@ -2101,10 +2121,8 @@ function switchCoIcoTab(tab, btn){
 function selectCoIcon(iconId){
   if(!_coPickerTarget) return;
   const {type, id} = _coPickerTarget;
-  // Store icon assignment in a map
   if(!window.ICON_OVERRIDES) window.ICON_OVERRIDES = {};
   window.ICON_OVERRIDES[id] = iconId;
-  // Re-render
   if(type==='amen') renderAmenGrid();
   else renderBenGrid();
   document.getElementById('co-ico-picker').classList.remove('open');
@@ -2116,18 +2134,6 @@ function closeCoPickerOutside(e){
   const p = document.getElementById('co-ico-picker');
   if(p && !p.contains(e.target)) p.classList.remove('open');
   else setTimeout(()=>document.addEventListener('click', closeCoPickerOutside, {once:true}), 20);
-}
-
-function getChipIcon(id){
-  const override = window.ICON_OVERRIDES?.[id];
-  if(!override) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  if(override.startsWith('co_')){
-    const ico = CO_ICONS.find(c=>c.id===override);
-    if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ico.label}">`;
-  }
-  const found = BUILTIN_ICONS_B.find(i=>i.id===override);
-  if(found) return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${found.d}"/></svg>`;
-  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 }
 
 </script>
