@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compass Offices — One-Pager Builder</title>
-  <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1077,7 +1076,15 @@ select{appearance:none;
 <!-- ── ICON PICKER POPOVER ── -->
 <div class="ico-picker" id="ico-picker">
   <div class="ico-picker-title" data-i18n="lbl_choose_icon">Choose Icon</div>
-  <div class="ico-picker-grid" id="ico-picker-grid"></div>
+  <div class="ico-pack-tabs">
+    <button class="ico-pack-tab on" onclick="switchIcoPack('builtin',this)">Built-in</button>
+    <button class="ico-pack-tab"    onclick="switchIcoPack('co',this)">CO Icons</button>
+  </div>
+  <div class="ico-pack-panel on" id="ico-pack-builtin">
+    <div class="ico-picker-grid" id="ico-picker-grid"></div>
+  </div>
+  <div class="ico-pack-panel" id="ico-pack-co" style="grid-template-columns:repeat(6,1fr);gap:4px;max-height:200px;overflow-y:auto;">
+  </div>
 </div>
 
 <script>
@@ -1411,6 +1418,38 @@ function setLang(lc){
 // ══════════════════════════════════════════════════════════
 //  ICONS
 // ══════════════════════════════════════════════════════════
+// ── CO CUSTOM ICONS — loaded from icon/icons.json ─────────
+let CO_ICONS = []; // populated by loadCoIcons()
+
+async function loadCoIcons(){
+  try{
+    const base = location.href.replace(/[^/]*$/, '');
+    const res = await fetch(base + 'icon/icons.json', {cache:'no-cache'});
+    if(!res.ok) throw new Error('icon/icons.json not found');
+    CO_ICONS = await res.json();
+    // Invalidate any cached CO picker panel so it re-renders with loaded icons
+    const panels = document.querySelectorAll('[data-loaded]');
+    panels.forEach(p => delete p.dataset.loaded);
+  } catch(e){
+    console.warn('CO icons not loaded:', e.message);
+  }
+}
+
+
+// Render icon HTML — svg string for built-in, <img> for CO icons
+function renderIcHtml(id, cls=''){
+  if(!id) return '';
+  // Check for a custom icon override assigned to this amenity/benefit slot
+  const override = window.ICON_OVERRIDES?.[id];
+  const resolvedId = override || id;
+  if(resolvedId.startsWith('co_')){
+    const ico = CO_ICONS.find(c=>c.id===resolvedId);
+    if(!ico) return '';
+    return `<img src="${ico.url}" class="co-icon-img${cls?' '+cls:''}" alt="${ico.label}">`;
+  }
+  return IC[resolvedId] || IC[id] || '';
+}
+
 const IC = {
   concierge: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
   lounge:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0z"/><line x1="6" y1="18" x2="6" y2="22"/><line x1="18" y1="18" x2="18" y2="22"/></svg>`,
@@ -1449,7 +1488,7 @@ const TRANSIT = IC.tr_metro; // default for backward compat
 
 // strip outer <svg> tag to use inline in .sl-merit
 function icInner(id){
-  const m=IC[id]?.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
+  const m=(renderIcHtml(id)||IC[id]||'')?.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
   return m?m[1]:'';
 }
 
@@ -1482,7 +1521,7 @@ function renderTransport(){
   const list = document.getElementById('tr-list');
   if(!list) return;
   list.innerHTML = TRANSPORT.map((t)=>{
-    const iconSvg = IC[t.iconId] || IC.tr_metro;
+    const iconSvg = (renderIcHtml(t.iconId)||IC[t.iconId]||'') || IC.tr_metro;
     const eid = 'tr-ed-'+t.id;
     return `
     <div class="tr-row" style="flex-direction:column;align-items:stretch;gap:5px;padding:8px 10px;">
@@ -1536,6 +1575,7 @@ function trRichOp(cmd, editorId){
 let _trPickerId = null;
 
 function openTrPicker(id, btn){
+  _pickerMode = "tr";
   if(_trPickerId===id && document.getElementById('ico-picker').classList.contains('open')){
     closeIconPicker(); return;
   }
@@ -1545,10 +1585,11 @@ function openTrPicker(id, btn){
   const picker = document.getElementById('ico-picker');
   const cur = (TRANSPORT.find(t=>t.id===id)||{}).iconId||'tr_metro';
 
-  document.getElementById('ico-picker-grid').innerHTML = TR_IC_LIST.map(ic=>`
+  document.getElementById('ico-pack-builtin').querySelector('.ico-picker-grid').innerHTML =
+    TR_IC_LIST.map(ic=>`
     <div class="ico-opt${cur===ic.id?' sel':''}" onclick="selectTrIcon('${ic.id}')">
       <span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">
-        ${IC[ic.id]||''}
+        ${(renderIcHtml(ic.id)||IC[ic.id]||'')||''}
       </span>
       <span>${ic.label}</span>
     </div>`).join('');
@@ -1600,7 +1641,7 @@ function amenLabel(a){
 function renderAmenities(){
   document.getElementById('amen-grid').innerHTML = AMENITY_ICONS.map((a,i)=>`
     <div class="amen-item${a.on?' on':''}" onclick="toggleAmenIcon(${i})">
-      <span class="aico">${IC[a.id]||''}</span>
+      <span class="aico">${renderIcHtml(a.id)||''}</span>
       <span>${amenLabel(a)}</span>
     </div>`).join('');
 }
@@ -1700,10 +1741,12 @@ const IC_LIST = [
   {id:'norestore', label:'No Restore'},
   {id:'security',  label:'Security'},
 ];
+// Full icon list includes CO icons
+const ALL_ICONS_LIST = [...IC_LIST, ...CO_ICONS];
 
 function getBenIcon(b){
   const id = b.iconId !== undefined ? b.iconId : b.id;
-  return (id && IC[id]) ? IC[id] : TICK_SVG;
+  return (id && (renderIcHtml(id)||IC[id]||'')) ? (renderIcHtml(id)||IC[id]||'') : TICK_SVG;
 }
 
 function renderBenefits(){
@@ -1732,7 +1775,10 @@ function renderBenefits(){
 // ── ICON PICKER ──────────────────────────────────────────
 let _pickerBenIdx = null;
 
+let _pickerMode = "ben";
+
 function openIconPicker(i, btn){
+  _pickerMode = "ben";
   if(_pickerBenIdx === i && document.getElementById('ico-picker').classList.contains('open')){
     closeIconPicker(); return;
   }
@@ -1745,7 +1791,7 @@ function openIconPicker(i, btn){
       <div class="ico-opt${curId===ic.id||(!curId&&ic.id==='_tick')?' sel':''}"
            onclick="selectBenIcon('${ic.id}')">
         <span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">
-          ${ic.id==='_tick' ? TICK_SVG : IC[ic.id]||TICK_SVG}
+          ${ic.id==='_tick' ? TICK_SVG : (renderIcHtml(ic.id)||IC[ic.id]||'')||TICK_SVG}
         </span>
         <span>${ic.label}</span>
       </div>`).join('');
@@ -1768,6 +1814,31 @@ function selectBenIcon(iconId){
   BENEFITS[_pickerBenIdx].iconId = (iconId === '_tick') ? null : iconId;
   closeIconPicker();
   renderBenefits();
+}
+
+function switchIcoPack(pack, btn){
+  document.querySelectorAll('.ico-pack-tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.ico-pack-panel').forEach(p=>p.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  const panel = document.getElementById('ico-pack-'+pack);
+  if(panel) panel.classList.add('on');
+  // Populate CO panel on first open
+  if(pack==='co'){
+    const coPanel = document.getElementById('ico-pack-co');
+    if(!coPanel.dataset.loaded){
+      coPanel.innerHTML = CO_ICONS.map(ic=>`
+        <div class="ico-opt" onclick="selectIconByMode('${ic.id}')" title="${ic.label}">
+          <img src="${ic.url}" class="co-icon-img" style="width:20px;height:20px" alt="${ic.label}">
+          <span>${ic.label.split(' ')[0].slice(0,6)}</span>
+        </div>`).join('');
+      coPanel.dataset.loaded = '1';
+    }
+  }
+}
+
+function selectIconByMode(iconId){
+  if(_pickerMode === 'tr') selectTrIcon(iconId);
+  else selectBenIcon(iconId);
 }
 
 function closeIconPicker(){
@@ -2216,6 +2287,11 @@ function applyLocationData(p){
     const prev = document.getElementById('fp-prev');
     if(prev) prev.innerHTML = `<img src="${p.floorplan_url}" style="max-height:80px;border-radius:6px;border:1px solid var(--bd);" onerror="this.style.opacity='.3'">`;
   }
+
+  // Icon overrides — custom CO icons assigned to amenity/benefit chips
+  if(p.icon_overrides && typeof p.icon_overrides === 'object'){
+    window.ICON_OVERRIDES = {...p.icon_overrides};
+  }
 }
 
 // ── HELPERS ──────────────────────────────────────────────
@@ -2411,7 +2487,7 @@ function gen(){
         <div class="sl-amen-below-grid">
           ${amenChecked.map(a=>`
             <div class="sl-amen-cell" title="${amenLabel(a)}">
-              ${IC[a.id]||IC.norestore}
+              ${renderIcHtml(a.id)||renderIcHtml("norestore")}
               <span>${amenLabel(a)}</span>
             </div>`).join('')}
         </div>
@@ -2431,7 +2507,7 @@ function gen(){
           <div class="sl-sec" data-edit="loc:tr-list" data-edit-hint="Edit transport">${sl('transport')}</div>
           <div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">
             ${trLines.map(t=>{
-              const iconInner=(IC[t.iconId]||IC.tr_metro).match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||'';
+              const iconInner=((renderIcHtml(t.iconId)||IC[t.iconId]||'')||IC.tr_metro).match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||'';
               return `<div class="sl-trans">
                 <svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${iconInner}</svg>
                 <span class="sl-trans-txt">${t.text}</span>
@@ -2551,7 +2627,7 @@ function gen(){
         <div class="p2-amen-grid">
           ${amenChecked.map(a=>`
             <div class="p2-amen-cell" title="${amenLabel(a)}">
-              ${IC[a.id]||IC.norestore}
+              ${renderIcHtml(a.id)||renderIcHtml("norestore")}
               <span>${amenLabel(a)}</span>
             </div>`).join('')}
         </div>
@@ -2774,6 +2850,7 @@ function toggleMobilePreview(){
 }
 // Start with preview hidden on mobile
 if(window.innerWidth <= 768) document.querySelector('.preview')?.classList.add('mob-hidden');
+loadCoIcons();
 
 </script>
 </body>
