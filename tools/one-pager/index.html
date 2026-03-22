@@ -190,15 +190,15 @@ select{appearance:none;
 /* ── ICON PICKER POPOVER ── */
 .ico-picker{
   position:fixed;z-index:9999;
-  background:var(--wh);border:1px solid var(--bd);border-radius:10px;
+  background:var(--wh);border:1px solid var(--bd);border-radius:12px;
   box-shadow:0 4px 24px rgba(0,0,0,.15);
-  padding:10px;width:228px;
-  display:none;
+  padding:0;width:300px;
+  display:none;overflow:hidden;
 }
 .ico-picker.open{display:block;}
 .ico-picker-title{font-size:10px;font-weight:800;text-transform:uppercase;
                   letter-spacing:.08em;color:var(--xlt);margin-bottom:8px;}
-.ico-picker-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;}
+.ico-picker-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;}
 .ico-opt{
   display:flex;flex-direction:column;align-items:center;gap:2px;
   padding:5px 3px;border:1.5px solid transparent;border-radius:6px;
@@ -206,7 +206,8 @@ select{appearance:none;
 }
 .ico-opt:hover{border-color:var(--o);background:var(--olt);}
 .ico-opt.sel{border-color:var(--o);background:var(--olt);}
-.ico-opt svg{width:16px;height:16px;color:var(--drk);}
+.ico-opt svg{width:18px;height:18px;color:var(--drk);}
+.ico-opt img{width:18px;height:18px;}
 .ico-opt:hover svg,.ico-opt.sel svg{color:var(--o);}
 .ico-opt span{font-size:8px;color:var(--xlt);text-align:center;line-height:1.2;}
 
@@ -1094,15 +1095,18 @@ img.co-icon-img{
 
 <!-- ── ICON PICKER POPOVER ── -->
 <div class="ico-picker" id="ico-picker">
-  <div class="ico-picker-title" data-i18n="lbl_choose_icon">Choose Icon</div>
-  <div class="ico-pack-tabs">
-    <button class="ico-pack-tab on" onclick="switchIcoPack('builtin',this)">Built-in</button>
-    <button class="ico-pack-tab"    onclick="switchIcoPack('co',this)">CO Icons</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid var(--bd);">
+    <span class="ico-picker-title" data-i18n="lbl_choose_icon" style="margin:0">Choose Icon</span>
+    <div class="ico-pack-tabs" style="margin:0;border:none;background:var(--bg);border-radius:6px;padding:2px;display:flex;gap:1px;">
+      <button class="ico-pack-tab on" onclick="switchIcoPack('builtin',this)" style="padding:3px 10px;border-radius:4px;font-size:11px">Built-in</button>
+      <button class="ico-pack-tab"    onclick="switchIcoPack('co',this)" style="padding:3px 10px;border-radius:4px;font-size:11px">CO Icons</button>
+    </div>
   </div>
-  <div class="ico-pack-panel on" id="ico-pack-builtin">
+  <div class="ico-pack-panel on" id="ico-pack-builtin" style="padding:8px">
     <div class="ico-picker-grid" id="ico-picker-grid"></div>
   </div>
-  <div class="ico-pack-panel" id="ico-pack-co" style="grid-template-columns:repeat(6,1fr);gap:4px;max-height:200px;overflow-y:auto;">
+  <div class="ico-pack-panel" id="ico-pack-co"
+    style="display:none;grid-template-columns:repeat(5,1fr);gap:3px;padding:8px;max-height:220px;overflow-y:auto;">
   </div>
 </div>
 
@@ -1659,9 +1663,14 @@ function amenLabel(a){
 
 function renderAmenities(){
   document.getElementById('amen-grid').innerHTML = AMENITY_ICONS.map((a,i)=>`
-    <div class="amen-item${a.on?' on':''}" onclick="toggleAmenIcon(${i})">
-      <span class="aico">${renderIcHtml(a.id)||''}</span>
-      <span>${amenLabel(a)}</span>
+    <div class="amen-item${a.on?' on':''}" style="position:relative;padding-right:22px">
+      <div style="display:flex;align-items:center;gap:7px;flex:1" onclick="toggleAmenIcon(${i})">
+        <span class="aico">${renderIcHtml(a.id)||''}</span>
+        <span>${amenLabel(a)}</span>
+      </div>
+      <button onclick="event.stopPropagation();openAmenIconPicker(${i},this)"
+        style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;padding:2px;color:var(--xlt);font-size:10px;line-height:1"
+        title="Change icon">⚙</button>
     </div>`).join('');
 }
 function toggleAmenIcon(i){ AMENITY_ICONS[i].on=!AMENITY_ICONS[i].on; renderAmenities(); gen(); }
@@ -1796,8 +1805,8 @@ function renderBenefits(){
       <button class="ben-ico-btn" onclick="openIconPicker(${i},this)" title="Change icon">
         ${getBenIcon(b)}
       </button>
-      <input class="ben-input" oninput="gen()" type="text" value="${safeText}"
-             oninput="BENEFITS[${i}].text=this.value"
+      <input class="ben-input" type="text" value="${safeText}"
+             oninput="BENEFITS[${i}].text=this.value;gen()"
              placeholder="Type benefit text…">
       <button class="ben-del" onclick="delBenefit(${i})">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -1826,11 +1835,24 @@ function openIconPicker(i, btn){
     [{id:'_tick', label:'Default ✓'}, ...IC_LIST].map(ic=>`
       <div class="ico-opt${curId===ic.id||(!curId&&ic.id==='_tick')?' sel':''}"
            onclick="selectBenIcon('${ic.id}')">
-        <span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">
+        <span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center">
           ${ic.id==='_tick' ? TICK_SVG : (renderIcHtml(ic.id)||IC[ic.id]||'')||TICK_SVG}
         </span>
         <span>${ic.label}</span>
       </div>`).join('');
+  // Refresh CO panel
+  const coPanel2 = document.getElementById('ico-pack-co');
+  coPanel2.innerHTML = (Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`
+    <div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectBenIcon('${ic.id}')" title="${ic.label}">
+      <img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}">
+      <span>${ic.label.split(' ')[0].slice(0,6)}</span>
+    </div>`).join('') || '<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center;grid-column:1/-1">Requires icon/icons.json</div>';
+  // Reset to builtin tab
+  document.querySelectorAll('.ico-pack-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  const b2 = document.getElementById('ico-pack-builtin');
+  const c2 = document.getElementById('ico-pack-co');
+  b2.style.display=''; b2.classList.add('on');
+  c2.style.display='none'; c2.classList.remove('on');
 
   const r = btn.getBoundingClientRect();
   picker.style.top  = (r.bottom + 6) + 'px';
@@ -1854,27 +1876,76 @@ function selectBenIcon(iconId){
 
 function switchIcoPack(pack, btn){
   document.querySelectorAll('.ico-pack-tab').forEach(b=>b.classList.remove('on'));
-  document.querySelectorAll('.ico-pack-panel').forEach(p=>p.classList.remove('on'));
   if(btn) btn.classList.add('on');
-  const panel = document.getElementById('ico-pack-'+pack);
-  if(panel) panel.classList.add('on');
-  // Populate CO panel on first open
-  if(pack==='co'){
-    const coPanel = document.getElementById('ico-pack-co');
-    if(!coPanel.dataset.loaded){
-      coPanel.innerHTML = CO_ICONS.map(ic=>`
-        <div class="ico-opt" onclick="selectIconByMode('${ic.id}')" title="${ic.label}">
-          <img src="${ic.url}" class="co-icon-img" style="width:20px;height:20px" alt="${ic.label}">
-          <span>${ic.label.split(' ')[0].slice(0,6)}</span>
-        </div>`).join('');
-      coPanel.dataset.loaded = '1';
-    }
+  const builtin = document.getElementById('ico-pack-builtin');
+  const co = document.getElementById('ico-pack-co');
+  if(pack==='builtin'){
+    builtin.style.display=''; builtin.classList.add('on');
+    co.style.display='none'; co.classList.remove('on');
+  } else {
+    builtin.style.display='none'; builtin.classList.remove('on');
+    co.style.display='grid'; co.classList.add('on');
+    // Always repopulate CO panel
+    co.innerHTML = (Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`
+      <div class="ico-opt" onclick="selectIconByMode('${ic.id}')" title="${ic.label}">
+        <img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}">
+        <span>${ic.label.split(' ')[0].slice(0,6)}</span>
+      </div>`).join('') || '<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center;grid-column:1/-1">Loading CO icons…<br>Requires icon/icons.json on server</div>';
   }
 }
 
 function selectIconByMode(iconId){
-  if(_pickerMode === 'tr') selectTrIcon(iconId);
+  if(_pickerMode === 'tr')   selectTrIcon(iconId);
+  else if(_pickerMode === 'amen') selectAmenIcon(iconId);
   else selectBenIcon(iconId);
+}
+
+function selectAmenIcon(iconId){
+  if(_amenPickerIdx === null) return;
+  // Store override for this amenity slot
+  if(!window.ICON_OVERRIDES) window.ICON_OVERRIDES = {};
+  window.ICON_OVERRIDES[AMENITY_ICONS[_amenPickerIdx].id] = iconId;
+  closeIconPicker();
+  _amenPickerIdx = null;
+  renderAmenities();
+  gen();
+}
+
+// Amenity icon picker
+let _amenPickerIdx = null;
+
+function openAmenIconPicker(i, btn){
+  _pickerMode = 'amen';
+  _amenPickerIdx = i;
+  _pickerBenIdx = null;
+  _trPickerId = null;
+  const picker = document.getElementById('ico-picker');
+  const curId = AMENITY_ICONS[i].id;
+  // Populate builtin
+  document.getElementById('ico-picker-grid').innerHTML =
+    IC_LIST.map(ic=>`
+      <div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectIconByMode('${ic.id}')">
+        <span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">
+          ${renderIcHtml(ic.id)||IC[ic.id]||''}
+        </span>
+        <span>${ic.label}</span>
+      </div>`).join('');
+  // Populate CO panel fresh
+  const coPanel = document.getElementById('ico-pack-co');
+  coPanel.innerHTML = (Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`
+    <div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectIconByMode('${ic.id}')" title="${ic.label}">
+      <img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}">
+      <span>${ic.label.split(' ')[0].slice(0,6)}</span>
+    </div>`).join('');
+  coPanel.dataset.loaded = '1';
+  // Reset to builtin tab
+  document.querySelectorAll('.ico-pack-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  document.querySelectorAll('.ico-pack-panel').forEach((p,i)=>p.classList.toggle('on',i===0));
+  const r = btn.getBoundingClientRect();
+  picker.style.top  = (r.bottom+6)+'px';
+  picker.style.left = Math.min(r.left, window.innerWidth-300)+'px';
+  picker.classList.add('open');
+  setTimeout(()=>document.addEventListener('click', outsidePickerClick, {once:true}), 20);
 }
 
 function closeIconPicker(){
@@ -1887,6 +1958,7 @@ function closeIconPicker(){
 function toggleBen(i){
   BENEFITS[i].on = !BENEFITS[i].on;
   renderBenefits();
+  gen();
 }
 
 function delBenefit(i){
