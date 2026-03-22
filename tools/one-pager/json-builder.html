@@ -123,9 +123,9 @@ body{
 }
 
 /* ═══════════════════════════════════════
-   MOBILE — JSON builder  (≤ 900px)
+   MOBILE — JSON builder  (≤ 700px)
 ═══════════════════════════════════════ */
-@media(max-width:900px){
+@media(max-width:700px){
   /* Hide live preview panel — too narrow */
   .preview-col{display:none;}
   .app-layout{grid-template-columns:1fr;padding:20px 16px 40px;}
@@ -458,6 +458,12 @@ select{appearance:none;
 .co-ico-opt:hover{border-color:var(--o);background:var(--olt);}
 .co-ico-opt img{width:20px;height:20px;}
 .co-ico-opt span{font-size:8px;color:var(--xlt);text-align:center;line-height:1.2;}
+
+/* Inline preview for narrow viewports */
+.inline-preview-section{display:none;margin-top:32px;}
+@media(max-width:700px){
+  .inline-preview-section{display:block;}
+}
 </style>
 </head>
 <body>
@@ -1063,6 +1069,18 @@ select{appearance:none;
     </div>
   </div>
 
+
+  <!-- Inline JSON preview — shown when sidebar panel is hidden (≤700px) -->
+  <div class="inline-preview-section" id="inline-preview-section">
+    <div class="section-head" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="margin:0">JSON Preview</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" onclick="copyJSON()" style="padding:6px 12px;font-size:12px">Copy</button>
+        <button class="btn-download" onclick="downloadJSON()" style="padding:6px 14px;font-size:12px">↓ Download</button>
+      </div>
+    </div>
+    <div class="preview-json" id="json-box-inline" style="border-radius:10px;max-height:400px"></div>
+  </div>
 </div><!-- /form-col -->
 
 <div class="preview-col">
@@ -1183,6 +1201,143 @@ function getJLib(){ try{return JSON.parse(localStorage.getItem(JLIB_KEY)||'[]');
 function saveJLib(lib){ localStorage.setItem(JLIB_KEY, JSON.stringify(lib)); }
 let LIB_ALL = getJLib();
 
+function renderJSONPreview(){
+  try{
+    const obj = buildJSON();
+    const html = syntaxHL(obj);
+    const main = document.getElementById('json-box');
+    if(main) main.innerHTML = html;
+    const inline = document.getElementById('json-box-inline');
+    if(inline) inline.innerHTML = html;
+  } catch(e){
+    const msg = '<span style="color:#f87171;font-size:11px">Preview error: '+e.message+'</span>';
+    const main = document.getElementById('json-box');
+    if(main) main.innerHTML = msg;
+    const inline = document.getElementById('json-box-inline');
+    if(inline) inline.innerHTML = msg;
+    console.error('renderJSONPreview:', e);
+  }
+}
+
+function applySpecLabels(){
+  const lbls = SPEC_LABELS[CURRENT_LANG] || SPEC_LABELS.en;
+  document.querySelectorAll('[data-spec-lbl]').forEach(el=>{
+    el.textContent = lbls[el.dataset.specLbl] || el.textContent;
+  });
+}
+
+function getChipIcon(id){
+  try{
+    const override = window.ICON_OVERRIDES?.[id];
+    const resolvedId = override || id;
+    if(resolvedId && resolvedId.startsWith('co_') && Array.isArray(CO_ICONS)){
+      const ico = CO_ICONS.find(c=>c.id===resolvedId);
+      if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ico.label}">`;
+    }
+    if(Array.isArray(BUILTIN_ICONS_B)){
+      const found = BUILTIN_ICONS_B.find(i=>i.id===resolvedId);
+      if(found) return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${found.d}"/></svg>`;
+    }
+  }catch(e){ console.warn('getChipIcon error:', e); }
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+}
+
+// Render icon for transport row (built-in SVG or CO img)
+function renderTrIcon(iconId){
+  if(!iconId) iconId = 'tr_metro';
+  if(iconId.startsWith('co_') && Array.isArray(CO_ICONS)){
+    const ico = CO_ICONS.find(c=>c.id===iconId);
+    if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:22px;height:22px" alt="${ico.label}">`;
+  }
+  const TR_PATHS = {
+    tr_metro:  ['M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z','M4 11h16','M12 3v8','M7 17.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z','M14 17.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z'],
+    tr_train:  ['M3 4h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z','M16 14v2','M8 14v2','M3 10h18'],
+    tr_bus:    ['M8 6v6','M3 6h18l1 8H2L3 6z','M3 6V4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2','M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z','M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
+    tr_walk:   ['M12 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z','M9 8l1 5 2-2 2 4','M14.5 8l-1.5 3H9','M10 16l-1 4','M14 16l1 4'],
+    tr_ferry:  ['M4 17H2l2-9h16l1.5 7H18','M8 12V8','M12 12V7','M16 12V9'],
+    tr_car:    ['M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14l4 4v6a2 2 0 0 1-2 2h-2','M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z','M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
+    tr_airport:['M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 4s-2 1-3.5 2.5L11 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z'],
+  };
+  const paths = TR_PATHS[iconId] || TR_PATHS.tr_metro;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px">${paths.map(p=>`<path d="${p}"/>`).join('')}</svg>`;
+}
+
+function renderTrList(){
+  const c2 = document.getElementById('tr-unified-list');
+  if(!c2) return;
+  if(!TRANSPORT.length){ c2.innerHTML='<p style="font-size:13px;color:var(--xlt);padding:4px 0 10px">No transport lines yet.</p>'; return; }
+  c2.innerHTML = TRANSPORT.map(row=>`
+    <div class="tr-unified-row">
+      <div class="tr-unified-head">
+        <button class="tr-ico-pick-btn" onclick="openTrIconPicker(${row.id},this)" title="Change icon">
+          ${renderTrIcon(row.iconId)}
+        </button>
+        <span style="font-size:11px;color:var(--xlt);flex:1">Click icon to change</span>
+        <button class="tr-del-btn" onclick="delTrRow(${row.id})">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="tr-unified-texts">
+        ${LANG_KEYS.map(lk=>`
+          <div class="tr-lang-row${lk===CUR_LANG_KEY()?' on':''}">
+            <span class="tr-lang-badge">${LANG_LABELS[lk]}</span>
+            <div class="tr-rich-wrap">
+              <div class="tr-rich-bar">
+                <button class="spec-rb" onmousedown="event.preventDefault();trRich('bold','${row.id}','${lk}')"><b>B</b></button>
+                <button class="spec-rb orange" onmousedown="event.preventDefault();trRich('orange','${row.id}','${lk}')">●</button>
+                <button class="spec-rb" onmousedown="event.preventDefault();trRich('black','${row.id}','${lk}')" style="color:#333">●</button>
+                <button class="spec-rb" onmousedown="event.preventDefault();trRich('small','${row.id}','${lk}')" style="color:var(--lt)">S↓</button>
+                <button class="spec-rb" onmousedown="event.preventDefault();trRich('clear','${row.id}','${lk}')">✕</button>
+              </div>
+              <div class="spec-rb-editor" id="tr-${row.id}-${lk}" contenteditable="true"
+                   style="min-height:30px;font-size:12px"
+                   placeholder="${{en:'Station name, travel time…',tc:'車站名稱、交通時間…',sc:'车站名称、交通时间…',ja:'駅名、所要時間…'}[lk]}"
+                   oninput="updTrRich(${row.id},'${lk}',this)">${row.texts[lk]||''}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function renderAmenGrid(){
+  document.getElementById('amen-grid').innerHTML = AMENITY_DEFS.map(a=>`
+    <div class="amen-chip${AMENITIES_ON.has(a.id)?' on':''}" style="position:relative">
+      <div onclick="toggleAmen('${a.id}',this.parentElement)" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
+        ${getChipIcon(a.id)}
+        <span>${a.label}</span>
+      </div>
+      <button onclick="event.stopPropagation();openCoIconPicker('amen','${a.id}',this)"
+        style="position:absolute;top:2px;right:2px;border:none;background:transparent;cursor:pointer;padding:1px;color:var(--xlt);font-size:8px;line-height:1">⚙</button>
+    </div>`).join('');
+}
+
+function renderBenGrid(){
+  document.getElementById('ben-grid').innerHTML = BENEFIT_DEFS.map(b=>`
+    <div class="amen-chip${BENEFITS_ON.has(b.id)?' on':''}" style="position:relative">
+      <div onclick="toggleBen('${b.id}',this.parentElement)" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
+        ${getChipIcon(b.id)}
+        <span>${b.label}</span>
+      </div>
+      <button onclick="event.stopPropagation();openCoIconPicker('ben','${b.id}',this)"
+        style="position:absolute;top:2px;right:2px;border:none;background:transparent;cursor:pointer;padding:1px;color:var(--xlt);font-size:8px;line-height:1">⚙</button>
+    </div>`).join('');
+}
+
+function toggleAmen(id, el){
+  if(AMENITIES_ON.has(id)) AMENITIES_ON.delete(id);
+  else AMENITIES_ON.add(id);
+  el.classList.toggle('on', AMENITIES_ON.has(id));
+  // Colour the icon — works for both svg and img (img uses CSS filter via .on)
+  const svg = el.querySelector('svg');
+  if(svg) svg.style.color = AMENITIES_ON.has(id) ? 'var(--o)' : 'var(--xlt)';
+}
+
+function toggleBen(id, el){
+  if(BENEFITS_ON.has(id)) BENEFITS_ON.delete(id);
+  else BENEFITS_ON.add(id);
+  el.classList.toggle('on', BENEFITS_ON.has(id));
+}
+
 function init(){
   renderAmenGrid();
   renderBenGrid();
@@ -1295,42 +1450,6 @@ function updTrText(id, lang, val){
 }
 
 
-function renderTrList(){
-  const c2 = document.getElementById('tr-unified-list');
-  if(!c2) return;
-  if(!TRANSPORT.length){ c2.innerHTML='<p style="font-size:13px;color:var(--xlt);padding:4px 0 10px">No transport lines yet.</p>'; return; }
-  c2.innerHTML = TRANSPORT.map(row=>`
-    <div class="tr-unified-row">
-      <div class="tr-unified-head">
-        <button class="tr-ico-pick-btn" onclick="openTrIconPicker(${row.id},this)" title="Change icon">
-          ${renderTrIcon(row.iconId)}
-        </button>
-        <span style="font-size:11px;color:var(--xlt);flex:1">Click icon to change</span>
-        <button class="tr-del-btn" onclick="delTrRow(${row.id})">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="tr-unified-texts">
-        ${LANG_KEYS.map(lk=>`
-          <div class="tr-lang-row${lk===CUR_LANG_KEY()?' on':''}">
-            <span class="tr-lang-badge">${LANG_LABELS[lk]}</span>
-            <div class="tr-rich-wrap">
-              <div class="tr-rich-bar">
-                <button class="spec-rb" onmousedown="event.preventDefault();trRich('bold','${row.id}','${lk}')"><b>B</b></button>
-                <button class="spec-rb orange" onmousedown="event.preventDefault();trRich('orange','${row.id}','${lk}')">●</button>
-                <button class="spec-rb" onmousedown="event.preventDefault();trRich('black','${row.id}','${lk}')" style="color:#333">●</button>
-                <button class="spec-rb" onmousedown="event.preventDefault();trRich('small','${row.id}','${lk}')" style="color:var(--lt)">S↓</button>
-                <button class="spec-rb" onmousedown="event.preventDefault();trRich('clear','${row.id}','${lk}')">✕</button>
-              </div>
-              <div class="spec-rb-editor" id="tr-${row.id}-${lk}" contenteditable="true"
-                   style="min-height:30px;font-size:12px"
-                   placeholder="${{en:'Station name, travel time…',tc:'車站名稱、交通時間…',sc:'车站名称、交通时间…',ja:'駅名、所要時間…'}[lk]}"
-                   oninput="updTrRich(${row.id},'${lk}',this)">${row.texts[lk]||''}</div>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`).join('');
-}
 
 // ── PRICING ───────────────────────────────────────────────
 function addPrRow(){
@@ -1373,44 +1492,9 @@ function renderPrRows(){
 }
 
 // ── AMENITY / BENEFIT GRIDS ───────────────────────────────
-function renderAmenGrid(){
-  document.getElementById('amen-grid').innerHTML = AMENITY_DEFS.map(a=>`
-    <div class="amen-chip${AMENITIES_ON.has(a.id)?' on':''}" style="position:relative">
-      <div onclick="toggleAmen('${a.id}',this.parentElement)" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
-        ${getChipIcon(a.id)}
-        <span>${a.label}</span>
-      </div>
-      <button onclick="event.stopPropagation();openCoIconPicker('amen','${a.id}',this)"
-        style="position:absolute;top:2px;right:2px;border:none;background:transparent;cursor:pointer;padding:1px;color:var(--xlt);font-size:8px;line-height:1">⚙</button>
-    </div>`).join('');
-}
 
-function toggleAmen(id, el){
-  if(AMENITIES_ON.has(id)) AMENITIES_ON.delete(id);
-  else AMENITIES_ON.add(id);
-  el.classList.toggle('on', AMENITIES_ON.has(id));
-  // Colour the icon — works for both svg and img (img uses CSS filter via .on)
-  const svg = el.querySelector('svg');
-  if(svg) svg.style.color = AMENITIES_ON.has(id) ? 'var(--o)' : 'var(--xlt)';
-}
 
-function renderBenGrid(){
-  document.getElementById('ben-grid').innerHTML = BENEFIT_DEFS.map(b=>`
-    <div class="amen-chip${BENEFITS_ON.has(b.id)?' on':''}" style="position:relative">
-      <div onclick="toggleBen('${b.id}',this.parentElement)" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
-        ${getChipIcon(b.id)}
-        <span>${b.label}</span>
-      </div>
-      <button onclick="event.stopPropagation();openCoIconPicker('ben','${b.id}',this)"
-        style="position:absolute;top:2px;right:2px;border:none;background:transparent;cursor:pointer;padding:1px;color:var(--xlt);font-size:8px;line-height:1">⚙</button>
-    </div>`).join('');
-}
 
-function toggleBen(id, el){
-  if(BENEFITS_ON.has(id)) BENEFITS_ON.delete(id);
-  else BENEFITS_ON.add(id);
-  el.classList.toggle('on', BENEFITS_ON.has(id));
-}
 
 // ── RICH TEXT ─────────────────────────────────────────────
 function specRich(cmd, editorId){
@@ -1498,7 +1582,7 @@ function buildJSON(){
 
   // Transport — unified rows, output per-lang object
   const stripH = h=>(h||"").replace(/<[^>]*>/g,"").trim();
-  const validTr = TRANSPORT.filter(r=>stripH(r.texts.en)||stripH(r.texts.tc)||stripH(r.texts.sc)||stripH(r.texts.ja));
+  const validTr = (Array.isArray(TRANSPORT)?TRANSPORT:[]).filter(r=>r.texts&&(stripH(r.texts.en)||stripH(r.texts.tc)||stripH(r.texts.sc)||stripH(r.texts.ja)));
   if(validTr.length){
     const langs = ['en','tc','sc','ja'];
     const codes = {en:'en',tc:'zh-hant',sc:'zh-hans',ja:'ja'};
@@ -1546,14 +1630,14 @@ function buildJSON(){
   if(cbody && cbody!=='<br>') data.custom_body = cbody;
 
   // Pricing
-  const pricing = PR_ROWS.filter(r=>r.seats||r.rent).map(r=>({
+  const pricing = (Array.isArray(PR_ROWS)?PR_ROWS:[]).filter(r=>r.seats||r.rent).map(r=>({
     seats:r.seats, type:r.type, rent:r.rent, mgmt:r.mgmt, init:r.init, avail:r.avail
   }));
   if(pricing.length) data.pricing = pricing;
 
   // Amenities & Benefits
-  data.amenities   = [...AMENITIES_ON];
-  data.benefits_on = [...BENEFITS_ON];
+  data.amenities   = AMENITIES_ON instanceof Set ? [...AMENITIES_ON] : (Array.isArray(AMENITIES_ON)?AMENITIES_ON:[]);
+  data.benefits_on = BENEFITS_ON instanceof Set ? [...BENEFITS_ON] : (Array.isArray(BENEFITS_ON)?BENEFITS_ON:[]);
   if(window.ICON_OVERRIDES && Object.keys(window.ICON_OVERRIDES).length)
     data.icon_overrides = {...window.ICON_OVERRIDES};
 
@@ -1577,9 +1661,6 @@ function syntaxHL(obj){
     });
 }
 
-function renderJSONPreview(){
-  document.getElementById('json-box').innerHTML = syntaxHL(buildJSON());
-}
 
 function copyJSON(){
   navigator.clipboard.writeText(JSON.stringify(buildJSON(),null,2)).then(()=>{
@@ -1611,8 +1692,6 @@ function loadExistingJSON(e){
     try{
       const p = JSON.parse(ev.target.result);
       fillFromData(p);
-      // Jump to step 1
-      goStep(0);
       alert('✅ JSON loaded! Review each step and download when ready.');
     }catch(err){ alert('⚠️ Invalid JSON: ' + err.message); }
     e.target.value = '';
@@ -1754,25 +1833,6 @@ function updTrRich(id, lk, el){
 }
 
 
-// Render icon for transport row (built-in SVG or CO img)
-function renderTrIcon(iconId){
-  if(!iconId) iconId = 'tr_metro';
-  if(iconId.startsWith('co_')){
-    const ico = CO_ICONS.find(c=>c.id===iconId);
-    if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:22px;height:22px" alt="${ico.label}">`;
-  }
-  const TR_PATHS = {
-    tr_metro:  ['M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z','M4 11h16','M12 3v8','M7 17.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z','M14 17.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z'],
-    tr_train:  ['M3 4h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z','M16 14v2','M8 14v2','M3 10h18'],
-    tr_bus:    ['M8 6v6','M3 6h18l1 8H2L3 6z','M3 6V4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2','M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z','M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
-    tr_walk:   ['M12 2.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z','M9 8l1 5 2-2 2 4','M14.5 8l-1.5 3H9','M10 16l-1 4','M14 16l1 4'],
-    tr_ferry:  ['M4 17H2l2-9h16l1.5 7H18','M8 12V8','M12 12V7','M16 12V9'],
-    tr_car:    ['M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14l4 4v6a2 2 0 0 1-2 2h-2','M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z','M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
-    tr_airport:['M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 4s-2 1-3.5 2.5L11 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z'],
-  };
-  const paths = TR_PATHS[iconId] || TR_PATHS.tr_metro;
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px">${paths.map(p=>`<path d="${p}"/>`).join('')}</svg>`;
-}
 
 let _trIconPickerId = null;
 
@@ -1790,7 +1850,7 @@ function openTrIconPicker(rowId, btn){
     </div>`).join('');
   // CO tab
   const coPanel = document.getElementById('co-ico-custom');
-  coPanel.innerHTML = CO_ICONS.map(ic=>`
+  coPanel.innerHTML = (Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`
     <div class="co-ico-opt${ic.id===curId?' sel':''}" onclick="selectTrIconPicker('${ic.id}')" title="${ic.label}">
       <img src="${ic.url}" class="co-icon-img" style="width:20px;height:20px" alt="${ic.label}">
       <span>${ic.label.split(' ')[0].slice(0,6)}</span>
@@ -1990,12 +2050,6 @@ function downloadIndexJson(){
 
 // ── SPEC FIELD LABELS per language ─────────────────────────
 
-function applySpecLabels(){
-  const lbls = SPEC_LABELS[CURRENT_LANG] || SPEC_LABELS.en;
-  document.querySelectorAll('[data-spec-lbl]').forEach(el=>{
-    el.textContent = lbls[el.dataset.specLbl] || el.textContent;
-  });
-}
 
 
 // ── RICH EDITOR: controlled Enter key & clean paste ──────────
@@ -2046,7 +2100,7 @@ document.addEventListener('paste', e => {
 
 // ── CO ICON PICKER (amenity & benefit chips) ─────────────────
 let _coPickerTarget = null; // {type:'amen'|'ben', id:string}
-const BUILTIN_ICONS_B = [
+var BUILTIN_ICONS_B = [
   {id:'concierge', label:'Concierge', d:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'},
   {id:'lounge',    label:'Lounge',    d:'M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0zM6 18v4M18 18v4'},
   {id:'drinks',    label:'Drinks',    d:'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3'},
@@ -2061,18 +2115,6 @@ const BUILTIN_ICONS_B = [
   {id:'security',  label:'Security',  d:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'},
 ];
 
-function getChipIcon(id){
-  const override = window.ICON_OVERRIDES?.[id];
-  const resolvedId = override || id;
-  if(resolvedId && resolvedId.startsWith('co_')){
-    const ico = CO_ICONS.find(c=>c.id===resolvedId);
-    if(ico) return `<img src="${ico.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ico.label}">`;
-  }
-  const found = BUILTIN_ICONS_B.find(i=>i.id===resolvedId);
-  if(found) return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${found.d}"/></svg>`;
-  // Default tick
-  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-}
 
 function openCoIconPicker(type, id, btn){
   _coPickerTarget = {type, id};
@@ -2090,7 +2132,7 @@ function openCoIconPicker(type, id, btn){
   // CO tab — always repopulate with current CO_ICONS
   const coPanel = document.getElementById('co-ico-custom');
   if(CO_ICONS.length){
-    coPanel.innerHTML = CO_ICONS.map(ic=>`
+    coPanel.innerHTML = (Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`
       <div class="co-ico-opt${ic.id===curOverride?' sel':''}" onclick="selectCoIcon('${ic.id}')" title="${ic.label}">
         <img src="${ic.url}" class="co-icon-img" style="width:20px;height:20px" alt="${ic.label}">
         <span>${ic.label.split(' ')[0].slice(0,6)}</span>
@@ -2135,6 +2177,7 @@ function closeCoPickerOutside(e){
   if(p && !p.contains(e.target)) p.classList.remove('open');
   else setTimeout(()=>document.addEventListener('click', closeCoPickerOutside, {once:true}), 20);
 }
+
 
 </script>
 </body>
