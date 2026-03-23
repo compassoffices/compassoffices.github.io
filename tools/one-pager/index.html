@@ -104,12 +104,11 @@ select{appearance:none;
   padding:1px 4px;font-size:10px;font-family:monospace;color:var(--mid);}
 
 .json-search-wrap{position:relative;}
-.json-search{width:100%;padding:9px 12px 9px 36px;border:1px solid var(--bd);border-radius:6px;
+.json-search{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:6px;
   font-size:14px;font-family:inherit;color:var(--drk);background:var(--wh);
   outline:none;transition:border-color .15s;}
 .json-search:focus{border-color:var(--o);}
-.json-search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);
-  color:var(--xlt);pointer-events:none;}
+.json-search-ico{display:none;}
 .json-dropdown{
   position:absolute;z-index:500;top:calc(100% + 4px);left:0;right:0;
   background:var(--wh);border:1px solid var(--bd);border-radius:8px;
@@ -672,7 +671,13 @@ img.co-icon-img{
     <button class="lbtn"     onclick="setLang('zh-hans')">简体</button>
     <button class="lbtn"     onclick="setLang('ja')">日本語</button>
   </div>
-  <button class="hbtn" onclick="printSlide()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> <span data-i18n="btn_print">Print / Save PDF</span></button>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="hbtn" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd)" onclick="downloadCurrentJSON()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>↓ JSON</span>
+    </button>
+    <button class="hbtn" onclick="printSlide()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> <span data-i18n="btn_print">Print / Save PDF</span></button>
+  </div>
 </header>
 
 <div class="app">
@@ -692,14 +697,14 @@ img.co-icon-img{
       <!-- JSON Library -->
       <div class="slabel" data-i18n="sec_library"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Location Library</div>
       <div class="json-search-wrap" style="margin-bottom:6px">
-        <svg class="json-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input class="json-search" id="json-search" type="text"
           data-i18n-placeholder="lib_search_ph"
           placeholder="Type to search locations…"
           oninput="filterJsonLib(this.value)"
           onfocus="showJsonDropdown()"
           onblur="setTimeout(hideJsonDropdown,150)"
-          autocomplete="off">
+          autocomplete="off"
+          style="padding-left:12px">
         <div class="json-dropdown" id="json-dropdown"></div>
       </div>
       <div class="lib-load-row">
@@ -1150,17 +1155,33 @@ const L = {
 
 /* Spec table row labels per language */
 const SL = {
-  en:        {struct:'Structure',comp:'Completion',area:'Area',ceiling:'Ceiling / OA',
-              ac:'AC',net:'Network',lifts:'Lifts / Hours',fac:'Facilities',park:'Parking',
+  en:        {struct:'Structure',comp:'Completion',
+              area_fa:'Floor Area',area_ca:'Common Area',
+              ceiling:'Ceiling',oa:'OA Floor',
+              ac:'AC',net:'Network',
+              lifts:'Lifts',hrs:'Access Hours',
+              fac:'Facilities',park:'Parking',
               transport:'Transport',amenities:'Amenities',specs:'Building Specs'},
-  'zh-hant': {struct:'結構',comp:'竣工',area:'面積',ceiling:'天花高度 / OA',
-              ac:'空調',net:'網絡',lifts:'電梯 / 使用時間',fac:'公共設施',park:'停車場',
+  'zh-hant': {struct:'結構',comp:'竣工',
+              area_fa:'樓面面積',area_ca:'公共區域',
+              ceiling:'天花高度',oa:'OA地板',
+              ac:'空調',net:'網絡',
+              lifts:'電梯',hrs:'使用時間',
+              fac:'公共設施',park:'停車場',
               transport:'交通',amenities:'設施優點',specs:'樓宇設施概要'},
-  'zh-hans': {struct:'结构',comp:'竣工',area:'面积',ceiling:'天花高度 / OA',
-              ac:'空调',net:'网络',lifts:'电梯 / 使用时间',fac:'公共设施',park:'停车场',
+  'zh-hans': {struct:'结构',comp:'竣工',
+              area_fa:'楼面面积',area_ca:'公共区域',
+              ceiling:'天花高度',oa:'OA地板',
+              ac:'空调',net:'网络',
+              lifts:'电梯',hrs:'使用时间',
+              fac:'公共设施',park:'停车场',
               transport:'交通',amenities:'设施优点',specs:'楼宇设施概要'},
-  ja:        {struct:'構造',comp:'竣工年月',area:'面積',ceiling:'天井高 / OA',
-              ac:'空調',net:'ネット環境',lifts:'EV / 使用時間',fac:'共用部概要',park:'駐車場',
+  ja:        {struct:'構造',comp:'竣工年月',
+              area_fa:'基準階面積',area_ca:'共用部面積',
+              ceiling:'天井高',oa:'OAフロア',
+              ac:'空調',net:'ネット環境',
+              lifts:'EV台数',hrs:'使用時間',
+              fac:'共用部概要',park:'駐車場',
               transport:'アクセス',amenities:'設備概要',specs:'ビル・設備概要'},
 };
 
@@ -2431,16 +2452,23 @@ function gen(){
   const purl   = g('purl');
   const trLines= TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
 
+  // Paired fields share one card with a thin divider between them
+  const mkPair = (k1,v1,k2,v2) => {
+    if(!v1 && !v2) return null;
+    if(v1 && !v2)  return {k:k1, v:v1, pair:false};
+    if(!v1 && v2)  return {k:k2, v:v2, pair:false};
+    return {k:k1, v:v1, k2, v2, pair:true};
+  };
   const specRows=[
-    g('s-struct') && {k:sl('struct'), v:g('s-struct')},
-    g('s-comp')   && {k:sl('comp'),   v:g('s-comp')},
-    (g('s-fa')||g('s-ca')) && {k:sl('area'), v:[g('s-fa'),g('s-ca')].filter(Boolean).join(' · ')},
-    (g('s-ceil')||g('s-oa')) && {k:sl('ceiling'), v:[g('s-ceil'),g('s-oa')].filter(Boolean).join(' · ')},
-    g('s-ac')     && {k:sl('ac'),    v:g('s-ac')},
-    g('s-net')    && {k:sl('net'),   v:g('s-net')},
-    (g('s-el')||g('s-hrs')) && {k:sl('lifts'), v:[g('s-el'),g('s-hrs')].filter(Boolean).join(' · ')},
-    g('s-fac')    && {k:sl('fac'),   v:g('s-fac')},
-    g('s-park')   && {k:sl('park'),  v:g('s-park')},
+    g('s-struct') && {k:sl('struct'), v:g('s-struct'), pair:false},
+    g('s-comp')   && {k:sl('comp'),   v:g('s-comp'),   pair:false},
+    mkPair(sl('area_fa'), g('s-fa'), sl('area_ca'), g('s-ca')),
+    mkPair(sl('ceiling'), g('s-ceil'), sl('oa'), g('s-oa')),
+    g('s-ac')     && {k:sl('ac'),    v:g('s-ac'),    pair:false},
+    g('s-net')    && {k:sl('net'),   v:g('s-net'),   pair:false},
+    mkPair(sl('lifts'), g('s-el'), sl('hrs'), g('s-hrs')),
+    g('s-fac')    && {k:sl('fac'),   v:g('s-fac'),   pair:false},
+    g('s-park')   && {k:sl('park'),  v:g('s-park'),  pair:false},
   ].filter(Boolean);
 
   const checked     = BENEFITS.filter(b=>b.on);
@@ -2476,9 +2504,15 @@ function gen(){
     const charsPerLine = cols <= 2 ? 28 : cols === 3 ? 20 : 16;
     const estLines = s => {
       const raw = stripTags(s.v);
-      // Count explicit <br> as extra lines
       const brLines = (s.v.match(/<br\s*\/?>/gi)||[]).length;
-      return Math.ceil(raw.length / charsPerLine) + brLines;
+      let lines = Math.ceil(raw.length / charsPerLine) + brLines;
+      if(s.pair){
+        // Paired card: add lines for the second sub-row + 1 for divider
+        const raw2 = stripTags(s.v2||'');
+        const brLines2 = ((s.v2||'').match(/<br\s*\/?>/gi)||[]).length;
+        lines += Math.ceil(raw2.length / charsPerLine) + brLines2 + 1;
+      }
+      return lines;
     };
 
     // Assign row-span: cards with 3+ estimated lines get row-span 2
@@ -2510,8 +2544,16 @@ function gen(){
          style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${totalRows},auto)">
       ${placed.map(s=>`
         <div class="sl-spec-card" style="grid-column:${s.gridCol};grid-row:${s.gridRow}${s.rowSpan>1?` / span ${s.rowSpan}`:''}">
-          <div class="sl-spec-lbl">${s.k}</div>
-          <div class="sl-spec-val">${s.v}</div>
+          ${s.pair ? `
+            <div class="sl-spec-lbl">${s.k}</div>
+            <div class="sl-spec-val">${s.v}</div>
+            <div style="height:1px;background:#E8E8E8;margin:calc(var(--fs)*0.2) 0"></div>
+            <div class="sl-spec-lbl">${s.k2}</div>
+            <div class="sl-spec-val">${s.v2}</div>
+          ` : `
+            <div class="sl-spec-lbl">${s.k}</div>
+            <div class="sl-spec-val">${s.v}</div>
+          `}
         </div>`).join('')}
     </div>`;
   })() : '';
@@ -2754,6 +2796,59 @@ function gen(){
 // ══════════════════════════════════════════════════════════
 //  PRINT
 // ══════════════════════════════════════════════════════════
+// ── DOWNLOAD CURRENT STATE AS JSON ───────────────────────
+function downloadCurrentJSON(){
+  const name   = g('n-main') || 'location';
+  const addr   = g('addr');
+  const city   = document.getElementById('city')?.value || '';
+  const floor  = g('floor');
+  const purl   = g('purl');
+
+  const sp = {};
+  const sa = (k,id)=>{ const v=g(id); if(v) sp[k]=v; };
+  sa('structure','s-struct'); sa('completion','s-comp'); sa('ceiling','s-ceil');
+  sa('floor_area','s-fa'); sa('common_area','s-ca'); sa('oa','s-oa');
+  sa('elevators','s-el'); sa('ac','s-ac'); sa('network','s-net');
+  sa('facilities','s-fac'); sa('hours','s-hrs'); sa('parking','s-park');
+
+  const customTitle = g('custom-title');
+  const customBody  = document.getElementById('custom-body-editor')?.innerHTML?.trim();
+
+  const transport = TRANSPORT.filter(t=>(t.text||'').replace(/<[^>]*>/g,'').trim())
+    .map(t=>({text:t.text, iconId:t.iconId}));
+
+  const pricing = S.rows.filter(r=>r.seats||r.rent).map(r=>({
+    seats:r.seats, type:r.type, rent:r.rent, mgmt:r.mgmt, init:r.init, avail:r.avail
+  }));
+
+  const data = {name};
+  if(city)  data.city  = city;
+  if(floor) data.floor = floor;
+  if(addr)  data.address = addr;
+  if(purl)  data.page_url = purl;
+  if(S.partnerLogo && !S.partnerLogo.startsWith('data:')) data.partner_logo_url = S.partnerLogo;
+  if(transport.length) data.transport = transport;
+  if(Object.keys(sp).length) data.specs = sp;
+  if(customTitle) data.custom_title = customTitle;
+  if(customBody && customBody !== '<br>') data.custom_body = customBody;
+  if(pricing.length) data.pricing = pricing;
+  data.amenities   = AMENITY_ICONS.filter(a=>a.on).map(a=>a.id);
+  data.benefits_on = BENEFITS.filter(b=>b.on).map(b=>b.id);
+  if(window.ICON_OVERRIDES && Object.keys(window.ICON_OVERRIDES).length)
+    data.icon_overrides = {...window.ICON_OVERRIDES};
+  if(S.photos.filter(p=>p&&!p.startsWith('data:')).length)
+    data.photos = S.photos.filter(p=>p&&!p.startsWith('data:'));
+  if(S.floorplan && !S.floorplan.startsWith('data:')) data.floorplan_url = S.floorplan;
+
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (slug||'location') + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function printSlide(){
   const page1El = document.getElementById('slide');
   const page2El = document.getElementById('slide2');
