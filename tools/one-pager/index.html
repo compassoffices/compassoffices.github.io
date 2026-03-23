@@ -677,10 +677,12 @@ img.co-icon-img{display:block;}
 /* Centre / specs col */
 .sl-specs{padding:calc(var(--fs)*0.6) calc(var(--fs)*1.0);border-right:1px solid var(--bd);
   display:flex;flex-direction:column;min-width:0;overflow:hidden;}
-.sl-specs-inner{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:calc(var(--fs)*0.42);}
-.sl-section{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+.sl-specs-inner{flex:1;overflow:visible;display:flex;flex-direction:column;gap:calc(var(--fs)*0.42);}
+.sl-section{display:flex;flex-direction:column;min-height:0;}
+.sl-section.grow{overflow:hidden;}
+.sl-section.shrink{overflow:visible;flex-shrink:0;}
 .sl-section.grow{flex:1 1 0;}
-.sl-section.shrink{flex:0 0 auto;}
+.sl-section.shrink{flex:0 0 auto;overflow:visible;}
 .sl-sec{font-size:calc(var(--fs)*0.68);font-weight:800;text-transform:uppercase;
   letter-spacing:.09em;color:var(--o);margin-bottom:calc(var(--fs)*0.15);flex-shrink:0;}
 
@@ -722,11 +724,10 @@ img.co-icon-img{display:block;}
   display:flex;align-items:center;justify-content:center;min-height:0;}
 .sl-fp img{width:100%;height:100%;object-fit:contain;display:block;}
 .sl-fp-ph{font-size:calc(var(--fs)*0.68);color:#CCC;text-align:center;padding:8px;}
-.sl-merits-wrap{flex:1 1 0;overflow:hidden;display:flex;flex-direction:column;min-height:0;}
+.sl-merits-wrap{flex-shrink:0;display:flex;flex-direction:column;}
 .sl-merits-ttl{font-size:calc(var(--fs)*0.68);font-weight:800;text-transform:uppercase;
   letter-spacing:.09em;color:var(--o);margin-bottom:calc(var(--fs)*0.2);flex-shrink:0;}
-.sl-merits{list-style:none;display:flex;flex-direction:column;gap:calc(var(--fs)*0.18);
-  flex:1;overflow:hidden;min-height:0;}
+.sl-merits{list-style:none;display:flex;flex-direction:column;gap:calc(var(--fs)*0.18);flex-shrink:0;}
 .sl-merit{display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:visible;flex-shrink:0;}
 .sl-merit svg,.sl-merit img{width:calc(var(--fs)*0.85);height:calc(var(--fs)*0.85);flex-shrink:0;color:var(--o);}
 .sl-merit span{flex:1;color:var(--mid);line-height:1.3;white-space:nowrap;overflow:visible;}
@@ -3259,7 +3260,7 @@ function gen(){
       </div>`).join('')}
   </div>` : '';
 
-  const fpFlex = nPricing>=3?'0 0 32%':nPricing>=1?'0 0 38%':'0 0 44%';
+  const fpFlex = nPricing>=3?'1 1 0':nPricing>=1?'1 1 0':'1 1 0'; // fp grows to fill remaining after benefits
 
   const noph=(bg='#EEEEEE')=>`<div class="noph" style="background:${bg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
 
@@ -3271,18 +3272,51 @@ function gen(){
 
   // ── Calculate --fs ──────────────────────────────────────
   // A4 at 96dpi = 1122px wide. We want ~16px real text at A4.
-  // Preview slide width drives the scale.
   const slideWrap = document.querySelector('.slide-wrap');
   const previewW  = slideWrap ? slideWrap.offsetWidth : 600;
-  // Scale: 16px is for 1122px. At 600px preview → 16*600/1122 = 8.6px
-  // That's too small. Add a boost: the preview should look "like A4" not tiny.
-  // Multiply by 1.5 to compensate for the preview being smaller than real A4
   const rawFs = previewW / 1122 * 16 * 1.5;
-  // Density: fewer items → scale up more (sparse layouts use bigger text)
-  const total = nSpecs+(nPricing*2)+trLines.length+checked.length+amenChecked.length;
-  const dScale = total<=8?1.1 : total<=15?1.0 : total<=22?0.9 : 0.82;
-  const fsNum  = Math.max(10, Math.min(18, rawFs * dScale));
-  const fsVal  = fsNum.toFixed(1)+'px';
+
+  // Declare hasCustom early — needed for pressure calc and layout
+  const hasCustom = !!(g('custom-title') || (document.getElementById('custom-body-editor')?.innerHTML||'').trim().replace('<br>',''));
+
+  // Content density — every item that takes vertical space in the slide
+  // Amenity rows: each row of 4 icons takes height. Benefits: each item takes height.
+  // Spec rows, pricing, transport all compete for centre column height.
+  const nBenOn   = checked.length;
+  const nAmenOn  = amenChecked.length;
+  const amenRowCount = Math.ceil(nAmenOn / 4); // rows of 4 icons
+
+  // Right column height pressure:
+  //   fp takes fpFlex% (~38-44%), then benefits share the rest
+  //   Each benefit item ~ 1.1 * --fs height. If too many → reduce --fs.
+  // Left column height pressure:
+  //   photos take photoAreaFlex%, amenity rows take the rest
+  //   Each amenity row ~ 2.2 * --fs height (icon + label + gap)
+
+  // Estimate available right-col height for benefits (after fp):
+  // A4 body height ≈ 210mm - topbar(~18mm) - footer(~14mm) = ~178mm
+  // fpFlex e.g. 38% → fp = 67.6mm → merits get 178-67.6 = 110.4mm
+  // Each merit row ≈ 0.85*fs + 0.18*fs gap = ~1.03*fs
+  // So maxBenItems ≈ 110.4mm / (1.03 * fsNum * 0.264mm/px)
+
+  // Rather than exact math, use a simple scoring system:
+  // totalPressure drives dScale down
+  const rightPressure  = nBenOn * 1.2 + nPricing * 1.8;
+  const centrePressure = specRows.length * 0.9 + trLines.length * 1.0 + (hasCustom?1.5:0);
+  const leftPressure   = amenRowCount * 1.8;
+  const totalPressure  = Math.max(rightPressure, centrePressure, leftPressure);
+
+  // Map pressure → scale factor
+  const dScale = totalPressure <= 6  ? 1.10
+               : totalPressure <= 9  ? 1.00
+               : totalPressure <= 12 ? 0.92
+               : totalPressure <= 15 ? 0.84
+               : totalPressure <= 18 ? 0.76
+               : totalPressure <= 22 ? 0.68
+               :                       0.60;
+
+  const fsNum = Math.max(8, Math.min(18, rawFs * dScale));
+  const fsVal = fsNum.toFixed(1)+'px';
 
   // ── Build shared top bar HTML (reused for both pages) ──
   const topBarHTML=(pg)=>`
@@ -3311,12 +3345,17 @@ function gen(){
   page1El.style.setProperty('--fs', fsVal);
 
   // Smart: how many amenity rows do we need at 4-per-row?
-  const amenRows = Math.ceil(amenChecked.length / 4);
-  // If many amenities, reduce photo area slightly
-  const photoAreaFlex = amenRows >= 3 ? '1 1 55%' : amenRows === 2 ? '1 1 62%' : '1 1 70%';
+  // Each row needs ~2.4 * --fs height. Photos take the rest.
+  // Left col total body ≈ 178mm. Each amenity row ≈ 2.4 * fsNum * 0.264 mm.
+  const amenRowHeight = amenRowCount * 2.4 * fsNum * 0.264; // mm
+  const leftBodyMm = 178;
+  const photoFraction = Math.max(0.45, Math.min(0.80, (leftBodyMm - amenRowHeight - 8) / leftBodyMm));
+  const photoAreaFlex = amenChecked.length === 0
+    ? '1 1 100%'
+    : `1 1 ${(photoFraction * 100).toFixed(0)}%`;
 
   // ── Layout decision ──────────────────────────────────────────
-  const hasCustom = !!(g('custom-title') || (document.getElementById('custom-body-editor')?.innerHTML||'').trim().replace('<br>',''));
+  // hasCustom already declared above
   const centreHasCoreContent = specRows.length > 0 || trLines.length > 0 || hasCustom;
 
   // Auto mode: put benefits in centre if centre has space (no specs, but maybe transport/custom)
@@ -3457,8 +3496,8 @@ function gen(){
 
     ` : `
     <!-- NORMAL / CENTRE-BENEFITS MODE -->
-    <div class="sl-specs" data-edit="specs:s-struct" data-edit-hint="Edit building specs" style="${putBenInCentre?'overflow:visible;':''}">
-      <div class="sl-specs-inner" style="${putBenInCentre?'overflow:visible;':''}">
+    <div class="sl-specs" data-edit="specs:s-struct" data-edit-hint="Edit building specs">
+      <div class="sl-specs-inner">
         ${specRows.length?`
         <div class="sl-section ${(trLines.length||hasCustom||putBenInCentre)?'shrink':'grow'}">
           <div class="sl-sec">${sl('specs')}</div>
@@ -3489,9 +3528,9 @@ function gen(){
           </div>
         </div>`:''}
         ${putBenInCentre && checked.length ? `
-        <div class="sl-section shrink" data-edit="price:ben-list" data-edit-hint="Edit benefits" style="overflow:visible;flex-shrink:0;">
+        <div class="sl-section shrink" data-edit="price:ben-list" data-edit-hint="Edit benefits">
           <div class="sl-merits-ttl">${bTitle}</div>
-          <ul class="sl-merits" style="overflow:visible;flex:none;display:flex;flex-direction:column;gap:calc(var(--fs)*0.18);">
+          <ul class="sl-merits">
             ${checked.map(b=>{
               const len = b.text.length;
               const fScale = len <= 45 ? 0.82 : len <= 60 ? 0.74 : len <= 75 ? 0.65 : 0.58;
@@ -3637,10 +3676,17 @@ function downloadCurrentJSON(){
   if(S.floorplan && !S.floorplan.startsWith('data:')) data.floorplan_url = S.floorplan;
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const now  = new Date();
+  const ts   = now.getFullYear().toString().slice(2)
+             + String(now.getMonth()+1).padStart(2,'0')
+             + String(now.getDate()).padStart(2,'0')
+             + '-'
+             + String(now.getHours()).padStart(2,'0')
+             + String(now.getMinutes()).padStart(2,'0');
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = (slug||'location') + '.json';
+  a.download = (slug||'location') + '_' + ts + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
 }
