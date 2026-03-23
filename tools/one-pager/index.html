@@ -2484,79 +2484,110 @@ function gen(){
   const nSpecs   = specRows.length;
   const nPricing = S.rows.length;
 
-  // Smart spec columns
-  const hasExtra = trLines.length>0||amenChecked.length>0;
-  let cols, sizeKey;
-  if      (nSpecs<=3 && nPricing===0)             {cols=1;sizeKey='lg';}
-  else if (nSpecs<=4 && nPricing<=1 && !hasExtra) {cols=1;sizeKey='lg';}
-  else if (nSpecs<=5 && nPricing<=1)              {cols=2;sizeKey='md';}
-  else if (nSpecs<=6 && nPricing<=2)              {cols=2;sizeKey='md';}
-  else if (nSpecs<=6 && nPricing<=3)              {cols=3;sizeKey='sm';}
-  else if (nSpecs<=8 && nPricing<=2)              {cols=3;sizeKey='sm';}
-  else                                             {cols=4;sizeKey='xs';}
-
-  // Smart spec grid — height-aware packing
+  // ── CONTENT-AWARE SPEC GRID ────────────────────────────────
+  // Strategy: measure each card's content height, simulate layouts at
+  // multiple column counts, then pick the most balanced one.
   const stripTags = h => (h||'').replace(/<[^>]*>/g,'');
 
-  const specGridHTML = specRows.length ? (()=>{
-    // Estimate rendered line count for each card value
-    // charsPerLine depends on col width; narrower cols = fewer chars
-    const charsPerLine = cols <= 2 ? 28 : cols === 3 ? 20 : 16;
-    const estLines = s => {
-      const raw = stripTags(s.v);
-      const brLines = (s.v.match(/<br\s*\/?>/gi)||[]).length;
-      let lines = Math.ceil(raw.length / charsPerLine) + brLines;
-      if(s.pair){
-        // Paired card: add lines for the second sub-row + 1 for divider
-        const raw2 = stripTags(s.v2||'');
-        const brLines2 = ((s.v2||'').match(/<br\s*\/?>/gi)||[]).length;
-        lines += Math.ceil(raw2.length / charsPerLine) + brLines2 + 1;
-      }
-      return lines;
+  // Estimate "height units" for a card at a given column width
+  // charsPerLine: how many chars fit on one line in this column width
+  // Pair cards count both sub-rows + 1 divider unit
+  const estHeight = (s, cpl) => {
+    const textH = (v) => {
+      const raw = stripTags(v||'');
+      const brs = ((v||'').match(/<br\s*\/?>/gi)||[]).length;
+      return Math.max(1, Math.ceil(raw.length / cpl) + brs);
     };
+    // Base: 0.5u label + contentH + 0.3u padding per sub-row
+    let h = 0.5 + textH(s.v) + 0.3;
+    if(s.pair) h += 0.3 + 0.5 + textH(s.v2) + 0.3; // divider + 2nd label+val
+    return h;
+  };
 
-    // Assign row-span: cards with 3+ estimated lines get row-span 2
-    // Cards with 5+ lines get row-span 3 (capped at 3)
-    const withSpan = specRows.map(s => {
-      const lines = estLines(s);
-      let rowSpan = 1;
-      if(cols >= 2 && lines >= 3) rowSpan = 2;
-      if(cols >= 2 && lines >= 5) rowSpan = 3;
-      return {...s, lines, rowSpan};
+  // rowSpan: convert float height units to integer grid rows
+  // 1 unit ≈ one line of text. Thresholds tuned per column count.
+  const toSpan = (h, ncols) => {
+    // At 1 col everything is span 1 (no packing needed)
+    if(ncols <= 1) return 1;
+    // Tighter columns need more generous spans
+    if(h < 2.5)  return 1;
+    if(h < 4.2)  return 2;
+    if(h < 6.0)  return 3;
+    return 4;
+  };
+
+  // Pack cards into ncols columns using greedy shortest-column-first
+  // Returns {placed, totalRows, maxColH, balance}
+  const simulate = (ncols, cards) => {
+    // chars-per-line: wider columns at fewer cols
+    const cplMap = {1:50, 2:32, 3:22, 4:16};
+    const cpl = cplMap[ncols] || 16;
+    const withH = cards.map(s => {
+      const h = estHeight(s, cpl);
+      const span = toSpan(h, ncols);
+      return {...s, h, span};
     });
-
-    // Build grid: place cards into a cols-wide grid tracking row heights
-    // Use a column-height tracker so short cards fill gaps beside tall ones
-    const colHeights = new Array(cols).fill(0);
-    const placed = withSpan.map(s => {
-      // Find the column with minimum height
-      const minH = Math.min(...colHeights);
-      const col  = colHeights.indexOf(minH);
-      const row  = colHeights[col];
-      colHeights[col] += s.rowSpan;
+    const colH = new Array(ncols).fill(0);
+    const placed = withH.map(s => {
+      const minH = Math.min(...colH);
+      const col  = colH.indexOf(minH);
+      const row  = colH[col];
+      colH[col] += s.span;
       return {...s, gridCol: col+1, gridRow: row+1};
     });
+    const maxH   = Math.max(...colH);
+    const avgH   = colH.reduce((a,b)=>a+b,0) / ncols;
+    // Balance: lower is better — penalise tall total and column imbalance
+    const imbalance = colH.reduce((a,b)=>a+Math.abs(b-avgH),0);
+    const score = maxH * 2 + imbalance;
+    return {placed, totalRows:maxH, score, cpl};
+  };
 
-    // Total rows needed
-    const totalRows = Math.max(...colHeights);
+  // Determine candidate column counts based on content + layout pressure
+  const hasExtra = trLines.length>0||amenChecked.length>0;
+  // Pressure from pricing and transport reduces available vertical space
+  const pressure = nPricing * 1.4 + (hasExtra ? 1 : 0);
+  // Min cols: more specs + more pressure → need more columns
+  const minCols = nSpecs <= 3 ? 1 : nSpecs <= 5 ? (pressure > 1 ? 2 : 1) : 2;
+  const maxCols = nSpecs <= 3 ? 2 : nSpecs <= 5 ? 3 : nSpecs <= 8 ? 4 : 4;
+  const candidates = [];
+  for(let nc = minCols; nc <= maxCols; nc++) candidates.push(nc);
 
-    return `<div class="sl-specs-grid" data-size="${sizeKey}"
-         style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${totalRows},auto)">
-      ${placed.map(s=>`
-        <div class="sl-spec-card" style="grid-column:${s.gridCol};grid-row:${s.gridRow}${s.rowSpan>1?` / span ${s.rowSpan}`:''}">
-          ${s.pair ? `
-            <div class="sl-spec-lbl">${s.k}</div>
-            <div class="sl-spec-val">${s.v}</div>
-            <div style="height:1px;background:#E8E8E8;margin:calc(var(--fs)*0.2) 0"></div>
-            <div class="sl-spec-lbl">${s.k2}</div>
-            <div class="sl-spec-val">${s.v2}</div>
-          ` : `
-            <div class="sl-spec-lbl">${s.k}</div>
-            <div class="sl-spec-val">${s.v}</div>
-          `}
-        </div>`).join('')}
-    </div>`;
-  })() : '';
+  // Run simulation for each candidate, pick best score
+  let best = null;
+  for(const nc of candidates){
+    const result = simulate(nc, specRows);
+    // Penalise more columns unless content really needs them
+    const colPenalty = (nc - minCols) * 1.5;
+    const adjustedScore = result.score + colPenalty;
+    if(!best || adjustedScore < best.adjustedScore){
+      best = {...result, cols:nc, adjustedScore};
+    }
+  }
+
+  const cols    = best.cols;
+  const placed  = best.placed;
+  const totalRows = best.totalRows;
+
+  // Font size key based on final column count + pressure
+  const sizeKey = cols >= 4 ? 'xs' : cols === 3 ? 'sm' : cols === 2 ? 'md' : 'lg';
+
+  const specGridHTML = specRows.length ? `<div class="sl-specs-grid" data-size="${sizeKey}"
+       style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${totalRows},auto)">
+    ${placed.map(s=>`
+      <div class="sl-spec-card" style="grid-column:${s.gridCol};grid-row:${s.gridRow}${s.span>1?` / span ${s.span}`:''}">
+        ${s.pair ? `
+          <div class="sl-spec-lbl">${s.k}</div>
+          <div class="sl-spec-val">${s.v}</div>
+          <div style="height:1px;background:#E8E8E8;margin:calc(var(--fs)*0.2) 0"></div>
+          <div class="sl-spec-lbl">${s.k2}</div>
+          <div class="sl-spec-val">${s.v2}</div>
+        ` : `
+          <div class="sl-spec-lbl">${s.k}</div>
+          <div class="sl-spec-val">${s.v}</div>
+        `}
+      </div>`).join('')}
+  </div>` : '';
 
   const fpFlex = nPricing>=3?'0 0 32%':nPricing>=1?'0 0 38%':'0 0 44%';
 
