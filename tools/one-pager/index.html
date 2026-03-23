@@ -259,20 +259,15 @@ select{appearance:none;
 .pr-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--xlt);}
 
 /* ── CO CUSTOM ICONS ── */
-img.co-icon-img{
-  filter:brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
-  display:block;
-}
+img.co-icon-img{display:block;}
 .sl-amen-cell img.co-icon-img,
 .sl-icell img.co-icon-img,
 .p2-amen-cell img.co-icon-img,
 .sl-ticon-img{
   width:calc(var(--fs)*1.05);height:calc(var(--fs)*1.05);flex-shrink:0;
-  filter:brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
 }
 .sl-merit img.co-icon-img{
   width:calc(var(--fs)*0.85);height:calc(var(--fs)*0.85);flex-shrink:0;
-  filter:brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
 }
 .sl-ticon-img{
   width:calc(var(--fs)*0.9)!important;height:calc(var(--fs)*0.9)!important;
@@ -345,16 +340,28 @@ img.co-icon-img{
     display:none; /* hidden — FAB handles this */
   }
 
-  /* Preview — full screen overlay */
+  /* Preview — full screen overlay, A4 look */
   .preview{
     position:fixed;
     top:50px;left:0;right:0;bottom:64px;
     z-index:300;
     overflow-y:auto;
-    padding:16px 12px 24px;
+    padding:0;
+    background:#fff;
     -webkit-overflow-scrolling:touch;
   }
   .preview.mob-hidden{display:none;}
+  /* Slides fill full width on mobile, no shadow */
+  .preview .pmeta{display:none;}
+  .preview .slide-wrap{max-width:100%;margin:0;}
+  .preview .slide,
+  .preview .slide2{
+    border-radius:0;
+    box-shadow:none;
+    border:none;
+    border-bottom:8px solid #eee;
+  }
+  .preview p[style*="text-align:center"]{display:none;}
 
   /* Hide the old mobile preview btn (replaced by tab bar) */
   .mob-preview-btn{display:none;}
@@ -435,6 +442,7 @@ img.co-icon-img{
 .mob-tab svg{width:22px;height:22px;stroke-width:1.8;}
 .mob-tab.on{color:var(--o);}
 .mob-tab.on svg{stroke:var(--o);}
+.mob-tab-action{color:var(--o);border-left:1px solid var(--bd);}
 @media(max-width:768px){
   .mob-tabbar{display:flex;}
 }
@@ -1344,6 +1352,40 @@ img.co-icon-img{
 </div><!-- /sidebar -->
 
 <div class="preview">
+  <!-- Mobile back bar — shown when in preview mode -->
+  <!-- Mobile preview action bar -->
+  <div id="mob-preview-bar" style="display:none;position:sticky;top:0;z-index:10;
+       background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+       border-bottom:1px solid var(--bd);
+       padding:10px 16px;
+       align-items:center;justify-content:space-between;gap:12px;">
+    <!-- Back button — pill shaped -->
+    <button onclick="mobBackToEdit()" style="
+        display:flex;align-items:center;gap:7px;
+        border:1.5px solid var(--bd);border-radius:99px;
+        background:var(--wh);color:var(--drk);
+        font-size:13px;font-weight:700;font-family:inherit;
+        padding:8px 16px 8px 12px;
+        cursor:pointer;
+        box-shadow:0 1px 4px rgba(0,0,0,.08);
+        -webkit-tap-highlight-color:transparent;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Edit
+    </button>
+    <!-- Print button — orange pill -->
+    <button onclick="printSlide()" style="
+        display:flex;align-items:center;gap:7px;
+        border:none;border-radius:99px;
+        background:var(--o);color:#fff;
+        font-size:13px;font-weight:700;font-family:inherit;
+        padding:8px 18px 8px 14px;
+        cursor:pointer;
+        box-shadow:0 2px 10px rgba(255,102,0,.35);
+        -webkit-tap-highlight-color:transparent;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print / PDF
+    </button>
+  </div>
   <div class="pmeta">
     <span class="pmeta-lbl" data-i18n="lbl_page1">Page 1 — Overview</span>
     <span style="font-size:11px;color:var(--xlt)">A4 Landscape · 297 × 210 mm</span>
@@ -1495,7 +1537,7 @@ const UI = {
     hint_photos:'1st = hero · 2nd & 3rd = thumbnails',
     sec_floorplan:'Floor Plan', btn_upload_fp:'Upload floor plan',
     hint_fp:'Any size — fits inside rounded box',
-    btn_generate:'Generate Preview', btn_print:'Print / Save PDF',
+    btn_generate:'Generate Preview', btn_print:'Print / Save PDF', btn_print_short:'Print',
     lbl_page1:'Page 1 — Overview', lbl_page2:'Page 2 — Floor Plan & Amenities',
     empty_hint1:'Select a location from the library or fill the form', empty_hint2:'Or fill the form and click Generate',
     empty_p2:'Floor Plan + Amenities', empty_p2_hint:'Generates when you click Generate',
@@ -1537,7 +1579,7 @@ const UI = {
     hint_photos:'第1張＝主圖 · 第2、3張＝縮圖',
     sec_floorplan:'平面圖', btn_upload_fp:'上傳平面圖',
     hint_fp:'任何尺寸 — 適合圓角框',
-    btn_generate:'生成預覽', btn_print:'列印 / 儲存 PDF',
+    btn_generate:'生成預覽', btn_print:'列印 / 儲存 PDF', btn_print_short:'列印',
     lbl_page1:'第 1 頁 — 概覽', lbl_page2:'第 2 頁 — 平面圖及設施',
     empty_hint1:'從位置庫選擇或填寫表單', empty_hint2:'或填寫表格並點擊生成',
     empty_p2:'平面圖 + 設施', empty_p2_hint:'點擊生成後即可顯示',
@@ -1579,7 +1621,7 @@ const UI = {
     hint_photos:'第1张＝主图 · 第2、3张＝缩略图',
     sec_floorplan:'平面图', btn_upload_fp:'上传平面图',
     hint_fp:'任何尺寸 — 适合圆角框',
-    btn_generate:'生成预览', btn_print:'打印 / 保存 PDF',
+    btn_generate:'生成预览', btn_print:'打印 / 保存 PDF', btn_print_short:'打印',
     lbl_page1:'第 1 页 — 概览', lbl_page2:'第 2 页 — 平面图及设施',
     empty_hint1:'从位置库选择或填写表单', empty_hint2:'或填写表格并点击生成',
     empty_p2:'平面图 + 设施', empty_p2_hint:'点击生成后即可显示',
@@ -1621,7 +1663,7 @@ const UI = {
     hint_photos:'1枚目＝メイン · 2・3枚目＝サムネイル',
     sec_floorplan:'間取り図', btn_upload_fp:'間取り図をアップロード',
     hint_fp:'サイズ不問 — 角丸ボックスに収まります',
-    btn_generate:'プレビュー生成', btn_print:'印刷 / PDF保存',
+    btn_generate:'プレビュー生成', btn_print:'印刷 / PDF保存', btn_print_short:'印刷',
     lbl_page1:'第1ページ — 概要', lbl_page2:'第2ページ — 間取り図・設備',
     empty_hint1:'ライブラリから選択またはフォームを入力', empty_hint2:'またはフォームを入力して生成をクリック',
     empty_p2:'間取り図 + 設備', empty_p2_hint:'生成をクリックすると表示されます',
@@ -1739,6 +1781,7 @@ function setLang(lc){
   });
   renderBenefits();
   renderAmenities();
+  renderTransport();
   renderRows();
   // Re-apply loaded location in new language
   if(LAST_LOCATION) applyLocationData(LAST_LOCATION);
@@ -3371,11 +3414,8 @@ function printSlide(){
 <style>
 ${allCss}
 
-/* CO icon filter for print */
-img.co-icon-img{
-  filter: brightness(0) saturate(100%) invert(47%) sepia(99%) saturate(1234%) hue-rotate(1deg) brightness(104%);
-  display:block;
-}
+/* CO icons — SVGs are already orange, no filter needed */
+img.co-icon-img{display:block;}
 
 /* ═══ PRINT OVERRIDES — always last, always win ═══ */
 @page { size: A4 landscape; margin: 0; }
@@ -3404,39 +3444,11 @@ html, body { width: 297mm; background: #fff; overflow: visible; }
 </head><body>
 <div class="page-wrap"><div class="slide">${page1El.innerHTML}</div></div>
 <div class="page-wrap"><div class="slide2">${page2El.innerHTML}</div></div>
-<!-- ── MOBILE BOTTOM TAB BAR ── -->
-<div class="mob-tabbar" id="mob-tabbar">
-  <button class="mob-tab on" id="mtab-loc" onclick="mobOpenTab('loc')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-    Location
-  </button>
-  <button class="mob-tab" id="mtab-specs" onclick="mobOpenTab('specs')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-    Specs
-  </button>
-  <button class="mob-tab" id="mtab-price" onclick="mobOpenTab('price')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-    Pricing
-  </button>
-  <button class="mob-tab" id="mtab-media" onclick="mobOpenTab('media')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-    Media
-  </button>
-  <button class="mob-tab" id="mtab-preview" onclick="mobOpenTab('preview')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-    Preview
-  </button>
-</div>
-
-<!-- ── FLOATING ACTION BUTTON — Generate ── -->
-<button class="mob-fab" id="mob-fab" onclick="mobGenerate()" title="Generate Preview">
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-</button>
-
 </body></html>`);
   w.document.close();
   w.onload = () => setTimeout(() => w.print(), 1200);
 }
+
 
 // ══════════════════════════════════════════════════════════
 //  INIT
@@ -3461,6 +3473,7 @@ initBenefits('en');
 renderBenefits();
 renderAmenities();
 renderRows();
+renderPhotoSlots();
 applyI18n();
 renderJsonDropdown(getLib());
 updateLibStatus();
@@ -3605,41 +3618,39 @@ function mobOpenTab(name){
 
   // Update bottom tab highlights
   document.querySelectorAll('.mob-tab').forEach(b=>{
-    b.classList.toggle('on', b.id === 'mtab-'+name);
+    b.classList.toggle('on', b.id === 'mtab-'+name && name !== 'print');
   });
 
-  if(name === 'preview'){
-    // Show preview, hide sidebar
-    document.querySelector('.sidebar').style.display = 'none';
-    document.querySelector('.preview').style.display = '';
-    document.querySelector('.preview').classList.remove('mob-hidden');
-    // Hide FAB on preview tab
-    document.getElementById('mob-fab').style.display = 'none';
-    // Trigger gen so preview is up to date
-    gen();
-  } else {
-    // Show sidebar panel, hide preview
-    document.querySelector('.sidebar').style.display = '';
-    document.querySelector('.preview').classList.add('mob-hidden');
-    // Show FAB
-    document.getElementById('mob-fab').style.display = 'flex';
-    // Open the matching tab
-    openTab(name);
-  }
+  // All tabs show sidebar (editing). Preview is always visible below via FAB.
+  document.querySelector('.sidebar').style.display = '';
+  document.querySelector('.preview').classList.add('mob-hidden');
+  document.getElementById('mob-fab').style.display = 'flex';
+  openTab(name);
 }
 
-function mobGenerate(){
+function mobShowPreview(){
+  if(!isMobile()) return;
   gen();
-  // Flash the FAB to confirm
-  const fab = document.getElementById('mob-fab');
-  fab.style.background = '#e55a00';
-  setTimeout(()=>{ fab.style.background = 'var(--o)'; }, 300);
-  // If we have a slide, briefly show it
-  if(isMobile()){
-    mobOpenTab('preview');
-    // Auto-return to editing after 2s? No — let user navigate back.
-  }
+  document.querySelector('.sidebar').style.display = 'none';
+  document.querySelector('.preview').classList.remove('mob-hidden');
+  document.getElementById('mob-fab').style.display = 'none';
+  const bar = document.getElementById('mob-preview-bar');
+  if(bar) bar.style.display = 'flex';
 }
+
+function mobBackToEdit(){
+  document.querySelector('.sidebar').style.display = '';
+  document.querySelector('.preview').classList.add('mob-hidden');
+  document.getElementById('mob-fab').style.display = 'flex';
+  const bar = document.getElementById('mob-preview-bar');
+  if(bar) bar.style.display = 'none';
+  // Restore tab highlight
+  document.querySelectorAll('.mob-tab').forEach(b=>{
+    b.classList.toggle('on', b.id === 'mtab-'+_mobCurrentTab);
+  });
+}
+
+function mobGenerate(){ gen(); }
 
 // On resize: restore desktop layout if window grows
 window.addEventListener('resize', ()=>{
@@ -3655,38 +3666,40 @@ window.addEventListener('resize', ()=>{
 
 // Mobile init
 if(isMobile()){
-  // Start on Location tab
   mobOpenTab('loc');
+  // Auto-gen on load so FAB is ready
+  setTimeout(gen, 300);
 }
 
 
 </script>
+
 <!-- ── MOBILE BOTTOM TAB BAR ── -->
 <div class="mob-tabbar" id="mob-tabbar">
   <button class="mob-tab on" id="mtab-loc" onclick="mobOpenTab('loc')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-    Location
+    <span data-i18n="tab_loc">Location</span>
   </button>
   <button class="mob-tab" id="mtab-specs" onclick="mobOpenTab('specs')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-    Specs
+    <span data-i18n="tab_specs">Specs</span>
   </button>
   <button class="mob-tab" id="mtab-price" onclick="mobOpenTab('price')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-    Pricing
+    <span data-i18n="tab_price">Pricing</span>
   </button>
   <button class="mob-tab" id="mtab-media" onclick="mobOpenTab('media')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-    Media
+    <span data-i18n="tab_media">Media</span>
   </button>
-  <button class="mob-tab" id="mtab-preview" onclick="mobOpenTab('preview')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-    Preview
+  <button class="mob-tab mob-tab-action" id="mtab-print" onclick="printSlide()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    <span data-i18n="btn_print_short">Print</span>
   </button>
 </div>
 
-<!-- ── FLOATING ACTION BUTTON — Generate ── -->
-<button class="mob-fab" id="mob-fab" onclick="mobGenerate()" title="Generate Preview">
+<!-- ── FLOATING ACTION BUTTON — Preview ── -->
+<button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
 </button>
 
