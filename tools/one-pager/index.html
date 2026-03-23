@@ -841,6 +841,7 @@ img.co-icon-img{display:block;}
 .spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.3);
   border-top-color:#fff;border-radius:50%;animation:sp .65s linear infinite;display:inline-block;}
 @keyframes sp{to{transform:rotate(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .sl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;}
 .sl-empty svg{width:48px;height:48px;color:var(--bd);}
 .sl-empty p{font-size:15px;font-weight:500;color:var(--xlt);}
@@ -989,6 +990,16 @@ img.co-icon-img{display:block;}
   background:var(--o);color:#fff;font-size:12px;font-weight:700;
   cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;
 }
+
+/* Library city filter chips */
+.lib-city-chip{
+  padding:3px 10px;border:1.5px solid var(--bd);border-radius:20px;
+  background:var(--wh);color:var(--lt);font-size:11px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all .12s;white-space:nowrap;
+}
+.lib-city-chip:hover,.lib-city-chip.on{
+  border-color:var(--o);color:var(--o);background:var(--olt);
+}
 </style>
 </head>
 <body>
@@ -1033,30 +1044,55 @@ img.co-icon-img{display:block;}
       <div id="fetch-status"></div>
 
       <!-- JSON Library -->
-      <div class="slabel" data-i18n="sec_library"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Location Library</div>
-      <div class="json-search-wrap" style="margin-bottom:6px">
-        <input class="json-search" id="json-search" type="text"
-          data-i18n-placeholder="lib_search_ph"
-          placeholder="Type to search locations…"
-          oninput="filterJsonLib(this.value)"
-          onfocus="showJsonDropdown()"
-          onblur="setTimeout(hideJsonDropdown,150)"
-          autocomplete="off"
-          style="padding-left:12px">
-        <div class="json-dropdown" id="json-dropdown"></div>
+      <div class="slabel" data-i18n="sec_library" style="margin-bottom:8px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Location Library
       </div>
-      <div class="lib-load-row">
-        <label class="lib-file-btn" style="flex:1">
+
+      <!-- Search + city filter + reload -->
+      <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+        <div class="json-search-wrap" style="flex:1;position:relative;">
+          <input class="json-search" id="json-search" type="text"
+            data-i18n-placeholder="lib_search_ph"
+            placeholder="Search by name or city…"
+            oninput="filterJsonLib(this.value)"
+            onfocus="showJsonDropdown()"
+            onblur="setTimeout(hideJsonDropdown,150)"
+            autocomplete="off" style="padding-left:12px;padding-right:32px;">
+          <!-- Reload button inside search bar -->
+          <button onclick="reloadLibFromServer()" title="Reload from server"
+            style="position:absolute;right:6px;top:50%;transform:translateY(-50%);
+                   border:none;background:transparent;cursor:pointer;color:var(--xlt);
+                   padding:3px;display:flex;align-items:center;transition:color .15s;"
+            onmouseover="this.style.color='var(--o)'" onmouseout="this.style.color='var(--xlt)'"
+            id="lib-reload-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+          <div class="json-dropdown" id="json-dropdown"></div>
+        </div>
+        <!-- Upload files -->
+        <label class="lib-file-btn" title="Upload JSON files" style="flex-shrink:0;padding:7px 10px;">
           <input type="file" accept=".json,application/json" multiple style="display:none" onchange="loadJsonFiles(event)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span data-i18n="btn_add_files">+ Files</span>
         </label>
-        <button class="del-btn" title="Clear library" onclick="clearJsonLib()"
-          style="width:34px;height:34px;flex-shrink:0;border:1px solid var(--bd);border-radius:6px;">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </div>
+
+      <!-- City filter chips -->
+      <div id="lib-city-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
+
+      <!-- Status + count -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <p class="note-txt" id="lib-status-txt" style="margin:0;"></p>
+        <button onclick="clearJsonLib()" title="Clear all uploaded locations from library"
+          style="border:none;background:transparent;cursor:pointer;color:var(--xlt);
+                 font-size:10px;font-weight:600;font-family:inherit;padding:0;
+                 display:flex;align-items:center;gap:3px;transition:color .15s;"
+          onmouseover="this.style.color='#DC2626'" onmouseout="this.style.color='var(--xlt)'">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          Clear library
         </button>
       </div>
-      <p class="note-txt" id="lib-status-txt" style="margin-top:5px;margin-bottom:12px"></p>
 
       <div class="slabel" data-i18n="sec_name_loc">Name &amp; Location</div>
       <div class="field">
@@ -2904,6 +2940,7 @@ function _ingestFiles(files){
         showStatus(`${ok} of ${files.length} file${files.length>1?'s':''} loaded — library has ${lib.length} location${lib.length!==1?'s':''}.`, 's-ok');
         updateLibStatus();
         renderJsonDropdown(lib, document.getElementById('json-search').value);
+        showJsonDropdown();
       }
     };
     reader.readAsText(file);
@@ -2911,9 +2948,48 @@ function _ingestFiles(files){
 }
 
 
+async function reloadLibFromServer(){
+  const btn = document.getElementById('lib-reload-btn');
+  const svg = btn?.querySelector('svg');
+  if(svg) svg.style.animation = 'spin .7s linear infinite';
+  try{
+    if(location.protocol === 'file:'){
+      showStatus('Reload only works when hosted on a server.', 's-info');
+      return;
+    }
+    const base = location.href.replace(/\/[^\/]*$/, '/');
+    const idxRes = await fetch(base + 'json/index.json', {cache:'no-cache'});
+    if(!idxRes.ok){ showStatus('No json/index.json found on server.', 's-err'); return; }
+    const index = await idxRes.json();
+    if(!Array.isArray(index) || !index.length){ showStatus('json/index.json is empty.', 's-info'); return; }
+    const lib = getLib();
+    let added = 0, updated = 0;
+    await Promise.all(index.map(async fn => {
+      try{
+        const r = await fetch(base + 'json/' + fn, {cache:'no-cache'});
+        if(!r.ok) return;
+        const data = await r.json();
+        if(!data.name) return;
+        const getName = d => typeof d.name==='object' ? (d.name.en||Object.values(d.name)[0]) : d.name;
+        const idx2 = lib.findIndex(l => getName(l) === getName(data));
+        if(idx2 >= 0){ lib[idx2] = data; updated++; } else { lib.push(data); added++; }
+      } catch{}
+    }));
+    saveLib(lib);
+    renderJsonDropdown(lib, document.getElementById('json-search')?.value || '');
+    updateLibStatus();
+    showStatus('Reloaded — ' + added + ' new, ' + updated + ' updated.', 's-ok');
+  } catch(e){
+    showStatus('Reload failed: ' + e.message, 's-err');
+  } finally {
+    if(svg) svg.style.animation = '';
+  }
+}
+
 function clearJsonLib(){
   if(!confirm('Clear all saved locations from the library?')) return;
   localStorage.removeItem(LIB_KEY);
+  _libCityFilter = '';
   renderJsonDropdown([], '');
   updateLibStatus();
   showStatus('Library cleared.','s-info');
@@ -2943,27 +3019,62 @@ function filterJsonLib(q){
   showJsonDropdown();
 }
 
+let _libCityFilter = ''; // active city filter
+
 function renderJsonDropdown(lib, q=''){
   const dd = document.getElementById('json-dropdown');
-  const filtered = lib.filter(l=>
-    !q || l.name.toLowerCase().includes(q.toLowerCase()) ||
-    (l.city||'').toLowerCase().includes(q.toLowerCase())
-  );
+  const filtered = lib.filter(l=>{
+    const name = (typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):l.name||'').toLowerCase();
+    const city = (l.city||'').toLowerCase();
+    const matchQ = !q || name.includes(q.toLowerCase()) || city.includes(q.toLowerCase());
+    const matchCity = !_libCityFilter || city === _libCityFilter.toLowerCase();
+    return matchQ && matchCity;
+  });
   if(!filtered.length){
-    dd.innerHTML = `<div class="json-opt" style="color:var(--xlt);cursor:default">
-      ${lib.length ? 'No matches' : 'No saved locations — upload JSON files below'}
+    dd.innerHTML = `<div class="json-opt" style="color:var(--xlt);cursor:default;font-size:12px;">
+      ${lib.length ? 'No matches' : 'No locations yet — upload JSON files'}
     </div>`;
   } else {
-  dd.innerHTML = filtered.map((l,i)=>{
+    dd.innerHTML = filtered.map(l=>{
       const displayName = typeof l.name==='object' ? (l.name[LANG]||l.name.en||Object.values(l.name)[0]) : l.name;
+      const slug = (typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):(l.name||'location'))
+        .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+      const filename = slug+'.json';
       return `
       <div class="json-opt" onmousedown="loadFromLib(${lib.indexOf(l)})">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        ${displayName}
-        <span class="json-city">${l.city||''}</span>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span style="font-weight:600;font-size:13px;">${displayName}</span>
+            ${l.city?`<span class="json-city">${l.city}</span>`:''}
+          </div>
+          <div style="font-size:10px;color:var(--xlt);padding-left:17px;">${filename}</div>
+        </div>
       </div>`;
     }).join('');
   }
+  // Render city chips
+  renderCityChips(lib);
+}
+
+function renderCityChips(lib){
+  const el = document.getElementById('lib-city-chips');
+  if(!el) return;
+  const cities = [...new Set(lib.map(l=>(l.city||'').trim()).filter(Boolean))].sort();
+  if(cities.length <= 1){ el.style.display='none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = cities.map(city=>`
+    <button class="lib-city-chip${_libCityFilter===city?' on':''}"
+      onclick="setLibCityFilter('${city.replace(/'/g,"\'")}')">
+      ${city}
+    </button>`).join('');
+}
+
+function setLibCityFilter(city){
+  _libCityFilter = (_libCityFilter === city) ? '' : city; // toggle
+  const lib = getLib();
+  renderJsonDropdown(lib, document.getElementById('json-search').value);
+  showJsonDropdown();
 }
 
 function showJsonDropdown(){
@@ -4025,7 +4136,7 @@ function mobOpenTab(name){
   // All tabs show sidebar (editing). Preview is always visible below via FAB.
   document.querySelector('.sidebar').style.display = '';
   document.querySelector('.preview').classList.add('mob-hidden');
-  document.getElementById('mob-fab').style.display = 'flex';
+  if(isMobile()) document.getElementById('mob-fab').style.display = 'flex';
   openTab(name);
 }
 
@@ -4034,7 +4145,7 @@ function mobShowPreview(){
   gen();
   document.querySelector('.sidebar').style.display = 'none';
   document.querySelector('.preview').classList.remove('mob-hidden');
-  document.getElementById('mob-fab').style.display = 'none';
+  if(isMobile()) document.getElementById('mob-fab').style.display = 'none';
   const bar = document.getElementById('mob-preview-bar');
   if(bar) bar.style.display = 'flex';
 }
@@ -4042,7 +4153,7 @@ function mobShowPreview(){
 function mobBackToEdit(){
   document.querySelector('.sidebar').style.display = '';
   document.querySelector('.preview').classList.add('mob-hidden');
-  document.getElementById('mob-fab').style.display = 'flex';
+  if(isMobile()) document.getElementById('mob-fab').style.display = 'flex';
   const bar = document.getElementById('mob-preview-bar');
   if(bar) bar.style.display = 'none';
   // Restore tab highlight
