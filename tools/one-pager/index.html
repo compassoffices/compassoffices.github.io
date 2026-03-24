@@ -3875,11 +3875,6 @@ function downloadCurrentJSON(){
 }
 
 function printSlide(){
- // ══════════════════════════════════════════════════════════
-//  PRINT — Cross-browser fix (Safari, Firefox, Chrome, Edge)
-//  Replace the existing printSlide() function with this one.
-// ══════════════════════════════════════════════════════════
-function printSlide(){
   // Ensure preview is up to date
   gen();
 
@@ -3891,14 +3886,17 @@ function printSlide(){
     return;
   }
 
+  // --fs for true A4 at 96dpi (297mm = 1122px)
+  // Use 1122px directly for print — not based on preview width
   const printFs = '16px';
 
   // Grab CSS — skip cross-origin (Google Fonts) which throw CORS errors
-  // Also strip @media rules that hide mobile elements
+  // Also strip @media rules that hide mobile elements (would hide page 2)
   const allCss = Array.from(document.styleSheets)
     .flatMap(ss=>{
       try{
         return Array.from(ss.cssRules).flatMap(r=>{
+          // Skip mobile-only @media blocks from app CSS
           if(r.media && r.conditionText && (
             r.conditionText.includes('max-width:768px') ||
             r.conditionText.includes('max-width: 768px')
@@ -3915,7 +3913,8 @@ function printSlide(){
     return;
   }
 
-  // Temporarily show preview if hidden on mobile
+  // Force both slide elements visible and grab their full HTML
+  // Temporarily make preview visible if hidden (mobile)
   const preview = document.querySelector('.preview');
   const prevDisplay = preview ? preview.style.display : '';
   if(preview) preview.style.display = 'block';
@@ -3923,11 +3922,8 @@ function printSlide(){
   const page1Html = page1El.outerHTML;
   const page2Html = page2El ? page2El.outerHTML : '';
 
+  // Restore preview state
   if(preview) preview.style.display = prevDisplay;
-
-  // Detect Safari (desktop + iOS) — needs extra timing + hint
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-    || /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   w.document.write(`<!DOCTYPE html>
 <html>
@@ -3939,50 +3935,35 @@ function printSlide(){
 <style>
 ${allCss}
 
-/* ── Cross-browser print reset ── */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  -webkit-print-color-adjust: exact !important;
-  print-color-adjust: exact !important;
-  color-adjust: exact !important;
-}
-
-html {
+/* ── Print reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 297mm;
+  background: #fff;
+  overflow: visible;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
-body {
-  background: #fff;
-  overflow: visible;
-}
-
-/* ── Page wrapper ── */
+/* ── Page wrapper — one per A4 page ── */
 .page-wrap {
   width: 297mm;
   height: 210mm;
-  max-width: 297mm;
-  max-height: 210mm;
   overflow: hidden;
   display: block;
   position: relative;
   background: #fff;
   page-break-after: always;
   break-after: page;
-  -webkit-break-after: page;
   page-break-inside: avoid;
   break-inside: avoid;
-  -webkit-break-inside: avoid;
 }
 .page-wrap:last-child {
   page-break-after: avoid;
   break-after: avoid;
-  -webkit-break-after: avoid;
 }
 
-/* ── Slides: explicit W + H (no aspect-ratio — Safari ignores it in print) ── */
+/* ── Slides fill exact A4 ── */
 .slide, .slide2 {
   --fs: ${printFs} !important;
   width: 297mm !important;
@@ -3994,107 +3975,36 @@ body {
   font-size: var(--fs) !important;
   overflow: hidden !important;
   display: grid !important;
-  position: relative !important;
 }
 
-/* ── @page: Chrome + Firefox fully respect this.
-   Safari partially does — we add :first/:left/:right variants
-   and -webkit- margin prefixes for maximum compatibility. ── */
+/* ── @page for PDF/print ── */
 @page {
-  size: 297mm 210mm landscape;
-  margin: 0mm;
-  -webkit-margin-before: 0;
-  -webkit-margin-after: 0;
-  -webkit-margin-start: 0;
-  -webkit-margin-end: 0;
-}
-@page :first {
-  size: 297mm 210mm landscape;
-  margin: 0mm;
-}
-@page :left {
-  size: 297mm 210mm landscape;
-  margin: 0mm;
-}
-@page :right {
-  size: 297mm 210mm landscape;
-  margin: 0mm;
+  size: A4 landscape;
+  margin: 0;
 }
 
-/* ── Screen preview ── */
+/* ── Screen preview (before printing) ── */
 @media screen {
-  body {
-    padding: 20px;
-    background: #888;
-    min-height: 100vh;
-  }
+  body { padding: 20px; background: #888; }
   .page-wrap {
     margin: 0 auto 24px;
     box-shadow: 0 4px 20px rgba(0,0,0,.35);
   }
   .print-controls {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    z-index: 999;
-    align-items: flex-end;
+    position: fixed; bottom: 20px; right: 20px;
+    display: flex; gap: 10px; z-index: 999;
   }
   .print-btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 99px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Hanken Grotesk', sans-serif;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
+    padding: 12px 24px; border: none; border-radius: 99px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: inherit; display: flex; align-items: center; gap: 8px;
   }
-  .print-btn-primary {
-    background: #FF6600;
-    color: #fff;
-    box-shadow: 0 3px 12px rgba(255,102,0,.4);
-  }
-  .print-btn-secondary {
-    background: #fff;
-    color: #555;
-    border: 1.5px solid #ddd;
-  }
-  .print-hint-box {
-    background: rgba(255,255,255,0.95);
-    border: 1.5px solid #e0c080;
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 12px;
-    font-family: 'Hanken Grotesk', sans-serif;
-    color: #7a5800;
-    max-width: 240px;
-    line-height: 1.6;
-    box-shadow: 0 2px 8px rgba(0,0,0,.12);
-  }
-  .print-hint-box b { color: #cc4400; }
+  .print-btn-primary { background: #FF6600; color: #fff; box-shadow: 0 3px 12px rgba(255,102,0,.4); }
+  .print-btn-secondary { background: #fff; color: #555; border: 1.5px solid #ddd; }
 }
-
 @media print {
   .print-controls { display: none !important; }
-  body {
-    padding: 0 !important;
-    margin: 0 !important;
-    background: #fff !important;
-    width: 297mm;
-  }
-  .page-wrap {
-    width: 297mm !important;
-    height: 210mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-  }
+  body { padding: 0; background: #fff; }
 }
 </style>
 </head>
@@ -4106,65 +4016,32 @@ body {
 <!-- Page 2 -->
 ${page2Html ? `<div class="page-wrap">${page2Html}</div>` : ''}
 
-<!-- Floating controls (screen only) -->
+<!-- Floating print controls (screen only) -->
 <div class="print-controls">
-  <!-- Safari / non-Chrome hint -->
-  <div class="print-hint-box" id="safari-hint" style="display:none">
-    <b>Print dialog settings:</b><br>
-    • Paper: <b>A4</b><br>
-    • Orientation: <b>Landscape ↔</b><br>
-    • Margins: <b>None</b><br>
-    • Scale: <b>100%</b>
-  </div>
   <button class="print-btn print-btn-secondary" onclick="window.close()">✕ Close</button>
-  <button class="print-btn print-btn-primary" onclick="triggerPrint()">
+  <button class="print-btn print-btn-primary" onclick="window.print()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
     Print / Save PDF
   </button>
 </div>
 
 <script>
-var isSafari = ${isSafari ? 'true' : 'false'};
+// Auto-print after fonts load, with fallback timeout
 var printed = false;
-
-// Show hint for Safari (and Firefox which also has @page quirks)
-var isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-if(isSafari || isFirefox){
-  var hint = document.getElementById('safari-hint');
-  if(hint) hint.style.display = 'block';
-}
-
-function triggerPrint(){
-  // Safari needs extra delay — layout takes longer to settle
-  var delay = isSafari ? 800 : 200;
-  setTimeout(function(){ window.print(); }, delay);
-}
-
-function autoPrint(){
+function doPrint(){
   if(printed) return;
   printed = true;
-  // Safari needs longer delay after fonts ready before printing
-  var delay = isSafari ? 1200 : 400;
-  setTimeout(function(){ window.print(); }, delay);
+  setTimeout(function(){ window.print(); }, 300);
 }
-
-// Wait for fonts
+// Try to detect font load
 if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(function(){
-    autoPrint();
-  }).catch(function(){
-    // Safari sometimes rejects — fall back to timeout
-    setTimeout(autoPrint, isSafari ? 1500 : 600);
-  });
+  document.fonts.ready.then(doPrint);
 } else {
-  // Older browsers without document.fonts
-  setTimeout(autoPrint, isSafari ? 1500 : 800);
+  // Fallback: print after 1.5s
+  setTimeout(doPrint, 1500);
 }
-
-// Absolute safety net — always print within 4s
-setTimeout(function(){
-  if(!printed){ printed = true; window.print(); }
-}, 4000);
+// Safety net — always print after 3s max
+setTimeout(doPrint, 3000);
 <\/script>
 
 </body>
@@ -4172,6 +4049,11 @@ setTimeout(function(){
 
   w.document.close();
 }
+
+
+// ══════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════
 function updateSlideFS(){
   const wrap = document.querySelector('.slide-wrap');
   if(!wrap) return;
