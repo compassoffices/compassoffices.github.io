@@ -967,8 +967,8 @@ img.co-icon-img{display:block;}
   <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid var(--bd);">
     <span class="ico-picker-title" data-i18n="lbl_choose_icon" style="margin:0">Choose Icon</span>
     <div style="background:var(--bg);border-radius:6px;padding:2px;display:flex;gap:1px;">
-      <button class="ico-pack-tab on" onclick="switchIcoPack('builtin',this)" style="padding:3px 10px;border-radius:4px;font-size:11px;border:none;cursor:pointer;font-family:inherit;background:var(--wh);">Built-in</button>
-      <button class="ico-pack-tab" onclick="switchIcoPack('co',this)" style="padding:3px 10px;border-radius:4px;font-size:11px;border:none;cursor:pointer;font-family:inherit;background:transparent;">CO Icons</button>
+      <button class="ico-pack-tab on" onpointerdown="event.stopPropagation();switchIcoPack('builtin',this)" style="padding:3px 10px;border-radius:4px;font-size:11px;border:none;cursor:pointer;font-family:inherit;background:var(--wh);">Built-in</button>
+      <button class="ico-pack-tab" onpointerdown="event.stopPropagation();switchIcoPack('co',this)" style="padding:3px 10px;border-radius:4px;font-size:11px;border:none;cursor:pointer;font-family:inherit;background:transparent;">CO Icons</button>
     </div>
   </div>
   <div class="ico-pack-panel on" id="ico-pack-builtin" style="padding:8px">
@@ -1127,11 +1127,13 @@ const TR_IC_LIST=[
 const CO_CITIES=['Hong Kong','Singapore','Tokyo','Osaka','Manila','Kuala Lumpur','Melbourne','Sydney','Ho Chi Minh City','Jakarta','Bangkok','Seoul','Taipei','Shanghai','Beijing','Shenzhen','Guangzhou','Chengdu','Dubai','Mumbai'].sort();
 
 let TRANSPORT=[];
+let _trIdSeq=0; // guaranteed unique even within same millisecond
+function _trId(){ return 'tr_'+(++_trIdSeq)+'_'+Date.now(); }
 function initTransport(lines){
-  TRANSPORT=(lines||[]).map((l,i)=>({id:'tr_'+Date.now()+'_'+i,iconId:l.iconId||'tr_metro',text:typeof l==='string'?l:(l.text||'')}));
+  TRANSPORT=(lines||[]).map((l,i)=>({id:_trId(),iconId:l.iconId||'tr_metro',text:typeof l==='string'?l:(l.text||'')}));
 }
 function addTransport(text='',iconId='tr_metro'){
-  TRANSPORT.push({id:'tr_'+Date.now(),iconId,text});
+  TRANSPORT.push({id:_trId(),iconId,text});
   renderTransport();
   setTimeout(()=>{const eds=document.querySelectorAll('#tr-list .tr-rich-editor');if(eds.length)eds[eds.length-1].focus();},40);
 }
@@ -1143,7 +1145,7 @@ function renderTransport(){
     const eid='tr-ed-'+t.id;
     return`<div class="tr-row" style="flex-direction:column;align-items:stretch;gap:5px;padding:8px 10px;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <button class="tr-ico-btn" onclick="openTrPicker('${t.id}',this)">${iconSvg}</button>
+        <button class="tr-ico-btn" onpointerdown="event.stopPropagation();openTrPicker('${t.id}',this)">${iconSvg}</button>
         <div class="tr-rich-mini">
           <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('bold','${eid}')"><b>B</b></button>
           <button class="spec-rb orange" onmousedown="event.preventDefault();trRichOp('orange','${eid}')">●</button>
@@ -1176,11 +1178,13 @@ function openTrPicker(id,btn){
   _trPickerId=id;_pickerBenIdx=null;
   const picker=document.getElementById('ico-picker');
   const cur=(TRANSPORT.find(t=>t.id===id)||{}).iconId||'tr_metro';
-  document.getElementById('ico-picker-grid').innerHTML=TR_IC_LIST.map(ic=>`<div class="ico-opt${cur===ic.id?' sel':''}" onclick="selectTrIcon('${ic.id}')"><span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${(renderIcHtml(ic.id)||IC[ic.id]||'')||''}</span><span>${ic.label}</span></div>`).join('');
+  document.getElementById('ico-picker-grid').innerHTML=TR_IC_LIST.map(ic=>`<div class="ico-opt${cur===ic.id?' sel':''}" onpointerdown="event.stopPropagation();selectTrIcon('${ic.id}')"><span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${(renderIcHtml(ic.id)||IC[ic.id]||'')||''}</span><span>${ic.label}</span></div>`).join('');
   const r=btn.getBoundingClientRect();
   picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-240)+'px';
   picker.classList.add('open');
-  setTimeout(()=>document.addEventListener('click',outsidePickerClick,{once:true}),20);
+  // Remove any existing listener first, then re-add
+document.removeEventListener('pointerdown',outsidePickerClick);
+setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
 }
 function selectTrIcon(iconId){
   if(_trPickerId===null)return;
@@ -1212,7 +1216,7 @@ function renderAmenities(){
       <div style="display:flex;align-items:center;gap:7px;flex:1" onclick="toggleAmenIcon(${i})">
         <span class="aico">${renderIcHtml(a.id)||''}</span><span>${amenLabel(a)}</span>
       </div>
-      <button onclick="event.stopPropagation();openAmenIconPicker(${i},this)" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;padding:2px;color:var(--xlt);font-size:10px;">⚙</button>
+      <button onpointerdown="event.stopPropagation();openAmenIconPicker(${i},this)" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;padding:2px;color:var(--xlt);font-size:10px;">⚙</button>
     </div>`).join('');
 }
 function toggleAmenIcon(i){AMENITY_ICONS[i].on=!AMENITY_ICONS[i].on;renderAmenities();gen();}
@@ -1252,7 +1256,7 @@ function renderBenefits(){
     const safeText=(b.text||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     return`<div class="ben-row${b.on?' on':''}">
       <button class="ben-toggle${b.on?' on':''}" onclick="toggleBen(${i})"></button>
-      <button class="ben-ico-btn" onclick="openIconPicker(${i},this)">${getBenIcon(b)}</button>
+      <button class="ben-ico-btn" onpointerdown="event.stopPropagation();openIconPicker(${i},this)">${getBenIcon(b)}</button>
       <input class="ben-input" type="text" value="${safeText}" oninput="BENEFITS[${i}].text=this.value;genDebounced(500);" placeholder="Type benefit text…">
       <button class="ben-del" onclick="delBenefit(${i})"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>`;
@@ -1267,7 +1271,7 @@ function openIconPicker(i,btn){
   _pickerBenIdx=i;
   const picker=document.getElementById('ico-picker');
   const curId=BENEFITS[i].iconId!==undefined?BENEFITS[i].iconId:BENEFITS[i].id;
-  document.getElementById('ico-picker-grid').innerHTML=[{id:'_tick',label:'Default ✓'},...IC_LIST].map(ic=>`<div class="ico-opt${curId===ic.id||(!curId&&ic.id==='_tick')?' sel':''}" onclick="selectBenIcon('${ic.id}')"><span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center">${ic.id==='_tick'?TICK_SVG:(renderIcHtml(ic.id)||IC[ic.id]||'')||TICK_SVG}</span><span>${ic.label}</span></div>`).join('');
+  document.getElementById('ico-picker-grid').innerHTML=[{id:'_tick',label:'Default ✓'},...IC_LIST].map(ic=>`<div class="ico-opt${curId===ic.id||(!curId&&ic.id==='_tick')?' sel':''}" onpointerdown="event.stopPropagation();selectBenIcon('${ic.id}')"><span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center">${ic.id==='_tick'?TICK_SVG:(renderIcHtml(ic.id)||IC[ic.id]||'')||TICK_SVG}</span><span>${ic.label}</span></div>`).join('');
   const coPanel=document.getElementById('ico-pack-co');
   coPanel.innerHTML=(Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`<div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectBenIcon('${ic.id}')" title="${ic.label}"><img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}"><span>${ic.label.split(' ')[0].slice(0,6)}</span></div>`).join('')||'<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center;grid-column:1/-1">Requires icon/icons.json</div>';
   document.querySelectorAll('.ico-pack-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
@@ -1276,12 +1280,16 @@ function openIconPicker(i,btn){
   const r=btn.getBoundingClientRect();
   picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-240)+'px';
   picker.classList.add('open');
-  setTimeout(()=>document.addEventListener('click',outsidePickerClick,{once:true}),20);
+  // Remove any existing listener first, then re-add
+document.removeEventListener('pointerdown',outsidePickerClick);
+setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
 }
 function outsidePickerClick(e){
   const p=document.getElementById('ico-picker');
-  if(p&&!p.contains(e.target)){closeIconPicker();}
-  else setTimeout(()=>document.addEventListener('click',outsidePickerClick,{once:true}),20);
+  if(p&&!p.contains(e.target)&&!e.target.closest('.ben-ico-btn,.tr-ico-btn,.ico-picker')){
+    closeIconPicker();
+    document.removeEventListener('pointerdown',outsidePickerClick);
+  }
 }
 function selectBenIcon(iconId){
   if(_pickerBenIdx===null)return;
@@ -1310,7 +1318,7 @@ function openAmenIconPicker(i,btn){
   _pickerMode='amen';_amenPickerIdx=i;_pickerBenIdx=null;_trPickerId=null;
   const picker=document.getElementById('ico-picker');
   const curId=AMENITY_ICONS[i].id;
-  document.getElementById('ico-picker-grid').innerHTML=IC_LIST.map(ic=>`<div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectIconByMode('${ic.id}')"><span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${renderIcHtml(ic.id)||IC[ic.id]||''}</span><span>${ic.label}</span></div>`).join('');
+  document.getElementById('ico-picker-grid').innerHTML=IC_LIST.map(ic=>`<div class="ico-opt${ic.id===curId?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')"><span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${renderIcHtml(ic.id)||IC[ic.id]||''}</span><span>${ic.label}</span></div>`).join('');
   const coPanel=document.getElementById('ico-pack-co');
   coPanel.innerHTML=(Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`<div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectIconByMode('${ic.id}')" title="${ic.label}"><img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}"><span>${ic.label.split(' ')[0].slice(0,6)}</span></div>`).join('');
   coPanel.dataset.loaded='1';
@@ -1319,9 +1327,16 @@ function openAmenIconPicker(i,btn){
   const r=btn.getBoundingClientRect();
   picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-300)+'px';
   picker.classList.add('open');
-  setTimeout(()=>document.addEventListener('click',outsidePickerClick,{once:true}),20);
+  // Remove any existing listener first, then re-add
+document.removeEventListener('pointerdown',outsidePickerClick);
+setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
 }
-function closeIconPicker(){const p=document.getElementById('ico-picker');if(p)p.classList.remove('open');_pickerBenIdx=null;_trPickerId=null;}
+function closeIconPicker(){
+  const p=document.getElementById('ico-picker');
+  if(p)p.classList.remove('open');
+  _pickerBenIdx=null;_trPickerId=null;_amenPickerIdx=null;
+  document.removeEventListener('pointerdown',outsidePickerClick);
+}
 function toggleBen(i){BENEFITS[i].on=!BENEFITS[i].on;renderBenefits();gen();}
 function delBenefit(i){BENEFITS.splice(i,1);renderBenefits();}
 function addBenefit(){BENEFITS.push({id:'custom_'+Date.now(),on:true,text:''});renderBenefits();setTimeout(()=>{const inputs=document.querySelectorAll('#ben-list .ben-input');if(inputs.length)inputs[inputs.length-1].focus();},50);}
@@ -1934,36 +1949,19 @@ body {
    and -webkit- margin prefixes for maximum compatibility. ── */
 @page {
   size: 297mm 210mm landscape;
-  margin: 0mm;
-  -webkit-margin-before: 0;
-  -webkit-margin-after: 0;
-  -webkit-margin-start: 0;
-  -webkit-margin-end: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  -webkit-margin-before: 0 !important;
+  -webkit-margin-after: 0 !important;
+  -webkit-margin-start: 0 !important;
+  -webkit-margin-end: 0 !important;
+  /* Suppress headers/footers where browser supports it */
+  marks: none;
 }
-@page :first {
-  size: 297mm 210mm landscape;
-  margin: 0mm;
-  -webkit-margin-before: 0;
-  -webkit-margin-after: 0;
-  -webkit-margin-start: 0;
-  -webkit-margin-end: 0;
-}
-@page :left {
-  size: 297mm 210mm landscape;
-  margin: 0mm;
-  -webkit-margin-before: 0;
-  -webkit-margin-after: 0;
-  -webkit-margin-start: 0;
-  -webkit-margin-end: 0;
-}
-@page :right {
-  size: 297mm 210mm landscape;
-  margin: 0mm;
-  -webkit-margin-before: 0;
-  -webkit-margin-after: 0;
-  -webkit-margin-start: 0;
-  -webkit-margin-end: 0;
-}
+@page :first { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :left  { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :right { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :blank { size: 297mm 210mm landscape; margin: 0 !important; }
 
 /* ── Screen preview ── */
 @media screen {
@@ -2010,18 +2008,18 @@ body {
     border: 1.5px solid #ddd;
   }
   .print-hint-box {
-    background: rgba(255,255,255,0.95);
-    border: 1.5px solid #e0c080;
+    background: #fffbe6;
+    border: 2px solid #f0a500;
     border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 12px;
+    padding: 12px 16px;
+    font-size: 12.5px;
     font-family: 'Hanken Grotesk', sans-serif;
-    color: #7a5800;
-    max-width: 240px;
-    line-height: 1.6;
-    box-shadow: 0 2px 8px rgba(0,0,0,.12);
+    color: #5a3e00;
+    max-width: 260px;
+    line-height: 1.65;
+    box-shadow: 0 3px 12px rgba(0,0,0,.18);
   }
-  .print-hint-box b { color: #cc4400; }
+  .print-hint-box b { color: #c44400; }
 }
 
 @media print {
@@ -2067,14 +2065,19 @@ ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div><
 
 <!-- Floating controls (screen only) -->
 <div class="print-controls">
-  <!-- Safari / non-Chrome hint -->
-  <div class="print-hint-box" id="safari-hint" style="display:none">
-    <b>Safari print settings:</b><br>
-    • Pages: <b>2 pages</b> (not 4)<br>
-    • Paper: <b>A4</b><br>
-    • Orientation: <b>Landscape ↔</b><br>
-    • Margins: <b>None</b><br>
-    • Scale: <b>100%</b>
+  <!-- Always-visible instruction box -->
+  <div class="print-hint-box" id="safari-hint">
+    <div style="font-size:13px;font-weight:800;color:#cc4400;margin-bottom:6px;">⚠️ Before printing:</div>
+    <div id="hint-safari-ios" style="display:none">
+      <b>iPhone / iPad:</b> Tap the share icon →<br>
+      <b>Print</b> → Options → turn off<br>
+      <b>"Print Backgrounds"</b> &amp; uncheck<br>
+      <b>"Print Headers and Footers"</b><br><br>
+    </div>
+    <b>1.</b> Uncheck <b>"Print headers<br>&nbsp;&nbsp;&nbsp;&nbsp;and footers"</b> ← removes date/URL<br>
+    <b>2.</b> Paper: <b>A4</b> · Orientation: <b>Landscape ↔</b><br>
+    <b>3.</b> Margins: <b>None</b> · Scale: <b>100%</b><br>
+    <b>4.</b> Pages should be: <b>2</b> (not 4)
   </div>
   <button class="print-btn print-btn-secondary" onclick="window.close()">✕ Close</button>
   <button class="print-btn print-btn-primary" onclick="triggerPrint()">
@@ -2087,24 +2090,29 @@ ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div><
 var isSafari = ${isSafari ? 'true' : 'false'};
 var printed = false;
 
-// Show hint for Safari (and Firefox which also has @page quirks)
+// Detect iOS
+var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 var isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-if(isSafari || isFirefox){
-  var hint = document.getElementById('safari-hint');
-  if(hint) hint.style.display = 'block';
+
+// Show iOS-specific instructions if on iPhone/iPad
+if(isIOS){
+  var iosHint = document.getElementById('hint-safari-ios');
+  if(iosHint) iosHint.style.display = 'block';
 }
 
+// Hint box is always visible — no need to conditionally show it
+
 function triggerPrint(){
-  // Safari needs extra delay — layout takes longer to settle
-  var delay = isSafari ? 800 : 200;
+  var delay = (isSafari || isIOS) ? 800 : 200;
   setTimeout(function(){ window.print(); }, delay);
 }
 
 function autoPrint(){
   if(printed) return;
   printed = true;
-  // Safari needs longer delay after fonts ready before printing
-  var delay = isSafari ? 1200 : 400;
+  // Give user time to read the hint before print dialog opens
+  // Safari/iOS: 3s delay so they can see the "uncheck headers" instruction
+  var delay = (isSafari || isIOS) ? 3000 : 600;
   setTimeout(function(){ window.print(); }, delay);
 }
 
