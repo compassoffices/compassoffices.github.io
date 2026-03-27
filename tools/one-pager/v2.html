@@ -1864,23 +1864,72 @@ function loadFromLib(idx){
 }
 function applyLocationData(p){
   const r=v=>{if(v&&typeof v==='object'&&!Array.isArray(v)){return v[LANG]||v.en||v['zh-hant']||v['zh-hans']||v.ja||'';}return v||'';};
-  const sv=(id,v)=>{const val=r(v);if(val){const el=document.getElementById(id);if(el)el.value=val;}};
-  sv('n-main',p.name);sv('addr',p.address);sv('floor',p.floor);sv('purl',p.page_url||p.url||'');
-  const cityVal=r(p.city);
-  if(cityVal){const inp=document.getElementById('city');if(inp)inp.value=cityVal;}
-  const trRaw=p.transport||[p.transport1,p.transport2].filter(Boolean);
-  const trArr=Array.isArray(trRaw)?trRaw:(trRaw[LANG]||trRaw.en||trRaw.ja||[]);
-  if(trArr.length){initTransport(trArr);renderTransport();}
-  const sp=p.specs||{};
-  const svr=(id,v)=>{const val=r(v);if(val){const el=document.getElementById(id);if(el){if(SPEC_RICH_IDS.includes(id))el.innerHTML=val;else el.value=val;}}};
-  svr('s-struct',sp.structure||p.structure);svr('s-comp',sp.completion||p.completion);svr('s-ceil',sp.ceiling||p.ceiling);
-  svr('s-fa',sp.floor_area||p.floor_area);svr('s-ca',sp.common_area||p.common_area);svr('s-oa',sp.oa||p.oa);
-  svr('s-el',sp.elevators||p.elevators);svr('s-ac',sp.ac||p.ac);svr('s-net',sp.network||p.network);
-  svr('s-fac',sp.facilities||p.facilities);svr('s-hrs',sp.hours||p.hours);svr('s-park',sp.parking||p.parking);
-  sv('custom-title',p.custom_title);
-  const customBodyVal=r(p.custom_body);
-  if(customBodyVal){const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML=customBodyVal;const cbh=document.getElementById('custom-body');if(cbh)cbh.value=customBodyVal;}
-  if(p.pricing?.length){S.rows=[];p.pricing.filter(row=>row.seats||row.rent).forEach(row=>addRow(r(row.seats)||'',r(row.type)||'',r(row.rent)||'',r(row.mgmt)||'',r(row.init)||'',r(row.avail||row.available)||''));}
+
+  // ── If the JSON has per-language data (new format), load all langs ────────
+  if(p.langs && typeof p.langs === 'object'){
+    LANG_KEYS.forEach(lc => {
+      const ld = p.langs[lc];
+      if(!ld) return;
+      // Build a LANG_DATA-compatible object
+      const langEntry = {
+        fields: {
+          'n-main':       ld.name        || '',
+          'addr':         ld.address     || '',
+          'floor':        ld.floor       || '',
+          'city':         ld.city        || '',
+          'purl':         ld.page_url    || '',
+          'custom-title': ld.custom_title|| '',
+        },
+        richFields: {
+          's-struct': (ld.specs?.structure    || ''),
+          's-comp':   (ld.specs?.completion   || ''),
+          's-ceil':   (ld.specs?.ceiling      || ''),
+          's-fa':     (ld.specs?.floor_area   || ''),
+          's-ca':     (ld.specs?.common_area  || ''),
+          's-oa':     (ld.specs?.oa           || ''),
+          's-el':     (ld.specs?.elevators    || ''),
+          's-ac':     (ld.specs?.ac           || ''),
+          's-net':    (ld.specs?.network      || ''),
+          's-fac':    (ld.specs?.facilities   || ''),
+          's-hrs':    (ld.specs?.hours        || ''),
+          's-park':   (ld.specs?.parking      || ''),
+        },
+        customBody: ld.custom_body || '',
+        transport: (ld.transport||[]).map((t,i)=>({id:_trId(),iconId:t.iconId||'tr_metro',text:t.text||''})),
+        rows: (ld.pricing||[]).map(row=>({id:Date.now()+Math.random(),seats:row.seats||'',type:row.type||'',rent:row.rent||'',mgmt:row.mgmt||'',init:row.init||'',avail:row.avail||''})),
+        benefits: (ld.benefits||[]).map(b=>({...b})),
+        amenities: AMENITY_ICONS.map(a=> p.amenities ? p.amenities.includes(a.id) : a.on),
+        benPos: p.benefits_pos || BENEFITS_POS,
+        customPos: p.custom_pos || CUSTOM_POS,
+      };
+      // If benefits not per-lang, copy current
+      if(!ld.benefits && p.benefits_on){
+        langEntry.benefits = BENEFITS.map(b=>({...b, on:p.benefits_on.includes(b.id)}));
+      }
+      LANG_DATA[lc] = langEntry;
+    });
+    // Load the current language's data into the UI
+    loadLangData(LANG);
+  } else {
+    // ── Legacy single-lang format — load as before ─────────────────────────
+    const sv=(id,v)=>{const val=r(v);if(val){const el=document.getElementById(id);if(el)el.value=val;}};
+    sv('n-main',p.name);sv('addr',p.address);sv('floor',p.floor);sv('purl',p.page_url||p.url||'');
+    const cityVal=r(p.city);
+    if(cityVal){const inp=document.getElementById('city');if(inp)inp.value=cityVal;}
+    const trRaw=p.transport||[p.transport1,p.transport2].filter(Boolean);
+    const trArr=Array.isArray(trRaw)?trRaw:(trRaw[LANG]||trRaw.en||trRaw.ja||[]);
+    if(trArr.length){initTransport(trArr);renderTransport();}
+    const sp=p.specs||{};
+    const svr=(id,v)=>{const val=r(v);if(val){const el=document.getElementById(id);if(el){if(SPEC_RICH_IDS.includes(id))el.innerHTML=val;else el.value=val;}}};
+    svr('s-struct',sp.structure||p.structure);svr('s-comp',sp.completion||p.completion);svr('s-ceil',sp.ceiling||p.ceiling);
+    svr('s-fa',sp.floor_area||p.floor_area);svr('s-ca',sp.common_area||p.common_area);svr('s-oa',sp.oa||p.oa);
+    svr('s-el',sp.elevators||p.elevators);svr('s-ac',sp.ac||p.ac);svr('s-net',sp.network||p.network);
+    svr('s-fac',sp.facilities||p.facilities);svr('s-hrs',sp.hours||p.hours);svr('s-park',sp.parking||p.parking);
+    sv('custom-title',p.custom_title);
+    const customBodyVal=r(p.custom_body);
+    if(customBodyVal){const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML=customBodyVal;const cbh=document.getElementById('custom-body');if(cbh)cbh.value=customBodyVal;}
+    if(p.pricing?.length){S.rows=[];p.pricing.filter(row=>row.seats||row.rent).forEach(row=>addRow(r(row.seats)||'',r(row.type)||'',r(row.rent)||'',r(row.mgmt)||'',r(row.init)||'',r(row.avail||row.available)||''));}
+  }
   if(p.partner_logo_url){S.partnerLogo=p.partner_logo_url;renderLogoCard();}
   if(p.logo_separator&&['x','bar','none'].includes(p.logo_separator)){setSep(p.logo_separator);}
   if(p.amenities){AMENITY_ICONS.forEach(a=>{a.on=p.amenities.includes(a.id);});renderAmenities();}
@@ -2386,38 +2435,84 @@ setTimeout(function(){
 
 
 // ══════════════════════════════════════════════════════════
-//  DOWNLOAD JSON
+//  DOWNLOAD JSON — saves ALL 4 languages in one file
 // ══════════════════════════════════════════════════════════
 function downloadCurrentJSON(){
-  // Make sure current lang data is fresh before saving
+  // Save current lang first
   saveLangData(LANG);
+
   const r=v=>(v||'').trim();
   const getName=()=>r(g('n-main'))||'location';
   const slug=getName().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
   const now=new Date();
   const ts=now.getFullYear().toString().slice(2)+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0');
-  const data={
-    name:g('n-main'),city:g('city'),floor:g('floor'),address:g('addr'),page_url:g('purl'),
-    transport:TRANSPORT.map(t=>({iconId:t.iconId,text:t.text})),
-    specs:{structure:g('s-struct'),completion:g('s-comp'),ceiling:g('s-ceil'),floor_area:g('s-fa'),common_area:g('s-ca'),oa:g('s-oa'),elevators:g('s-el'),ac:g('s-ac'),network:g('s-net'),facilities:g('s-fac'),hours:g('s-hrs'),parking:g('s-park')},
-    pricing:S.rows.map(row=>({seats:row.seats,type:row.type,rent:row.rent,mgmt:row.mgmt,init:row.init||'',avail:row.avail})),
-    amenities:AMENITY_ICONS.filter(a=>a.on).map(a=>a.id),
-    benefits_on:BENEFITS.filter(b=>b.on).map(b=>b.id),
-    // ── Layout settings ──
-    benefits_pos:BENEFITS_POS,
-    custom_pos:CUSTOM_POS,
-    show_specs:SHOW_SPECS,
-    hidden_specs:[...HIDDEN_SPECS],
-    logo_separator:LOGO_SEP,
-    pricing_cols:PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
-    custom_title:g('custom-title'),
-    custom_body:(document.getElementById('custom-body-editor')?.innerHTML||'').trim(),
-    partner_logo_url:(S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
-    logo_separator:LOGO_SEP,
-    photos:S.photos.map(p=>(p&&!p.startsWith('data:'))?p:'').filter(Boolean),
-    floorplan_url:(S.floorplan&&!S.floorplan.startsWith('data:'))?S.floorplan:'',
-    icon_overrides:window.ICON_OVERRIDES||{},
+
+  // ── Build per-language content from LANG_DATA ─────────────
+  // For each lang that has data, extract fields/transport/specs/pricing/benefits
+  const langs_data = {};
+  LANG_KEYS.forEach(lc => {
+    const ld = LANG_DATA[lc];
+    if(!ld) return; // never visited — skip
+    langs_data[lc] = {
+      // text fields
+      name:     ld.fields['n-main']   || '',
+      address:  ld.fields['addr']     || '',
+      floor:    ld.fields['floor']    || '',
+      city:     ld.fields['city']     || '',
+      page_url: ld.fields['purl']     || '',
+      custom_title: ld.fields['custom-title'] || '',
+      custom_body:  ld.customBody || '',
+      // specs (rich html)
+      specs: {
+        structure:    ld.richFields['s-struct'] || '',
+        completion:   ld.richFields['s-comp']   || '',
+        ceiling:      ld.richFields['s-ceil']   || '',
+        floor_area:   ld.richFields['s-fa']     || '',
+        common_area:  ld.richFields['s-ca']     || '',
+        oa:           ld.richFields['s-oa']     || '',
+        elevators:    ld.richFields['s-el']     || '',
+        ac:           ld.richFields['s-ac']     || '',
+        network:      ld.richFields['s-net']    || '',
+        facilities:   ld.richFields['s-fac']    || '',
+        hours:        ld.richFields['s-hrs']    || '',
+        parking:      ld.richFields['s-park']   || '',
+      },
+      // transport lines (with rich html text)
+      transport: (ld.transport||[]).map(t=>({iconId:t.iconId, text:t.text})),
+      // pricing rows
+      pricing: (ld.rows||[]).map(row=>({seats:row.seats,type:row.type,rent:row.rent,mgmt:row.mgmt,init:row.init||'',avail:row.avail})),
+      // benefits text per lang
+      benefits: (ld.benefits||[]).map(b=>({id:b.id,on:b.on,text:b.text,iconId:b.iconId||null})),
+    };
+  });
+
+  const data = {
+    // ── Multi-language content ──
+    langs: langs_data,
+    // ── Fallback single-lang fields (current lang, for backwards compat) ──
+    name:    g('n-main'), city: g('city'), floor: g('floor'),
+    address: g('addr'),   page_url: g('purl'),
+    transport: TRANSPORT.map(t=>({iconId:t.iconId,text:t.text})),
+    specs: {structure:g('s-struct'),completion:g('s-comp'),ceiling:g('s-ceil'),floor_area:g('s-fa'),common_area:g('s-ca'),oa:g('s-oa'),elevators:g('s-el'),ac:g('s-ac'),network:g('s-net'),facilities:g('s-fac'),hours:g('s-hrs'),parking:g('s-park')},
+    pricing: S.rows.map(row=>({seats:row.seats,type:row.type,rent:row.rent,mgmt:row.mgmt,init:row.init||'',avail:row.avail})),
+    amenities: AMENITY_ICONS.filter(a=>a.on).map(a=>a.id),
+    benefits_on: BENEFITS.filter(b=>b.on).map(b=>b.id),
+    custom_title: g('custom-title'),
+    custom_body: (document.getElementById('custom-body-editor')?.innerHTML||'').trim(),
+    // ── Layout settings (global, same across all langs) ──
+    benefits_pos:  BENEFITS_POS,
+    custom_pos:    CUSTOM_POS,
+    show_specs:    SHOW_SPECS,
+    hidden_specs:  [...HIDDEN_SPECS],
+    logo_separator: LOGO_SEP,
+    pricing_cols:  PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
+    // ── Media (global) ──
+    partner_logo_url: (S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
+    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:'').filter(Boolean),
+    floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?S.floorplan:'',
+    icon_overrides: window.ICON_OVERRIDES||{},
   };
+
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(slug||'location')+'_'+ts+'.json';a.click();
 }
