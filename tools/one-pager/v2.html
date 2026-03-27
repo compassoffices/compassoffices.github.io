@@ -1887,7 +1887,24 @@ function applyLocationData(p){
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
   if(p.photos?.length){S.photos=[null,null,null,null,null,null];p.photos.slice(0,6).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
   if(p.floorplan_url){S.floorplan=p.floorplan_url;renderFloorplanCard();}
+  // ── Restore all layout settings ──
+  if(p.benefits_pos)setBenPos(p.benefits_pos);
   if(p.custom_pos)setCustomPos(p.custom_pos);
+  if(p.show_specs===false&&SHOW_SPECS)toggleShowSpecs();
+  else if(p.show_specs===true&&!SHOW_SPECS)toggleShowSpecs();
+  if(p.hidden_specs&&Array.isArray(p.hidden_specs)){
+    // Clear all first, then apply saved set
+    HIDDEN_SPECS.clear();
+    p.hidden_specs.forEach(id=>{
+      HIDDEN_SPECS.add(id);
+      const field=document.getElementById(id)?.closest('.field');
+      if(field)field.classList.add('spec-field-hidden');
+      document.querySelectorAll(`.spec-hide-btn[onclick*="'${id}'"]`).forEach(btn=>{
+        btn.title='Show on slide';btn.style.color='var(--o)';
+        btn.innerHTML='<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> show';
+      });
+    });
+  }
   if(p.pricing_cols&&Array.isArray(p.pricing_cols)){p.pricing_cols.forEach(pc=>{const col=PRICING_COLS.find(c=>c.key===pc.key);if(col){col.on=pc.on!==false;if(pc.labels&&typeof pc.labels==='object')Object.assign(col.labels,pc.labels);else if(pc.label)col.labels[LANG]=pc.label;}});renderPricingColSettings();}
   if(p.icon_overrides&&typeof p.icon_overrides==='object'){window.ICON_OVERRIDES={...p.icon_overrides};}
   // Save the loaded data into current lang slot so it persists on lang switch
@@ -2386,7 +2403,12 @@ function downloadCurrentJSON(){
     pricing:S.rows.map(row=>({seats:row.seats,type:row.type,rent:row.rent,mgmt:row.mgmt,init:row.init||'',avail:row.avail})),
     amenities:AMENITY_ICONS.filter(a=>a.on).map(a=>a.id),
     benefits_on:BENEFITS.filter(b=>b.on).map(b=>b.id),
+    // ── Layout settings ──
+    benefits_pos:BENEFITS_POS,
     custom_pos:CUSTOM_POS,
+    show_specs:SHOW_SPECS,
+    hidden_specs:[...HIDDEN_SPECS],
+    logo_separator:LOGO_SEP,
     pricing_cols:PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
     custom_title:g('custom-title'),
     custom_body:(document.getElementById('custom-body-editor')?.innerHTML||'').trim(),
