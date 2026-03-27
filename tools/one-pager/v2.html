@@ -446,9 +446,9 @@ img.co-icon-img{display:block;}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span data-i18n="btn_save_card">Save Card</span>
     </button>
-    <button class="hbtn" id="pdf-btn" onclick="downloadPDF()" style="background:#1a1a1a;border:none;">
+    <button class="hbtn" id="pdf-btn" onclick="downloadJPG()" style="background:#1a1a1a;border:none;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span data-i18n="btn_download_pdf">↓ PDF</span>
+      <span data-i18n="btn_download_pdf">↓ JPG</span>
     </button>
     <button class="hbtn" onclick="printSlide()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -549,7 +549,10 @@ img.co-icon-img{display:block;}
       </button>
 
       <div class="slabel" data-i18n="sec_custom" style="margin-top:16px">Custom Info Block</div>
-      <p class="note-txt" data-i18n="note_custom" style="margin-bottom:8px">Shown below Transport on the slide.</p>
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <button class="ben-pos-btn on" id="cpos-below" onclick="setCustomPos('below')">Transport → Custom</button>
+        <button class="ben-pos-btn" id="cpos-above" onclick="setCustomPos('above')">Custom → Transport</button>
+      </div>
       <div class="field">
         <label class="fl" data-i18n="lbl_custom_title">Section Title</label>
         <input type="text" oninput="genDebounced(400);" id="custom-title" placeholder="募集概要">
@@ -930,7 +933,7 @@ img.co-icon-img{display:block;}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       Edit
     </button>
-    <button onclick="downloadPDF()" style="
+    <button onclick="downloadJPG()" style="
         display:flex;align-items:center;gap:7px;
         border:none;border-radius:99px;
         background:#1a1a1a;color:#fff;
@@ -1001,6 +1004,105 @@ img.co-icon-img{display:block;}
 // ══════════════════════════════════════════════════════════
 let LANG = 'en';
 
+// ══════════════════════════════════════════════════════════
+//  PER-LANGUAGE FORM DATA STORE
+//  Each language tab has independent form content.
+//  On switch: save current lang → load new lang.
+// ══════════════════════════════════════════════════════════
+const LANG_KEYS = ['en','zh-hant','zh-hans','ja'];
+const TEXT_FIELD_IDS = ['n-main','addr','floor','city','purl','custom-title'];
+const RICH_FIELD_IDS = ['s-struct','s-comp','s-ceil','s-fa','s-ca','s-oa','s-el',
+                        's-ac','s-net','s-fac','s-hrs','s-park'];
+
+// Storage: one entry per language
+const LANG_DATA = {};
+LANG_KEYS.forEach(lc => { LANG_DATA[lc] = null; }); // null = never saved
+
+function saveLangData(lc){
+  const data = {
+    fields: {},
+    richFields: {},
+    customBody: document.getElementById('custom-body-editor')?.innerHTML || '',
+    transport: TRANSPORT.map(t => ({id:t.id, iconId:t.iconId, text:t.text})),
+    rows: JSON.parse(JSON.stringify(S.rows)),
+    benefits: BENEFITS.map(b => ({...b})),
+    amenities: AMENITY_ICONS.map(a => a.on),
+    benPos: BENEFITS_POS,
+    customPos: CUSTOM_POS,
+  };
+  TEXT_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) data.fields[id] = el.value || '';
+  });
+  RICH_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) data.richFields[id] = el.innerHTML || '';
+  });
+  LANG_DATA[lc] = data;
+}
+
+function loadLangData(lc){
+  const data = LANG_DATA[lc];
+  if(!data) return false; // nothing saved yet for this lang
+
+  // Restore text fields
+  TEXT_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(el && data.fields[id] !== undefined) el.value = data.fields[id];
+  });
+  // Restore rich spec fields
+  RICH_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(el && data.richFields[id] !== undefined) el.innerHTML = data.richFields[id];
+  });
+  // Restore custom body
+  const cbe = document.getElementById('custom-body-editor');
+  if(cbe && data.customBody !== undefined) cbe.innerHTML = data.customBody;
+
+  // Restore transport
+  if(data.transport) {
+    TRANSPORT = data.transport.map(t => ({...t}));
+    renderTransport();
+  }
+  // Restore pricing rows
+  if(data.rows) {
+    S.rows = JSON.parse(JSON.stringify(data.rows));
+    renderRows();
+  }
+  // Restore benefits
+  if(data.benefits) {
+    BENEFITS = data.benefits.map(b => ({...b}));
+    renderBenefits();
+  }
+  // Restore amenity toggles
+  if(data.amenities) {
+    AMENITY_ICONS.forEach((a,i) => { if(data.amenities[i] !== undefined) a.on = data.amenities[i]; });
+    renderAmenities();
+  }
+  // Restore layout positions
+  if(data.benPos) setBenPos(data.benPos);
+  if(data.customPos) setCustomPos(data.customPos);
+
+  return true;
+}
+
+function clearLangFields(){
+  TEXT_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  RICH_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.innerHTML = '';
+  });
+  const cbe = document.getElementById('custom-body-editor');
+  if(cbe) cbe.innerHTML = '';
+  TRANSPORT = [];
+  S.rows = [];
+  renderTransport();
+  renderRows();
+}
+
 const L = {
   en:{name:'Name',addr:'Address',struct:'Structure',comp:'Completion',ceil:'Ceiling Height',fa:'Floor Area',ca:'Common Area',el:'Elevators',ac:'AC System',net:'Network',fac:'Facilities',hrs:'Access Hours',park:'Parking',benefits:'Benefits'},
   'zh-hant':{name:'名稱',addr:'地址',struct:'結構',comp:'竣工',ceil:'天花板高度',fa:'樓面面積',ca:'公共區域',el:'電梯',ac:'空調系統',net:'網絡環境',fac:'公共設施',hrs:'使用時間',park:'停車場',benefits:'使用優點'},
@@ -1017,10 +1119,10 @@ function sl(k){return(SL[LANG]||SL.en)[k]||k;}
 function l(k){return(L[LANG]||L.en)[k]||k;}
 
 const UI = {
-  en:{tab_loc:'Location',tab_specs:'Specs',tab_price:'Pricing',tab_media:'Media',sec_name_loc:'Name & Location',lbl_city:'City',lbl_floor:'Floor / Unit',sec_transport:'Transport Access',note_transport:'Add lines, pick icon, edit text. Displayed in 2-column grid on slide.',btn_add_transport:'Add Transport Line',lbl_purl:'Page URL (footer)',note_specs:'Auto-filled when you Fetch. Edit any field freely.',sec_bldg:'Building Details',lbl_oa:'OA Floor',sec_pricing:'Pricing Rows',btn_add_pricing:'+ Add Pricing Row',sec_amenities:'Amenities',note_amenities:'Toggle which icons appear in the amenity grid.',note_benefits:'Toggle on/off · Click text to edit · Add your own lines.',btn_add_benefit:'Add Benefit',sec_logos:'Header Logos',lbl_co_logo:'Compass Offices Logo',lbl_always_shown:'(always shown)',lbl_sep:'Logo Separator',lbl_partner_logo:'Partner / Building Logo',btn_upload_partner:'Upload partner logo',hint_partner:'Shown beside Compass Offices logo',sec_photos:'Location Photos',btn_upload_photos:'Upload photos (max 3)',hint_photos:'1st = hero · 2nd & 3rd = thumbnails',sec_floorplan:'Floor Plan',btn_upload_fp:'Upload floor plan',hint_fp:'Any size — fits inside rounded box',btn_generate:'Generate Preview',btn_print:'Print / Save PDF',btn_save_card:'Save Card',btn_download_pdf:'↓ PDF',btn_print_short:'Print',lbl_page1:'Page 1 — Overview',lbl_page2:'Page 2 — Floor Plan & Amenities',empty_hint1:'Select a location from the library or fill the form',empty_hint2:'Or fill the form and click Generate',empty_p2:'Floor Plan + Amenities',empty_p2_hint:'Generates when you click Generate',print_hint:'Print / Save PDF → prints both pages · A4 Landscape · margins: None',lbl_choose_icon:'Choose Icon',sec_library:'Location Library',lib_search_ph:'Type to search locations…',btn_add_files:'Insert Card',lib_empty:'No locations yet — click + Files to upload JSON files',lib_count:n=>`${n} location${n!==1?'s':''} loaded`,pr_row:'Pricing Row',pr_seats:'Seats',pr_type:'Type',pr_rent:'Monthly Rent',pr_mgmt:'Mgmt Fee',pr_init:'Initial Cost',pr_init_hint:'(rich text — select text then B or ●)',pr_avail:'Available',pr_seat_ph:'1–17',pr_type_ph:'Window / Aisle',pr_rent_ph:'HK$4,000/desk',pr_mgmt_ph:'HK$500/desk',pr_init_ph:'3 months deposit',pr_avail_ph:'Immediate',sec_custom:'Custom Info Block',note_custom:'Shown below Transport on the slide.',lbl_custom_title:'Section Title',lbl_custom_body:'Content',custom_title_default:'Overview',custom_body_default:'Available from 1 month. Flexible terms and customisable spaces beyond those listed.'},
-  'zh-hant':{tab_loc:'位置',tab_specs:'規格',tab_price:'定價',tab_media:'媒體',sec_name_loc:'名稱與位置',lbl_city:'城市',lbl_floor:'樓層 / 單位',sec_transport:'交通資訊',note_transport:'新增路線、選擇圖示、編輯文字。',btn_add_transport:'新增交通路線',lbl_purl:'頁面網址（頁尾）',note_specs:'獲取後自動填寫。可自由編輯任何欄位。',sec_bldg:'大廈詳情',lbl_oa:'OA 地板',sec_pricing:'定價行',btn_add_pricing:'+ 新增定價行',sec_amenities:'設施',note_amenities:'切換哪些圖示顯示在設施網格中。',note_benefits:'開啟/關閉 · 點擊文字編輯。',btn_add_benefit:'新增優點',sec_logos:'標題標誌',lbl_co_logo:'Compass Offices 標誌',lbl_always_shown:'（始終顯示）',lbl_sep:'標誌分隔符',lbl_partner_logo:'合作夥伴 / 大廈標誌',btn_upload_partner:'上傳合作夥伴標誌',hint_partner:'顯示在 Compass Offices 標誌旁邊',sec_photos:'位置照片',btn_upload_photos:'上傳照片（最多 3 張）',hint_photos:'第1張＝主圖 · 第2、3張＝縮圖',sec_floorplan:'平面圖',btn_upload_fp:'上傳平面圖',hint_fp:'任何尺寸',btn_generate:'生成預覽',btn_print:'列印 / 儲存 PDF',btn_save_card:'儲存名片',btn_download_pdf:'↓ PDF',btn_print_short:'列印',lbl_page1:'第 1 頁 — 概覽',lbl_page2:'第 2 頁 — 平面圖及設施',empty_hint1:'從位置庫選擇或填寫表單',empty_hint2:'或填寫表格並點擊生成',empty_p2:'平面圖 + 設施',empty_p2_hint:'點擊生成後即可顯示',print_hint:'列印 / 儲存 PDF → 列印兩頁 · A4 橫向 · 邊距：無',lbl_choose_icon:'選擇圖示',sec_library:'位置庫',lib_search_ph:'輸入以搜尋位置…',btn_add_files:'插入名片',lib_empty:'尚無位置',lib_count:n=>`已載入 ${n} 個位置`,pr_row:'定價行',pr_seats:'席位',pr_type:'類型',pr_rent:'月租',pr_mgmt:'管理費',pr_init:'初始費用',pr_init_hint:'（富文本）',pr_avail:'可入駐',pr_seat_ph:'1–17',pr_type_ph:'窗口 / 走廊',pr_rent_ph:'HK$4,000/席',pr_mgmt_ph:'HK$500/席',pr_init_ph:'3個月保證金',pr_avail_ph:'即時入駐',sec_custom:'自訂資訊',note_custom:'顯示在幻燈片交通資訊下方。',lbl_custom_title:'區塊標題',lbl_custom_body:'內容',custom_title_default:'招募概要',custom_body_default:'最短1個月起，靈活租用。'},
-  'zh-hans':{tab_loc:'位置',tab_specs:'规格',tab_price:'定价',tab_media:'媒体',sec_name_loc:'名称与位置',lbl_city:'城市',lbl_floor:'楼层 / 单位',sec_transport:'交通信息',note_transport:'添加路线、选择图标、编辑文字。',btn_add_transport:'添加交通路线',lbl_purl:'页面网址（页脚）',note_specs:'获取后自动填写。可自由编辑任何字段。',sec_bldg:'大厦详情',lbl_oa:'OA 地板',sec_pricing:'定价行',btn_add_pricing:'+ 添加定价行',sec_amenities:'设施',note_amenities:'切换哪些图标显示在设施网格中。',note_benefits:'开启/关闭 · 点击文字编辑。',btn_add_benefit:'添加优点',sec_logos:'标题标志',lbl_co_logo:'Compass Offices 标志',lbl_always_shown:'（始终显示）',lbl_sep:'标志分隔符',lbl_partner_logo:'合作伙伴 / 大厦标志',btn_upload_partner:'上传合作伙伴标志',hint_partner:'显示在 Compass Offices 标志旁边',sec_photos:'位置照片',btn_upload_photos:'上传照片（最多 3 张）',hint_photos:'第1张＝主图 · 第2、3张＝缩略图',sec_floorplan:'平面图',btn_upload_fp:'上传平面图',hint_fp:'任何尺寸',btn_generate:'生成预览',btn_print:'打印 / 保存 PDF',btn_save_card:'保存名片',btn_download_pdf:'↓ PDF',btn_print_short:'打印',lbl_page1:'第 1 页 — 概览',lbl_page2:'第 2 页 — 平面图及设施',empty_hint1:'从位置库选择或填写表单',empty_hint2:'或填写表格并点击生成',empty_p2:'平面图 + 设施',empty_p2_hint:'点击生成后即可显示',print_hint:'打印 / 保存 PDF → 打印两页 · A4 横向 · 页边距：无',lbl_choose_icon:'选择图标',sec_library:'位置库',lib_search_ph:'输入以搜索位置…',btn_add_files:'插入名片',lib_empty:'暂无位置',lib_count:n=>`已加载 ${n} 个位置`,pr_row:'定价行',pr_seats:'席位',pr_type:'类型',pr_rent:'月租',pr_mgmt:'管理费',pr_init:'初始费用',pr_init_hint:'（富文本）',pr_avail:'可入驻',pr_seat_ph:'1–17',pr_type_ph:'窗口 / 走廊',pr_rent_ph:'HK$4,000/席',pr_mgmt_ph:'HK$500/席',pr_init_ph:'3个月押金',pr_avail_ph:'即时入驻',sec_custom:'自定义信息',note_custom:'显示在幻灯片交通信息下方。',lbl_custom_title:'区块标题',lbl_custom_body:'内容',custom_title_default:'招募概要',custom_body_default:'最短1个月起，灵活租用。'},
-  ja:{tab_loc:'所在地',tab_specs:'仕様',tab_price:'料金',tab_media:'メディア',sec_name_loc:'名称と所在地',lbl_city:'都市',lbl_floor:'階 / 号室',sec_transport:'交通アクセス',note_transport:'路線を追加し、アイコンを選択してテキストを編集。',btn_add_transport:'交通路線を追加',lbl_purl:'ページURL（フッター）',note_specs:'取得後に自動入力されます。',sec_bldg:'ビル詳細',lbl_oa:'OAフロア',sec_pricing:'料金行',btn_add_pricing:'+ 料金行を追加',sec_amenities:'設備',note_amenities:'設備グリッドに表示するアイコンを切り替えます。',note_benefits:'オン/オフ切替 · テキストをクリックして編集。',btn_add_benefit:'特典を追加',sec_logos:'ヘッダーロゴ',lbl_co_logo:'Compass Offices ロゴ',lbl_always_shown:'（常に表示）',lbl_sep:'ロゴ区切り',lbl_partner_logo:'パートナー / ビルロゴ',btn_upload_partner:'パートナーロゴをアップロード',hint_partner:'Compass Officesロゴの横に表示',sec_photos:'所在地写真',btn_upload_photos:'写真をアップロード（最大3枚）',hint_photos:'1枚目＝メイン · 2・3枚目＝サムネイル',sec_floorplan:'間取り図',btn_upload_fp:'間取り図をアップロード',hint_fp:'サイズ不問',btn_generate:'プレビュー生成',btn_print:'印刷 / PDF保存',btn_save_card:'カード保存',btn_download_pdf:'↓ PDF',btn_print_short:'印刷',lbl_page1:'第1ページ — 概要',lbl_page2:'第2ページ — 間取り図・設備',empty_hint1:'ライブラリから選択またはフォームを入力',empty_hint2:'またはフォームを入力して生成をクリック',empty_p2:'間取り図 + 設備',empty_p2_hint:'生成をクリックすると表示されます',print_hint:'印刷 / PDF保存 → 両ページを印刷 · A4横向き · 余白：なし',lbl_choose_icon:'アイコンを選択',sec_library:'ロケーションライブラリ',lib_search_ph:'ロケーションを検索…',btn_add_files:'カード挿入',lib_empty:'まだありません',lib_count:n=>`${n}件のロケーションを読み込み済み`,pr_row:'料金行',pr_seats:'席数',pr_type:'タイプ',pr_rent:'月額賃料',pr_mgmt:'共益管理費',pr_init:'初期費用',pr_init_hint:'（リッチテキスト）',pr_avail:'入居可能時期',pr_seat_ph:'1〜17',pr_type_ph:'窓側 / 通路側',pr_rent_ph:'¥100,000/席',pr_mgmt_ph:'¥10,000/席',pr_init_ph:'3ヶ月分保証金',pr_avail_ph:'即時入居可',sec_custom:'カスタム情報',note_custom:'スライドの交通アクセス下に表示されます。',lbl_custom_title:'セクションタイトル',lbl_custom_body:'内容',custom_title_default:'募集概要',custom_body_default:'最短1ヶ月からの短期利用、掲載区画以外もご案内可能。'},
+  en:{tab_loc:'Location',tab_specs:'Specs',tab_price:'Pricing',tab_media:'Media',sec_name_loc:'Name & Location',lbl_city:'City',lbl_floor:'Floor / Unit',sec_transport:'Transport Access',note_transport:'Add lines, pick icon, edit text. Displayed in 2-column grid on slide.',btn_add_transport:'Add Transport Line',lbl_purl:'Page URL (footer)',note_specs:'Auto-filled when you Fetch. Edit any field freely.',sec_bldg:'Building Details',lbl_oa:'OA Floor',sec_pricing:'Pricing Rows',btn_add_pricing:'+ Add Pricing Row',sec_amenities:'Amenities',note_amenities:'Toggle which icons appear in the amenity grid.',note_benefits:'Toggle on/off · Click text to edit · Add your own lines.',btn_add_benefit:'Add Benefit',sec_logos:'Header Logos',lbl_co_logo:'Compass Offices Logo',lbl_always_shown:'(always shown)',lbl_sep:'Logo Separator',lbl_partner_logo:'Partner / Building Logo',btn_upload_partner:'Upload partner logo',hint_partner:'Shown beside Compass Offices logo',sec_photos:'Location Photos',btn_upload_photos:'Upload photos (max 3)',hint_photos:'1st = hero · 2nd & 3rd = thumbnails',sec_floorplan:'Floor Plan',btn_upload_fp:'Upload floor plan',hint_fp:'Any size — fits inside rounded box',btn_generate:'Generate Preview',btn_print:'Print / Save PDF',btn_save_card:'Save Card',btn_download_pdf:'↓ JPG',btn_print_short:'Print',lbl_page1:'Page 1 — Overview',lbl_page2:'Page 2 — Floor Plan & Amenities',empty_hint1:'Select a location from the library or fill the form',empty_hint2:'Or fill the form and click Generate',empty_p2:'Floor Plan + Amenities',empty_p2_hint:'Generates when you click Generate',print_hint:'Print / Save PDF → prints both pages · A4 Landscape · margins: None',lbl_choose_icon:'Choose Icon',sec_library:'Location Library',lib_search_ph:'Type to search locations…',btn_add_files:'Insert Card',lib_empty:'No locations yet — click + Files to upload JSON files',lib_count:n=>`${n} location${n!==1?'s':''} loaded`,pr_row:'Pricing Row',pr_seats:'Seats',pr_type:'Type',pr_rent:'Monthly Rent',pr_mgmt:'Mgmt Fee',pr_init:'Initial Cost',pr_init_hint:'(rich text — select text then B or ●)',pr_avail:'Available',pr_seat_ph:'1–17',pr_type_ph:'Window / Aisle',pr_rent_ph:'HK$4,000/desk',pr_mgmt_ph:'HK$500/desk',pr_init_ph:'3 months deposit',pr_avail_ph:'Immediate',sec_custom:'Custom Info Block',note_custom:'Shown below Transport on the slide.',lbl_custom_title:'Section Title',lbl_custom_body:'Content',custom_title_default:'Overview',custom_body_default:'Available from 1 month. Flexible terms and customisable spaces beyond those listed.'},
+  'zh-hant':{tab_loc:'位置',tab_specs:'規格',tab_price:'定價',tab_media:'媒體',sec_name_loc:'名稱與位置',lbl_city:'城市',lbl_floor:'樓層 / 單位',sec_transport:'交通資訊',note_transport:'新增路線、選擇圖示、編輯文字。',btn_add_transport:'新增交通路線',lbl_purl:'頁面網址（頁尾）',note_specs:'獲取後自動填寫。可自由編輯任何欄位。',sec_bldg:'大廈詳情',lbl_oa:'OA 地板',sec_pricing:'定價行',btn_add_pricing:'+ 新增定價行',sec_amenities:'設施',note_amenities:'切換哪些圖示顯示在設施網格中。',note_benefits:'開啟/關閉 · 點擊文字編輯。',btn_add_benefit:'新增優點',sec_logos:'標題標誌',lbl_co_logo:'Compass Offices 標誌',lbl_always_shown:'（始終顯示）',lbl_sep:'標誌分隔符',lbl_partner_logo:'合作夥伴 / 大廈標誌',btn_upload_partner:'上傳合作夥伴標誌',hint_partner:'顯示在 Compass Offices 標誌旁邊',sec_photos:'位置照片',btn_upload_photos:'上傳照片（最多 3 張）',hint_photos:'第1張＝主圖 · 第2、3張＝縮圖',sec_floorplan:'平面圖',btn_upload_fp:'上傳平面圖',hint_fp:'任何尺寸',btn_generate:'生成預覽',btn_print:'列印 / 儲存 PDF',btn_save_card:'儲存名片',btn_download_pdf:'↓ JPG',btn_print_short:'列印',lbl_page1:'第 1 頁 — 概覽',lbl_page2:'第 2 頁 — 平面圖及設施',empty_hint1:'從位置庫選擇或填寫表單',empty_hint2:'或填寫表格並點擊生成',empty_p2:'平面圖 + 設施',empty_p2_hint:'點擊生成後即可顯示',print_hint:'列印 / 儲存 PDF → 列印兩頁 · A4 橫向 · 邊距：無',lbl_choose_icon:'選擇圖示',sec_library:'位置庫',lib_search_ph:'輸入以搜尋位置…',btn_add_files:'插入名片',lib_empty:'尚無位置',lib_count:n=>`已載入 ${n} 個位置`,pr_row:'定價行',pr_seats:'席位',pr_type:'類型',pr_rent:'月租',pr_mgmt:'管理費',pr_init:'初始費用',pr_init_hint:'（富文本）',pr_avail:'可入駐',pr_seat_ph:'1–17',pr_type_ph:'窗口 / 走廊',pr_rent_ph:'HK$4,000/席',pr_mgmt_ph:'HK$500/席',pr_init_ph:'3個月保證金',pr_avail_ph:'即時入駐',sec_custom:'自訂資訊',note_custom:'顯示在幻燈片交通資訊下方。',lbl_custom_title:'區塊標題',lbl_custom_body:'內容',custom_title_default:'招募概要',custom_body_default:'最短1個月起，靈活租用。'},
+  'zh-hans':{tab_loc:'位置',tab_specs:'规格',tab_price:'定价',tab_media:'媒体',sec_name_loc:'名称与位置',lbl_city:'城市',lbl_floor:'楼层 / 单位',sec_transport:'交通信息',note_transport:'添加路线、选择图标、编辑文字。',btn_add_transport:'添加交通路线',lbl_purl:'页面网址（页脚）',note_specs:'获取后自动填写。可自由编辑任何字段。',sec_bldg:'大厦详情',lbl_oa:'OA 地板',sec_pricing:'定价行',btn_add_pricing:'+ 添加定价行',sec_amenities:'设施',note_amenities:'切换哪些图标显示在设施网格中。',note_benefits:'开启/关闭 · 点击文字编辑。',btn_add_benefit:'添加优点',sec_logos:'标题标志',lbl_co_logo:'Compass Offices 标志',lbl_always_shown:'（始终显示）',lbl_sep:'标志分隔符',lbl_partner_logo:'合作伙伴 / 大厦标志',btn_upload_partner:'上传合作伙伴标志',hint_partner:'显示在 Compass Offices 标志旁边',sec_photos:'位置照片',btn_upload_photos:'上传照片（最多 3 张）',hint_photos:'第1张＝主图 · 第2、3张＝缩略图',sec_floorplan:'平面图',btn_upload_fp:'上传平面图',hint_fp:'任何尺寸',btn_generate:'生成预览',btn_print:'打印 / 保存 PDF',btn_save_card:'保存名片',btn_download_pdf:'↓ JPG',btn_print_short:'打印',lbl_page1:'第 1 页 — 概览',lbl_page2:'第 2 页 — 平面图及设施',empty_hint1:'从位置库选择或填写表单',empty_hint2:'或填写表格并点击生成',empty_p2:'平面图 + 设施',empty_p2_hint:'点击生成后即可显示',print_hint:'打印 / 保存 PDF → 打印两页 · A4 横向 · 页边距：无',lbl_choose_icon:'选择图标',sec_library:'位置库',lib_search_ph:'输入以搜索位置…',btn_add_files:'插入名片',lib_empty:'暂无位置',lib_count:n=>`已加载 ${n} 个位置`,pr_row:'定价行',pr_seats:'席位',pr_type:'类型',pr_rent:'月租',pr_mgmt:'管理费',pr_init:'初始费用',pr_init_hint:'（富文本）',pr_avail:'可入驻',pr_seat_ph:'1–17',pr_type_ph:'窗口 / 走廊',pr_rent_ph:'HK$4,000/席',pr_mgmt_ph:'HK$500/席',pr_init_ph:'3个月押金',pr_avail_ph:'即时入驻',sec_custom:'自定义信息',note_custom:'显示在幻灯片交通信息下方。',lbl_custom_title:'区块标题',lbl_custom_body:'内容',custom_title_default:'招募概要',custom_body_default:'最短1个月起，灵活租用。'},
+  ja:{tab_loc:'所在地',tab_specs:'仕様',tab_price:'料金',tab_media:'メディア',sec_name_loc:'名称と所在地',lbl_city:'都市',lbl_floor:'階 / 号室',sec_transport:'交通アクセス',note_transport:'路線を追加し、アイコンを選択してテキストを編集。',btn_add_transport:'交通路線を追加',lbl_purl:'ページURL（フッター）',note_specs:'取得後に自動入力されます。',sec_bldg:'ビル詳細',lbl_oa:'OAフロア',sec_pricing:'料金行',btn_add_pricing:'+ 料金行を追加',sec_amenities:'設備',note_amenities:'設備グリッドに表示するアイコンを切り替えます。',note_benefits:'オン/オフ切替 · テキストをクリックして編集。',btn_add_benefit:'特典を追加',sec_logos:'ヘッダーロゴ',lbl_co_logo:'Compass Offices ロゴ',lbl_always_shown:'（常に表示）',lbl_sep:'ロゴ区切り',lbl_partner_logo:'パートナー / ビルロゴ',btn_upload_partner:'パートナーロゴをアップロード',hint_partner:'Compass Officesロゴの横に表示',sec_photos:'所在地写真',btn_upload_photos:'写真をアップロード（最大3枚）',hint_photos:'1枚目＝メイン · 2・3枚目＝サムネイル',sec_floorplan:'間取り図',btn_upload_fp:'間取り図をアップロード',hint_fp:'サイズ不問',btn_generate:'プレビュー生成',btn_print:'印刷 / PDF保存',btn_save_card:'カード保存',btn_download_pdf:'↓ JPG',btn_print_short:'印刷',lbl_page1:'第1ページ — 概要',lbl_page2:'第2ページ — 間取り図・設備',empty_hint1:'ライブラリから選択またはフォームを入力',empty_hint2:'またはフォームを入力して生成をクリック',empty_p2:'間取り図 + 設備',empty_p2_hint:'生成をクリックすると表示されます',print_hint:'印刷 / PDF保存 → 両ページを印刷 · A4横向き · 余白：なし',lbl_choose_icon:'アイコンを選択',sec_library:'ロケーションライブラリ',lib_search_ph:'ロケーションを検索…',btn_add_files:'カード挿入',lib_empty:'まだありません',lib_count:n=>`${n}件のロケーションを読み込み済み`,pr_row:'料金行',pr_seats:'席数',pr_type:'タイプ',pr_rent:'月額賃料',pr_mgmt:'共益管理費',pr_init:'初期費用',pr_init_hint:'（リッチテキスト）',pr_avail:'入居可能時期',pr_seat_ph:'1〜17',pr_type_ph:'窓側 / 通路側',pr_rent_ph:'¥100,000/席',pr_mgmt_ph:'¥10,000/席',pr_init_ph:'3ヶ月分保証金',pr_avail_ph:'即時入居可',sec_custom:'カスタム情報',note_custom:'スライドの交通アクセス下に表示されます。',lbl_custom_title:'セクションタイトル',lbl_custom_body:'内容',custom_title_default:'募集概要',custom_body_default:'最短1ヶ月からの短期利用、掲載区画以外もご案内可能。'},
 };
 function ui(k){return(UI[LANG]||UI.en)[k]||(UI.en[k])||k;}
 
@@ -1072,17 +1174,42 @@ function updateLibStatus(){
 }
 
 function setLang(lc){
-  LANG=lc;
+  if(lc === LANG) return; // no-op if same lang
+
+  // 1. Save current language's form data before switching
+  saveLangData(LANG);
+
+  // 2. Switch language
+  LANG = lc;
   document.querySelectorAll('.lbtn').forEach((b,i)=>b.classList.toggle('on',['en','zh-hant','zh-hans','ja'][i]===lc));
+
+  // 3. Update sidebar labels
   applyI18n();
   const mp={'lbl-name':'name','lbl-addr':'addr','lbl-struct':'struct','lbl-comp':'comp','lbl-ceil':'ceil','lbl-fa':'fa','lbl-ca':'ca','lbl-el':'el','lbl-ac':'ac','lbl-net':'net','lbl-fac':'fac','lbl-hrs':'hrs','lbl-park':'park'};
   Object.entries(mp).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.textContent=l(key);});
   const bs=document.getElementById('lbl-benefits-section');if(bs)bs.textContent=l('benefits');
-  const prevBenefits=BENEFITS.slice();
-  initBenefits(lc);
-  BENEFITS.forEach(b=>{const prev=prevBenefits.find(p=>p.id===b.id);if(prev)b.on=prev.on;});
-  renderBenefits();renderAmenities();renderTransport();renderRows();
-  if(LAST_LOCATION)applyLocationData(LAST_LOCATION);
+
+  // 4. Load this language's saved data, or init fresh defaults
+  const hadSavedData = loadLangData(lc);
+  if(!hadSavedData){
+    // Fresh language — clear fields and init language defaults
+    clearLangFields();
+    initBenefits(lc);
+    renderBenefits();
+    renderAmenities();
+    // Add default transport lines for this language
+    const trDefaults={
+      en:   [{iconId:'tr_metro',text:'MTR Central Station — direct access'},{iconId:'tr_ferry',text:'Central Ferry Piers — 3 min walk'}],
+      'zh-hant':[{iconId:'tr_metro',text:'港鐵中環站 — 直達'},{iconId:'tr_ferry',text:'中環渡輪碼頭 — 步行3分鐘'}],
+      'zh-hans':[{iconId:'tr_metro',text:'港铁中环站 — 直达'},{iconId:'tr_ferry',text:'中环渡轮码头 — 步行3分钟'}],
+      ja:[{iconId:'tr_metro',text:'MTR中環駅 — 直結'},{iconId:'tr_ferry',text:'中環フェリーターミナル — 徒歩3分'}],
+    };
+    initTransport(trDefaults[lc]||trDefaults.en);
+    renderTransport();
+    S.rows = [];
+    renderRows();
+  }
+
   gen();
 }
 
@@ -1367,6 +1494,7 @@ let LOGO_SEP='x';
 let HIDDEN_SPECS=new Set();
 let SHOW_SPECS=true;
 let BENEFITS_POS='auto';
+let CUSTOM_POS='below';
 
 function setBenPos(pos){
   BENEFITS_POS=pos;
@@ -1661,7 +1789,10 @@ function applyLocationData(p){
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
   if(p.photos?.length){S.photos=[null,null,null];p.photos.slice(0,3).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
   if(p.floorplan_url){S.floorplan=p.floorplan_url;renderFloorplanCard();}
+  if(p.custom_pos)setCustomPos(p.custom_pos);
   if(p.icon_overrides&&typeof p.icon_overrides==='object'){window.ICON_OVERRIDES={...p.icon_overrides};}
+  // Save the loaded data into current lang slot so it persists on lang switch
+  saveLangData(LANG);
 }
 
 // ── HELPERS ──────────────────────────────────────────────
@@ -1786,9 +1917,8 @@ function gen(){
     <div class="sl-specs">
       <div class="sl-specs-inner">
         ${specRows.length?`<div class="sl-section ${(trLines.length||hasCustom||putBenInCentre)?'shrink':'grow'}"><div class="sl-sec">${sl('specs')}</div>${specGridHTML}</div>`:''}
-        ${trLines.length?`<div class="sl-section shrink"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:''}
-        ${hasCustom?`<div class="sl-section shrink"><div class="sl-custom-block">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div></div>`:''}
-        ${putBenInCentre&&checked.length?`<div class="sl-section shrink"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits">${checked.map(b=>{const len=b.text.length;const fScale=len<=45?0.82:len<=60?0.74:len<=75?0.65:0.58;return`<li class="sl-merit" style="overflow:visible;">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${fScale})">${b.text}</span></li>`;}).join('')}</ul></div>`:'' }
+        ${(()=>{const _tr=trLines.length?`<div class="sl-section shrink"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _cu=hasCustom?`<div class="sl-section shrink"><div class="sl-custom-block">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div></div>`:'';return CUSTOM_POS==='above'?_cu+_tr:_tr+_cu;})()}
+        ${putBenInCentre&&checked.length?`<div class="sl-section shrink"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits">${checked.map(b=>{const len=b.text.length;const fScale=len<=45?0.82:len<=60?0.74:len<=75?0.65:0.58;return`<li class="sl-merit" style="overflow:visible;">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${fScale})">${b.text}</span></li>`;}).join('')}</ul></div>`:''}
       </div>
     </div>
     <div class="sl-right">${fpHTML}${putBenInCentre?'':meritsHTML}</div>
@@ -2140,6 +2270,8 @@ setTimeout(function(){
 //  DOWNLOAD JSON
 // ══════════════════════════════════════════════════════════
 function downloadCurrentJSON(){
+  // Make sure current lang data is fresh before saving
+  saveLangData(LANG);
   const r=v=>(v||'').trim();
   const getName=()=>r(g('n-main'))||'location';
   const slug=getName().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -2152,6 +2284,7 @@ function downloadCurrentJSON(){
     pricing:S.rows.map(row=>({seats:row.seats,type:row.type,rent:row.rent,mgmt:row.mgmt,init:row.init||'',avail:row.avail})),
     amenities:AMENITY_ICONS.filter(a=>a.on).map(a=>a.id),
     benefits_on:BENEFITS.filter(b=>b.on).map(b=>b.id),
+    custom_pos:CUSTOM_POS,
     custom_title:g('custom-title'),
     custom_body:(document.getElementById('custom-body-editor')?.innerHTML||'').trim(),
     partner_logo_url:(S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
@@ -2239,6 +2372,9 @@ function mobBackToEdit(){
   // Add default transport lines with text
   addTransport('MTR Central Station — direct access','tr_metro');
   addTransport('Central Ferry Piers — 3 min walk','tr_ferry');
+  // Save initial EN state so switching back to EN restores it
+  // (done after a short delay so all DOM is ready)
+  setTimeout(()=>saveLangData('en'), 100);
 
   // Click-to-edit specs
   document.querySelectorAll('.spec-rich-editor').forEach(el=>{
@@ -2317,72 +2453,53 @@ function clearLoadedCard(){
 }
 
 // ══════════════════════════════════════════════════════════
-//  DOWNLOAD PDF — html2canvas + jsPDF (works on all browsers/iOS)
+//  DOWNLOAD JPG — html2canvas, pixel-perfect, no browser chrome
+//  Saves 2 files: name-p1.jpg + name-p2.jpg
 // ══════════════════════════════════════════════════════════
-async function downloadPDF(){
+async function downloadJPG(){
   gen();
-  const btn = document.getElementById('pdf-btn');
-  const origHTML = btn ? btn.innerHTML : '';
-  if(btn){ btn.innerHTML = '<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Generating…</span>'; btn.disabled = true; }
+  const btn=document.getElementById('pdf-btn');
+  const origHTML=btn?btn.innerHTML:'';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Saving…</span>';btn.disabled=true;}
+  const name=(document.getElementById('n-main')?.value||'one-pager').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+
+  async function slideToJPG(elId,suffix){
+    const el=document.getElementById(elId);if(!el)return;
+    const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio;
+    el.style.width='1122px';el.style.height='794px';el.style.aspectRatio='unset';
+    const preview=document.querySelector('.preview');
+    const prevD=preview?preview.style.display:'';
+    if(preview)preview.style.display='block';
+    const canvas=await html2canvas(el,{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',width:1122,height:794,logging:false,imageTimeout:8000});
+    el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;
+    if(preview)preview.style.display=prevD;
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/jpeg',0.95);
+    a.download=name+suffix+'.jpg';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }
 
   try{
-    const { jsPDF } = window.jspdf;
-    // A4 landscape: 297mm x 210mm
-    const pdf = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
-    const W = 297, H = 210;
-
-    // Helper: render one slide element to canvas then add to PDF
-    async function addSlide(elId, addPage){
-      const el = document.getElementById(elId);
-      if(!el) return;
-
-      // Temporarily set exact pixel size for rendering
-      const prevW = el.style.width, prevH = el.style.height, prevAR = el.style.aspectRatio;
-      el.style.width  = '1122px';
-      el.style.height = '794px';
-      el.style.aspectRatio = 'unset';
-
-      // Make sure it's visible (mobile may hide it)
-      const preview = document.querySelector('.preview');
-      const prevDisplay = preview ? preview.style.display : '';
-      if(preview) preview.style.display = 'block';
-
-      const canvas = await html2canvas(el, {
-        scale: 2,           // 2x for crisp quality
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        width: 1122,
-        height: 794,
-        logging: false,
-        imageTimeout: 8000,
-      });
-
-      // Restore
-      el.style.width = prevW;
-      el.style.height = prevH;
-      el.style.aspectRatio = prevAR;
-      if(preview) preview.style.display = prevDisplay;
-
-      if(addPage) pdf.addPage();
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, W, H);
-    }
-
-    await addSlide('slide',  false);
-    await addSlide('slide2', true);
-
-    // Generate filename from location name
-    const name = (document.getElementById('n-main')?.value||'one-pager').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-    pdf.save(name + '.pdf');
-
-  } catch(err){
-    console.error('PDF generation failed:', err);
-    alert('PDF generation failed: ' + err.message + '\n\nTry the Print button instead.');
-  } finally {
-    if(btn){ btn.innerHTML = origHTML; btn.disabled = false; }
+    await slideToJPG('slide','-p1');
+    await new Promise(r=>setTimeout(r,500));
+    await slideToJPG('slide2','-p2');
+  }catch(err){
+    console.error('JPG failed:',err);
+    alert('JPG generation failed: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
   }
 }
+async function downloadPDF(){return downloadJPG();}
 
+
+// ── CUSTOM INFO BLOCK POSITION ───────────────────────────
+function setCustomPos(pos){
+  CUSTOM_POS=pos;
+  document.getElementById('cpos-below')?.classList.toggle('on',pos==='below');
+  document.getElementById('cpos-above')?.classList.toggle('on',pos==='above');
+  gen();
+}
 
 const TRANSIT = IC.tr_metro; // backward compat alias
 
@@ -2481,6 +2598,7 @@ document.addEventListener('paste',e=>{
   lines.forEach((line,i)=>{if(i>0)frag.appendChild(document.createElement('br'));if(line)frag.appendChild(document.createTextNode(line));});
   range.insertNode(frag);range.collapse(false);
   sel.removeAllRanges();sel.addRange(range);
+  if(el.classList.contains('tr-rich-editor')&&el.dataset.trId){updateTrHtml(el.dataset.trId,el);}
   if(typeof gen==='function')gen();
 });
 
