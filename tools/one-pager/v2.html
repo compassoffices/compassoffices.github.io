@@ -2786,6 +2786,162 @@ function getExportName(){
   return raw.toLowerCase().replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,'-').replace(/^-|-$/g,'') || 'one-pager';
 }
 
+
+async function slideToCanvas(elId){
+  const el=document.getElementById(elId);if(!el)return document.createElement('canvas');
+
+  // 1. Make the preview container visible (mobile hides it behind tabs)
+  const preview=document.querySelector('.preview');
+  const sidebar=document.querySelector('.sidebar');
+  const prevPreviewD=preview?preview.style.display:'';
+  const prevPreviewV=preview?preview.style.visibility:'';
+  if(preview){preview.style.display='block';preview.style.visibility='visible';}
+
+  // 2. Force the slide to exact output dimensions
+  const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio;
+  const prevPos=el.style.position,prevLeft=el.style.left,prevTop=el.style.top;
+  el.style.width='1122px';el.style.height='794px';el.style.aspectRatio='unset';
+  // On mobile, ensure it's not clipped by viewport
+  el.style.position='fixed';el.style.left='-9999px';el.style.top='0';
+
+  // 3. Re-run gen() with captureMode so font scales at 1122px (not mobile viewport)
+  gen._captureMode = true;
+  gen();
+  gen._captureMode = false;
+
+  // 4. Wait for layout + fonts to settle (longer on mobile)
+  const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  await new Promise(r=>setTimeout(r,isIOS2?300:50));
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+  // ── Step 1: Build a Map of src → dataURL for ALL images in this slide ──
+  const dataURLMap=new Map();
+  const svgInlineMap=new Map(); // for SVG imgs: src → inline SVG text
+
+  const allImgs=Array.from(el.querySelectorAll('img'));
+  await Promise.all(allImgs.map(async img=>{
+    const src=img.getAttribute('src')||img.src||'';
+    if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
+    if(dataURLMap.has(src)) return;
+
+    // For SVG files, try to inline them (avoids all CORS issues)
+    if(src.toLowerCase().includes('.svg')){
+      const svgText=await fetchSVGInline(src);
+      if(svgText){svgInlineMap.set(src,svgText);dataURLMap.set(src,'SVG_INLINE');return;}
+    }
+    const du=await urlToDataURL(src);
+    dataURLMap.set(src,du||null);
+  }));
+
+  // ── Step 2: Apply data URLs to original DOM so fixObjectFit works correctly ──
+  const origSrcs=new Map();
+  allImgs.forEach(img=>{
+    const src=img.getAttribute('src')||'';
+    if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
+    const du=dataURLMap.get(src);
+    origSrcs.set(img,src);
+    if(du&&du!=='SVG_INLINE') img.src=du;
+    // SVG inlines and nulls handled in onclone
+  });
+  await new Promise(r=>requestAnimationFrame(r)); // let browser update
+
+  // ── Step 3: Fix object-fit images (now srcs are data URLs, no taint) ──
+  const fitRestores=[];
+  allImgs.forEach(img=>{
+    if(!img.complete||img.naturalWidth===0) return;
+    const cs=window.getComputedStyle(img);
+    const fit=cs.objectFit;
+    if(fit!=='cover'&&fit!=='contain') return;
+    const w=img.offsetWidth||100,h=img.offsetHeight||100;
+    const c2=document.createElement('canvas');
+    c2.width=w*2;c2.height=h*2;c2.style.width=w+'px';c2.style.height=h+'px';
+    const ctx=c2.getContext('2d');
+    const iw=img.naturalWidth,ih=img.naturalHeight;
+    if(fit==='cover'){
+      const sc=Math.max(w/iw,h/ih);const sw=w/sc,sh=h/sc,sx=(iw-sw)/2,sy=(ih-sh)/2;
+      ctx.drawImage(img,sx,sy,sw,sh,0,0,w*2,h*2);
+    } else {
+      const sc=Math.min(w/iw,h/ih);const dw=iw*sc*2,dh=ih*sc*2;
+      ctx.fillStyle='#f8f8f8';ctx.fillRect(0,0,w*2,h*2);
+      ctx.drawImage(img,0,0,iw,ih,(w*2-dw)/2,(h*2-dh)/2,dw,dh);
+    }
+    img.parentNode.replaceChild(c2,img);
+    fitRestores.push(()=>c2.parentNode&&c2.parentNode.replaceChild(img,c2));
+  });
+
+  // ── Step 4: html2canvas with onclone to patch the clone's images ──
+  const canvas=await html2canvas(el,{
+    scale:2, useCORS:true, allowTaint:true,
+    backgroundColor:'#ffffff', width:1122, height:794,
+    logging:false, imageTimeout:15000,
+    onclone:(clonedDoc,clonedEl)=>{
+      // Build a reverse map: originalURL → origImg (for fast lookup)
+      const srcToOrig = new Map();
+      allImgs.forEach(i=>{ const s=origSrcs.get(i); if(s) srcToOrig.set(s,i); });
+
+      clonedEl.querySelectorAll('img').forEach(clonedImg=>{
+        const clonedSrc = clonedImg.getAttribute('src')||'';
+
+        // If already a data URL — we successfully converted it in Step 2.
+        // html2canvas clone will have that data URL, nothing to do.
+        if(clonedSrc.startsWith('data:')||clonedSrc.startsWith('blob:')||!clonedSrc) return;
+
+        // clonedSrc is still an external URL — means conversion was SVG_INLINE or null.
+        // Find the matching original img by original URL.
+        const origImg = srcToOrig.get(clonedSrc);
+        const du = dataURLMap.get(clonedSrc);
+
+        if(du==='SVG_INLINE'){
+          const svgText = svgInlineMap.get(clonedSrc)||'';
+          if(svgText){
+            const ow = origImg ? (origImg.offsetWidth||origImg.clientWidth||16) : 16;
+            const oh = origImg ? (origImg.offsetHeight||origImg.clientHeight||16) : 16;
+            const wrapper = clonedDoc.createElement('div');
+            wrapper.innerHTML = svgText;
+            const svgEl = wrapper.firstElementChild;
+            if(svgEl){
+              if(origImg) svgEl.style.cssText = origImg.style.cssText;
+              svgEl.style.display='block';
+              svgEl.style.flexShrink='0';
+              svgEl.setAttribute('width', ow);
+              svgEl.setAttribute('height', oh);
+              svgEl.style.width = ow+'px';
+              svgEl.style.height = oh+'px';
+              clonedImg.parentNode.replaceChild(svgEl, clonedImg);
+            }
+          } else {
+            clonedImg.style.visibility='hidden';
+          }
+        } else if(du){
+          // A data URL we have but didn't apply in Step 2 (shouldn't happen, but safe fallback)
+          clonedImg.setAttribute('src', du);
+          clonedImg.removeAttribute('onerror');
+          if(origImg){
+            const ow=origImg.offsetWidth||origImg.clientWidth;
+            const oh=origImg.offsetHeight||origImg.clientHeight;
+            if(ow) clonedImg.style.width=ow+'px';
+            if(oh) clonedImg.style.height=oh+'px';
+          }
+        } else {
+          // Truly unresolvable — hide it
+          clonedImg.style.visibility='hidden';
+        }
+      });
+    }
+  });
+
+  // ── Step 5: Restore everything ──
+  fitRestores.forEach(fn=>fn());
+  allImgs.forEach(img=>{ const orig=origSrcs.get(img); if(orig) img.src=orig; });
+  el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;
+  el.style.position=prevPos;el.style.left=prevLeft;el.style.top=prevTop;
+  if(preview){preview.style.display=prevPreviewD;preview.style.visibility=prevPreviewV;}
+  // Re-render preview at normal (mobile-appropriate) size
+  gen();
+
+  return canvas;
+}
+
 async function downloadJPG(){
   gen();
   const btn=document.getElementById('pdf-btn');
@@ -2809,160 +2965,6 @@ async function downloadJPG(){
   })();
   const name=getExportName();
 
-  async function slideToCanvas(elId){
-    const el=document.getElementById(elId);if(!el)return document.createElement('canvas');
-
-    // 1. Make the preview container visible (mobile hides it behind tabs)
-    const preview=document.querySelector('.preview');
-    const sidebar=document.querySelector('.sidebar');
-    const prevPreviewD=preview?preview.style.display:'';
-    const prevPreviewV=preview?preview.style.visibility:'';
-    if(preview){preview.style.display='block';preview.style.visibility='visible';}
-
-    // 2. Force the slide to exact output dimensions
-    const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio;
-    const prevPos=el.style.position,prevLeft=el.style.left,prevTop=el.style.top;
-    el.style.width='1122px';el.style.height='794px';el.style.aspectRatio='unset';
-    // On mobile, ensure it's not clipped by viewport
-    el.style.position='fixed';el.style.left='-9999px';el.style.top='0';
-
-    // 3. Re-run gen() with captureMode so font scales at 1122px (not mobile viewport)
-    gen._captureMode = true;
-    gen();
-    gen._captureMode = false;
-
-    // 4. Wait for layout + fonts to settle (longer on mobile)
-    const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-    await new Promise(r=>setTimeout(r,isIOS2?300:50));
-    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-
-    // ── Step 1: Build a Map of src → dataURL for ALL images in this slide ──
-    const dataURLMap=new Map();
-    const svgInlineMap=new Map(); // for SVG imgs: src → inline SVG text
-
-    const allImgs=Array.from(el.querySelectorAll('img'));
-    await Promise.all(allImgs.map(async img=>{
-      const src=img.getAttribute('src')||img.src||'';
-      if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
-      if(dataURLMap.has(src)) return;
-
-      // For SVG files, try to inline them (avoids all CORS issues)
-      if(src.toLowerCase().includes('.svg')){
-        const svgText=await fetchSVGInline(src);
-        if(svgText){svgInlineMap.set(src,svgText);dataURLMap.set(src,'SVG_INLINE');return;}
-      }
-      const du=await urlToDataURL(src);
-      dataURLMap.set(src,du||null);
-    }));
-
-    // ── Step 2: Apply data URLs to original DOM so fixObjectFit works correctly ──
-    const origSrcs=new Map();
-    allImgs.forEach(img=>{
-      const src=img.getAttribute('src')||'';
-      if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
-      const du=dataURLMap.get(src);
-      origSrcs.set(img,src);
-      if(du&&du!=='SVG_INLINE') img.src=du;
-      // SVG inlines and nulls handled in onclone
-    });
-    await new Promise(r=>requestAnimationFrame(r)); // let browser update
-
-    // ── Step 3: Fix object-fit images (now srcs are data URLs, no taint) ──
-    const fitRestores=[];
-    allImgs.forEach(img=>{
-      if(!img.complete||img.naturalWidth===0) return;
-      const cs=window.getComputedStyle(img);
-      const fit=cs.objectFit;
-      if(fit!=='cover'&&fit!=='contain') return;
-      const w=img.offsetWidth||100,h=img.offsetHeight||100;
-      const c2=document.createElement('canvas');
-      c2.width=w*2;c2.height=h*2;c2.style.width=w+'px';c2.style.height=h+'px';
-      const ctx=c2.getContext('2d');
-      const iw=img.naturalWidth,ih=img.naturalHeight;
-      if(fit==='cover'){
-        const sc=Math.max(w/iw,h/ih);const sw=w/sc,sh=h/sc,sx=(iw-sw)/2,sy=(ih-sh)/2;
-        ctx.drawImage(img,sx,sy,sw,sh,0,0,w*2,h*2);
-      } else {
-        const sc=Math.min(w/iw,h/ih);const dw=iw*sc*2,dh=ih*sc*2;
-        ctx.fillStyle='#f8f8f8';ctx.fillRect(0,0,w*2,h*2);
-        ctx.drawImage(img,0,0,iw,ih,(w*2-dw)/2,(h*2-dh)/2,dw,dh);
-      }
-      img.parentNode.replaceChild(c2,img);
-      fitRestores.push(()=>c2.parentNode&&c2.parentNode.replaceChild(img,c2));
-    });
-
-    // ── Step 4: html2canvas with onclone to patch the clone's images ──
-    const canvas=await html2canvas(el,{
-      scale:2, useCORS:true, allowTaint:true,
-      backgroundColor:'#ffffff', width:1122, height:794,
-      logging:false, imageTimeout:15000,
-      onclone:(clonedDoc,clonedEl)=>{
-        // Build a reverse map: originalURL → origImg (for fast lookup)
-        const srcToOrig = new Map();
-        allImgs.forEach(i=>{ const s=origSrcs.get(i); if(s) srcToOrig.set(s,i); });
-
-        clonedEl.querySelectorAll('img').forEach(clonedImg=>{
-          const clonedSrc = clonedImg.getAttribute('src')||'';
-
-          // If already a data URL — we successfully converted it in Step 2.
-          // html2canvas clone will have that data URL, nothing to do.
-          if(clonedSrc.startsWith('data:')||clonedSrc.startsWith('blob:')||!clonedSrc) return;
-
-          // clonedSrc is still an external URL — means conversion was SVG_INLINE or null.
-          // Find the matching original img by original URL.
-          const origImg = srcToOrig.get(clonedSrc);
-          const du = dataURLMap.get(clonedSrc);
-
-          if(du==='SVG_INLINE'){
-            const svgText = svgInlineMap.get(clonedSrc)||'';
-            if(svgText){
-              const ow = origImg ? (origImg.offsetWidth||origImg.clientWidth||16) : 16;
-              const oh = origImg ? (origImg.offsetHeight||origImg.clientHeight||16) : 16;
-              const wrapper = clonedDoc.createElement('div');
-              wrapper.innerHTML = svgText;
-              const svgEl = wrapper.firstElementChild;
-              if(svgEl){
-                if(origImg) svgEl.style.cssText = origImg.style.cssText;
-                svgEl.style.display='block';
-                svgEl.style.flexShrink='0';
-                svgEl.setAttribute('width', ow);
-                svgEl.setAttribute('height', oh);
-                svgEl.style.width = ow+'px';
-                svgEl.style.height = oh+'px';
-                clonedImg.parentNode.replaceChild(svgEl, clonedImg);
-              }
-            } else {
-              clonedImg.style.visibility='hidden';
-            }
-          } else if(du){
-            // A data URL we have but didn't apply in Step 2 (shouldn't happen, but safe fallback)
-            clonedImg.setAttribute('src', du);
-            clonedImg.removeAttribute('onerror');
-            if(origImg){
-              const ow=origImg.offsetWidth||origImg.clientWidth;
-              const oh=origImg.offsetHeight||origImg.clientHeight;
-              if(ow) clonedImg.style.width=ow+'px';
-              if(oh) clonedImg.style.height=oh+'px';
-            }
-          } else {
-            // Truly unresolvable — hide it
-            clonedImg.style.visibility='hidden';
-          }
-        });
-      }
-    });
-
-    // ── Step 5: Restore everything ──
-    fitRestores.forEach(fn=>fn());
-    allImgs.forEach(img=>{ const orig=origSrcs.get(img); if(orig) img.src=orig; });
-    el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;
-    el.style.position=prevPos;el.style.left=prevLeft;el.style.top=prevTop;
-    if(preview){preview.style.display=prevPreviewD;preview.style.visibility=prevPreviewV;}
-    // Re-render preview at normal (mobile-appropriate) size
-    gen();
-
-    return canvas;
-  }
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   const canShare = isIOS && navigator.share && navigator.canShare;
