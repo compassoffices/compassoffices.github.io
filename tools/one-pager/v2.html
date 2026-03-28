@@ -2807,54 +2807,56 @@ async function downloadJPG(){
       backgroundColor:'#ffffff', width:1122, height:794,
       logging:false, imageTimeout:15000,
       onclone:(clonedDoc,clonedEl)=>{
-        // For each img in the clone, apply the data URL or inline SVG
-        clonedEl.querySelectorAll('img').forEach(clonedImg=>{
-          // Find the matching original img by src
-          const clonedSrc=clonedImg.getAttribute('src')||'';
-          // Match by checking original srcs map
-          let origImg=null;
-          allImgs.forEach(i=>{ if((origSrcs.get(i)||i.getAttribute('src')||'')===(origSrcs.get(i)||clonedSrc)) origImg=i; });
-          const origSrc=origSrcs.get(origImg)||clonedSrc;
+        // Build a reverse map: originalURL → origImg (for fast lookup)
+        const srcToOrig = new Map();
+        allImgs.forEach(i=>{ const s=origSrcs.get(i); if(s) srcToOrig.set(s,i); });
 
-          const du=dataURLMap.get(origSrc)||dataURLMap.get(clonedSrc);
+        clonedEl.querySelectorAll('img').forEach(clonedImg=>{
+          const clonedSrc = clonedImg.getAttribute('src')||'';
+
+          // If already a data URL — we successfully converted it in Step 2.
+          // html2canvas clone will have that data URL, nothing to do.
+          if(clonedSrc.startsWith('data:')||clonedSrc.startsWith('blob:')||!clonedSrc) return;
+
+          // clonedSrc is still an external URL — means conversion was SVG_INLINE or null.
+          // Find the matching original img by original URL.
+          const origImg = srcToOrig.get(clonedSrc);
+          const du = dataURLMap.get(clonedSrc);
+
           if(du==='SVG_INLINE'){
-            // Replace img with inline SVG — copy computed size from original
-            const svgText=svgInlineMap.get(origSrc)||svgInlineMap.get(clonedSrc)||'';
-            if(svgText&&origImg){
-              // Get the actual rendered size of the original img
-              const ow=origImg.offsetWidth||origImg.clientWidth||16;
-              const oh=origImg.offsetHeight||origImg.clientHeight||16;
-              const wrapper=clonedDoc.createElement('div');
-              wrapper.innerHTML=svgText;
-              const svgEl=wrapper.firstElementChild;
+            const svgText = svgInlineMap.get(clonedSrc)||'';
+            if(svgText){
+              const ow = origImg ? (origImg.offsetWidth||origImg.clientWidth||16) : 16;
+              const oh = origImg ? (origImg.offsetHeight||origImg.clientHeight||16) : 16;
+              const wrapper = clonedDoc.createElement('div');
+              wrapper.innerHTML = svgText;
+              const svgEl = wrapper.firstElementChild;
               if(svgEl){
-                // Copy all computed styles that affect layout
-                svgEl.style.cssText=origImg.style.cssText;
+                if(origImg) svgEl.style.cssText = origImg.style.cssText;
                 svgEl.style.display='block';
                 svgEl.style.flexShrink='0';
-                // Force exact pixel size from original rendered size
                 svgEl.setAttribute('width', ow);
                 svgEl.setAttribute('height', oh);
-                svgEl.style.width=ow+'px';
-                svgEl.style.height=oh+'px';
-                // Copy class for any inline styles that html2canvas resolves
-                svgEl.className=clonedImg.className;
-                clonedImg.parentNode.replaceChild(svgEl,clonedImg);
+                svgEl.style.width = ow+'px';
+                svgEl.style.height = oh+'px';
+                clonedImg.parentNode.replaceChild(svgEl, clonedImg);
               }
-            } else { clonedImg.style.visibility='hidden'; }
+            } else {
+              clonedImg.style.visibility='hidden';
+            }
           } else if(du){
-            clonedImg.setAttribute('src',du);
+            // A data URL we have but didn't apply in Step 2 (shouldn't happen, but safe fallback)
+            clonedImg.setAttribute('src', du);
             clonedImg.removeAttribute('onerror');
-            // Lock dimensions so browser doesn't reflow at natural image size
             if(origImg){
               const ow=origImg.offsetWidth||origImg.clientWidth;
               const oh=origImg.offsetHeight||origImg.clientHeight;
               if(ow) clonedImg.style.width=ow+'px';
               if(oh) clonedImg.style.height=oh+'px';
-              clonedImg.style.objectFit=window.getComputedStyle(origImg).objectFit||'unset';
             }
           } else {
-            clonedImg.style.visibility='hidden'; // truly unresolvable
+            // Truly unresolvable — hide it
+            clonedImg.style.visibility='hidden';
           }
         });
       }
