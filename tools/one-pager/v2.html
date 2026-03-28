@@ -1276,6 +1276,7 @@ function setLang(lc){
 
   // Always re-render pricing col settings — placeholders + values change per language
   renderPricingColSettings();
+  renderRows();
 
   gen();
 }
@@ -1383,25 +1384,48 @@ function trRichOp(cmd,editorId){
   updateTrHtml(el.dataset.trId,el);gen();
 }
 
+// ── ICON PICKER SHARED RESET ─────────────────────────────
+function resetPickerTabs(){
+  // Always start with builtin tab visible, CO hidden
+  const builtin=document.getElementById('ico-pack-builtin');
+  const co=document.getElementById('ico-pack-co');
+  if(builtin){builtin.style.display='';builtin.classList.add('on');}
+  if(co){co.style.display='none';co.classList.remove('on');}
+  document.querySelectorAll('.ico-pack-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+}
+// Populate the CO panel with correct handler for current mode
+function buildCOPanel(){
+  const co=document.getElementById('ico-pack-co');if(!co)return;
+  co.innerHTML=(Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>
+    `<div class="ico-opt" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')" title="${ic.label}">` +
+    `<img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px;object-fit:contain" alt="${ic.label}">` +
+    `<span>${ic.label.split(' ')[0].slice(0,8)}</span></div>`
+  ).join('')||'<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center;grid-column:1/-1">No CO icons loaded</div>';
+}
+
 let _trPickerId=null;
 function openTrPicker(id,btn){
-  _pickerMode='tr';
-  if(_trPickerId===id&&document.getElementById('ico-picker').classList.contains('open')){closeIconPicker();return;}
-  _trPickerId=id;_pickerBenIdx=null;
+  _pickerMode='tr';_trPickerId=id;_pickerBenIdx=null;_amenPickerIdx=null;
+  if(document.getElementById('ico-picker').classList.contains('open')&&_trPickerId===id){closeIconPicker();return;}
   const picker=document.getElementById('ico-picker');
   const cur=(TRANSPORT.find(t=>t.id===id)||{}).iconId||'tr_metro';
-  document.getElementById('ico-picker-grid').innerHTML=TR_IC_LIST.map(ic=>`<div class="ico-opt${cur===ic.id?' sel':''}" onpointerdown="event.stopPropagation();selectTrIcon('${ic.id}')"><span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${(renderIcHtml(ic.id)||IC[ic.id]||'')||''}</span><span>${ic.label}</span></div>`).join('');
+  document.getElementById('ico-picker-grid').innerHTML=TR_IC_LIST.map(ic=>
+    `<div class="ico-opt${cur===ic.id?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')">` +
+    `<span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${(renderIcHtml(ic.id)||IC[ic.id]||'')||''}</span>` +
+    `<span>${ic.label}</span></div>`
+  ).join('');
+  buildCOPanel();
+  resetPickerTabs();
   const r=btn.getBoundingClientRect();
   picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-240)+'px';
   picker.classList.add('open');
-  // Remove any existing listener first, then re-add
-document.removeEventListener('pointerdown',outsidePickerClick);
-setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
+  document.removeEventListener('pointerdown',outsidePickerClick);
+  setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
 }
 function selectTrIcon(iconId){
   if(_trPickerId===null)return;
   const t=TRANSPORT.find(t=>t.id===_trPickerId);if(t)t.iconId=iconId;
-  closeIconPicker();_trPickerId=null;renderTransport();
+  closeIconPicker();_trPickerId=null;renderTransport();gen();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1478,23 +1502,22 @@ function renderBenefits(){
 // ── ICON PICKER ──────────────────────────────────────────
 let _pickerBenIdx=null,_pickerMode='ben';
 function openIconPicker(i,btn){
-  _pickerMode='ben';
-  if(_pickerBenIdx===i&&document.getElementById('ico-picker').classList.contains('open')){closeIconPicker();return;}
-  _pickerBenIdx=i;
+  _pickerMode='ben';_pickerBenIdx=i;_amenPickerIdx=null;_trPickerId=null;
+  if(document.getElementById('ico-picker').classList.contains('open')){closeIconPicker();return;}
   const picker=document.getElementById('ico-picker');
   const curId=BENEFITS[i].iconId!==undefined?BENEFITS[i].iconId:BENEFITS[i].id;
-  document.getElementById('ico-picker-grid').innerHTML=[{id:'_tick',label:'Default ✓'},...IC_LIST].map(ic=>`<div class="ico-opt${curId===ic.id||(!curId&&ic.id==='_tick')?' sel':''}" onpointerdown="event.stopPropagation();selectBenIcon('${ic.id}')"><span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center">${ic.id==='_tick'?TICK_SVG:(renderIcHtml(ic.id)||IC[ic.id]||'')||TICK_SVG}</span><span>${ic.label}</span></div>`).join('');
-  const coPanel=document.getElementById('ico-pack-co');
-  coPanel.innerHTML=(Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`<div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectBenIcon('${ic.id}')" title="${ic.label}"><img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}"><span>${ic.label.split(' ')[0].slice(0,6)}</span></div>`).join('')||'<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center;grid-column:1/-1">Requires icon/icons.json</div>';
-  document.querySelectorAll('.ico-pack-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
-  const b=document.getElementById('ico-pack-builtin');const c=document.getElementById('ico-pack-co');
-  b.style.display='';b.classList.add('on');c.style.display='none';c.classList.remove('on');
+  document.getElementById('ico-picker-grid').innerHTML=[{id:'_tick',label:'Default ✓'},...IC_LIST].map(ic=>
+    `<div class="ico-opt${curId===ic.id||(!curId&&ic.id==='_tick')?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')">` +
+    `<span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center">${ic.id==='_tick'?TICK_SVG:(renderIcHtml(ic.id)||IC[ic.id]||'')||TICK_SVG}</span>` +
+    `<span>${ic.label}</span></div>`
+  ).join('');
+  buildCOPanel();
+  resetPickerTabs();
   const r=btn.getBoundingClientRect();
   picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-240)+'px';
   picker.classList.add('open');
-  // Remove any existing listener first, then re-add
-document.removeEventListener('pointerdown',outsidePickerClick);
-setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
+  document.removeEventListener('pointerdown',outsidePickerClick);
+  setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
 }
 function outsidePickerClick(e){
   const p=document.getElementById('ico-picker');
@@ -1506,42 +1529,54 @@ function outsidePickerClick(e){
 function selectBenIcon(iconId){
   if(_pickerBenIdx===null)return;
   BENEFITS[_pickerBenIdx].iconId=(iconId==='_tick')?null:iconId;
-  closeIconPicker();renderBenefits();
+  closeIconPicker();renderBenefits();gen();
 }
 function switchIcoPack(pack,btn){
   document.querySelectorAll('.ico-pack-tab').forEach(b=>b.classList.remove('on'));
   if(btn)btn.classList.add('on');
   const builtin=document.getElementById('ico-pack-builtin');const co=document.getElementById('ico-pack-co');
-  if(pack==='builtin'){builtin.style.display='';builtin.classList.add('on');co.style.display='none';co.classList.remove('on');}
-  else{
-    builtin.style.display='none';builtin.classList.remove('on');co.style.display='grid';co.classList.add('on');
-    co.innerHTML=(Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`<div class="ico-opt" onclick="selectIconByMode('${ic.id}')" title="${ic.label}"><img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}"><span>${ic.label.split(' ')[0].slice(0,6)}</span></div>`).join('')||'<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center;grid-column:1/-1">Requires icon/icons.json</div>';
+  if(pack==='builtin'){
+    builtin.style.display='';builtin.classList.add('on');
+    co.style.display='none';co.classList.remove('on');
+  } else {
+    builtin.style.display='none';builtin.classList.remove('on');
+    co.style.display='grid';co.classList.add('on');
+    buildCOPanel(); // always rebuild with correct selectIconByMode handler
   }
 }
-function selectIconByMode(iconId){if(_pickerMode==='tr')selectTrIcon(iconId);else if(_pickerMode==='amen')selectAmenIcon(iconId);else selectBenIcon(iconId);}
+function selectIconByMode(iconId){
+  if(_pickerMode==='tr') selectTrIcon(iconId);
+  else if(_pickerMode==='amen') selectAmenIcon(iconId);
+  else selectBenIcon(iconId);
+}
 function selectAmenIcon(iconId){
   if(_amenPickerIdx===null)return;
   if(!window.ICON_OVERRIDES)window.ICON_OVERRIDES={};
-  window.ICON_OVERRIDES[AMENITY_ICONS[_amenPickerIdx].id]=iconId;
+  if(iconId==='_reset'){
+    delete window.ICON_OVERRIDES[AMENITY_ICONS[_amenPickerIdx].id];
+  } else {
+    window.ICON_OVERRIDES[AMENITY_ICONS[_amenPickerIdx].id]=iconId;
+  }
   closeIconPicker();_amenPickerIdx=null;renderAmenities();gen();
 }
 let _amenPickerIdx=null;
 function openAmenIconPicker(i,btn){
   _pickerMode='amen';_amenPickerIdx=i;_pickerBenIdx=null;_trPickerId=null;
+  if(document.getElementById('ico-picker').classList.contains('open')){closeIconPicker();return;}
   const picker=document.getElementById('ico-picker');
-  const curId=AMENITY_ICONS[i].id;
-  document.getElementById('ico-picker-grid').innerHTML=IC_LIST.map(ic=>`<div class="ico-opt${ic.id===curId?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')"><span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${renderIcHtml(ic.id)||IC[ic.id]||''}</span><span>${ic.label}</span></div>`).join('');
-  const coPanel=document.getElementById('ico-pack-co');
-  coPanel.innerHTML=(Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>`<div class="ico-opt${ic.id===curId?' sel':''}" onclick="selectIconByMode('${ic.id}')" title="${ic.label}"><img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px" alt="${ic.label}"><span>${ic.label.split(' ')[0].slice(0,6)}</span></div>`).join('');
-  coPanel.dataset.loaded='1';
-  document.querySelectorAll('.ico-pack-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
-  document.querySelectorAll('.ico-pack-panel').forEach((p,i)=>p.classList.toggle('on',i===0));
+  const curId=window.ICON_OVERRIDES?.[AMENITY_ICONS[i].id]||AMENITY_ICONS[i].id;
+  document.getElementById('ico-picker-grid').innerHTML=[{id:'_reset',label:'Default'},...IC_LIST].map(ic=>
+    `<div class="ico-opt${curId===ic.id||(!window.ICON_OVERRIDES?.[AMENITY_ICONS[i].id]&&ic.id==='_reset')?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')">` +
+    `<span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${ic.id==='_reset'?TICK_SVG:renderIcHtml(ic.id)||IC[ic.id]||''}</span>` +
+    `<span>${ic.label}</span></div>`
+  ).join('');
+  buildCOPanel();
+  resetPickerTabs();
   const r=btn.getBoundingClientRect();
   picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-300)+'px';
   picker.classList.add('open');
-  // Remove any existing listener first, then re-add
-document.removeEventListener('pointerdown',outsidePickerClick);
-setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
+  document.removeEventListener('pointerdown',outsidePickerClick);
+  setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
 }
 function closeIconPicker(){
   const p=document.getElementById('ico-picker');
@@ -1587,13 +1622,14 @@ function renderPricingColSettings(){
       <span style="font-size:10px;color:var(--xlt);width:36px;flex-shrink:0">${ui('pr_'+col.key).slice(0,6)}</span>
       <input type="text" value="${(col.labels&&col.labels[LANG])||''}" placeholder="${ui('pr_'+col.key)}"
         style="flex:1;border:1px solid var(--bd);border-radius:5px;padding:4px 8px;font-size:12px;font-family:inherit;outline:none;"
-        oninput="PRICING_COLS[${i}].labels[LANG]=this.value;gen();"
+        oninput="PRICING_COLS[${i}].labels[LANG]=this.value;gen();renderRows();"
         onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
     </div>`).join('');
 }
 function togglePricingCol(i){
   PRICING_COLS[i].on = !PRICING_COLS[i].on;
   renderPricingColSettings();
+  renderRows();
   gen();
 }
 
@@ -1659,21 +1695,24 @@ function richCmd(cmd,editorId){
 function renderRows(){
   const c=document.getElementById('pr-rows');
   if(!S.rows.length){c.innerHTML=`<p class="note-txt" style="margin-bottom:10px">No rows yet.</p>`;return;}
+  // Only show fields for visible columns
+  const colOn=key=>PRICING_COLS.find(col=>col.key===key)?.on!==false;
+  const colLabel=key=>getPricingColLabel(key);
   c.innerHTML=S.rows.map(r=>{
     const eid=`rich-${r.id}`;
     return`<div class="pr-row">
       <div class="pr-head"><span class="pr-lbl">${ui('pr_row')}</span><button class="del-btn" onclick="delRow(${r.id})"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
       <div class="frow">
-        <div class="field"><label class="fl">${ui('pr_seats')}</label><input type="text" value="${r.seats}" onchange="upd(${r.id},'seats',this.value)" placeholder="${ui('pr_seat_ph')}"></div>
-        <div class="field"><label class="fl">${ui('pr_type')}</label><input type="text" value="${r.type}" onchange="upd(${r.id},'type',this.value)" placeholder="${ui('pr_type_ph')}"></div>
+        ${colOn('seats')?`<div class="field"><label class="fl">${colLabel('seats')}</label><input type="text" value="${r.seats}" onchange="upd(${r.id},'seats',this.value)" placeholder="${ui('pr_seat_ph')}"></div>`:''}
+        ${colOn('type')?`<div class="field"><label class="fl">${colLabel('type')}</label><input type="text" value="${r.type}" onchange="upd(${r.id},'type',this.value)" placeholder="${ui('pr_type_ph')}"></div>`:''}
       </div>
       <div class="frow">
-        <div class="field"><label class="fl">${ui('pr_rent')}</label><input type="text" value="${r.rent}" onchange="upd(${r.id},'rent',this.value)" placeholder="${ui('pr_rent_ph')}"></div>
-        <div class="field"><label class="fl">${ui('pr_mgmt')}</label><input type="text" value="${r.mgmt}" onchange="upd(${r.id},'mgmt',this.value)" placeholder="${ui('pr_mgmt_ph')}"></div>
+        ${colOn('rent')?`<div class="field"><label class="fl">${colLabel('rent')}</label><input type="text" value="${r.rent}" onchange="upd(${r.id},'rent',this.value)" placeholder="${ui('pr_rent_ph')}"></div>`:''}
+        ${colOn('mgmt')?`<div class="field"><label class="fl">${colLabel('mgmt')}</label><input type="text" value="${r.mgmt}" onchange="upd(${r.id},'mgmt',this.value)" placeholder="${ui('pr_mgmt_ph')}"></div>`:''}
       </div>
       <div class="frow">
-        <div class="field">
-          <label class="fl">${ui('pr_init')} <span style="font-weight:400;color:var(--xlt);text-transform:none">${ui('pr_init_hint')}</span></label>
+        ${colOn('init')?`<div class="field">
+          <label class="fl">${colLabel('init')} <span style="font-weight:400;color:var(--xlt);text-transform:none">${ui('pr_init_hint')}</span></label>
           <div class="rich-wrap">
             <div class="rich-toolbar">
               <button class="rich-btn" onmousedown="event.preventDefault();richCmd('bold','${eid}')"><b>B</b></button>
@@ -1684,8 +1723,8 @@ function renderRows(){
             </div>
             <div class="rich-editor" id="${eid}" contenteditable="true" data-row-id="${r.id}" oninput="updHtml(${r.id},'init',this)" placeholder="${ui('pr_init_ph')}">${r.init||''}</div>
           </div>
-        </div>
-        <div class="field"><label class="fl">${ui('pr_avail')}</label><input type="text" value="${r.avail}" onchange="upd(${r.id},'avail',this.value)" placeholder="${ui('pr_avail_ph')}"></div>
+        </div>`:''}
+        ${colOn('avail')?`<div class="field"><label class="fl">${colLabel('avail')}</label><input type="text" value="${r.avail}" onchange="upd(${r.id},'avail',this.value)" placeholder="${ui('pr_avail_ph')}"></div>`:''}
       </div>
     </div>`;
   }).join('');
