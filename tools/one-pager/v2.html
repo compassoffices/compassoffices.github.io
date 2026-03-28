@@ -1644,6 +1644,9 @@ function toggleShowSpecs(){
   if(icon)icon.innerHTML=SHOW_SPECS?'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>':'<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
   const fields=document.querySelectorAll('#p-specs .field');
   fields.forEach(f=>{f.style.opacity=SHOW_SPECS?'':'0.35';f.style.pointerEvents=SHOW_SPECS?'':'none';});
+  // Auto-switch layout: hiding all specs → back to Auto; showing specs with content → Classic
+  if(!SHOW_SPECS && BENEFITS_POS==='right') setBenPos('auto');
+  else if(SHOW_SPECS && BENEFITS_POS==='auto') { setTimeout(()=>{checkAutoLayout();},50); }
   gen();
 }
 function toggleSpecField(id,btn){
@@ -1655,6 +1658,7 @@ function toggleSpecField(id,btn){
     b.style.color=HIDDEN_SPECS.has(id)?'var(--o)':'';
     b.innerHTML=HIDDEN_SPECS.has(id)?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> show':'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide';
   });
+  checkAutoLayout();
   gen();
 }
 
@@ -1996,6 +2000,8 @@ function applyLocationData(p){
   if(p.icon_overrides&&typeof p.icon_overrides==='object'){window.ICON_OVERRIDES={...p.icon_overrides};}
   // Save the loaded data into current lang slot so it persists on lang switch
   saveLangData(LANG);
+  // Auto-switch layout: if loaded card has specs, switch to Classic; if none, stay/go Auto
+  setTimeout(()=>{ if(BENEFITS_POS==='auto') onSpecInput(); }, 50);
 }
 
 // ── HELPERS ──────────────────────────────────────────────
@@ -2005,7 +2011,35 @@ const g=id=>{
   if(SPEC_RICH_IDS.includes(id)){let html=(el.innerHTML||'').trim();if(html==='<br>'||html==='')return'';html=html.replace(/<div><br><\/div>/gi,' ').replace(/<div>([\s\S]*?)<\/div>/gi,' $1');html=html.replace(/^<br>|<br>$/gi,'').trim();return html;}
   return(el.value||'').trim();
 };
-function onSpecInput(){genDebounced(500);}
+function onSpecInput(){
+  // Auto-switch: if user types spec content while on Auto, switch to Classic
+  if(BENEFITS_POS==='auto'){
+    // Check if any spec field now has content
+    const hasSpecContent = SPEC_RICH_IDS.some(id=>{
+      if(HIDDEN_SPECS.has(id)) return false;
+      const el=document.getElementById(id);
+      if(!el) return false;
+      const text=(el.innerHTML||'').replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim();
+      return text.length > 0;
+    });
+    if(hasSpecContent) setBenPos('right'); // silently switch to Classic
+  }
+  genDebounced(500);
+}
+
+function checkAutoLayout(){
+  // Called after hiding/showing specs — if all specs hidden or empty and on Classic, switch back to Auto
+  if(BENEFITS_POS==='right'){
+    const hasVisibleSpec = SPEC_RICH_IDS.some(id=>{
+      if(HIDDEN_SPECS.has(id)) return false;
+      const el=document.getElementById(id);
+      if(!el) return false;
+      const text=(el.innerHTML||'').replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim();
+      return text.length > 0;
+    });
+    if(!hasVisibleSpec) setBenPos('auto');
+  }
+}
 
 // ══════════════════════════════════════════════════════════
 //  GENERATE SLIDES
@@ -2810,9 +2844,10 @@ async function slideToCanvas(elId){
   gen._captureMode = false;
 
   // 4. Wait for layout + fonts to settle (longer on mobile)
+  // Three rAF passes ensure flex containers fully compute child sizes after position:fixed
   const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  await new Promise(r=>setTimeout(r,isIOS2?300:50));
-  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  await new Promise(r=>setTimeout(r,isIOS2?400:80));
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 
   // ── Step 1: Build a Map of src → dataURL for ALL images in this slide ──
   const dataURLMap=new Map();
@@ -2846,23 +2881,35 @@ async function slideToCanvas(elId){
   await new Promise(r=>requestAnimationFrame(r)); // let browser update
 
   // ── Step 3: Fix object-fit images (now srcs are data URLs, no taint) ──
+  // html2canvas ignores object-fit CSS. We replace each cover/contain img
+  // with a pre-drawn canvas so the export looks identical to the browser.
   const fitRestores=[];
   allImgs.forEach(img=>{
     if(!img.complete||img.naturalWidth===0) return;
     const cs=window.getComputedStyle(img);
     const fit=cs.objectFit;
     if(fit!=='cover'&&fit!=='contain') return;
-    const w=img.offsetWidth||100,h=img.offsetHeight||100;
+
+    // getBoundingClientRect is more reliable than offsetWidth when slide is position:fixed
+    const rect=img.getBoundingClientRect();
+    const w=Math.round(rect.width)||img.offsetWidth||img.parentElement?.offsetWidth||100;
+    const h=Math.round(rect.height)||img.offsetHeight||img.parentElement?.offsetHeight||100;
+    if(!w||!h) return;
+
     const c2=document.createElement('canvas');
-    c2.width=w*2;c2.height=h*2;c2.style.width=w+'px';c2.style.height=h+'px';
+    c2.width=w*2;c2.height=h*2;
+    c2.style.cssText=`width:${w}px;height:${h}px;display:block;flex-shrink:0;`;
     const ctx=c2.getContext('2d');
     const iw=img.naturalWidth,ih=img.naturalHeight;
+
     if(fit==='cover'){
-      const sc=Math.max(w/iw,h/ih);const sw=w/sc,sh=h/sc,sx=(iw-sw)/2,sy=(ih-sh)/2;
+      const sc=Math.max(w/iw,h/ih);
+      const sw=w/sc,sh=h/sc,sx=(iw-sw)/2,sy=(ih-sh)/2;
       ctx.drawImage(img,sx,sy,sw,sh,0,0,w*2,h*2);
-    } else {
-      const sc=Math.min(w/iw,h/ih);const dw=iw*sc*2,dh=ih*sc*2;
-      ctx.fillStyle='#f8f8f8';ctx.fillRect(0,0,w*2,h*2);
+    } else { // contain
+      const sc=Math.min(w/iw,h/ih);
+      const dw=iw*sc*2,dh=ih*sc*2;
+      ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w*2,h*2);
       ctx.drawImage(img,0,0,iw,ih,(w*2-dw)/2,(h*2-dh)/2,dw,dh);
     }
     img.parentNode.replaceChild(c2,img);
