@@ -2495,8 +2495,7 @@ function downloadCurrentJSON(){
   saveLangData(LANG);
 
   const r=v=>(v||'').trim();
-  const getName=()=>r(g('n-main'))||'location';
-  const slug=getName().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const slug=getExportName();
   const now=new Date();
   const ts=now.getFullYear().toString().slice(2)+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0');
 
@@ -2778,6 +2777,15 @@ async function fetchSVGInline(src){
   }catch(e){ return null; }
 }
 
+// ── EXPORT FILENAME HELPER ────────────────────────────────
+// Prefers EN name regardless of current language, falls back to current
+function getExportName(){
+  const enName = LANG_DATA['en']?.fields?.['n-main'] || '';
+  const curName = document.getElementById('n-main')?.value || '';
+  const raw = enName || curName || 'one-pager';
+  return raw.toLowerCase().replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,'-').replace(/^-|-$/g,'') || 'one-pager';
+}
+
 async function downloadJPG(){
   gen();
   const btn=document.getElementById('pdf-btn');
@@ -2799,7 +2807,7 @@ async function downloadJPG(){
     }
     // Remove stale btn_download_pdf i18n elements (now handled by #pdf-btn-label)
   })();
-  const name=(document.getElementById('n-main')?.value||'one-pager').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const name=getExportName();
 
   async function slideToCanvas(elId){
     const el=document.getElementById(elId);if(!el)return document.createElement('canvas');
@@ -3008,27 +3016,21 @@ async function downloadJPG(){
   }
 }
 async function downloadPDF(){
-  // Combined 2-page PDF — identical layout on all devices
+  // Combined 2-page PDF — reuses slideToCanvas for correct image/logo rendering
   gen();
   const btn=document.getElementById('pdf-btn');
   const origHTML=btn?btn.innerHTML:'';
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Building PDF…</span>';btn.disabled=true;}
-  const name=(document.getElementById('n-main')?.value||'one-pager').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+
+  const name = getExportName();
+
   try{
-    gen._captureMode=true;gen();gen._captureMode=false;
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-    const toCanvas=async(elId)=>{
-      const el=document.getElementById(elId);if(!el)return null;
-      const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio,prevPos=el.style.position,prevL=el.style.left,prevT=el.style.top;
-      el.style.cssText+=';width:1122px!important;height:794px!important;aspect-ratio:unset!important;position:fixed!important;left:-9999px!important;top:0!important';
-      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-      const cv=await html2canvas(el,{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',width:1122,height:794,logging:false,imageTimeout:15000});
-      el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;el.style.position=prevPos;el.style.left=prevL;el.style.top=prevT;
-      return cv;
-    };
-    const [cv1,cv2]=await Promise.all([toCanvas('slide'),toCanvas('slide2')]);
+    // slideToCanvas already handles: captureMode font, CORS images, object-fit, SVG inline
+    const cv1 = await slideToCanvas('slide');
     if(cv1) pdf.addImage(cv1.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);
+    const cv2 = await slideToCanvas('slide2');
     if(cv2){pdf.addPage();pdf.addImage(cv2.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);}
     pdf.save(name+'.pdf');
   }catch(err){
@@ -3036,7 +3038,6 @@ async function downloadPDF(){
     alert('PDF failed: '+err.message);
   }finally{
     if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
-    gen(); // restore preview
   }
 }
 
