@@ -450,9 +450,9 @@ img.co-icon-img{display:block;}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span data-i18n="btn_save_card">Save Card</span>
     </button>
-    <button class="hbtn" id="pdf-btn" onclick="downloadJPG()" style="background:#1a1a1a;border:none;">
+    <button class="hbtn" id="pdf-btn" onclick="downloadPDF()" style="background:#c44000;border:none;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span data-i18n="btn_download_pdf">↓ JPG</span>
+      <span id="pdf-btn-label">↓ PDF</span>
     </button>
     <button class="hbtn" onclick="printSlide()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -993,17 +993,17 @@ img.co-icon-img{display:block;}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       Edit
     </button>
-    <button onclick="downloadJPG()" style="
+    <button id="mob-pdf-btn" onclick="downloadPDF()" style="
         display:flex;align-items:center;gap:7px;
         border:none;border-radius:99px;
-        background:#1a1a1a;color:#fff;
+        background:#c44000;color:#fff;
         font-size:13px;font-weight:700;font-family:inherit;
         padding:8px 16px 8px 14px;
         cursor:pointer;
-        box-shadow:0 2px 10px rgba(0,0,0,.25);
+        box-shadow:0 2px 10px rgba(180,60,0,.3);
         -webkit-tap-highlight-color:transparent;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      ↓ PDF
+      <span id="mob-pdf-btn-label">↓ PDF</span>
     </button>
     <button onclick="printSlide()" style="display:flex;align-items:center;gap:7px;border:none;border-radius:99px;background:var(--o);color:#fff;font-size:13px;font-weight:700;font-family:inherit;padding:8px 18px 8px 14px;cursor:pointer;box-shadow:0 2px 10px rgba(255,102,0,.35);-webkit-tap-highlight-color:transparent;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -2011,6 +2011,7 @@ function onSpecInput(){genDebounced(500);}
 //  GENERATE SLIDES
 // ══════════════════════════════════════════════════════════
 function gen(){
+  const _captureMode = gen._captureMode || false;
   const name=g('n-main')||'Location Name';
   const addr=g('addr');const city=g('city')||'Hong Kong';const floor=g('floor');const purl=g('purl');
   const trLines=TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
@@ -2059,7 +2060,8 @@ function gen(){
   const sepHtml=S.partnerLogo?(()=>{if(LOGO_SEP==='x')return`<span class="sl-logo-sep">×</span>`;if(LOGO_SEP==='bar')return`<span class="sl-logo-sep" style="font-size:.8em">|</span>`;return`<span style="width:.4em"></span>`;})():'';
 
   const slideWrap=document.querySelector('.slide-wrap');
-  const previewW=slideWrap?slideWrap.offsetWidth:600;
+  // In capture mode, always use 1122px so font scaling matches desktop Chrome/print
+  const previewW=_captureMode ? 1122 : (slideWrap?slideWrap.offsetWidth:600);
   const rawFs=previewW/1122*16*1.5;
   const hasCustom=!!(g('custom-title')||(document.getElementById('custom-body-editor')?.innerHTML||'').trim().replace('<br>',''));
   const nBenOn=checked.length;const nAmenOn=amenChecked.length;const amenRowCount=Math.ceil(nAmenOn/4);
@@ -2781,11 +2783,22 @@ async function downloadJPG(){
   const btn=document.getElementById('pdf-btn');
   const origHTML=btn?btn.innerHTML:'';
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Generating…</span>';btn.disabled=true;}
-  // Update static button label to reflect iOS vs desktop behaviour
-  const isIOSDevice=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  document.querySelectorAll('[data-i18n="btn_download_pdf"]').forEach(el=>{
-    el.textContent = isIOSDevice ? '↑ Share' : '↓ JPG';
-  });
+  // ── Set button labels/actions based on device ────────────
+  (function(){
+    const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    if(isIOS2){
+      // iOS: PDF button becomes Share JPGs (no download API)
+      const btn=document.getElementById('pdf-btn');
+      const mBtn=document.getElementById('mob-pdf-btn');
+      const lbl=document.getElementById('pdf-btn-label');
+      const mLbl=document.getElementById('mob-pdf-btn-label');
+      if(btn){btn.onclick=downloadJPG;btn.style.background='#1a1a1a';}
+      if(mBtn){mBtn.onclick=downloadJPG;mBtn.style.background='#1a1a1a';}
+      if(lbl)lbl.textContent='↑ Share';
+      if(mLbl)mLbl.textContent='↑ Share';
+    }
+    // Remove stale btn_download_pdf i18n elements (now handled by #pdf-btn-label)
+  })();
   const name=(document.getElementById('n-main')?.value||'one-pager').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 
   async function slideToCanvas(elId){
@@ -2805,8 +2818,10 @@ async function downloadJPG(){
     // On mobile, ensure it's not clipped by viewport
     el.style.position='fixed';el.style.left='-9999px';el.style.top='0';
 
-    // 3. Re-run gen() to ensure layout computed at correct size
+    // 3. Re-run gen() with captureMode so font scales at 1122px (not mobile viewport)
+    gen._captureMode = true;
     gen();
+    gen._captureMode = false;
 
     // 4. Wait for layout + fonts to settle (longer on mobile)
     const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
@@ -2935,6 +2950,8 @@ async function downloadJPG(){
     el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;
     el.style.position=prevPos;el.style.left=prevLeft;el.style.top=prevTop;
     if(preview){preview.style.display=prevPreviewD;preview.style.visibility=prevPreviewV;}
+    // Re-render preview at normal (mobile-appropriate) size
+    gen();
 
     return canvas;
   }
@@ -2990,7 +3007,38 @@ async function downloadJPG(){
     if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
   }
 }
-async function downloadPDF(){return downloadJPG();}
+async function downloadPDF(){
+  // Combined 2-page PDF — identical layout on all devices
+  gen();
+  const btn=document.getElementById('pdf-btn');
+  const origHTML=btn?btn.innerHTML:'';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Building PDF…</span>';btn.disabled=true;}
+  const name=(document.getElementById('n-main')?.value||'one-pager').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  try{
+    gen._captureMode=true;gen();gen._captureMode=false;
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    const toCanvas=async(elId)=>{
+      const el=document.getElementById(elId);if(!el)return null;
+      const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio,prevPos=el.style.position,prevL=el.style.left,prevT=el.style.top;
+      el.style.cssText+=';width:1122px!important;height:794px!important;aspect-ratio:unset!important;position:fixed!important;left:-9999px!important;top:0!important';
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      const cv=await html2canvas(el,{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',width:1122,height:794,logging:false,imageTimeout:15000});
+      el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;el.style.position=prevPos;el.style.left=prevL;el.style.top=prevT;
+      return cv;
+    };
+    const [cv1,cv2]=await Promise.all([toCanvas('slide'),toCanvas('slide2')]);
+    if(cv1) pdf.addImage(cv1.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);
+    if(cv2){pdf.addPage();pdf.addImage(cv2.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);}
+    pdf.save(name+'.pdf');
+  }catch(err){
+    console.error('PDF failed:',err);
+    alert('PDF failed: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
+    gen(); // restore preview
+  }
+}
 
 
 // ── CUSTOM INFO BLOCK POSITION ───────────────────────────
