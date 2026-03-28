@@ -2090,9 +2090,12 @@ function gen(){
   const photoAreaFlex=amenChecked.length===0?'1 1 100%':`1 1 ${(photoFraction*100).toFixed(0)}%`;
   const centreHasCoreContent=specRows.length>0||trLines.length>0||hasCustom;
   const specsMissing=specRows.length===0;
-  const putBenInCentre=BENEFITS_POS==='centre'||(BENEFITS_POS==='auto'&&specsMissing);
+  // Auto + no specs → 3-col new layout (photos | fp+transport+custom | benefits)
+  // Auto + specs present → Classic (photos | specs+transport+custom | fp+benefits)
+  // Centre → benefits forced to centre column
   const noSpecsMode=specsMissing&&BENEFITS_POS==='auto';
-  const bodyGrid=noSpecsMode?'35% 1fr':'24% 1fr 35%';
+  const putBenInCentre=BENEFITS_POS==='centre'; // no longer triggered by noSpecsMode
+  const bodyGrid=noSpecsMode?'30% 1fr':'24% 1fr 35%';
 
   // In Auto mode: 2-col layout when 5+ benefits (matches Transport 2-col grid)
   const bUseTwoCol = BENEFITS_POS==='auto' && checked.length>=5;
@@ -2112,13 +2115,21 @@ function gen(){
       ${amenChecked.length?`<div class="sl-amen-below"><div class="sl-amen-below-grid">${amenChecked.map(a=>`<div class="sl-amen-cell">${renderIcHtml(a.id)||renderIcHtml("norestore")}<span>${amenLabel(a)}</span></div>`).join('')}</div></div>`:''}
     </div>
     ${noSpecsMode?`
-    <div style="display:flex;flex-direction:column;overflow:hidden;">
-      <div style="flex:0 0 55%;padding:calc(var(--fs)*0.5) calc(var(--fs)*0.7) calc(var(--fs)*0.3);overflow:hidden;border-bottom:1px solid var(--bd);">
-        ${S.floorplan?`<img src="${S.floorplan}" style="width:100%;height:100%;object-fit:contain;display:block;border-radius:6px;">`:`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--bd);border-radius:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:18%;opacity:.15;display:block;margin-bottom:calc(var(--fs)*0.4)"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span style="font-size:calc(var(--fs)*0.6);color:var(--xlt)">Floor Plan</span></div>`}
+    <div style="display:flex;flex-direction:column;overflow:hidden;grid-column:2 / span 2;">
+      <!-- Top: Floor plan full width -->
+      <div style="flex:0 0 55%;border-bottom:1px solid var(--bd);padding:calc(var(--fs)*0.5) calc(var(--fs)*0.8) calc(var(--fs)*0.3);overflow:hidden;">
+        ${S.floorplan
+          ?`<img src="${S.floorplan}" style="width:100%;height:100%;object-fit:contain;display:block;border-radius:6px;">`
+          :`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--bd);border-radius:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:18%;opacity:.15;display:block;margin-bottom:calc(var(--fs)*0.4)"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span style="font-size:calc(var(--fs)*0.6);color:var(--xlt)">Floor Plan</span></div>`}
       </div>
-      <div style="flex:1 1 0;overflow:hidden;min-height:0;padding:calc(var(--fs)*0.4) calc(var(--fs)*0.7) calc(var(--fs)*0.4);display:flex;flex-direction:column;gap:calc(var(--fs)*0.28);">
-        ${(()=>{const _nsTr=trLines.length?`<div style="flex-shrink:0;"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:${trLines.length<=2?'1fr':'1fr 1fr'}">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _nsCu=hasCustom?`<div style="flex-shrink:0;">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div>`:'';return CUSTOM_POS==='above'?_nsCu+_nsTr:_nsTr+_nsCu;})()} 
-        ${checked.length?`<div style="flex:1 1 0;overflow:hidden;min-height:0;"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.text}</span></span></li>`).join('')}</ul></div>`:''}
+      <!-- Bottom: Transport+Custom (left) | Benefits (right) -->
+      <div style="flex:1 1 0;overflow:hidden;min-height:0;display:grid;grid-template-columns:1fr 1fr;">
+        <div style="overflow:hidden;padding:calc(var(--fs)*0.4) calc(var(--fs)*0.65);display:flex;flex-direction:column;gap:calc(var(--fs)*0.22);border-right:1px solid var(--bd);">
+          ${(()=>{const _nsTr=trLines.length?`<div style="flex-shrink:0;"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:1fr">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _nsCu=hasCustom?`<div style="flex-shrink:0;">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div>`:'';return CUSTOM_POS==='above'?_nsCu+_nsTr:_nsTr+_nsCu;})()}
+        </div>
+        <div style="overflow:hidden;padding:calc(var(--fs)*0.4) calc(var(--fs)*0.6);display:flex;flex-direction:column;">
+          ${checked.length?`<div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits" style="margin-top:calc(var(--fs)*0.1)">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.text}</span></span></li>`).join('')}</ul>`:''}
+        </div>
       </div>
     </div>
     `:`
