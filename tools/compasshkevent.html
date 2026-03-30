@@ -196,7 +196,6 @@ select.pill option { background: #1a1a1a; color: #fff; }
   white-space: normal; word-break: break-word; line-height: 1.4;
 }
 .ev-pill svg { width: 11px; height: 11px; flex-shrink: 0; margin-top: 2px; opacity: 0.65; }
-.ev-pill-sm { font-size: 0.67rem; padding: 3px 8px; color: #777; background: #e8e8e8; }
 
 /* QR col — only when URL present */
 .ev-qr {
@@ -583,11 +582,7 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
     const loc      = (ev['Location'] || ev[' Location'] || '').trim();
     const qrUrl    = getQRUrl(ev);
     const rawThumb = (ev.thumbnail || '').trim();
-    // aircon: normalize TRUE/true → show badge, empty/FALSE → hide
-    const airconRaw = (ev.aircon || '').trim();
-    const aircon    = (airconRaw.toUpperCase() === 'TRUE' || airconRaw === '1' || airconRaw.toLowerCase() === 'yes')
-                      ? 'Yes' : airconRaw.toUpperCase() === 'FALSE' ? '' : airconRaw;
-    const equip    = (ev.equipment || '').trim();
+
     const today    = isToday(d);
 
     // In export mode use pre-processed base64; in live mode use raw URL
@@ -619,8 +614,7 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
     <div class="ev-pills">
       ${time ? `<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${time}</span>` : ''}
       ${loc  ? `<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${loc}</span>` : ''}
-      ${aircon ? `<span class="ev-pill ev-pill-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M9 12h6M7 12h.01M17 12h.01"/></svg>A/C: ${aircon}</span>` : ''}
-      ${equip ? `<span class="ev-pill ev-pill-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>${equip}</span>` : ''}
+
     </div>
   </div>
   ${qrUrl ? `<div class="ev-qr">
@@ -647,16 +641,24 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
 }
 
 function attachQR(root) {
-  root.querySelectorAll('.qr-box[data-url]').forEach(box => {
+  // Returns a Promise that resolves once every QR canvas has painted
+  const boxes = [...root.querySelectorAll('.qr-box[data-url]')];
+  if (!boxes.length) return Promise.resolve();
+
+  const promises = boxes.map(box => new Promise(resolve => {
     const url = decodeURIComponent(box.getAttribute('data-url'));
     try {
       new QRCode(box, {
-        text: url, width: 64, height: 64,
-        colorDark: '#111', colorLight: '#fff',
+        text: url, width: 80, height: 80,
+        colorDark: '#111111', colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.M,
       });
-    } catch (_) {}
-  });
+      // QRCode.js appends a canvas synchronously but the browser needs one
+      // rAF tick to actually paint pixels — wait for it
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    } catch (_) { resolve(); }
+  }));
+  return Promise.all(promises);
 }
 
 /* ══════════════════════════════════════
@@ -678,7 +680,7 @@ function renderPage(idx) {
   const { yearLbl, monthLbl } = getLabels();
   const el = document.getElementById('event-page');
   el.innerHTML = buildPage(pages[idx], idx+1, pages.length, yearLbl, monthLbl, null, null);
-  attachQR(el);
+  attachQR(el); // fire-and-forget for live view (QRs paint in <1 frame)
   document.getElementById('page-indicator').textContent = `${idx+1} / ${pages.length}`;
   document.getElementById('btn-prev').disabled = idx === 0;
   document.getElementById('btn-next').disabled = idx === pages.length - 1;
@@ -792,13 +794,30 @@ async function renderAllToCanvases(cardW, thumbMap, logoSrc, scale) {
         `${scale}× scale · ${Math.round(cardW * scale)}px wide`
       );
       off.innerHTML = buildPage(pages[p], p+1, pages.length, yearLbl, monthLbl, logoSrc, thumbMap);
-      attachQR(off);
-      await new Promise(r => setTimeout(r, 160)); // let QR + images paint
+
+      // Wait for all <img> elements to load (thumbnails)
+      const imgs = [...off.querySelectorAll('img')];
+      await Promise.all(imgs.map(img =>
+        img.complete ? Promise.resolve() :
+        new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 5000); })
+      ));
+
+      // Generate QR codes and wait for them to paint
+      await attachQR(off);
+
+      // One extra frame to let layout settle before capture
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
       const c = await html2canvas(off, {
-        scale, useCORS: true, allowTaint: true,
+        scale, useCORS: false, allowTaint: true,
         backgroundColor: '#ffffff', logging: false,
-        width: cardW, scrollX: 0, scrollY: 0, imageTimeout: 0,
+        width: cardW, scrollX: 0, scrollY: 0, imageTimeout: 15000,
+        onclone: (clonedDoc) => {
+          // Ensure cloned QR canvases are visible
+          clonedDoc.querySelectorAll('.qr-box canvas').forEach(c => {
+            c.style.display = 'block';
+          });
+        }
       });
       canvases.push(c);
     }
@@ -992,16 +1011,38 @@ async function init() {
   if (window.location.search.includes('debug')) {
     document.getElementById('debug-panel').style.display = 'block';
     const allKeys = rows.length ? Object.keys(rows[0]) : [];
-    const first   = rows[0] || {};
+
+    // Find all rows with thumbnail or register-url filled
+    const withThumb = rows.filter(r => r['thumbnail'] && r['thumbnail'].trim());
+    const withQR    = rows.filter(r => r['register-url'] && r['register-url'].trim());
+    const withType  = rows.filter(r => r['type'] && r['type'].trim());
+
+    const colList = allKeys.map(k => {
+      const hasSpace = k !== k.trim();
+      return `<span style="color:${hasSpace ? '#f97316' : '#79c0ff'}" title="${hasSpace ? 'WARNING: has leading/trailing space!' : ''}">${JSON.stringify(k)}</span>`;
+    }).join(', ');
+
+    const thumbRows = withThumb.slice(0,5).map(r =>
+      `<div style="margin:2px 0 2px 12px;color:#a5d6ff">
+        • ${r['Event-Name'] || '?'} (${r['Date'] || '?'}) — ${(r['thumbnail']||'').slice(0,60)}…
+       </div>`).join('');
+
+    const qrRows = withQR.slice(0,5).map(r =>
+      `<div style="margin:2px 0 2px 12px;color:#a5d6ff">
+        • ${r['Event-Name'] || '?'} (${r['Date'] || '?'}) — ${(r['register-url']||'').slice(0,60)}…
+       </div>`).join('');
+
     const debugHTML = [
-      `<b style="color:#58a6ff">Total rows parsed: ${rows.length}</b>`,
-      `<b style="color:#58a6ff">Columns (${allKeys.length}):</b> ${allKeys.map(k => `<span style="color:#79c0ff">${k}</span>`).join(', ')}`,
-      `<b style="color:#58a6ff">First row key fields:</b>`,
-      `  thumbnail    = <span style="color:#a5d6ff">${JSON.stringify(first['thumbnail'] || '⚠ EMPTY')}</span>`,
-      `  register-url = <span style="color:#a5d6ff">${JSON.stringify(first['register-url'] || '⚠ EMPTY')}</span>`,
-      `  type         = <span style="color:#a5d6ff">${JSON.stringify(first['type'] || '⚠ EMPTY')}</span>`,
-      `  Region       = <span style="color:#a5d6ff">${JSON.stringify(first['Region'] || '⚠ EMPTY')}</span>`,
-      `  Event-Name   = <span style="color:#a5d6ff">${JSON.stringify(first['Event-Name'] || '⚠ EMPTY')}</span>`,
+      `<b style="color:#58a6ff">📊 Total rows in sheet: ${rows.length}</b>`,
+      `<b style="color:#58a6ff">📋 Columns (${allKeys.length}):</b><br><span style="font-size:0.7rem">${colList}</span>`,
+      `<hr style="border-color:#222;margin:6px 0">`,
+      `<b style="color:${withThumb.length ? '#3fb950' : '#f85149'}">🖼 Rows with thumbnail: ${withThumb.length}</b>`,
+      withThumb.length ? thumbRows : '<div style="color:#f85149;margin-left:12px">None found — check column name is exactly "thumbnail"</div>',
+      `<b style="color:${withQR.length ? '#3fb950' : '#f85149'}">🔗 Rows with register-url: ${withQR.length}</b>`,
+      withQR.length ? qrRows : '<div style="color:#f85149;margin-left:12px">None found — check column name is exactly "register-url"</div>',
+      `<b style="color:${withType.length ? '#3fb950' : '#f85149'}">🏷 Rows with type: ${withType.length}</b>`,
+      `<hr style="border-color:#222;margin:6px 0">`,
+      `<b style="color:#58a6ff">🇭🇰 HK rows loaded: ${allEvents.length}</b>`,
     ].join('<br>');
     document.getElementById('debug-content').innerHTML = debugHTML;
   }
@@ -1011,6 +1052,7 @@ async function init() {
     .filter(r => r.parsedDate !== null && isHK(r))
     .sort((a, b) => a.parsedDate - b.parsedDate);
 
+
   // Populate year dropdown
   const years   = [...new Set(allEvents.map(e => e.parsedDate.getFullYear()))].sort((a,b) => a-b);
   const yearSel = document.getElementById('year-sel');
@@ -1018,7 +1060,8 @@ async function init() {
   years.forEach(y => { const o=document.createElement('option'); o.value=o.textContent=y; yearSel.appendChild(o); });
   const cy = new Date().getFullYear();
   yearSel.value = years.includes(cy) ? cy : 'all';
-  document.getElementById('month-sel').value = new Date().getMonth().toString();
+  // Default to "All Months" so upcoming events across months are visible
+  document.getElementById('month-sel').value = 'all';
 
   refresh();
 
