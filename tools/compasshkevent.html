@@ -446,30 +446,36 @@ async function svgUrlToPngBase64(svgUrl, logoH = 80) {
  * (same as CSS object-fit:cover) regardless of the source image shape.
  */
 async function thumbToBase64Cropped(url, targetW, targetH) {
-  const raw = await urlToBase64(url);
-  if (!raw) return null;
+  if (!url) return null;
+  // Load the image directly (no fetch/CORS) — works for Google Drive lh3 URLs
   return await new Promise(resolve => {
     const img = new Image();
+    // crossOrigin must NOT be set for Google-hosted images (they block CORS)
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width  = targetW;
-      canvas.height = targetH;
-      const ctx = canvas.getContext('2d');
-
-      // object-fit:cover logic
-      const scaleX = targetW / img.naturalWidth;
-      const scaleY = targetH / img.naturalHeight;
-      const scale  = Math.max(scaleX, scaleY);
-      const drawW  = img.naturalWidth  * scale;
-      const drawH  = img.naturalHeight * scale;
-      const offX   = (targetW - drawW) / 2;
-      const offY   = (targetH - drawH) / 2;
-
-      ctx.drawImage(img, offX, offY, drawW, drawH);
-      resolve(canvas.toDataURL('image/png'));
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width  = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        // object-fit:cover — scale to fill, crop centre
+        const scaleX = targetW / img.naturalWidth;
+        const scaleY = targetH / img.naturalHeight;
+        const scale  = Math.max(scaleX, scaleY);
+        const drawW  = img.naturalWidth  * scale;
+        const drawH  = img.naturalHeight * scale;
+        const offX   = (targetW - drawW) / 2;
+        const offY   = (targetH - drawH) / 2;
+        ctx.drawImage(img, offX, offY, drawW, drawH);
+        resolve(canvas.toDataURL('image/png'));
+      } catch (e) {
+        // Canvas tainted (CORS) — fall back to gradient in export
+        resolve(null);
+      }
     };
     img.onerror = () => resolve(null);
-    img.src = raw;
+    img.src = url; // plain src, no crossOrigin attribute
+    // Timeout safety: if image hasn't loaded in 8s, give up
+    setTimeout(() => resolve(null), 8000);
   });
 }
 
@@ -491,16 +497,18 @@ async function fetchCSV() {
   // Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details,
   // Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,
   // edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type
-  const HDR = 'Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details,Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type';
+  // Header matches the sheet exactly (note: ' Location' has a leading space — our parser trims it)
+  const HDR = 'Time,Date,Client-Name,Region,Event-Name, Location,Reception,Details,Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type';
   const ROWS = [
-    '10:00 AM,01/04/2026,ABC Corp,Hong Kong,Annual Strategy Summit,"Lee Garden 2, 16/F, Conference Room A, Causeway Bay",Yes,Year-end planning,Email,Yes,Q2,EVT001,,,,John Lee,john@co.com,,,Yes,https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&q=80,https://compassoffices.com/events/1,Projector,Conference',
-    '2:00 PM,03/04/2026,XYZ Financial,Hong Kong,Q2 Investor Briefing,"Two Pacific Place, 23/F, Boardroom, Admiralty",Yes,Investment update,Phone,Yes,Q2,EVT002,,,,Amy Chan,amy@co.com,,,,Yes,,,Teleconference unit,Briefing',
-    '9:30 AM,07/04/2026,Global Ventures,Hong Kong,Leadership Workshop,"Exchange Square Tower 1, 38/F, Training Room, Central",Yes,Leadership training,Online,Yes,Q2,EVT003,,,,Ben Wu,ben@co.com,,,,Yes,https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&q=80,https://compassoffices.com/events/3,Whiteboard,Workshop',
-    '3:00 PM,10/04/2026,Pacific Group,Hong Kong,Product Demo & Networking,"Langham Place Office Tower, 12/F Sky Terrace, Mong Kok",Yes,Product showcase,Email,Yes,Q2,EVT004,,,,Sam Ho,sam@co.com,,,,,,,Laptop + Screen,Networking',
-    '11:00 AM,14/04/2026,Asia Markets,Hong Kong,Regional Sales Conference,"One Island East, 45/F Grand Ballroom, Quarry Bay",Yes,Sales strategy,Email,Yes,Q2,EVT005,,,,Lisa Ng,lisa@co.com,,,,Yes,https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=400&q=80,https://compassoffices.com/events/5,,Conference',
-    '5:30 PM,16/04/2026,Heritage Fund,Hong Kong,Board Meeting,"Central Plaza, 18/F Meeting Room 3, Wan Chai",Yes,Quarterly review,Phone,Yes,Q2,EVT006,,,,Tom Yip,tom@co.com,,,,Yes,,,,Board Meeting',
-    '9:00 AM,21/04/2026,Harbour Capital,Hong Kong,Innovation Forum,"Two IFC, 55/F Sky Lounge, Finance Street, Central",Yes,Tech innovation,Email,Yes,Q2,EVT007,,,,Kate Ma,kate@co.com,,,,Yes,https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&q=80,https://compassoffices.com/events/7,HD Projector,Forum',
-    '2:30 PM,24/04/2026,Peak Solutions,Hong Kong,Client Appreciation Day,"The Center, 99/F VIP Suite, 99 Queen\'s Road Central",Yes,Client event,Online,Yes,Q2,EVT008,,,,Mike Lam,mike@co.com,,,,,,,Sound System,Networking',
+    // Real example row from your sheet (line 217) — has thumbnail, register-url, type, aircon, equipment
+    '6:00 PM - 9:00 PM,2026-04-01,Will,Hong Kong,Will test,"Lee Garden Two, 15/F, Hong Kong, – Lounge area",HKG2LG015@compassoffices.com,,Submit,TRUE,Q2,EVT20260330230949522,Submit,Delete,Will,wailap_ho@outlook.com,,,,TRUE,https://lh3.googleusercontent.com/drive-storage/AJQWtBMyoNMiUlogLwv4L0loCbWidvxZI-6-_5-rv3FQBXDQyr2_nDZfJsRHtARBI6olarTbw85ruekVLvvQ6LounG6EliaiZmaWBRPJPthASdY817XC=s220,https://docs.google.com/forms/d/e/1FAIpQLSe4_6KUS8VLD5JQ9GrISknJFZLUczq0jKaO7JLrs0O22rgHTQ/viewform,TV,Seminar',
+    // Extra sample rows (no thumbnail/QR) to show gradient fallback
+    '12:30 PM-3:00 PM,2026-04-02,OfferToday,Hong Kong,Recruitment Day,"Lee Garden 2, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
+    '6:00 PM-8:00 PM,2026-04-28,Harmony Wealth,Hong Kong,Wealth Management Sharing,"Lee Garden 1, 24/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
+    '2:00 PM-6:00 PM,2026-04-09,Pure Fitness,Hong Kong,Wellness Booth,"Lee Garden 2, 15/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
+    '6:00 PM-9:00 PM,2026-04-14,Casual Tech Meetup,Hong Kong,Productize Yourself Workshop,"Lee Garden 2, 16/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
+    '2:00 PM-6:00 PM,2026-04-16,Food Luck,Hong Kong,Sake Tasting Event,"Lee Garden 2, 28/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
+    '9:00 AM-11:00 AM,2026-04-21,Women of HK,Hong Kong,Solopreneurs Breakfast,"Lee Garden 2, 16/F, Room 1631",,,,TRUE,Q2,,,,,,,,,,,,,,',
   ];
   return [HDR, ...ROWS].join('\n');
 }
@@ -572,10 +580,13 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
     const type     = (ev.type || '').trim() || 'Event';
     const name     = (ev['Event-Name'] || 'Untitled Event').trim();
     const time     = (ev.Time || '').trim();
-    const loc      = (ev.Location || '').trim();
+    const loc      = (ev['Location'] || ev[' Location'] || '').trim();
     const qrUrl    = getQRUrl(ev);
     const rawThumb = (ev.thumbnail || '').trim();
-    const aircon   = (ev.aircon || '').trim();
+    // aircon: normalize TRUE/true → show badge, empty/FALSE → hide
+    const airconRaw = (ev.aircon || '').trim();
+    const aircon    = (airconRaw.toUpperCase() === 'TRUE' || airconRaw === '1' || airconRaw.toLowerCase() === 'yes')
+                      ? 'Yes' : airconRaw.toUpperCase() === 'FALSE' ? '' : airconRaw;
     const equip    = (ev.equipment || '').trim();
     const today    = isToday(d);
 
@@ -587,8 +598,9 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
     const gradCls = `g${i % GRAD_N}`;
     const thumbEl = thumbSrc
       ? `<div class="ev-thumb-box ${gradCls}">
-           <img src="${thumbSrc}" alt="" crossorigin="anonymous" loading="eager"
-                style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;">
+           <img src="${thumbSrc}" alt=""
+                style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;"
+                onerror="this.style.display='none'">
          </div>`
       : `<div class="ev-thumb-box ${gradCls} no-img"></div>`;
 
