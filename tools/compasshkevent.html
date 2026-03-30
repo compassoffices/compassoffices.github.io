@@ -186,7 +186,7 @@
 
   .event-row {
     display: flex;
-    align-items: center;
+    align-items: stretch; /* columns stretch to full row height */
     gap: 0;
     border-bottom: 1px solid var(--mid);
     transition: background .2s;
@@ -205,6 +205,10 @@
     text-align: center;
     padding: 20px 10px;
     border-right: 1px solid var(--mid);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
   .ev-date .ev-month {
     font-size: 0.7rem;
@@ -265,9 +269,7 @@
     color: var(--text);
     line-height: 1.25;
     margin-bottom: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
   }
   .ev-pills {
     display: flex;
@@ -276,19 +278,20 @@
   }
   .ev-pill {
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 5px;
     background: var(--mid);
-    border-radius: 30px;
+    border-radius: 16px;
     padding: 5px 12px;
     font-size: 0.78rem;
     font-weight: 600;
     color: #444;
-    white-space: nowrap;
-    max-width: 300px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* No truncation – wrap naturally */
+    white-space: normal;
+    word-break: break-word;
+    max-width: 100%;
   }
+  .ev-pill svg { margin-top: 2px; /* align icon to first line of text */ }
   .ev-pill svg { width: 13px; height: 13px; flex-shrink: 0; }
 
   /* QR column */
@@ -591,7 +594,7 @@ function buildPageHTML(events, pageNum, totalPages, yearLabel, monthLabel) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
               </svg>
-              ${loc.length > 45 ? loc.slice(0, 44) + '…' : loc}
+              ${loc}
             </span>` : ''}
           </div>
         </div>
@@ -679,35 +682,138 @@ function getFiltered() {
 
 function refresh() { rebuildPages(getFiltered()); }
 
-/* ─── Download as JPG ─── */
+/* ─── Download ALL pages as one tall JPG ─── */
 async function downloadJPG() {
-  const pageEl = document.getElementById('event-page');
-  const btn    = document.getElementById('btn-dl');
-  const origText = btn.innerHTML;
-  btn.textContent = 'Generating…';
-  btn.disabled    = true;
+  if (!pages.length) return;
+
+  const btn      = document.getElementById('btn-dl');
+  const origHTML = btn.innerHTML;
+  btn.disabled   = true;
+
+  const yearSel = document.getElementById('year-sel').value;
+  const moSel   = document.getElementById('month-sel').value;
+  const yearLbl = yearSel === 'all' ? new Date().getFullYear().toString() : yearSel;
+  const monthLbl = moSel === 'all' ? 'All Months' : MONTHS[+moSel];
+  const moName   = moSel === 'all' ? 'events' : MONTHS[+moSel].toLowerCase();
+
+  // Off-screen rendering container – same width as the visible card
+  const pageEl  = document.getElementById('event-page');
+  const cardW   = pageEl.offsetWidth;
+
+  const offscreen = document.createElement('div');
+  offscreen.style.cssText = `
+    position: fixed; left: -9999px; top: 0;
+    width: ${cardW}px;
+    background: #ffffff;
+    border-radius: 0;
+    overflow: visible;
+    z-index: -1;
+  `;
+  document.body.appendChild(offscreen);
+
+  const canvases = [];
 
   try {
-    const canvas = await html2canvas(pageEl, {
-      scale:           2,
-      useCORS:         true,
-      allowTaint:      true,
-      backgroundColor: '#ffffff',
-      logging:         false,
-    });
+    for (let p = 0; p < pages.length; p++) {
+      // Update button label
+      btn.textContent = `Rendering ${p + 1} / ${pages.length}…`;
 
-    const link    = document.createElement('a');
-    const yearSel = document.getElementById('year-sel').value;
-    const moSel   = document.getElementById('month-sel').value;
-    const moName  = moSel === 'all' ? 'events' : MONTHS[+moSel].toLowerCase();
-    link.download = `compass-hk-${moName}-${yearSel}-page${currentPage+1}.jpg`;
-    link.href     = canvas.toDataURL('image/jpeg', 0.92);
-    link.click();
+      // Build the page HTML into the offscreen div
+      offscreen.innerHTML = buildPageHTML(pages[p], p + 1, pages.length, yearLbl, monthLbl);
+      offscreen.style.borderRadius = p === 0 ? '18px 18px 0 0'
+                                   : p === pages.length - 1 ? '0 0 18px 18px'
+                                   : '0';
+
+      // Generate QR codes and wait for them to render
+      const qrPromises = pages[p].map((ev, i) => {
+        return new Promise(resolve => {
+          const container = offscreen.querySelector(`#qr-${p + 1}-${i}`);
+          if (!container) return resolve();
+          try {
+            new QRCode(container, {
+              text:         [ev['Event-Name'], ev.Date, ev.Time, ev.Location, 'compassoffices.com'].filter(Boolean).join(' | '),
+              width:        70, height: 70,
+              colorDark:    '#0a0a0a',
+              colorLight:   '#ffffff',
+              correctLevel: QRCode.CorrectLevel.M
+            });
+            // QRCode.js renders synchronously but appends a canvas/img – small tick to let paint finish
+            setTimeout(resolve, 80);
+          } catch(_) { resolve(); }
+        });
+      });
+      await Promise.all(qrPromises);
+
+      // Capture this page
+      const canvas = await html2canvas(offscreen, {
+        scale:           2,
+        useCORS:         true,
+        allowTaint:      true,
+        backgroundColor: '#ffffff',
+        logging:         false,
+        width:           cardW,
+        scrollX:         0,
+        scrollY:         0,
+      });
+      canvases.push(canvas);
+    }
+
+    // Stitch all canvases vertically into one
+    btn.textContent = 'Stitching pages…';
+
+    const totalH = canvases.reduce((sum, c) => sum + c.height, 0);
+    const finalW = canvases[0].width;
+
+    const stitched = document.createElement('canvas');
+    stitched.width  = finalW;
+    stitched.height = totalH;
+    const ctx = stitched.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, finalW, totalH);
+
+    let y = 0;
+    for (const c of canvases) {
+      ctx.drawImage(c, 0, y);
+      y += c.height;
+    }
+
+    // Trigger download – mobile Safari doesn't support anchor download, open in new tab instead
+    const jpgDataUrl = stitched.toDataURL('image/jpeg', 0.92);
+    const isMobile   = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // Open in new tab – user can long-press → "Add to Photos" / "Save Image"
+      const newTab = window.open();
+      if (newTab) {
+        newTab.document.write(`
+          <html><head><title>Compass HK Events</title>
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <style>
+            body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;}
+            img{max-width:100%;display:block;}
+            p{color:#ff6600;font-family:sans-serif;font-size:0.85rem;text-align:center;padding:0 16px;}
+          </style></head>
+          <body>
+            <p>📥 Long-press the image below → <strong>Save to Photos</strong> to keep it</p>
+            <img src="${jpgDataUrl}" alt="Compass HK Events">
+          </body></html>`);
+        newTab.document.close();
+      } else {
+        alert('Please allow pop-ups to view the image, or try on desktop.');
+      }
+    } else {
+      const link    = document.createElement('a');
+      link.download = `compass-hk-${moName}-${yearSel}.jpg`;
+      link.href     = jpgDataUrl;
+      link.click();
+    }
+
   } catch(err) {
     alert('Could not generate image. Please try again.');
     console.error(err);
   } finally {
-    btn.innerHTML = origText;
+    document.body.removeChild(offscreen);
+    btn.innerHTML = origHTML;
     btn.disabled  = false;
   }
 }
