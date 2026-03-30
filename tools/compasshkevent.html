@@ -5,25 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compass Offices – Hong Kong Events</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-/* ── Design tokens ── */
 :root {
-  --orange:      #ff6600;
-  --orange-dark: #cc5200;
-  --orange-soft: rgba(255,102,0,0.1);
-  --black:       #0a0a0a;
-  --card-bg:     #ffffff;
-  --row-alt:     #f8f8f8;
-  --border:      #e4e4e4;
-  --text:        #111111;
-  --muted:       #999999;
-  --radius:      20px;
+  --orange:  #ff6600;
+  --od:      #cc5200;
+  --black:   #0a0a0a;
+  --white:   #ffffff;
+  --light:   #f8f8f8;
+  --border:  #e4e4e4;
+  --text:    #111111;
+  --muted:   #999999;
+  --radius:  20px;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 body {
   font-family: 'DM Sans', sans-serif;
   background: var(--black);
@@ -32,13 +30,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ══════════════════════════════
-   Controls bar
-══════════════════════════════ */
-.controls-bar {
+/* ── Controls bar ── */
+.ctrl-bar {
   position: sticky; top: 0; z-index: 100;
-  background: #0f0f0f;
-  border-bottom: 1px solid #1e1e1e;
+  background: #0f0f0f; border-bottom: 1px solid #1e1e1e;
   padding: 11px 22px;
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
 }
@@ -46,283 +41,253 @@ body {
 .ctrl-sep { width: 1px; height: 24px; background: #2a2a2a; flex-shrink: 0; }
 .ctrl-title {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.2rem; letter-spacing: 0.1em; color: var(--orange);
+  font-size: 1.15rem; letter-spacing: 0.1em; color: var(--orange);
   flex: 1; white-space: nowrap;
 }
-.ctrl-pill {
+select.pill {
   background: #161616; border: 1.5px solid #2c2c2c; color: #aaa;
-  padding: 6px 14px; border-radius: 40px;
+  padding: 6px 13px; border-radius: 40px;
   font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 500;
   cursor: pointer; outline: none; transition: border-color .18s, color .18s;
   -webkit-appearance: none; appearance: none;
 }
-.ctrl-pill:hover, .ctrl-pill:focus { border-color: var(--orange); color: var(--orange); }
-.ctrl-pill option { background: #1a1a1a; color: #fff; }
-.ctrl-pill[disabled] { opacity: 0.4; cursor: default; }
+select.pill:hover, select.pill:focus { border-color: var(--orange); color: var(--orange); }
+select.pill option { background: #1a1a1a; color: #fff; }
 
-.page-nav { display: flex; align-items: center; gap: 7px; color: #666; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; }
+.page-nav { display: flex; align-items: center; gap: 7px; color: #555; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; }
 .nav-btn {
-  background: #161616; border: 1.5px solid #2c2c2c; color: #888;
-  width: 28px; height: 28px; border-radius: 50%;
-  cursor: pointer; font-size: 0.95rem;
+  background: #161616; border: 1.5px solid #2c2c2c; color: #777;
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: border-color .18s, color .18s; user-select: none;
+  font-size: 0.9rem; transition: border-color .18s, color .18s; user-select: none;
 }
 .nav-btn:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
 .nav-btn:disabled { opacity: 0.25; cursor: default; }
 
+/* Download buttons */
+.dl-group { display: flex; align-items: center; gap: 7px; }
 .btn-dl {
-  background: var(--orange); color: #fff; border: none;
-  padding: 8px 18px; border-radius: 40px;
-  font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 700;
-  cursor: pointer; letter-spacing: 0.05em;
-  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  border: none; padding: 8px 15px; border-radius: 40px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.04em;
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
   transition: background .18s, opacity .18s;
 }
-.btn-dl:hover:not(:disabled) { background: var(--orange-dark); }
-.btn-dl:disabled { opacity: 0.55; cursor: wait; }
-.btn-dl svg { width: 13px; height: 13px; }
+.btn-dl-jpg { background: var(--orange); color: #fff; }
+.btn-dl-jpg:hover:not(:disabled) { background: var(--od); }
+.btn-dl-pdf { background: #1e1e1e; color: #ccc; border: 1.5px solid #333; }
+.btn-dl-pdf:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
+.btn-dl:disabled { opacity: 0.5; cursor: wait; }
+.btn-dl svg { width: 13px; height: 13px; flex-shrink: 0; }
 
-/* ══════════════════════════════
-   Stage & card
-══════════════════════════════ */
+/* ── Stage ── */
 .stage {
   display: flex; justify-content: center; align-items: flex-start;
   padding: 36px 16px 60px; min-height: calc(100vh - 54px);
 }
+
+/* ── Event page card ── */
 .event-page {
-  width: 920px; max-width: 100%;
-  background: var(--card-bg);
-  border-radius: var(--radius);
+  width: 860px; max-width: 100%;
+  background: var(--white); border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.3);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3);
 }
 
-/* ── Card header ── */
+/* Card header */
 .page-header {
-  background: var(--black);
-  padding: 22px 30px 18px;
+  background: var(--black); padding: 20px 28px 16px;
   display: flex; justify-content: space-between; align-items: center; gap: 16px;
 }
-.hdr-logo img { height: 38px; width: auto; display: block; }
+/* Full wordmark logo — fixed dimensions prevent distortion */
+.hdr-logo { display: flex; align-items: center; flex-shrink: 0; }
+.hdr-logo img {
+  height: 36px; width: auto;
+  display: block;
+  object-fit: contain; /* never stretch */
+}
 .hdr-right { text-align: right; }
 .hdr-right h1 {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.85rem; letter-spacing: 0.12em; color: #fff; line-height: 1;
+  font-size: 1.75rem; letter-spacing: 0.12em; color: #fff; line-height: 1;
 }
-.hdr-right .hdr-sub {
-  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.24em;
+.hdr-sub {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.24em;
   color: var(--orange); margin-top: 5px; text-transform: uppercase;
 }
-
-/* Orange accent bar */
 .accent-bar { height: 4px; background: linear-gradient(90deg, var(--orange) 0%, #ff9a00 100%); }
 
-/* ── Event rows ── */
+/* Event rows */
 .events-body { padding: 0; }
-
 .event-row {
   display: flex; align-items: stretch;
-  border-bottom: 1px solid var(--border);
-  min-height: 110px;
-  transition: background .15s;
+  border-bottom: 1px solid var(--border); min-height: 108px;
 }
 .event-row:last-child { border-bottom: none; }
-.event-row:nth-child(odd)  { background: var(--card-bg); }
-.event-row:nth-child(even) { background: var(--row-alt); }
-
-/* Today highlight */
+.event-row:nth-child(odd)  { background: var(--white); }
+.event-row:nth-child(even) { background: var(--light); }
 .event-row.is-today {
   background: #fff9f5 !important;
   border-left: 3px solid var(--orange);
-  position: relative;
 }
-.event-row.is-today .ev-date { border-right-color: rgba(255,102,0,.2); }
 
-/* ── Date column ── */
+/* Date col */
 .ev-date {
-  width: 80px; flex-shrink: 0;
+  width: 76px; flex-shrink: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 14px 8px; border-right: 1px solid var(--border); text-align: center;
+  padding: 14px 6px; border-right: 1px solid var(--border); text-align: center;
 }
-.ev-weekday {
-  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.2em;
-  color: var(--muted); text-transform: uppercase; margin-bottom: 1px;
-}
-.ev-day {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 2.6rem; line-height: 1; color: var(--orange);
-}
-.ev-month {
-  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.18em;
-  color: var(--muted); text-transform: uppercase; margin-top: 1px;
-}
-/* Today pill */
+.ev-wd   { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; }
+.ev-day  { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; line-height: 1; color: var(--orange); }
+.ev-mon  { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-top: 1px; }
 .today-badge {
   background: var(--orange); color: #fff;
-  font-size: 0.55rem; font-weight: 700; letter-spacing: 0.1em;
+  font-size: 0.5rem; font-weight: 700; letter-spacing: 0.08em;
   border-radius: 4px; padding: 2px 5px; margin-top: 4px; text-transform: uppercase;
 }
 
-/* ── Thumbnail column — 2:1 landscape ratio ── */
+/* Thumbnail col — fixed 2:1 aspect, no distortion */
 .ev-thumb {
-  width: 150px; flex-shrink: 0;
+  width: 144px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  padding: 12px 10px; border-right: 1px solid var(--border);
+  padding: 10px 10px; border-right: 1px solid var(--border);
 }
-.ev-thumb-inner {
-  width: 128px; /* height = 64px via aspect-ratio = 2:1 */
-  aspect-ratio: 2 / 1;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
+.ev-thumb-box {
+  width: 122px;
+  height: 61px; /* exactly 2:1 */
+  border-radius: 8px; overflow: hidden;
+  flex-shrink: 0; position: relative;
   display: flex; align-items: center; justify-content: center;
-  position: relative;
 }
-.ev-thumb-inner img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+/* Gradient fallbacks — cycling orange palette */
+.ev-thumb-box.g0 { background: linear-gradient(135deg,#ff6600,#ff9a00); }
+.ev-thumb-box.g1 { background: linear-gradient(135deg,#cc4400,#ff6600); }
+.ev-thumb-box.g2 { background: linear-gradient(135deg,#ff7700,#ffcc00); }
+.ev-thumb-box.g3 { background: linear-gradient(135deg,#e84000,#ff7b00); }
+.ev-thumb-box.g4 { background: linear-gradient(135deg,#ff6600,#ff3300); }
+.ev-thumb-box.g5 { background: linear-gradient(135deg,#ff8800,#ffbb44); }
+.ev-thumb-box img {
+  /* Cover the box exactly — no stretching, no distortion */
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+  display: block;
 }
-/* Gradient fallback when no thumbnail — orange to deep-orange, cycling per row */
-.ev-thumb-inner.grad-0 { background: linear-gradient(135deg,#ff6600,#ff9a00); }
-.ev-thumb-inner.grad-1 { background: linear-gradient(135deg,#cc4400,#ff6600); }
-.ev-thumb-inner.grad-2 { background: linear-gradient(135deg,#ff7700,#ffcc00); }
-.ev-thumb-inner.grad-3 { background: linear-gradient(135deg,#e84000,#ff7b00); }
-.ev-thumb-inner.grad-4 { background: linear-gradient(135deg,#ff6600,#ff3300); }
-.ev-thumb-inner.grad-5 { background: linear-gradient(135deg,#ff8800,#ffbb44); }
-/* Subtle "C" watermark on gradient fallback */
-.ev-thumb-inner.no-img::after {
-  content: 'C';
-  position: absolute;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 2.8rem; color: rgba(255,255,255,0.2);
-  line-height: 1; user-select: none;
+/* Watermark C on gradient fallback */
+.ev-thumb-box.no-img::after {
+  content: 'C'; font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem; color: rgba(255,255,255,0.22); line-height: 1;
+  user-select: none; pointer-events: none;
 }
 
-/* ── Info column ── */
+/* Info col */
 .ev-info {
   flex: 1; min-width: 0;
-  padding: 14px 18px 14px 16px;
-  display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  padding: 13px 16px 13px 14px;
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
 }
-.ev-type {
-  font-size: 0.62rem; font-weight: 700;
-  letter-spacing: 0.22em; color: var(--muted);
-  text-transform: uppercase;
-}
-.ev-name {
-  font-size: 1.08rem; font-weight: 700;
-  color: var(--text); line-height: 1.25;
-  word-break: break-word;
-}
-.ev-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ev-type { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase; }
+.ev-name { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.25; word-break: break-word; }
+.ev-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
 .ev-pill {
-  display: inline-flex; align-items: flex-start; gap: 5px;
-  background: #efefef; border-radius: 12px;
-  padding: 4px 10px;
-  font-size: 0.74rem; font-weight: 600; color: #555;
-  white-space: normal; word-break: break-word; max-width: 100%;
-  line-height: 1.4;
+  display: inline-flex; align-items: flex-start; gap: 4px;
+  background: #eeeeee; border-radius: 10px; padding: 4px 9px;
+  font-size: 0.71rem; font-weight: 600; color: #555;
+  white-space: normal; word-break: break-word; line-height: 1.4;
 }
-.ev-pill svg { width: 12px; height: 12px; flex-shrink: 0; margin-top: 2px; opacity: 0.7; }
+.ev-pill svg { width: 11px; height: 11px; flex-shrink: 0; margin-top: 2px; opacity: 0.65; }
+.ev-pill-sm { font-size: 0.67rem; padding: 3px 8px; color: #777; background: #e8e8e8; }
 
-/* ── QR column (only rendered when URL exists) ── */
+/* QR col — only when URL present */
 .ev-qr {
-  width: 104px; flex-shrink: 0;
+  width: 100px; flex-shrink: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 10px 12px; border-left: 1px solid var(--border); gap: 5px;
 }
 .qr-box {
-  width: 72px; height: 72px; border-radius: 8px;
+  width: 68px; height: 68px; border-radius: 7px;
   overflow: hidden; background: #fff; border: 1.5px solid var(--border);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.qr-box canvas, .qr-box img { width: 68px !important; height: 68px !important; display: block; }
-.qr-label {
-  font-size: 0.57rem; font-weight: 700; letter-spacing: 0.14em;
-  color: var(--muted); text-transform: uppercase; text-align: center;
-}
+.qr-box canvas, .qr-box img { width: 64px !important; height: 64px !important; display: block; }
+.qr-lbl { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; text-align: center; }
 
-/* ── Card footer ── */
+/* Card footer */
 .page-footer {
-  background: var(--black); padding: 12px 30px;
+  background: var(--black); padding: 11px 28px;
   display: flex; justify-content: space-between; align-items: center;
 }
-.ft-left { display: flex; align-items: center; gap: 10px; }
-.ft-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); flex-shrink: 0; }
-.ft-site { font-size: 0.72rem; font-weight: 600; color: #444; letter-spacing: 0.1em; }
-.ft-page { font-size: 0.68rem; font-weight: 700; color: var(--orange); letter-spacing: 0.16em; text-transform: uppercase; }
+.ft-l { display: flex; align-items: center; gap: 8px; }
+.ft-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
+.ft-site { font-size: 0.7rem; font-weight: 600; color: #444; letter-spacing: 0.1em; }
+.ft-page { font-size: 0.65rem; font-weight: 700; color: var(--orange); letter-spacing: 0.18em; text-transform: uppercase; }
 
-/* ── Loading / empty states ── */
+/* Loading */
 .state-box {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 80px 24px; min-height: 360px; text-align: center; gap: 14px;
 }
 .spinner {
-  width: 38px; height: 38px;
+  width: 36px; height: 36px;
   border: 3px solid #e8e8e8; border-top-color: var(--orange);
   border-radius: 50%; animation: spin .85s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.state-box p { font-size: 0.92rem; color: #999; font-weight: 500; }
+.state-box p { font-size: 0.9rem; color: #999; font-weight: 500; }
 
-/* ── Generating overlay ── */
+/* Generating overlay */
 .gen-overlay {
-  display: none;
-  position: fixed; inset: 0; z-index: 200;
-  background: rgba(0,0,0,0.75);
-  backdrop-filter: blur(4px);
-  flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.78); backdrop-filter: blur(5px);
+  flex-direction: column; align-items: center; justify-content: center;
 }
-.gen-overlay.visible { display: flex; }
+.gen-overlay.on { display: flex; }
 .gen-box {
-  background: #161616; border: 1px solid #2a2a2a; border-radius: 14px;
-  padding: 28px 40px; text-align: center; min-width: 220px;
+  background: #141414; border: 1px solid #272727; border-radius: 16px;
+  padding: 30px 44px; text-align: center; min-width: 240px;
 }
 .gen-spinner {
-  width: 36px; height: 36px; border: 3px solid #2a2a2a;
-  border-top-color: var(--orange); border-radius: 50%;
-  animation: spin .85s linear infinite; margin: 0 auto 14px;
+  width: 34px; height: 34px; border: 3px solid #222; border-top-color: var(--orange);
+  border-radius: 50%; animation: spin .85s linear infinite; margin: 0 auto 14px;
 }
-.gen-label { font-size: 0.88rem; font-weight: 600; color: #ccc; letter-spacing: 0.06em; }
-.gen-sub { font-size: 0.72rem; color: #555; margin-top: 6px; }
+.gen-lbl { font-size: 0.88rem; font-weight: 600; color: #ccc; letter-spacing: 0.05em; }
+.gen-sub { font-size: 0.7rem; color: #555; margin-top: 5px; }
 
-/* ── Responsive ── */
-@media (max-width: 680px) {
-  .ctrl-title { font-size: 1rem; }
+/* Responsive */
+@media (max-width: 640px) {
+  .ev-date { width: 62px; }
+  .ev-day  { font-size: 2rem; }
   .ev-thumb { width: 110px; padding: 10px 8px; }
-  .ev-thumb-inner { width: 90px; }
-  .ev-date { width: 66px; }
-  .ev-day  { font-size: 2.1rem; }
-  .ev-qr   { width: 88px; padding: 10px; }
-  .qr-box  { width: 60px; height: 60px; }
-  .qr-box canvas, .qr-box img { width: 56px !important; height: 56px !important; }
-  .ev-name { font-size: 0.95rem; }
-  .page-header { padding: 18px 18px 14px; }
-  .page-footer { padding: 10px 18px; }
+  .ev-thumb-box { width: 90px; height: 45px; }
+  .ev-qr { width: 84px; padding: 9px; }
+  .qr-box { width: 58px; height: 58px; }
+  .qr-box canvas, .qr-box img { width: 54px !important; height: 54px !important; }
+  .ev-name { font-size: 0.92rem; }
 }
 </style>
 </head>
 <body>
 
-<!-- Generating overlay -->
+<!-- Overlay shown during export -->
 <div class="gen-overlay" id="gen-overlay">
   <div class="gen-box">
     <div class="gen-spinner"></div>
-    <div class="gen-label" id="gen-label">Preparing…</div>
-    <div class="gen-sub" id="gen-sub">This may take a moment</div>
+    <div class="gen-lbl" id="gen-lbl">Preparing…</div>
+    <div class="gen-sub" id="gen-sub"></div>
   </div>
 </div>
 
-<!-- Controls bar -->
-<div class="controls-bar">
+<!-- Controls -->
+<div class="ctrl-bar">
   <div class="ctrl-logo">
-    <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices">
+    <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg"
+         alt="Compass Offices">
   </div>
   <div class="ctrl-sep"></div>
   <div class="ctrl-title">HK EVENTS</div>
 
-  <select class="ctrl-pill" id="year-sel"></select>
-  <select class="ctrl-pill" id="month-sel">
+  <select class="pill" id="year-sel"></select>
+  <select class="pill" id="month-sel">
     <option value="all">All Months</option>
     <option value="0">January</option><option value="1">February</option>
     <option value="2">March</option><option value="3">April</option>
@@ -338,17 +303,27 @@ body {
     <button class="nav-btn" id="btn-next">&#8594;</button>
   </div>
 
-  <button class="btn-dl" id="btn-dl">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="7 10 12 15 17 10"/>
-      <line x1="12" y1="15" x2="12" y2="3"/>
-    </svg>
-    SAVE AS JPG
-  </button>
+  <div class="dl-group">
+    <button class="btn-dl btn-dl-jpg" id="btn-jpg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      JPG
+    </button>
+    <button class="btn-dl btn-dl-pdf" id="btn-pdf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      PDF
+    </button>
+  </div>
 </div>
 
-<!-- Main stage -->
+<!-- Stage -->
 <div class="stage">
   <div id="event-page" class="event-page">
     <div class="state-box">
@@ -363,60 +338,133 @@ body {
    Constants
 ══════════════════════════════════════ */
 const EVENTS_PER_PAGE = 6;
-const HK_KW   = ['hong kong', 'hk', 'hong-kong'];
-const MONTHS  = ['January','February','March','April','May','June',
-                 'July','August','September','October','November','December'];
-const MONTHS_S= ['JAN','FEB','MAR','APR','MAY','JUN',
-                 'JUL','AUG','SEP','OCT','NOV','DEC'];
-const WEEKDAYS= ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-// Number of gradient classes defined in CSS
-const GRAD_COUNT = 6;
-// Export scale: 3× gives ~2760px wide — crisp on any phone screen
-const EXPORT_SCALE = 3;
+const HK_KW    = ['hong kong','hk','hong-kong'];
+const MONTHS   = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_S = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const WEEKDAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const GRAD_N   = 6;
+
+// Export target: 1080px wide (standard full-HD phone portrait share width)
+const JPG_TARGET_W = 1080;
+// PDF: A4 in mm
+const PDF_W_MM = 210, PDF_H_MM = 297;
 
 /* ══════════════════════════════════════
    State
 ══════════════════════════════════════ */
-let allEvents = [];
-let pages     = [];
-let curPage   = 0;
-let logoB64   = null;          // pre-fetched Compass logo as base64 (for html2canvas)
-let thumbCache = new Map();    // url → base64, populated before each export
+let allEvents  = [];
+let pages      = [];
+let curPage    = 0;
+let logoB64    = null;   // full wordmark as base64 PNG (converted from SVG)
+let thumbCache = new Map(); // url → base64
 
 /* ══════════════════════════════════════
-   Utility: fetch any URL as base64 data-URL
+   Image helpers
 ══════════════════════════════════════ */
-async function toBase64(url) {
-  if (!url) return null;
+
+/** Fetch any URL and return base64 data-URL, or null on failure */
+async function urlToBase64(url) {
+  if (!url || !url.trim()) return null;
   if (thumbCache.has(url)) return thumbCache.get(url);
   try {
-    const res  = await fetch(url, { mode: 'cors' });
+    const res = await fetch(url, { mode: 'cors' });
     if (!res.ok) return null;
     const blob = await res.blob();
     return await new Promise(resolve => {
       const r = new FileReader();
-      r.onload = () => resolve(r.result);
+      r.onload  = () => resolve(r.result);
       r.onerror = () => resolve(null);
       r.readAsDataURL(blob);
     });
   } catch (_) { return null; }
 }
 
-async function fetchLogoB64() {
-  // Try wordmark SVG first, then the round icon PNG as fallback
-  const urls = [
-    'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg',
-    'https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png',
-  ];
-  for (const url of urls) {
-    const b64 = await toBase64(url);
-    if (b64) return b64;
-  }
-  return null;
+/**
+ * Convert an SVG URL → PNG base64 via an offscreen canvas.
+ * This makes html2canvas render the logo reliably (SVG src often blocked).
+ * logoH: desired pixel height of the PNG output.
+ */
+async function svgUrlToPngBase64(svgUrl, logoH = 80) {
+  try {
+    // 1. Fetch SVG source text
+    const res = await fetch(svgUrl, { mode: 'cors' });
+    if (!res.ok) return null;
+    const svgText = await res.text();
+
+    // 2. Parse natural SVG dimensions for aspect ratio
+    const parser = new DOMParser();
+    const doc    = parser.parseFromString(svgText, 'image/svg+xml');
+    const svgEl  = doc.querySelector('svg');
+    let svgW = parseFloat(svgEl?.getAttribute('width')  || '0');
+    let svgH = parseFloat(svgEl?.getAttribute('height') || '0');
+
+    // Fallback to viewBox if width/height attrs are missing or 0
+    if (!svgW || !svgH) {
+      const vb = (svgEl?.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+      if (vb.length >= 4) { svgW = vb[2]; svgH = vb[3]; }
+    }
+    if (!svgW || !svgH) { svgW = 300; svgH = 60; } // last resort
+
+    const aspect  = svgW / svgH;
+    const pxH     = logoH;
+    const pxW     = Math.round(pxH * aspect);
+
+    // 3. Embed the SVG into a canvas via an Image element
+    const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
+    const blobUrl = URL.createObjectURL(svgBlob);
+
+    return await new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const c   = document.createElement('canvas');
+        c.width   = pxW * 2; // 2× for crispness
+        c.height  = pxH * 2;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(blobUrl);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(null); };
+      img.src = blobUrl;
+    });
+  } catch (_) { return null; }
+}
+
+/**
+ * Convert a thumbnail URL → base64, but draw it at EXACTLY the target
+ * dimensions using a canvas — guarantees correct aspect-ratio cropping
+ * (same as CSS object-fit:cover) regardless of the source image shape.
+ */
+async function thumbToBase64Cropped(url, targetW, targetH) {
+  const raw = await urlToBase64(url);
+  if (!raw) return null;
+  return await new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+
+      // object-fit:cover logic
+      const scaleX = targetW / img.naturalWidth;
+      const scaleY = targetH / img.naturalHeight;
+      const scale  = Math.max(scaleX, scaleY);
+      const drawW  = img.naturalWidth  * scale;
+      const drawH  = img.naturalHeight * scale;
+      const offX   = (targetW - drawW) / 2;
+      const offY   = (targetH - drawH) / 2;
+
+      ctx.drawImage(img, offX, offY, drawW, drawH);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(null);
+    img.src = raw;
+  });
 }
 
 /* ══════════════════════════════════════
-   CSV fetch + parse
+   CSV
 ══════════════════════════════════════ */
 async function fetchCSV() {
   const urls = [
@@ -429,19 +477,22 @@ async function fetchCSV() {
       if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
     } catch (_) {}
   }
-  // ── Sample data ──
-  // Includes: thumbnail (URL), type, QR (some filled, some empty)
-  return [
-    'Time,Date,Client-Name,Region,Event-Name,Location,thumbnail,type,QR,Reception,Quarter',
-    '10:00 AM,01/04/2026,ABC Corp,Hong Kong,Annual Strategy Summit,"Lee Garden 2, 16/F, Conference Room A, Causeway Bay",https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&q=80,Conference,https://compassoffices.com/events/1,Yes,Q2',
-    '2:00 PM,03/04/2026,XYZ Financial,Hong Kong,Q2 Investor Briefing,"Two Pacific Place, 23/F, Boardroom, Admiralty",,Briefing,,Yes,Q2',
-    '9:30 AM,07/04/2026,Global Ventures,Hong Kong,Leadership Workshop,"Exchange Square Tower 1, 38/F, Training Room",https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&q=80,Workshop,https://compassoffices.com/events/3,Yes,Q2',
-    '3:00 PM,10/04/2026,Pacific Group,Hong Kong,Product Demo & Networking,"Langham Place Office Tower, 12/F Sky Terrace, Mong Kok",,Networking,,Yes,Q2',
-    '11:00 AM,14/04/2026,Asia Markets,Hong Kong,Regional Sales Conference,"One Island East, 45/F Grand Ballroom, Quarry Bay",https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=400&q=80,Conference,https://compassoffices.com/events/5,Yes,Q2',
-    '5:30 PM,16/04/2026,Heritage Fund,Hong Kong,Board Meeting,"Central Plaza, 18/F Meeting Room 3, Wan Chai",,Board Meeting,,Yes,Q2',
-    '9:00 AM,21/04/2026,Harbour Capital,Hong Kong,Innovation Forum,"Two IFC, 55/F Sky Lounge, Finance Street, Central",https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&q=80,Forum,https://compassoffices.com/events/7,Yes,Q2',
-    '2:30 PM,24/04/2026,Peak Solutions,Hong Kong,Client Appreciation Day,"The Center, 99/F VIP Suite, 99 Queen\'s Road Central",,Networking,,Yes,Q2',
-  ].join('\n');
+  // ── Sample data: exact columns from the live sheet ──
+  // Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details,
+  // Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,
+  // edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type
+  const HDR = 'Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details,Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type';
+  const ROWS = [
+    '10:00 AM,01/04/2026,ABC Corp,Hong Kong,Annual Strategy Summit,"Lee Garden 2, 16/F, Conference Room A, Causeway Bay",Yes,Year-end planning,Email,Yes,Q2,EVT001,,,,John Lee,john@co.com,,,Yes,https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&q=80,https://compassoffices.com/events/1,Projector,Conference',
+    '2:00 PM,03/04/2026,XYZ Financial,Hong Kong,Q2 Investor Briefing,"Two Pacific Place, 23/F, Boardroom, Admiralty",Yes,Investment update,Phone,Yes,Q2,EVT002,,,,Amy Chan,amy@co.com,,,,Yes,,,Teleconference unit,Briefing',
+    '9:30 AM,07/04/2026,Global Ventures,Hong Kong,Leadership Workshop,"Exchange Square Tower 1, 38/F, Training Room, Central",Yes,Leadership training,Online,Yes,Q2,EVT003,,,,Ben Wu,ben@co.com,,,,Yes,https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&q=80,https://compassoffices.com/events/3,Whiteboard,Workshop',
+    '3:00 PM,10/04/2026,Pacific Group,Hong Kong,Product Demo & Networking,"Langham Place Office Tower, 12/F Sky Terrace, Mong Kok",Yes,Product showcase,Email,Yes,Q2,EVT004,,,,Sam Ho,sam@co.com,,,,,,,Laptop + Screen,Networking',
+    '11:00 AM,14/04/2026,Asia Markets,Hong Kong,Regional Sales Conference,"One Island East, 45/F Grand Ballroom, Quarry Bay",Yes,Sales strategy,Email,Yes,Q2,EVT005,,,,Lisa Ng,lisa@co.com,,,,Yes,https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=400&q=80,https://compassoffices.com/events/5,,Conference',
+    '5:30 PM,16/04/2026,Heritage Fund,Hong Kong,Board Meeting,"Central Plaza, 18/F Meeting Room 3, Wan Chai",Yes,Quarterly review,Phone,Yes,Q2,EVT006,,,,Tom Yip,tom@co.com,,,,Yes,,,,Board Meeting',
+    '9:00 AM,21/04/2026,Harbour Capital,Hong Kong,Innovation Forum,"Two IFC, 55/F Sky Lounge, Finance Street, Central",Yes,Tech innovation,Email,Yes,Q2,EVT007,,,,Kate Ma,kate@co.com,,,,Yes,https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&q=80,https://compassoffices.com/events/7,HD Projector,Forum',
+    '2:30 PM,24/04/2026,Peak Solutions,Hong Kong,Client Appreciation Day,"The Center, 99/F VIP Suite, 99 Queen\'s Road Central",Yes,Client event,Online,Yes,Q2,EVT008,,,,Mike Lam,mike@co.com,,,,,,,Sound System,Networking',
+  ];
+  return [HDR, ...ROWS].join('\n');
 }
 
 function parseCSVLine(line) {
@@ -454,7 +505,6 @@ function parseCSVLine(line) {
   }
   r.push(cur.trim()); return r;
 }
-
 function parseCSV(txt) {
   const lines = txt.split('\n');
   const hdrs  = parseCSVLine(lines[0]).map(h => h.trim());
@@ -464,117 +514,96 @@ function parseCSV(txt) {
     return row;
   });
 }
-
 function parseDate(s) {
   if (!s) return null;
   let m;
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) return new Date(+m[3], +m[2]-1, +m[1]);
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);   if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);   if (m) return new Date(+m[3], +m[1]-1, +m[2]);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) return new Date(+m[3],+m[2]-1,+m[1]);
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);   if (m) return new Date(+m[1],+m[2]-1,+m[3]);
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);   if (m) return new Date(+m[3],+m[1]-1,+m[2]);
   const d = new Date(s); return isNaN(d) ? null : d;
 }
-
 function isHK(ev) {
-  const r = (ev.Region || '').toLowerCase();
-  const l = (ev.Location || '').toLowerCase();
+  const r=(ev.Region||'').toLowerCase(), l=(ev.Location||'').toLowerCase();
   return HK_KW.some(kw => r.includes(kw) || l.includes(kw));
 }
-
-function isTodayDate(d) {
+function isToday(d) {
   const t = new Date();
-  return d.getFullYear() === t.getFullYear() &&
-         d.getMonth()    === t.getMonth()    &&
-         d.getDate()     === t.getDate();
+  return d.getFullYear()===t.getFullYear() && d.getMonth()===t.getMonth() && d.getDate()===t.getDate();
 }
-
-/* Return the QR/booking URL from an event row (checks multiple possible column names) */
 function getQRUrl(ev) {
-  for (const k of ['QR', 'URL', 'Link', 'Booking', 'RSVP', 'url', 'link']) {
+  // Primary: exact column name from sheet
+  if (ev['register-url'] && ev['register-url'].trim()) return ev['register-url'].trim();
+  // Legacy fallbacks
+  for (const k of ['QR','URL','Link','Booking','RSVP']) {
     if (ev[k] && ev[k].trim()) return ev[k].trim();
   }
   return null;
 }
 
 /* ══════════════════════════════════════
-   HTML builders
+   HTML builder
+   thumbMap: null = live mode (raw URLs); Map<url,base64> = export mode
 ══════════════════════════════════════ */
-
-/* Thumbnail cell — imgSrc can be a URL (live) or base64 (export) or empty (gradient) */
-function thumbHTML(rowIdx, imgSrc) {
-  const grad = `grad-${rowIdx % GRAD_COUNT}`;
-  if (imgSrc) {
-    return `<div class="ev-thumb-inner ${grad}">
-      <img src="${imgSrc}" alt="" loading="lazy" onerror="this.style.display='none'">
-    </div>`;
-  }
-  return `<div class="ev-thumb-inner ${grad} no-img"></div>`;
-}
-
-/*
-  Build full HTML for one page.
-  - logoSrc:  null → live SVG URL;  base64 string → for html2canvas
-  - thumbMap: null → use raw URLs;  Map<url, base64> → for html2canvas
-*/
 function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) {
   const heading = monthLbl === 'All Months'
-    ? `${yearLbl} Events`
-    : `${monthLbl} ${yearLbl} Events`;
+    ? `${yearLbl} Events` : `${monthLbl} ${yearLbl} Events`;
 
   const logoUrl = logoSrc ||
     'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg';
 
   const rows = slice.map((ev, i) => {
     const d       = ev.parsedDate;
-    const type    = (ev.type || ev.Type || ev.TYPE || '').trim() || 'Event';
-    const name    = (ev['Event-Name'] || 'Untitled Event').trim();
-    const time    = (ev.Time || '').trim();
-    const loc     = (ev.Location || '').trim();
-    const qrUrl   = getQRUrl(ev);
-    const rawThumb = (ev.thumbnail || ev.Thumbnail || '').trim();
-    const today   = isTodayDate(d);
+    const type     = (ev.type || '').trim() || 'Event';
+    const name     = (ev['Event-Name'] || 'Untitled Event').trim();
+    const time     = (ev.Time || '').trim();
+    const loc      = (ev.Location || '').trim();
+    const qrUrl    = getQRUrl(ev);
+    const rawThumb = (ev.thumbnail || '').trim();
+    const aircon   = (ev.aircon || '').trim();
+    const equip    = (ev.equipment || '').trim();
+    const today    = isToday(d);
 
-    // Resolve thumbnail src: base64 in export mode, raw URL in live mode
-    let thumbSrc = rawThumb;
-    if (thumbMap && rawThumb) {
-      thumbSrc = thumbMap.get(rawThumb) || rawThumb; // fall back to URL if fetch failed
-    }
+    // In export mode use pre-processed base64; in live mode use raw URL
+    const thumbSrc = thumbMap
+      ? (thumbMap.get(rawThumb) || null)  // null → gradient fallback
+      : rawThumb;
+
+    const gradCls = `g${i % GRAD_N}`;
+    const thumbEl = thumbSrc
+      ? `<div class="ev-thumb-box ${gradCls}">
+           <img src="${thumbSrc}" alt="" width="122" height="61">
+         </div>`
+      : `<div class="ev-thumb-box ${gradCls} no-img"></div>`;
 
     return `
 <div class="event-row${today ? ' is-today' : ''}">
   <div class="ev-date">
-    <div class="ev-weekday">${WEEKDAYS[d.getDay()]}</div>
+    <div class="ev-wd">${WEEKDAYS[d.getDay()]}</div>
     <div class="ev-day">${d.getDate()}</div>
-    <div class="ev-month">${MONTHS_S[d.getMonth()]}</div>
+    <div class="ev-mon">${MONTHS_S[d.getMonth()]}</div>
     ${today ? '<div class="today-badge">Today</div>' : ''}
   </div>
-
-  <div class="ev-thumb">${thumbHTML(i, thumbSrc)}</div>
-
+  <div class="ev-thumb">${thumbEl}</div>
   <div class="ev-info">
     <div class="ev-type">${type}</div>
     <div class="ev-name">${name}</div>
     <div class="ev-pills">
-      ${time ? `<span class="ev-pill">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-        </svg>${time}</span>` : ''}
-      ${loc ? `<span class="ev-pill">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-        </svg>${loc}</span>` : ''}
+      ${time ? `<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${time}</span>` : ''}
+      ${loc  ? `<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${loc}</span>` : ''}
+      ${aircon ? `<span class="ev-pill ev-pill-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M9 12h6M7 12h.01M17 12h.01"/></svg>A/C: ${aircon}</span>` : ''}
+      ${equip ? `<span class="ev-pill ev-pill-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>${equip}</span>` : ''}
     </div>
   </div>
-
   ${qrUrl ? `<div class="ev-qr">
     <div class="qr-box" data-url="${encodeURIComponent(qrUrl)}" id="qr-p${pageNum}-r${i}"></div>
-    <div class="qr-label">Scan&nbsp;to&nbsp;RSVP</div>
+    <div class="qr-lbl">Scan&nbsp;to&nbsp;RSVP</div>
   </div>` : ''}
 </div>`;
   }).join('');
 
   return `
 <div class="page-header">
-  <div class="hdr-logo"><img src="${logoUrl}" alt="Compass Offices" style="height:38px;width:auto;display:block;"></div>
+  <div class="hdr-logo"><img src="${logoUrl}" alt="Compass Offices" width="auto" height="36" style="height:36px;width:auto;display:block;object-fit:contain;"></div>
   <div class="hdr-right">
     <h1>${heading.toUpperCase()}</h1>
     <div class="hdr-sub">Hong Kong &nbsp;·&nbsp; Upcoming Events</div>
@@ -583,19 +612,18 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
 <div class="accent-bar"></div>
 <div class="events-body">${rows}</div>
 <div class="page-footer">
-  <div class="ft-left"><div class="ft-dot"></div><div class="ft-site">compassoffices.com</div></div>
+  <div class="ft-l"><div class="ft-dot"></div><div class="ft-site">compassoffices.com</div></div>
   <div class="ft-page">Page ${pageNum} of ${total}</div>
 </div>`;
 }
 
-/* Attach QR codes to every .qr-box[data-url] within a root element */
 function attachQR(root) {
   root.querySelectorAll('.qr-box[data-url]').forEach(box => {
     const url = decodeURIComponent(box.getAttribute('data-url'));
     try {
       new QRCode(box, {
-        text: url, width: 68, height: 68,
-        colorDark: '#111111', colorLight: '#ffffff',
+        text: url, width: 64, height: 64,
+        colorDark: '#111', colorLight: '#fff',
         correctLevel: QRCode.CorrectLevel.M,
       });
     } catch (_) {}
@@ -603,32 +631,29 @@ function attachQR(root) {
 }
 
 /* ══════════════════════════════════════
-   Rendering
+   Live rendering
 ══════════════════════════════════════ */
-function getLabelVals() {
-  const yr  = document.getElementById('year-sel').value;
-  const mo  = document.getElementById('month-sel').value;
+function getLabels() {
+  const yr = document.getElementById('year-sel').value;
+  const mo = document.getElementById('month-sel').value;
   return {
-    yearLbl:  yr  === 'all' ? new Date().getFullYear().toString() : yr,
-    monthLbl: mo  === 'all' ? 'All Months' : MONTHS[+mo],
-    moName:   mo  === 'all' ? 'events' : MONTHS[+mo].toLowerCase(),
     yr, mo,
+    yearLbl:  yr === 'all' ? new Date().getFullYear().toString() : yr,
+    monthLbl: mo === 'all' ? 'All Months' : MONTHS[+mo],
+    moName:   mo === 'all' ? 'events' : MONTHS[+mo].toLowerCase(),
   };
 }
-
 function renderPage(idx) {
   if (!pages.length) return;
   curPage = idx;
-  const { yearLbl, monthLbl } = getLabelVals();
+  const { yearLbl, monthLbl } = getLabels();
   const el = document.getElementById('event-page');
-  // Live mode: no logo/thumb override (browser loads them directly)
   el.innerHTML = buildPage(pages[idx], idx+1, pages.length, yearLbl, monthLbl, null, null);
   attachQR(el);
   document.getElementById('page-indicator').textContent = `${idx+1} / ${pages.length}`;
   document.getElementById('btn-prev').disabled = idx === 0;
   document.getElementById('btn-next').disabled = idx === pages.length - 1;
 }
-
 function rebuildPages(events) {
   pages = [];
   for (let i = 0; i < events.length; i += EVENTS_PER_PAGE)
@@ -638,16 +663,13 @@ function rebuildPages(events) {
     document.getElementById('event-page').innerHTML =
       '<div class="state-box"><p>No Hong Kong events found for the selected filters.</p></div>';
     document.getElementById('page-indicator').textContent = '0 / 0';
-    document.getElementById('btn-prev').disabled = true;
-    document.getElementById('btn-next').disabled = true;
+    ['btn-prev','btn-next'].forEach(id => { document.getElementById(id).disabled = true; });
     return;
   }
   renderPage(0);
 }
-
 function getFiltered() {
-  const yr = document.getElementById('year-sel').value;
-  const mo = document.getElementById('month-sel').value;
+  const { yr, mo } = getLabels();
   return allEvents.filter(e => {
     if (yr !== 'all' && e.parsedDate.getFullYear() !== +yr) return false;
     if (mo !== 'all' && e.parsedDate.getMonth()    !== +mo) return false;
@@ -657,142 +679,269 @@ function getFiltered() {
 function refresh() { rebuildPages(getFiltered()); }
 
 /* ══════════════════════════════════════
-   Hi-res export: stitch ALL pages into one JPG
+   Overlay helpers
 ══════════════════════════════════════ */
-function setOverlay(visible, label = '', sub = '') {
-  const el = document.getElementById('gen-overlay');
-  el.classList.toggle('visible', visible);
-  if (label) document.getElementById('gen-label').textContent = label;
-  if (sub)   document.getElementById('gen-sub').textContent = sub;
-}
+const overlay = {
+  show(lbl, sub = '') {
+    document.getElementById('gen-overlay').classList.add('on');
+    document.getElementById('gen-lbl').textContent = lbl;
+    document.getElementById('gen-sub').textContent = sub;
+  },
+  hide() { document.getElementById('gen-overlay').classList.remove('on'); },
+};
 
-async function downloadJPG() {
-  if (!pages.length) return;
-  const btn = document.getElementById('btn-dl');
-  btn.disabled = true;
+/* ══════════════════════════════════════
+   Shared pre-fetch routine
+   Returns { thumbMap, logoSrc } ready for buildPage()
+══════════════════════════════════════ */
+// Thumbnail pixel size for pre-processing: 2× the CSS display size
+const THUMB_CSS_W = 122, THUMB_CSS_H = 61;
+const THUMB_PX_W  = THUMB_CSS_W * 2, THUMB_PX_H = THUMB_CSS_H * 2;
 
-  const { yearLbl, monthLbl, moName, yr } = getLabelVals();
-  const cardW = document.getElementById('event-page').offsetWidth;
+async function prefetchAssets() {
+  // Logo: SVG → PNG base64 (so html2canvas can render it without CORS/SVG issues)
+  if (!logoB64) {
+    overlay.show('Fetching logo…', 'Converting to high-res PNG');
+    logoB64 = await svgUrlToPngBase64(
+      'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg',
+      80 // output height in px (2× the 36px CSS height = 72px; use 80 for extra headroom)
+    );
+    // If SVG conversion fails, fall back to the PNG icon
+    if (!logoB64) {
+      logoB64 = await urlToBase64(
+        'https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png'
+      );
+    }
+  }
 
-  // ── Step 1: pre-fetch logo as base64 (cached after first load) ──
-  setOverlay(true, 'Fetching assets…', 'Pre-loading images for high-res export');
-  if (!logoB64) logoB64 = await fetchLogoB64();
-
-  // ── Step 2: pre-fetch ALL thumbnail images that appear in the filtered pages ──
-  const allThumbUrls = new Set();
+  // Thumbnails: fetch + crop to exact 2:1 ratio
+  const urls = new Set();
   pages.forEach(pg => pg.forEach(ev => {
     const u = (ev.thumbnail || ev.Thumbnail || '').trim();
-    if (u && !thumbCache.has(u)) allThumbUrls.add(u);
+    if (u && !thumbCache.has(u)) urls.add(u);
   }));
 
-  setOverlay(true, 'Loading thumbnails…', `Fetching ${allThumbUrls.size} image${allThumbUrls.size !== 1 ? 's' : ''}`);
-  await Promise.all([...allThumbUrls].map(async url => {
-    const b64 = await toBase64(url);
-    if (b64) thumbCache.set(url, b64);
+  if (urls.size > 0) {
+    overlay.show('Loading thumbnails…', `Fetching ${urls.size} image${urls.size !== 1 ? 's' : ''}`);
+    await Promise.all([...urls].map(async url => {
+      const b64 = await thumbToBase64Cropped(url, THUMB_PX_W, THUMB_PX_H);
+      // Store in cache regardless (null = gradient fallback)
+      thumbCache.set(url, b64);
+    }));
+  }
+
+  // Build thumbMap for current pages
+  const thumbMap = new Map();
+  pages.forEach(pg => pg.forEach(ev => {
+    const u = (ev.thumbnail || ev.Thumbnail || '').trim();
+    if (u) thumbMap.set(u, thumbCache.get(u) || null);
   }));
 
-  // ── Step 3: render each page offscreen + capture ──
+  return { thumbMap, logoSrc: logoB64 };
+}
+
+/* ══════════════════════════════════════
+   Offscreen page renderer
+   Returns array of HTMLCanvasElement, one per page
+══════════════════════════════════════ */
+async function renderAllToCanvases(cardW, thumbMap, logoSrc, scale) {
+  const { yearLbl, monthLbl } = getLabels();
+
   const off = document.createElement('div');
-  off.style.cssText = `
-    position:fixed; left:-9999px; top:0;
-    width:${cardW}px; background:#fff;
-    overflow:visible; z-index:-1;
-  `;
+  off.style.cssText = [
+    'position:fixed', 'left:-9999px', 'top:0',
+    `width:${cardW}px`, 'background:#fff',
+    'overflow:visible', 'z-index:-1',
+  ].join(';');
   document.body.appendChild(off);
 
   const canvases = [];
   try {
     for (let p = 0; p < pages.length; p++) {
-      setOverlay(true,
+      overlay.show(
         `Rendering page ${p+1} of ${pages.length}…`,
-        `Scale ${EXPORT_SCALE}× · ${cardW * EXPORT_SCALE}px wide`
+        `${scale}× scale · ${Math.round(cardW * scale)}px wide`
       );
-
-      off.innerHTML = buildPage(
-        pages[p], p+1, pages.length,
-        yearLbl, monthLbl,
-        logoB64,    // base64 logo → html2canvas renders without CORS block
-        thumbCache  // Map<url, base64>
-      );
+      off.innerHTML = buildPage(pages[p], p+1, pages.length, yearLbl, monthLbl, logoSrc, thumbMap);
       attachQR(off);
-
-      // Allow QR canvases and images to paint before capture
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 160)); // let QR + images paint
 
       const c = await html2canvas(off, {
-        scale:           EXPORT_SCALE,   // 3× → ~2760px for 920px card
-        useCORS:         true,
-        allowTaint:      true,
-        backgroundColor: '#ffffff',
-        logging:         false,
-        width:           cardW,
-        scrollX:         0,
-        scrollY:         0,
-        imageTimeout:    0,              // never timeout image loading
+        scale, useCORS: true, allowTaint: true,
+        backgroundColor: '#ffffff', logging: false,
+        width: cardW, scrollX: 0, scrollY: 0, imageTimeout: 0,
       });
       canvases.push(c);
     }
-
-    // ── Step 4: stitch vertically ──
-    setOverlay(true, 'Stitching pages…', `${pages.length} page${pages.length !== 1 ? 's' : ''} → one image`);
-    const totalH = canvases.reduce((s, c) => s + c.height, 0);
-    const out    = document.createElement('canvas');
-    out.width    = canvases[0].width;
-    out.height   = totalH;
-    const ctx    = out.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, out.width, out.height);
-    let y = 0;
-    for (const c of canvases) { ctx.drawImage(c, 0, y); y += c.height; }
-
-    // ── Step 5: deliver ──
-    const jpg      = out.toDataURL('image/jpeg', 0.94);
-    const fileName = `compass-hk-${moName}-${yr}.jpg`;
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    setOverlay(true, 'Almost done…', 'Opening your image');
-    await new Promise(r => setTimeout(r, 200)); // let overlay update
-
-    if (isMobile) {
-      // Mobile: open in new tab → long-press to save / tap share icon
-      const tab = window.open('', '_blank');
-      if (tab) {
-        tab.document.write(`<!DOCTYPE html><html><head>
-          <title>Compass HK Events</title>
-          <meta name="viewport" content="width=device-width,initial-scale=1">
-          <style>
-            *{box-sizing:border-box;margin:0;padding:0;}
-            body{background:#0a0a0a;display:flex;flex-direction:column;
-                 align-items:center;padding:16px 12px 32px;gap:14px;}
-            img{max-width:100%;border-radius:10px;display:block;}
-            .tip{color:#ff6600;font-family:sans-serif;font-size:0.8rem;
-                 text-align:center;background:rgba(255,102,0,.1);
-                 border:1px solid rgba(255,102,0,.3);border-radius:10px;
-                 padding:12px 16px;line-height:1.5;max-width:480px;}
-            strong{color:#ff8844;}
-          </style></head><body>
-          <div class="tip">
-            📸 <strong>To save:</strong> Long-press the image below and tap <strong>Save to Photos</strong><br>
-            🔗 <strong>To share:</strong> Long-press → <strong>Share Image</strong>
-          </div>
-          <img src="${jpg}" alt="Compass HK Events – ${monthLbl} ${yearLbl}">
-        </body></html>`);
-        tab.document.close();
-      } else {
-        alert('Please allow pop-ups, then tap Save as JPG again.');
-      }
-    } else {
-      const a = document.createElement('a');
-      a.download = fileName; a.href = jpg; a.click();
-    }
-
-  } catch (err) {
-    console.error('Export error:', err);
-    alert('Could not generate image — please try again.\n\n' + err.message);
   } finally {
     document.body.removeChild(off);
-    setOverlay(false);
-    btn.disabled = false;
+  }
+  return canvases;
+}
+
+/* ══════════════════════════════════════
+   Stitch canvases into one tall canvas
+══════════════════════════════════════ */
+function stitchCanvases(canvases) {
+  const W = canvases[0].width;
+  const H = canvases.reduce((s, c) => s + c.height, 0);
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  let y = 0;
+  for (const c of canvases) { ctx.drawImage(c, 0, y); y += c.height; }
+  return out;
+}
+
+/* ══════════════════════════════════════
+   Deliver file: download on desktop, new tab on mobile
+══════════════════════════════════════ */
+function deliverDataUrl(dataUrl, fileName, mimeLabel) {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (isMobile) {
+    const tab = window.open('', '_blank');
+    if (!tab) { alert('Please allow pop-ups, then try again.'); return; }
+    const isPdf = fileName.endsWith('.pdf');
+    tab.document.write(`<!DOCTYPE html><html><head>
+      <title>Compass HK Events</title>
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{background:#0a0a0a;display:flex;flex-direction:column;
+             align-items:center;padding:16px 12px 40px;gap:14px;}
+        .tip{color:#ff6600;font-family:sans-serif;font-size:0.8rem;line-height:1.6;
+             text-align:center;background:rgba(255,102,0,.1);
+             border:1px solid rgba(255,102,0,.3);border-radius:10px;
+             padding:12px 16px;max-width:500px;}
+        strong{color:#ff8844;}
+        img{max-width:100%;border-radius:10px;display:block;}
+        a.btn{display:inline-block;background:#ff6600;color:#fff;font-family:sans-serif;
+              font-weight:700;font-size:0.85rem;padding:11px 24px;border-radius:40px;
+              text-decoration:none;letter-spacing:0.05em;}
+      </style></head><body>
+      ${isPdf
+        ? `<div class="tip">📄 Tap the button below to open / download the <strong>PDF</strong></div>
+           <a class="btn" href="${dataUrl}" download="${fileName}">Download PDF</a>`
+        : `<div class="tip">📸 <strong>To save:</strong> Long-press the image → <strong>Save to Photos</strong><br>
+           🔗 <strong>To share:</strong> Long-press → <strong>Share Image</strong></div>
+           <img src="${dataUrl}" alt="Compass HK Events">`
+      }
+    </body></html>`);
+    tab.document.close();
+  } else {
+    const a = document.createElement('a');
+    a.download = fileName;
+    a.href = dataUrl;
+    a.click();
+  }
+}
+
+/* ══════════════════════════════════════
+   Download JPG
+   Target: JPG_TARGET_W px wide (phone-share quality)
+══════════════════════════════════════ */
+async function downloadJPG() {
+  if (!pages.length) return;
+  const btn = document.getElementById('btn-jpg');
+  btn.disabled = document.getElementById('btn-pdf').disabled = true;
+
+  try {
+    const { thumbMap, logoSrc } = await prefetchAssets();
+    const cardW = document.getElementById('event-page').offsetWidth;
+
+    // Calculate scale so output width = JPG_TARGET_W
+    const scale = Math.max(1, JPG_TARGET_W / cardW);
+
+    const canvases = await renderAllToCanvases(cardW, thumbMap, logoSrc, scale);
+
+    overlay.show('Stitching pages…', `${pages.length} page${pages.length !== 1 ? 's' : ''} → one image`);
+    const out = stitchCanvases(canvases);
+
+    overlay.show('Saving…', `${out.width} × ${out.height} px`);
+    await new Promise(r => setTimeout(r, 100));
+
+    const { moName, yr } = getLabels();
+    const jpg = out.toDataURL('image/jpeg', 0.94);
+    deliverDataUrl(jpg, `compass-hk-${moName}-${yr}.jpg`, 'JPG');
+
+  } catch (err) {
+    console.error(err);
+    alert('Could not generate JPG — please try again.\n' + err.message);
+  } finally {
+    overlay.hide();
+    btn.disabled = document.getElementById('btn-pdf').disabled = false;
+  }
+}
+
+/* ══════════════════════════════════════
+   Download PDF — A4 pages
+   Each rendered page fits within A4 (no cropping, no distortion).
+══════════════════════════════════════ */
+async function downloadPDF() {
+  if (!pages.length) return;
+  const btn = document.getElementById('btn-pdf');
+  btn.disabled = document.getElementById('btn-jpg').disabled = true;
+
+  try {
+    const { thumbMap, logoSrc } = await prefetchAssets();
+    const cardW = document.getElementById('event-page').offsetWidth;
+
+    // Render at 2× for crisp PDF quality
+    const PDF_SCALE = 2;
+    const canvases  = await renderAllToCanvases(cardW, thumbMap, logoSrc, PDF_SCALE);
+
+    overlay.show('Building PDF…', `${pages.length} A4 page${pages.length !== 1 ? 's' : ''}`);
+    await new Promise(r => setTimeout(r, 80));
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+    // A4 usable area (leave small margins to avoid clipping)
+    const marginMM = 8;
+    const usableW  = PDF_W_MM - marginMM * 2; // 194mm
+    const usableH  = PDF_H_MM - marginMM * 2; // 281mm
+
+    canvases.forEach((c, idx) => {
+      if (idx > 0) doc.addPage();
+
+      // Calculate how to fit this canvas into the A4 usable area
+      // maintaining aspect ratio (letterbox / fit — never stretch)
+      const cAspect    = c.width / c.height;
+      const usableAspect = usableW / usableH;
+
+      let drawW, drawH;
+      if (cAspect >= usableAspect) {
+        // wider than A4 usable → fit by width
+        drawW = usableW;
+        drawH = usableW / cAspect;
+      } else {
+        // taller than A4 usable → fit by height
+        drawH = usableH;
+        drawW = usableH * cAspect;
+      }
+
+      // Centre on the page
+      const x = marginMM + (usableW - drawW) / 2;
+      const y = marginMM + (usableH - drawH) / 2;
+
+      const imgData = c.toDataURL('image/png'); // PNG for crisp lines in PDF
+      doc.addImage(imgData, 'PNG', x, y, drawW, drawH);
+    });
+
+    const { moName, yr } = getLabels();
+    const pdfName = `compass-hk-${moName}-${yr}.pdf`;
+
+    // jsPDF output: 'datauristring' gives a data URL we can deliver uniformly
+    const pdfDataUrl = doc.output('datauristring');
+    deliverDataUrl(pdfDataUrl, pdfName, 'PDF');
+
+  } catch (err) {
+    console.error(err);
+    alert('Could not generate PDF — please try again.\n' + err.message);
+  } finally {
+    overlay.hide();
+    btn.disabled = document.getElementById('btn-jpg').disabled = false;
   }
 }
 
@@ -800,10 +949,12 @@ async function downloadJPG() {
    Init
 ══════════════════════════════════════ */
 async function init() {
-  // Fetch CSV + logo in parallel
+  // Warm logo fetch in background while CSV loads
   const [csvText] = await Promise.all([
     fetchCSV(),
-    fetchLogoB64().then(b => { logoB64 = b; }), // warm the cache early
+    svgUrlToPngBase64(
+      'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg', 80
+    ).then(b => { if (b) logoB64 = b; }),
   ]);
 
   const rows = parseCSV(csvText);
@@ -813,26 +964,22 @@ async function init() {
     .sort((a, b) => a.parsedDate - b.parsedDate);
 
   // Populate year dropdown
-  const years   = [...new Set(allEvents.map(e => e.parsedDate.getFullYear()))].sort((a, b) => a - b);
+  const years   = [...new Set(allEvents.map(e => e.parsedDate.getFullYear()))].sort((a,b) => a-b);
   const yearSel = document.getElementById('year-sel');
   yearSel.innerHTML = '<option value="all">All Years</option>';
-  years.forEach(y => {
-    const o = document.createElement('option');
-    o.value = o.textContent = y;
-    yearSel.appendChild(o);
-  });
+  years.forEach(y => { const o=document.createElement('option'); o.value=o.textContent=y; yearSel.appendChild(o); });
   const cy = new Date().getFullYear();
   yearSel.value = years.includes(cy) ? cy : 'all';
   document.getElementById('month-sel').value = new Date().getMonth().toString();
 
   refresh();
 
-  // Listeners
   yearSel.addEventListener('change', refresh);
   document.getElementById('month-sel').addEventListener('change', refresh);
   document.getElementById('btn-prev').addEventListener('click', () => renderPage(curPage - 1));
   document.getElementById('btn-next').addEventListener('click', () => renderPage(curPage + 1));
-  document.getElementById('btn-dl').addEventListener('click', downloadJPG);
+  document.getElementById('btn-jpg').addEventListener('click', downloadJPG);
+  document.getElementById('btn-pdf').addEventListener('click', downloadPDF);
 }
 
 document.addEventListener('DOMContentLoaded', init);
