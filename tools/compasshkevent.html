@@ -323,6 +323,16 @@ select.pill option { background: #1a1a1a; color: #fff; }
   </div>
 </div>
 
+<!-- Debug panel (hidden by default, shown via ?debug in URL) -->
+<div id="debug-panel" style="display:none;background:#0d1117;border:1px solid #30363d;border-radius:10px;
+  margin:12px 22px;padding:14px 18px;font-family:monospace;font-size:0.75rem;color:#8b949e;max-height:260px;overflow:auto;">
+  <div style="color:#ff6600;font-weight:700;margin-bottom:8px;font-family:sans-serif;">
+    📊 Debug: Sheet Data Inspector
+    <span style="color:#555;font-weight:400;font-size:0.7rem;margin-left:10px;">Add ?debug to URL to show this panel</span>
+  </div>
+  <div id="debug-content">Loading…</div>
+</div>
+
 <!-- Stage -->
 <div class="stage">
   <div id="event-page" class="event-page">
@@ -506,8 +516,14 @@ function parseCSVLine(line) {
   r.push(cur.trim()); return r;
 }
 function parseCSV(txt) {
-  const lines = txt.split('\n');
-  const hdrs  = parseCSVLine(lines[0]).map(h => h.trim());
+  // Strip BOM (\uFEFF) and any other leading invisible chars Google Sheets may add
+  const cleaned = txt.replace(/^\uFEFF/, '').replace(/\r/g, '');
+  const lines   = cleaned.split('\n');
+  // Normalise headers: trim whitespace + strip all non-printable/invisible unicode
+  const hdrs = parseCSVLine(lines[0]).map(h =>
+    h.replace(/[\u0000-\u001F\u007F-\u009F\uFEFF\u200B-\u200D\uFFFE\uFFFF]/g, '').trim()
+  );
+  console.log('[CSV] headers:', hdrs);   // visible in DevTools for debugging
   return lines.slice(1).filter(l => l.trim()).map(l => {
     const v = parseCSVLine(l); const row = {};
     hdrs.forEach((h, i) => { row[h] = (v[i] || '').trim(); });
@@ -571,7 +587,8 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
     const gradCls = `g${i % GRAD_N}`;
     const thumbEl = thumbSrc
       ? `<div class="ev-thumb-box ${gradCls}">
-           <img src="${thumbSrc}" alt="" width="122" height="61">
+           <img src="${thumbSrc}" alt="" crossorigin="anonymous" loading="eager"
+                style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;">
          </div>`
       : `<div class="ev-thumb-box ${gradCls} no-img"></div>`;
 
@@ -717,7 +734,7 @@ async function prefetchAssets() {
   // Thumbnails: fetch + crop to exact 2:1 ratio
   const urls = new Set();
   pages.forEach(pg => pg.forEach(ev => {
-    const u = (ev.thumbnail || '').trim();
+    const u = (ev.thumbnail || ev.Thumbnail || ev['Thumbnail'] || '').trim();
     if (u && !thumbCache.has(u)) urls.add(u);
   }));
 
@@ -733,7 +750,7 @@ async function prefetchAssets() {
   // Build thumbMap for current pages
   const thumbMap = new Map();
   pages.forEach(pg => pg.forEach(ev => {
-    const u = (ev.thumbnail || '').trim();
+    const u = (ev.thumbnail || ev.Thumbnail || ev['Thumbnail'] || '').trim();
     if (u) thumbMap.set(u, thumbCache.get(u) || null);
   }));
 
@@ -958,6 +975,25 @@ async function init() {
   ]);
 
   const rows = parseCSV(csvText);
+
+  // Show debug panel if ?debug in URL
+  if (window.location.search.includes('debug')) {
+    document.getElementById('debug-panel').style.display = 'block';
+    const allKeys = rows.length ? Object.keys(rows[0]) : [];
+    const first   = rows[0] || {};
+    const debugHTML = [
+      `<b style="color:#58a6ff">Total rows parsed: ${rows.length}</b>`,
+      `<b style="color:#58a6ff">Columns (${allKeys.length}):</b> ${allKeys.map(k => `<span style="color:#79c0ff">${k}</span>`).join(', ')}`,
+      `<b style="color:#58a6ff">First row key fields:</b>`,
+      `  thumbnail    = <span style="color:#a5d6ff">${JSON.stringify(first['thumbnail'] || '⚠ EMPTY')}</span>`,
+      `  register-url = <span style="color:#a5d6ff">${JSON.stringify(first['register-url'] || '⚠ EMPTY')}</span>`,
+      `  type         = <span style="color:#a5d6ff">${JSON.stringify(first['type'] || '⚠ EMPTY')}</span>`,
+      `  Region       = <span style="color:#a5d6ff">${JSON.stringify(first['Region'] || '⚠ EMPTY')}</span>`,
+      `  Event-Name   = <span style="color:#a5d6ff">${JSON.stringify(first['Event-Name'] || '⚠ EMPTY')}</span>`,
+    ].join('<br>');
+    document.getElementById('debug-content').innerHTML = debugHTML;
+  }
+
   allEvents  = rows
     .map(r => ({ ...r, parsedDate: parseDate(r.Date) }))
     .filter(r => r.parsedDate !== null && isHK(r))
