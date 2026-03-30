@@ -775,6 +775,16 @@ img.co-icon-img{display:block;}
       <div class="amen-grid" id="amen-grid"></div>
 
       <div class="slabel" style="margin-top:20px" id="lbl-benefits-section">Benefits</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+        <input type="text" id="benefits-title-input"
+          style="flex:1;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;font-size:12.5px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;transition:border-color .15s;"
+          placeholder="Benefits"
+          oninput="BENEFITS_TITLE[LANG]=this.value;genDebounced(300);"
+          onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+        <button onclick="BENEFITS_TITLE[LANG]='';document.getElementById('benefits-title-input').value='';gen();"
+          style="flex-shrink:0;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--wh);font-size:11px;color:var(--xlt);cursor:pointer;font-family:inherit;"
+          title="Reset to default">↺</button>
+      </div>
       <p class="note-txt" data-i18n="note_benefits" style="margin-bottom:8px">Toggle on/off · Click icon to change · Click text to edit.</p>
       <div class="ben-pos-toggle" style="margin-bottom:8px">
         <button class="ben-pos-btn on" id="bpos-auto" onclick="setBenPos('auto')">Auto</button>
@@ -1273,6 +1283,9 @@ function setLang(lc){
   // Always re-render pricing col settings — placeholders + values change per language
   renderPricingColSettings();
   renderRows();
+  // Update benefits title input to show current lang's value
+  const bTitleInput=document.getElementById('benefits-title-input');
+  if(bTitleInput) bTitleInput.value=BENEFITS_TITLE[lc]||'';
 
   gen();
 }
@@ -1593,6 +1606,15 @@ let HIDDEN_SPECS=new Set();
 let SHOW_SPECS=true;
 let BENEFITS_POS='auto';
 let CUSTOM_POS='below';
+
+// ── BENEFITS SECTION TITLE ──────────────────────────────
+// Per-language override. Empty = use default (Benefits / 使用優點 / etc.)
+let BENEFITS_TITLE = {'en':'','zh-hant':'','zh-hans':'','ja':''};
+function getBenefitsTitle(){
+  const custom = BENEFITS_TITLE[LANG] || '';
+  if(custom) return custom;
+  return {en:'Benefits','zh-hant':'使用優點','zh-hans':'使用优点',ja:'ご利用のメリット'}[LANG]||'Benefits';
+}
 
 // ── PRICING COLUMN CONFIG ────────────────────────────────
 // Each column: {key, on (visible), label (custom override)}
@@ -1940,6 +1962,7 @@ function applyLocationData(p){
         transport: (ld.transport||[]).map((t,i)=>({id:_trId(),iconId:t.iconId||'tr_metro',text:t.text||''})),
         rows: (ld.pricing||[]).map(row=>({id:Date.now()+Math.random(),seats:row.seats||'',type:row.type||'',rent:row.rent||'',mgmt:row.mgmt||'',init:row.init||'',avail:row.avail||''})),
         benefits: (ld.benefits||[]).map(b=>({...b})),
+        // benefits_title handled globally below
         amenities: AMENITY_ICONS.map(a=> p.amenities ? p.amenities.includes(a.id) : a.on),
         benPos: p.benefits_pos || BENEFITS_POS,
         customPos: p.custom_pos || CUSTOM_POS,
@@ -1950,6 +1973,13 @@ function applyLocationData(p){
       }
       LANG_DATA[lc] = langEntry;
     });
+    // Load per-lang benefits titles
+    LANG_KEYS.forEach(lc=>{
+      const ld2=p.langs[lc];
+      if(ld2&&ld2.benefits_title!==undefined) BENEFITS_TITLE[lc]=ld2.benefits_title||'';
+    });
+    const bTitleInp=document.getElementById('benefits-title-input');
+    if(bTitleInp) bTitleInp.value=BENEFITS_TITLE[LANG]||'';
     // Load the current language's data into the UI
     loadLangData(LANG);
   } else {
@@ -1980,6 +2010,7 @@ function applyLocationData(p){
   if(p.floorplan_url){S.floorplan=p.floorplan_url;renderFloorplanCard();}
   // ── Restore all layout settings ──
   if(p.benefits_pos)setBenPos(p.benefits_pos);
+  if(p.benefits_title&&typeof p.benefits_title==='object'){Object.assign(BENEFITS_TITLE,p.benefits_title);const bi=document.getElementById('benefits-title-input');if(bi)bi.value=BENEFITS_TITLE[LANG]||'';}
   if(p.custom_pos)setCustomPos(p.custom_pos);
   if(p.show_specs===false&&SHOW_SPECS)toggleShowSpecs();
   else if(p.show_specs===true&&!SHOW_SPECS)toggleShowSpecs();
@@ -2064,7 +2095,7 @@ function gen(){
 
   const checked=BENEFITS.filter(b=>b.on);
   const amenChecked=AMENITY_ICONS.filter(a=>a.on);
-  const bTitle={en:'Benefits','zh-hant':'使用優點','zh-hans':'使用优点',ja:'ご利用のメリット'}[LANG]||'Benefits';
+  const bTitle=getBenefitsTitle();
   // pHdr now uses PRICING_COLS custom labels with i18n fallback
   const pHdr={seats:getPricingColLabel('seats'),type:getPricingColLabel('type'),rent:getPricingColLabel('rent'),mgmt:getPricingColLabel('mgmt'),init:getPricingColLabel('init'),avail:getPricingColLabel('avail')};
   // Active (visible) columns
@@ -2569,6 +2600,7 @@ function downloadCurrentJSON(){
       pricing: (ld.rows||[]).map(row=>({seats:row.seats,type:row.type,rent:row.rent,mgmt:row.mgmt,init:row.init||'',avail:row.avail})),
       // benefits text per lang
       benefits: (ld.benefits||[]).map(b=>({id:b.id,on:b.on,text:b.text,iconId:b.iconId||null})),
+      benefits_title: BENEFITS_TITLE[lc] || '',
     };
   });
 
@@ -2586,6 +2618,7 @@ function downloadCurrentJSON(){
     custom_title: g('custom-title'),
     custom_body: (document.getElementById('custom-body-editor')?.innerHTML||'').trim(),
     // ── Layout settings (global, same across all langs) ──
+    benefits_title: {...BENEFITS_TITLE},
     benefits_pos:  BENEFITS_POS,
     custom_pos:    CUSTOM_POS,
     show_specs:    SHOW_SPECS,
