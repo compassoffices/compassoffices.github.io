@@ -9,402 +9,157 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
-  :root {
-    --orange: #ff6600;
-    --black:  #0a0a0a;
-    --white:  #ffffff;
-    --light:  #f4f4f4;
-    --mid:    #e8e8e8;
-    --text:   #1a1a1a;
-    --muted:  #888;
-    --card-radius: 18px;
-    --events-per-page: 6;
-  }
+:root {
+  --orange: #ff6600;
+  --black:  #0a0a0a;
+  --white:  #ffffff;
+  --light:  #f4f4f4;
+  --mid:    #e8e8e8;
+  --text:   #1a1a1a;
+  --muted:  #888;
+  --card-radius: 18px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--black); min-height: 100vh; color: var(--text); }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Controls bar ── */
+.controls-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--black); border-bottom: 1px solid #222;
+  padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.logo-wrap img { height: 34px; width: auto; display: block; }
+.sep { width: 1px; height: 26px; background: #333; flex-shrink: 0; }
+.controls-title {
+  font-family: 'Bebas Neue', sans-serif; font-size: 1.25rem;
+  letter-spacing: 0.08em; color: var(--orange); flex: 1; white-space: nowrap;
+}
+.ctrl-select {
+  background: #111; border: 1.5px solid #333; color: #ccc;
+  padding: 7px 14px; border-radius: 40px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 500;
+  cursor: pointer; outline: none; transition: border-color .2s, color .2s;
+}
+.ctrl-select:hover, .ctrl-select:focus { border-color: var(--orange); color: var(--orange); }
+.ctrl-select option { background: #1a1a1a; color: #fff; }
 
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--black);
-    min-height: 100vh;
-    color: var(--text);
-  }
+.btn-upload {
+  background: transparent; border: 1.5px solid #444; color: #ccc;
+  padding: 7px 14px; border-radius: 40px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: border-color .2s, color .2s;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn-upload:hover { border-color: var(--orange); color: var(--orange); }
+.btn-upload svg { width: 14px; height: 14px; flex-shrink: 0; }
 
-  /* ── Controls bar ── */
-  .controls-bar {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: var(--black);
-    border-bottom: 1px solid #222;
-    padding: 14px 24px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-  .controls-bar .logo-wrap img {
-    height: 36px;
-    width: auto;
-    display: block;
-  }
-  .controls-bar .sep {
-    width: 1px; height: 28px;
-    background: #333;
-    flex-shrink: 0;
-  }
-  .controls-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.3rem;
-    letter-spacing: 0.08em;
-    color: var(--orange);
-    flex: 1;
-    white-space: nowrap;
-  }
-  .ctrl-select {
-    background: #111;
-    border: 1.5px solid #333;
-    color: #ccc;
-    padding: 8px 14px;
-    border-radius: 40px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    outline: none;
-    transition: border-color .2s, color .2s;
-  }
-  .ctrl-select:hover, .ctrl-select:focus {
-    border-color: var(--orange);
-    color: var(--orange);
-  }
-  .ctrl-select option { background: #1a1a1a; color: #fff; }
+.icon-preview {
+  width: 28px; height: 28px; border-radius: 6px;
+  object-fit: cover; border: 1.5px solid #555; display: none;
+}
+.btn-clear-icon {
+  background: transparent; border: none; color: #555; font-size: 1rem;
+  cursor: pointer; padding: 2px 4px; display: none; transition: color .2s;
+  align-items: center;
+}
+.btn-clear-icon:hover { color: var(--orange); }
 
-  .btn-download {
-    background: var(--orange);
-    color: var(--white);
-    border: none;
-    padding: 9px 20px;
-    border-radius: 40px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.88rem;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 0.04em;
-    transition: background .2s, transform .15s;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-  }
-  .btn-download:hover { background: #e05500; transform: scale(1.03); }
-  .btn-download svg { width: 15px; height: 15px; }
+.page-nav { display: flex; align-items: center; gap: 8px; color: #888; font-size: 0.85rem; font-weight: 600; }
+.page-nav button {
+  background: #1a1a1a; border: 1.5px solid #333; color: #ccc;
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center; transition: border-color .2s, color .2s;
+}
+.page-nav button:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
+.page-nav button:disabled { opacity: 0.3; cursor: default; }
 
-  .page-nav {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #888;
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-  .page-nav button {
-    background: #1a1a1a;
-    border: 1.5px solid #333;
-    color: #ccc;
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1rem;
-    display: flex; align-items: center; justify-content: center;
-    transition: border-color .2s, color .2s;
-  }
-  .page-nav button:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
-  .page-nav button:disabled { opacity: 0.3; cursor: default; }
+.btn-download {
+  background: var(--orange); color: var(--white); border: none;
+  padding: 9px 18px; border-radius: 40px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.04em; transition: background .2s, transform .15s;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn-download:hover { background: #e05500; transform: scale(1.02); }
+.btn-download:disabled { opacity: 0.6; transform: none; cursor: wait; }
+.btn-download svg { width: 14px; height: 14px; }
 
-  /* ── Main stage ── */
-  .stage {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 40px 20px;
-    min-height: calc(100vh - 65px);
-  }
+/* ── Stage ── */
+.stage { display: flex; justify-content: center; align-items: flex-start; padding: 36px 20px; min-height: calc(100vh - 62px); }
 
-  /* ── The shareable card / page ── */
-  .event-page {
-    width: 900px;
-    max-width: 100%;
-    background: var(--white);
-    border-radius: var(--card-radius);
-    overflow: hidden;
-    box-shadow: 0 30px 80px rgba(0,0,0,0.5);
-  }
+/* ── Event page card ── */
+.event-page { width: 900px; max-width: 100%; background: var(--white); border-radius: var(--card-radius); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); }
 
-  /* Page header */
-  .page-header {
-    background: var(--black);
-    padding: 28px 36px 22px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 20px;
-  }
-  .page-header .hdr-logo img {
-    height: 42px;
-    width: auto;
-    display: block;
-  }
-  .page-header .hdr-title {
-    text-align: right;
-  }
-  .page-header .hdr-title h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2rem;
-    letter-spacing: 0.1em;
-    color: var(--white);
-    line-height: 1;
-  }
-  .page-header .hdr-title .hdr-sub {
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.2em;
-    color: var(--orange);
-    margin-top: 4px;
-    text-transform: uppercase;
-  }
+/* Page header */
+.page-header { background: var(--black); padding: 24px 32px 20px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.hdr-logo { display: flex; align-items: center; }
+.hdr-logo img { height: 40px; width: auto; display: block; }
+.hdr-title { text-align: right; }
+.hdr-title h1 { font-family: 'Bebas Neue', sans-serif; font-size: 1.9rem; letter-spacing: 0.1em; color: var(--white); line-height: 1; }
+.hdr-sub { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.22em; color: var(--orange); margin-top: 5px; text-transform: uppercase; }
+.orange-strip { height: 5px; background: var(--orange); }
 
-  /* Orange accent strip */
-  .orange-strip {
-    height: 5px;
-    background: var(--orange);
-  }
+/* Events */
+.events-body { padding: 0; }
+.event-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--mid); min-height: 100px; }
+.event-row:last-child { border-bottom: none; }
+.event-row:nth-child(odd)  { background: var(--white); }
+.event-row:nth-child(even) { background: var(--light); }
 
-  /* Events list */
-  .events-body {
-    padding: 0;
-  }
+/* Date */
+.ev-date { width: 86px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px 8px; border-right: 1px solid var(--mid); text-align: center; }
+.ev-month { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; }
+.ev-day { font-family: 'Bebas Neue', sans-serif; font-size: 2.7rem; line-height: 1; color: var(--orange); }
 
-  .event-row {
-    display: flex;
-    align-items: stretch; /* columns stretch to full row height */
-    gap: 0;
-    border-bottom: 1px solid var(--mid);
-    transition: background .2s;
-    min-height: 100px;
-  }
-  .event-row:last-child { border-bottom: none; }
+/* Icon – tall rounded rectangle */
+.ev-icon { width: 76px; flex-shrink: 0; display: flex; align-items: stretch; justify-content: center; padding: 12px 10px; }
+.ev-icon-inner { width: 52px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 72px; }
+.ev-icon-inner img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-  /* Alternate rows: odd = white, even = light */
-  .event-row:nth-child(even) { background: var(--light); }
-  .event-row:nth-child(odd)  { background: var(--white); }
+/* Info */
+.ev-info { flex: 1; min-width: 0; padding: 16px 18px 16px 10px; display: flex; flex-direction: column; justify-content: center; }
+.ev-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+.ev-name { font-size: 1.1rem; font-weight: 700; color: var(--text); line-height: 1.25; margin-bottom: 10px; word-break: break-word; }
+.ev-pills { display: flex; flex-wrap: wrap; gap: 7px; }
+.ev-pill { display: inline-flex; align-items: flex-start; gap: 5px; background: var(--mid); border-radius: 14px; padding: 5px 11px; font-size: 0.77rem; font-weight: 600; color: #444; white-space: normal; word-break: break-word; max-width: 100%; }
+.ev-pill svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
 
-  /* Date column */
-  .ev-date {
-    width: 90px;
-    flex-shrink: 0;
-    text-align: center;
-    padding: 20px 10px;
-    border-right: 1px solid var(--mid);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-  .ev-date .ev-month {
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-  .ev-date .ev-day {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.8rem;
-    line-height: 1;
-    color: var(--orange);
-  }
+/* QR */
+.ev-qr { width: 108px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 14px; border-left: 1px solid var(--mid); gap: 6px; }
+.qr-box { width: 74px; height: 74px; border-radius: 8px; overflow: hidden; background: #fff; border: 2px solid var(--mid); display: flex; align-items: center; justify-content: center; }
+.qr-box canvas, .qr-box img { width: 70px !important; height: 70px !important; display: block; }
+.qr-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.16em; color: var(--muted); text-transform: uppercase; text-align: center; }
 
-  /* Icon column */
-  .ev-icon {
-    width: 72px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px 10px;
-  }
-  .ev-icon .compass-o {
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
-    background: var(--black);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-  .ev-icon .compass-o img {
-    width: 34px;
-    height: 34px;
-    object-fit: contain;
-  }
+/* Footer */
+.page-footer { background: var(--black); padding: 13px 32px; display: flex; justify-content: space-between; align-items: center; }
+.ft-site { font-size: 0.75rem; font-weight: 600; color: #555; letter-spacing: 0.08em; }
+.ft-page { font-size: 0.72rem; font-weight: 700; color: var(--orange); letter-spacing: 0.14em; text-transform: uppercase; }
 
-  /* Info column */
-  .ev-info {
-    flex: 1;
-    padding: 18px 20px 18px 10px;
-    min-width: 0;
-  }
-  .ev-info .ev-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-  .ev-info .ev-name {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: var(--text);
-    line-height: 1.25;
-    margin-bottom: 10px;
-    word-break: break-word;
-  }
-  .ev-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-  }
-  .ev-pill {
-    display: inline-flex;
-    align-items: flex-start;
-    gap: 5px;
-    background: var(--mid);
-    border-radius: 16px;
-    padding: 5px 12px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #444;
-    /* No truncation – wrap naturally */
-    white-space: normal;
-    word-break: break-word;
-    max-width: 100%;
-  }
-  .ev-pill svg { margin-top: 2px; /* align icon to first line of text */ }
-  .ev-pill svg { width: 13px; height: 13px; flex-shrink: 0; }
+/* Loading */
+.state-box { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 20px; min-height: 380px; text-align: center; }
+.spinner { width: 40px; height: 40px; border: 4px solid #222; border-top-color: var(--orange); border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.state-box p { font-size: 0.95rem; font-weight: 500; color: #555; }
 
-  /* QR column */
-  .ev-qr {
-    width: 110px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 14px 16px;
-    border-left: 1px solid var(--mid);
-    gap: 6px;
-  }
-  .ev-qr .qr-box {
-    width: 74px;
-    height: 74px;
-    border-radius: 8px;
-    overflow: hidden;
-    background: #fff;
-    border: 2px solid var(--mid);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  /* html2canvas renders canvas; qrcode.js injects canvas or img inside .qr-box */
-  .ev-qr .qr-box canvas,
-  .ev-qr .qr-box img {
-    width: 70px !important;
-    height: 70px !important;
-    display: block;
-  }
-  .ev-qr .qr-label {
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-    text-align: center;
-  }
-
-  /* Page footer */
-  .page-footer {
-    background: var(--black);
-    padding: 14px 36px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .page-footer .ft-site {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #666;
-    letter-spacing: 0.08em;
-  }
-  .page-footer .ft-page {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--orange);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  /* ── Loading / Empty states ── */
-  .state-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 80px 20px;
-    text-align: center;
-    color: #555;
-    min-height: 400px;
-  }
-  .spinner {
-    width: 42px; height: 42px;
-    border: 4px solid #222;
-    border-top-color: var(--orange);
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-    margin-bottom: 18px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .state-box p { font-size: 1rem; font-weight: 500; color: #666; }
-
-  /* ── Responsive ── */
-  @media (max-width: 680px) {
-    .event-page { border-radius: 10px; }
-    .page-header { padding: 20px 18px 16px; }
-    .page-header .hdr-title h1 { font-size: 1.4rem; }
-    .ev-date { width: 68px; }
-    .ev-date .ev-day { font-size: 2.2rem; }
-    .ev-icon { width: 54px; }
-    .ev-qr { width: 86px; padding: 10px; }
-    .ev-qr .qr-box { width: 58px; height: 58px; }
-    .ev-qr .qr-box canvas,
-    .ev-qr .qr-box img { width: 54px !important; height: 54px !important; }
-    .ev-info .ev-name { font-size: 0.98rem; }
-    .page-footer { padding: 12px 18px; }
-  }
-
-  /* Downloading state – hide controls inside card while capturing */
-  .capturing .page-header,
-  .capturing .page-footer { /* keep as-is */ }
+@media (max-width: 640px) {
+  .ev-date { width: 68px; }
+  .ev-day  { font-size: 2.2rem; }
+  .ev-icon { width: 58px; padding: 10px 8px; }
+  .ev-icon-inner { width: 40px; }
+  .ev-qr  { width: 88px; padding: 10px; }
+  .qr-box { width: 60px; height: 60px; }
+  .qr-box canvas, .qr-box img { width: 56px !important; height: 56px !important; }
+  .ev-name { font-size: 0.96rem; }
+}
 </style>
 </head>
 <body>
 
-<!-- Controls bar -->
-<div class="controls-bar" id="controls-bar">
+<input type="file" id="icon-file-input" accept="image/*" style="display:none">
+
+<div class="controls-bar">
   <div class="logo-wrap">
-    <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg"
-         alt="Compass Offices">
+    <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices">
   </div>
   <div class="sep"></div>
   <div class="controls-title">HK EVENTS</div>
@@ -420,10 +175,21 @@
     <option value="10">November</option><option value="11">December</option>
   </select>
 
+  <button class="btn-upload" id="btn-upload-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="3"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+    Event Icon
+  </button>
+  <img id="icon-preview" class="icon-preview" alt="">
+  <button class="btn-clear-icon" id="btn-clear-icon">✕</button>
+
   <div class="page-nav">
-    <button id="btn-prev" title="Previous page">&#8592;</button>
+    <button id="btn-prev">&#8592;</button>
     <span id="page-indicator">– / –</span>
-    <button id="btn-next" title="Next page">&#8594;</button>
+    <button id="btn-next">&#8594;</button>
   </div>
 
   <button class="btn-download" id="btn-dl">
@@ -436,10 +202,9 @@
   </button>
 </div>
 
-<!-- Main stage -->
 <div class="stage">
   <div id="event-page" class="event-page">
-    <div class="state-box" id="loading-state">
+    <div class="state-box">
       <div class="spinner"></div>
       <p>Loading Hong Kong events…</p>
     </div>
@@ -447,413 +212,382 @@
 </div>
 
 <script>
-/* ─── Config ─── */
+/* ── Constants ── */
 const EVENTS_PER_PAGE = 6;
-const HK_KEYWORDS     = ['hong kong', 'hk', 'hong-kong'];
-const MONTHS = ['January','February','March','April','May','June',
-                'July','August','September','October','November','December'];
-const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN',
-                      'JUL','AUG','SEP','OCT','NOV','DEC'];
+const HK_KW  = ['hong kong','hk','hong-kong'];
+const MONTHS  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_S= ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
-/* ─── State ─── */
-let allEvents    = [];
-let pages        = [];   // array of event arrays
-let currentPage  = 0;
+// Rotating orange-family gradients for the icon fallback
+const GRAD = [
+  'linear-gradient(145deg,#ff6600,#ff9a00)',
+  'linear-gradient(145deg,#e64400,#ff6600)',
+  'linear-gradient(145deg,#ff7b00,#ffcc00)',
+  'linear-gradient(145deg,#ff4500,#ff8c00)',
+  'linear-gradient(145deg,#ff6600,#ff3d00)',
+  'linear-gradient(145deg,#ff8800,#ffaa44)',
+];
 
-/* ─── CSV fetch (same sheet, same approach) ─── */
-async function fetchCSV() {
+/* ── State ── */
+let allEvents  = [];
+let pages      = [];
+let curPage    = 0;
+let iconB64    = null;   // uploaded image
+let logoB64    = null;   // pre-fetched logo for html2canvas
+
+/* ── Fetch logo as base64 so html2canvas renders it cross-origin ── */
+async function fetchLogoB64() {
   const urls = [
-    'https://docs.google.com/spreadsheets/d/1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/export?format=csv&gid=1632866699',
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv'
+    // PNG icon – smallest, most reliable
+    'https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png',
+    // Full white wordmark SVG as fallback
+    'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg',
   ];
   for (const url of urls) {
     try {
-      const r = await fetch(url, { mode: 'cors' });
-      if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
+      const res = await fetch(url, { mode:'cors' });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      const b64  = await new Promise(r => {
+        const rd = new FileReader();
+        rd.onload = () => r(rd.result);
+        rd.readAsDataURL(blob);
+      });
+      if (b64) return b64;
     } catch(_) {}
   }
-  // Sample fallback – Hong Kong events
+  return null;
+}
+
+/* ── CSV ── */
+async function fetchCSV() {
+  const urls = [
+    'https://docs.google.com/spreadsheets/d/1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/export?format=csv&gid=1632866699',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv',
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url,{mode:'cors'});
+      if (r.ok){const t=await r.text();if(t.trim())return t;}
+    } catch(_){}
+  }
+  // Sample data: some rows have a QR column, some don't
   return [
-    'Time,Date,Client-Name,Region,Event-Name,Location,Reception,Details,trigger,Confirmed,Quarter',
-    '10:00 AM,01/04/2026,ABC Corp,Hong Kong,Annual Strategy Summit,"Lee Garden 2, 16/F, Conference Room A",Yes,Year-end planning,Email,Yes,Q2',
-    '2:00 PM,03/04/2026,XYZ Financial,Hong Kong,Q2 Investor Briefing,"Two Pacific Place, 23/F, Boardroom",Yes,Investment update,Phone,Yes,Q2',
-    '9:30 AM,07/04/2026,Global Ventures,Hong Kong,Leadership Workshop,"Exchange Square, 38/F, Training Room",Yes,Leadership training,Online,Yes,Q2',
-    '3:00 PM,10/04/2026,Pacific Group,Hong Kong,Product Demo & Networking,"Langham Place Office Tower, 12/F",Yes,New product showcase,Email,Yes,Q2',
-    '11:00 AM,14/04/2026,Asia Markets,Hong Kong,Regional Sales Conference,"One Island East, 45/F",Yes,Sales strategy Q2,Email,Yes,Q2',
-    '5:30 PM,16/04/2026,Heritage Fund,Hong Kong,Board Meeting,"Central Plaza, 18/F, Meeting Room 3",Yes,Quarterly review,Phone,Yes,Q2',
-    '9:00 AM,21/04/2026,Harbour Capital,Hong Kong,Innovation Forum,"IFC Two, 55/F, Sky Lounge",Yes,Tech innovation,Email,Yes,Q2',
-    '2:30 PM,24/04/2026,Peak Solutions,Hong Kong,Client Appreciation Day,"The Center, 99/F, VIP Suite",Yes,Client event,Online,Yes,Q2',
+    'Time,Date,Client-Name,Region,Event-Name,Location,QR,Reception,Quarter',
+    '10:00 AM,01/04/2026,ABC Corp,Hong Kong,Annual Strategy Summit,"Lee Garden 2, 16/F, Conference Room A",https://compassoffices.com/events/1,Yes,Q2',
+    '2:00 PM,03/04/2026,XYZ Financial,Hong Kong,Q2 Investor Briefing,"Two Pacific Place, 23/F, Boardroom",,Yes,Q2',
+    '9:30 AM,07/04/2026,Global Ventures,Hong Kong,Leadership Workshop,"Exchange Square Tower 1, 38/F, Training Room",https://compassoffices.com/events/3,Yes,Q2',
+    '3:00 PM,10/04/2026,Pacific Group,Hong Kong,Product Demo & Networking,"Langham Place Office Tower, 12/F, Sky Terrace",,Yes,Q2',
+    '11:00 AM,14/04/2026,Asia Markets,Hong Kong,Regional Sales Conference,"One Island East, 45/F Grand Ballroom, Quarry Bay",https://compassoffices.com/events/5,Yes,Q2',
+    '5:30 PM,16/04/2026,Heritage Fund,Hong Kong,Board Meeting,"Central Plaza, 18/F, Meeting Room 3, Wan Chai",,Yes,Q2',
+    '9:00 AM,21/04/2026,Harbour Capital,Hong Kong,Innovation Forum,"Two International Finance Centre, 55/F Sky Lounge",https://compassoffices.com/events/7,Yes,Q2',
+    '2:30 PM,24/04/2026,Peak Solutions,Hong Kong,Client Appreciation Day,"The Center, 99/F VIP Suite, 99 Queen\'s Road Central",,Yes,Q2',
   ].join('\n');
 }
 
-function parseCSVLine(line) {
-  const result = []; let cur = ''; let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else { inQ = !inQ; } }
-    else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
-    else { cur += c; }
+function parseCSVLine(line){
+  const r=[];let cur='';let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}
+    else if(c===','&&!inQ){r.push(cur.trim());cur='';}
+    else{cur+=c;}
   }
-  result.push(cur.trim());
-  return result;
+  r.push(cur.trim());return r;
 }
-
-function parseCSV(text) {
-  const lines   = text.split('\n');
-  const headers = parseCSVLine(lines[0]).map(h => h.trim());
-  return lines.slice(1).filter(l => l.trim()).map(l => {
-    const vals = parseCSVLine(l);
-    const row  = {};
-    headers.forEach((h, i) => { row[h] = (vals[i] || '').trim(); });
+function parseCSV(txt){
+  const lines=txt.split('\n');
+  const hdrs=parseCSVLine(lines[0]).map(h=>h.trim());
+  return lines.slice(1).filter(l=>l.trim()).map(l=>{
+    const v=parseCSVLine(l);const row={};
+    hdrs.forEach((h,i)=>{row[h]=(v[i]||'').trim();});
     return row;
   });
 }
-
-function parseDate(s) {
-  if (!s) return null;
+function parseDate(s){
+  if(!s)return null;
   let m;
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) return new Date(+m[3], +m[2]-1, +m[1]);
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);   if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);   if (m) return new Date(+m[3], +m[1]-1, +m[2]);
-  const d = new Date(s); return isNaN(d) ? null : d;
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  m=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);if(m)return new Date(+m[3],+m[1]-1,+m[2]);
+  const d=new Date(s);return isNaN(d)?null:d;
+}
+function isHK(ev){
+  const r=(ev.Region||'').toLowerCase(),l=(ev.Location||'').toLowerCase();
+  return HK_KW.some(kw=>r.includes(kw)||l.includes(kw));
 }
 
-function isHK(event) {
-  const region   = (event.Region   || '').toLowerCase();
-  const location = (event.Location || '').toLowerCase();
-  return HK_KEYWORDS.some(kw => region.includes(kw) || location.includes(kw));
-}
-
-/* ─── QR Code generation ─── */
-function makeQR(container, event) {
-  // Encode key event info as a plain-text vEvent summary
-  // (replace with actual booking URL if available in data)
-  const info = [
-    event['Event-Name'],
-    event.Date,
-    event.Time,
-    event.Location,
-    'compassoffices.com'
-  ].filter(Boolean).join(' | ');
-
-  try {
-    new QRCode(container, {
-      text:           info,
-      width:          70,
-      height:         70,
-      colorDark:      '#0a0a0a',
-      colorLight:     '#ffffff',
-      correctLevel:   QRCode.CorrectLevel.M
-    });
-  } catch(e) {
-    container.innerHTML = '<span style="font-size:0.6rem;color:#aaa;padding:4px;display:block;text-align:center">QR unavailable</span>';
+/* ── QR URL: check common column names ── */
+function getQRUrl(ev){
+  for(const k of ['QR','URL','Link','Booking','RSVP','url','link','booking','rsvp']){
+    if(ev[k]&&ev[k].trim())return ev[k].trim();
   }
+  return null;
 }
 
-/* ─── Page rendering ─── */
-function buildPageHTML(events, pageNum, totalPages, yearLabel, monthLabel) {
-  const heading = monthLabel === 'All Months'
-    ? `${yearLabel} Events`
-    : `${monthLabel} ${yearLabel} Events`;
+/* ── Icon cell HTML ── */
+function makeIconHTML(rowIdx, imgB64){
+  if(imgB64){
+    return `<div class="ev-icon-inner"><img src="${imgB64}" alt=""></div>`;
+  }
+  return `<div class="ev-icon-inner" style="background:${GRAD[rowIdx%GRAD.length]};"></div>`;
+}
 
-  const rows = events.map((ev, i) => {
-    const d = ev.parsedDate;
-    const monthShort = MONTHS_SHORT[d.getMonth()];
-    const day        = d.getDate();
-    const clientName = ev['Client-Name'] || '';
-    const evName     = ev['Event-Name']  || 'Untitled Event';
-    const time       = ev.Time           || '';
-    const loc        = ev.Location       || '';
-    const label      = clientName ? clientName : 'EVENT';
+/* ── Build one page's HTML ── */
+// logoSrc: base64 string when rendering for download; null uses live SVG URL for browser preview
+function buildPage(slice, pageNum, totalPages, yearLbl, monthLbl, logoSrc, imgB64){
+  const heading = monthLbl==='All Months' ? `${yearLbl} Events` : `${monthLbl} ${yearLbl} Events`;
+  const logoUrl = logoSrc ||
+    'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg';
+
+  const rows = slice.map((ev, i) => {
+    const d      = ev.parsedDate;
+    const label  = ev['Client-Name'] || 'EVENT';
+    const name   = ev['Event-Name']  || 'Untitled Event';
+    const time   = ev.Time           || '';
+    const loc    = ev.Location       || '';
+    const qrUrl  = getQRUrl(ev);
 
     return `
-      <div class="event-row" data-idx="${i}">
-        <div class="ev-date">
-          <div class="ev-month">${monthShort}</div>
-          <div class="ev-day">${day}</div>
-        </div>
-        <div class="ev-icon">
-          <div class="compass-o">
-            <img src="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png"
-                 alt="Compass O" onerror="this.style.display='none'">
-          </div>
-        </div>
-        <div class="ev-info">
-          <div class="ev-label">${label}</div>
-          <div class="ev-name" title="${evName}">${evName}</div>
-          <div class="ev-pills">
-            ${time ? `
-            <span class="ev-pill">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
-              ${time}
-            </span>` : ''}
-            ${loc ? `
-            <span class="ev-pill" title="${loc}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-              </svg>
-              ${loc}
-            </span>` : ''}
-          </div>
-        </div>
-        <div class="ev-qr">
-          <div class="qr-box" id="qr-${pageNum}-${i}"></div>
-          <div class="qr-label">Scan to RSVP</div>
-        </div>
-      </div>`;
+<div class="event-row">
+  <div class="ev-date">
+    <div class="ev-month">${MONTHS_S[d.getMonth()]}</div>
+    <div class="ev-day">${d.getDate()}</div>
+  </div>
+  <div class="ev-icon">${makeIconHTML(i, imgB64)}</div>
+  <div class="ev-info">
+    <div class="ev-label">${label}</div>
+    <div class="ev-name">${name}</div>
+    <div class="ev-pills">
+      ${time?`<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${time}</span>`:''}
+      ${loc?`<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${loc}</span>`:''}
+    </div>
+  </div>
+  ${qrUrl?`
+  <div class="ev-qr">
+    <div class="qr-box" id="qr-p${pageNum}-r${i}" data-url="${encodeURIComponent(qrUrl)}"></div>
+    <div class="qr-label">Scan to RSVP</div>
+  </div>`:''}
+</div>`;
   }).join('');
 
   return `
-    <div class="page-header">
-      <div class="hdr-logo">
-        <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg"
-             alt="Compass Offices Logo">
-      </div>
-      <div class="hdr-title">
-        <h1>${heading.toUpperCase()}</h1>
-        <div class="hdr-sub">Hong Kong &nbsp;·&nbsp; Upcoming Events</div>
-      </div>
-    </div>
-    <div class="orange-strip"></div>
-    <div class="events-body">${rows}</div>
-    <div class="page-footer">
-      <div class="ft-site">compassoffices.com</div>
-      <div class="ft-page">Page ${pageNum} of ${totalPages}</div>
-    </div>`;
+<div class="page-header">
+  <div class="hdr-logo"><img src="${logoUrl}" alt="Compass Offices" style="height:40px;width:auto;display:block;"></div>
+  <div class="hdr-title">
+    <h1>${heading.toUpperCase()}</h1>
+    <div class="hdr-sub">Hong Kong &nbsp;·&nbsp; Upcoming Events</div>
+  </div>
+</div>
+<div class="orange-strip"></div>
+<div class="events-body">${rows}</div>
+<div class="page-footer">
+  <div class="ft-site">compassoffices.com</div>
+  <div class="ft-page">Page ${pageNum} of ${totalPages}</div>
+</div>`;
 }
 
-function renderPage(idx) {
-  if (!pages.length) return;
-  currentPage = idx;
-
-  const yearSel  = document.getElementById('year-sel');
-  const monthSel = document.getElementById('month-sel');
-  const yearLbl  = yearSel.value === 'all' ? new Date().getFullYear().toString() : yearSel.value;
-  const monthLbl = monthSel.value === 'all'
-    ? 'All Months'
-    : MONTHS[+monthSel.value];
-
-  const pageEl = document.getElementById('event-page');
-  pageEl.innerHTML = buildPageHTML(pages[idx], idx + 1, pages.length, yearLbl, monthLbl);
-
-  // Generate QR codes
-  pages[idx].forEach((ev, i) => {
-    const container = document.getElementById(`qr-${idx+1}-${i}`);
-    if (container) makeQR(container, ev);
+/* ── Attach QR codes to any .qr-box[data-url] nodes inside a root element ── */
+function attachQR(root){
+  root.querySelectorAll('.qr-box[data-url]').forEach(box=>{
+    const url = decodeURIComponent(box.getAttribute('data-url'));
+    try {
+      new QRCode(box,{
+        text:url, width:70, height:70,
+        colorDark:'#0a0a0a', colorLight:'#ffffff',
+        correctLevel:QRCode.CorrectLevel.M
+      });
+    } catch(_){ box.innerHTML=''; }
   });
-
-  // Update nav
-  document.getElementById('page-indicator').textContent = `${idx + 1} / ${pages.length}`;
-  document.getElementById('btn-prev').disabled = idx === 0;
-  document.getElementById('btn-next').disabled = idx === pages.length - 1;
 }
 
-function rebuildPages(events) {
-  pages = [];
-  for (let i = 0; i < events.length; i += EVENTS_PER_PAGE) {
-    pages.push(events.slice(i, i + EVENTS_PER_PAGE));
-  }
-  currentPage = 0;
-  if (pages.length === 0) {
-    document.getElementById('event-page').innerHTML = `
-      <div class="state-box">
-        <p>No Hong Kong events found for the selected filters.</p>
-      </div>`;
-    document.getElementById('page-indicator').textContent = '0 / 0';
-    document.getElementById('btn-prev').disabled = true;
-    document.getElementById('btn-next').disabled = true;
+/* ── Render visible page ── */
+function renderPage(idx){
+  if(!pages.length) return;
+  curPage = idx;
+  const yr  = document.getElementById('year-sel').value;
+  const mo  = document.getElementById('month-sel').value;
+  const yLbl = yr==='all' ? new Date().getFullYear().toString() : yr;
+  const mLbl = mo==='all' ? 'All Months' : MONTHS[+mo];
+
+  const el = document.getElementById('event-page');
+  // Live preview: pass null for logoSrc → browser uses the SVG URL directly (fine in DOM)
+  el.innerHTML = buildPage(pages[idx], idx+1, pages.length, yLbl, mLbl, null, iconB64);
+  attachQR(el);
+
+  document.getElementById('page-indicator').textContent = `${idx+1} / ${pages.length}`;
+  document.getElementById('btn-prev').disabled = idx===0;
+  document.getElementById('btn-next').disabled = idx===pages.length-1;
+}
+
+function rebuildPages(events){
+  pages=[];
+  for(let i=0;i<events.length;i+=EVENTS_PER_PAGE) pages.push(events.slice(i,i+EVENTS_PER_PAGE));
+  curPage=0;
+  if(!pages.length){
+    document.getElementById('event-page').innerHTML='<div class="state-box"><p>No Hong Kong events found for the selected filters.</p></div>';
+    document.getElementById('page-indicator').textContent='0 / 0';
+    ['btn-prev','btn-next'].forEach(id=>document.getElementById(id).disabled=true);
     return;
   }
   renderPage(0);
 }
 
-/* ─── Filter & populate ─── */
-function getFiltered() {
-  const yr = document.getElementById('year-sel').value;
-  const mo = document.getElementById('month-sel').value;
-  return allEvents.filter(e => {
-    if (yr !== 'all' && e.parsedDate.getFullYear() !== +yr) return false;
-    if (mo !== 'all' && e.parsedDate.getMonth()    !== +mo) return false;
+function getFiltered(){
+  const yr=document.getElementById('year-sel').value;
+  const mo=document.getElementById('month-sel').value;
+  return allEvents.filter(e=>{
+    if(yr!=='all'&&e.parsedDate.getFullYear()!==+yr) return false;
+    if(mo!=='all'&&e.parsedDate.getMonth()!==+mo)   return false;
     return true;
   });
 }
+function refresh(){ rebuildPages(getFiltered()); }
 
-function refresh() { rebuildPages(getFiltered()); }
+const wait = ms => new Promise(r=>setTimeout(r,ms));
 
-/* ─── Download ALL pages as one tall JPG ─── */
-async function downloadJPG() {
-  if (!pages.length) return;
-
+/* ── Download: stitch ALL pages into one JPG ── */
+async function downloadJPG(){
+  if(!pages.length) return;
   const btn      = document.getElementById('btn-dl');
   const origHTML = btn.innerHTML;
   btn.disabled   = true;
 
-  const yearSel = document.getElementById('year-sel').value;
-  const moSel   = document.getElementById('month-sel').value;
-  const yearLbl = yearSel === 'all' ? new Date().getFullYear().toString() : yearSel;
-  const monthLbl = moSel === 'all' ? 'All Months' : MONTHS[+moSel];
-  const moName   = moSel === 'all' ? 'events' : MONTHS[+moSel].toLowerCase();
+  const yr    = document.getElementById('year-sel').value;
+  const mo    = document.getElementById('month-sel').value;
+  const yLbl  = yr==='all' ? new Date().getFullYear().toString() : yr;
+  const mLbl  = mo==='all' ? 'All Months' : MONTHS[+mo];
+  const moName= mo==='all' ? 'events' : MONTHS[+mo].toLowerCase();
 
-  // Off-screen rendering container – same width as the visible card
-  const pageEl  = document.getElementById('event-page');
-  const cardW   = pageEl.offsetWidth;
+  const cardW = document.getElementById('event-page').offsetWidth;
 
-  const offscreen = document.createElement('div');
-  offscreen.style.cssText = `
-    position: fixed; left: -9999px; top: 0;
-    width: ${cardW}px;
-    background: #ffffff;
-    border-radius: 0;
-    overflow: visible;
-    z-index: -1;
-  `;
-  document.body.appendChild(offscreen);
+  // Off-screen container
+  const off = document.createElement('div');
+  off.style.cssText=`position:fixed;left:-9999px;top:0;width:${cardW}px;background:#fff;overflow:visible;z-index:-1;`;
+  document.body.appendChild(off);
 
-  const canvases = [];
-
+  const canvases=[];
   try {
-    for (let p = 0; p < pages.length; p++) {
-      // Update button label
-      btn.textContent = `Rendering ${p + 1} / ${pages.length}…`;
+    for(let p=0;p<pages.length;p++){
+      btn.innerHTML=`<span>Page ${p+1}&thinsp;/&thinsp;${pages.length}…</span>`;
 
-      // Build the page HTML into the offscreen div
-      offscreen.innerHTML = buildPageHTML(pages[p], p + 1, pages.length, yearLbl, monthLbl);
-      offscreen.style.borderRadius = p === 0 ? '18px 18px 0 0'
-                                   : p === pages.length - 1 ? '0 0 18px 18px'
-                                   : '0';
+      // Use logoB64 (pre-fetched base64) so html2canvas can draw it without CORS block
+      off.innerHTML = buildPage(pages[p], p+1, pages.length, yLbl, mLbl, logoB64, iconB64);
+      attachQR(off);
+      await wait(130); // let QR canvases paint
 
-      // Generate QR codes and wait for them to render
-      const qrPromises = pages[p].map((ev, i) => {
-        return new Promise(resolve => {
-          const container = offscreen.querySelector(`#qr-${p + 1}-${i}`);
-          if (!container) return resolve();
-          try {
-            new QRCode(container, {
-              text:         [ev['Event-Name'], ev.Date, ev.Time, ev.Location, 'compassoffices.com'].filter(Boolean).join(' | '),
-              width:        70, height: 70,
-              colorDark:    '#0a0a0a',
-              colorLight:   '#ffffff',
-              correctLevel: QRCode.CorrectLevel.M
-            });
-            // QRCode.js renders synchronously but appends a canvas/img – small tick to let paint finish
-            setTimeout(resolve, 80);
-          } catch(_) { resolve(); }
-        });
+      const c = await html2canvas(off,{
+        scale:2, useCORS:true, allowTaint:true,
+        backgroundColor:'#ffffff', logging:false,
+        width:cardW, scrollX:0, scrollY:0,
       });
-      await Promise.all(qrPromises);
-
-      // Capture this page
-      const canvas = await html2canvas(offscreen, {
-        scale:           2,
-        useCORS:         true,
-        allowTaint:      true,
-        backgroundColor: '#ffffff',
-        logging:         false,
-        width:           cardW,
-        scrollX:         0,
-        scrollY:         0,
-      });
-      canvases.push(canvas);
+      canvases.push(c);
     }
 
-    // Stitch all canvases vertically into one
-    btn.textContent = 'Stitching pages…';
+    btn.innerHTML='<span>Stitching…</span>';
+    const totalH = canvases.reduce((s,c)=>s+c.height,0);
+    const out = document.createElement('canvas');
+    out.width=canvases[0].width; out.height=totalH;
+    const ctx=out.getContext('2d');
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,out.width,out.height);
+    let y=0; for(const c of canvases){ctx.drawImage(c,0,y);y+=c.height;}
 
-    const totalH = canvases.reduce((sum, c) => sum + c.height, 0);
-    const finalW = canvases[0].width;
+    const jpg = out.toDataURL('image/jpeg',0.93);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    const stitched = document.createElement('canvas');
-    stitched.width  = finalW;
-    stitched.height = totalH;
-    const ctx = stitched.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, finalW, totalH);
-
-    let y = 0;
-    for (const c of canvases) {
-      ctx.drawImage(c, 0, y);
-      y += c.height;
-    }
-
-    // Trigger download – mobile Safari doesn't support anchor download, open in new tab instead
-    const jpgDataUrl = stitched.toDataURL('image/jpeg', 0.92);
-    const isMobile   = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      // Open in new tab – user can long-press → "Add to Photos" / "Save Image"
-      const newTab = window.open();
-      if (newTab) {
-        newTab.document.write(`
-          <html><head><title>Compass HK Events</title>
+    if(isMobile){
+      // Open in new tab → long-press image → Save / Share
+      const tab = window.open('','_blank');
+      if(tab){
+        tab.document.write(`<!DOCTYPE html><html><head>
+          <title>Compass HK Events</title>
           <meta name="viewport" content="width=device-width,initial-scale=1">
           <style>
-            body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;}
-            img{max-width:100%;display:block;}
-            p{color:#ff6600;font-family:sans-serif;font-size:0.85rem;text-align:center;padding:0 16px;}
-          </style></head>
-          <body>
-            <p>📥 Long-press the image below → <strong>Save to Photos</strong> to keep it</p>
-            <img src="${jpgDataUrl}" alt="Compass HK Events">
-          </body></html>`);
-        newTab.document.close();
+            body{margin:0;background:#0a0a0a;display:flex;flex-direction:column;align-items:center;padding:16px;gap:14px;}
+            img{max-width:100%;border-radius:10px;display:block;}
+            .tip{color:#ff6600;font-family:sans-serif;font-size:0.82rem;text-align:center;
+                 background:rgba(255,102,0,.1);border:1px solid rgba(255,102,0,.3);
+                 border-radius:8px;padding:10px 16px;}
+          </style></head><body>
+          <div class="tip">📥 Long-press the image → <strong>Save to Photos</strong> or tap the share icon to send</div>
+          <img src="${jpg}" alt="Compass HK Events">
+        </body></html>`);
+        tab.document.close();
       } else {
-        alert('Please allow pop-ups to view the image, or try on desktop.');
+        alert('Please allow pop-ups, then tap Save as JPG again.');
       }
     } else {
-      const link    = document.createElement('a');
-      link.download = `compass-hk-${moName}-${yearSel}.jpg`;
-      link.href     = jpgDataUrl;
-      link.click();
+      const a=document.createElement('a');
+      a.download=`compass-hk-${moName}-${yr}.jpg`;
+      a.href=jpg; a.click();
     }
-
-  } catch(err) {
-    alert('Could not generate image. Please try again.');
+  } catch(err){
+    alert('Could not generate image — please try again.');
     console.error(err);
   } finally {
-    document.body.removeChild(offscreen);
-    btn.innerHTML = origHTML;
-    btn.disabled  = false;
+    document.body.removeChild(off);
+    btn.innerHTML=origHTML; btn.disabled=false;
   }
 }
 
-/* ─── Init ─── */
-async function init() {
-  const csvText = await fetchCSV();
-  const rows    = parseCSV(csvText);
+/* ── Init ── */
+async function init(){
+  // Fetch CSV and logo in parallel
+  const [csvText] = await Promise.all([
+    fetchCSV(),
+    fetchLogoB64().then(b=>{logoB64=b;})
+  ]);
 
+  const rows = parseCSV(csvText);
   allEvents = rows
-    .map(r => ({ ...r, parsedDate: parseDate(r.Date) }))
-    .filter(r => r.parsedDate !== null && isHK(r))
-    .sort((a, b) => a.parsedDate - b.parsedDate);
+    .map(r=>({...r, parsedDate:parseDate(r.Date)}))
+    .filter(r=>r.parsedDate!==null&&isHK(r))
+    .sort((a,b)=>a.parsedDate-b.parsedDate);
 
-  // Populate year selector
-  const years  = [...new Set(allEvents.map(e => e.parsedDate.getFullYear()))].sort((a,b)=>a-b);
-  const yearSel = document.getElementById('year-sel');
-  yearSel.innerHTML = '<option value="all">All Years</option>';
-  years.forEach(y => {
-    const o = document.createElement('option');
-    o.value = o.textContent = y;
-    yearSel.appendChild(o);
-  });
-
-  // Default to current year / month if data exists
-  const curYear  = new Date().getFullYear();
-  const curMonth = new Date().getMonth();
-  yearSel.value  = years.includes(curYear) ? curYear : 'all';
-  document.getElementById('month-sel').value = curMonth.toString();
+  // Year dropdown
+  const years=[...new Set(allEvents.map(e=>e.parsedDate.getFullYear()))].sort((a,b)=>a-b);
+  const ySel=document.getElementById('year-sel');
+  ySel.innerHTML='<option value="all">All Years</option>';
+  years.forEach(y=>{const o=document.createElement('option');o.value=o.textContent=y;ySel.appendChild(o);});
+  const cy=new Date().getFullYear();
+  ySel.value=years.includes(cy)?cy:'all';
+  document.getElementById('month-sel').value=new Date().getMonth().toString();
 
   refresh();
 
-  document.getElementById('year-sel').addEventListener('change', refresh);
-  document.getElementById('month-sel').addEventListener('change', refresh);
-  document.getElementById('btn-prev').addEventListener('click', () => renderPage(currentPage - 1));
-  document.getElementById('btn-next').addEventListener('click', () => renderPage(currentPage + 1));
-  document.getElementById('btn-dl').addEventListener('click', downloadJPG);
+  // Listeners
+  ySel.addEventListener('change',refresh);
+  document.getElementById('month-sel').addEventListener('change',refresh);
+  document.getElementById('btn-prev').addEventListener('click',()=>renderPage(curPage-1));
+  document.getElementById('btn-next').addEventListener('click',()=>renderPage(curPage+1));
+  document.getElementById('btn-dl').addEventListener('click',downloadJPG);
+
+  // Icon upload
+  const fileIn=document.getElementById('icon-file-input');
+  document.getElementById('btn-upload-icon').addEventListener('click',()=>fileIn.click());
+  fileIn.addEventListener('change',()=>{
+    const f=fileIn.files[0]; if(!f) return;
+    const rd=new FileReader();
+    rd.onload=e=>{
+      iconB64=e.target.result;
+      const prev=document.getElementById('icon-preview');
+      const clr=document.getElementById('btn-clear-icon');
+      prev.src=iconB64; prev.style.display='block';
+      clr.style.display='inline-flex';
+      renderPage(curPage);
+    };
+    rd.readAsDataURL(f);
+    fileIn.value='';
+  });
+  document.getElementById('btn-clear-icon').addEventListener('click',()=>{
+    iconB64=null;
+    document.getElementById('icon-preview').style.display='none';
+    document.getElementById('btn-clear-icon').style.display='none';
+    renderPage(curPage);
+  });
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
 </html>
