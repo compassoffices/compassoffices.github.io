@@ -50,14 +50,14 @@
             width: 0%; border-radius: 4px; transition: width 0.3s ease;
         }
         .duplicate-btn {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    transition: all 0.3s ease;
-}
-.duplicate-btn:hover {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 25px -5px rgba(59,130,246,0.4);
-}
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            transition: all 0.3s ease;
+        }
+        .duplicate-btn:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(59,130,246,0.4);
+        }
         @media (max-width: 768px) {
             .form-container { padding: 0.5rem; padding-bottom: 8rem; }
             .form-card { padding: 1.5rem; }
@@ -241,6 +241,20 @@
                                 <span class="suggestion-btn" onclick="addSuggestion('Whiteboard')">Whiteboard</span>
                             </div>
                         </div>
+                        <!-- ✅ Need extra aircon checkbox -->
+                        <div class="mb-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="needExtraAircon" class="mr-2 text-orange-500">
+                                <span class="text-sm font-medium text-gray-700">Need extra aircon?</span>
+                            </label>
+                        </div>
+                        <!-- ✅ Venue setup checkbox -->
+                        <div class="mb-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="venueSetup" class="mr-2 text-orange-500">
+                                <span class="text-sm font-medium text-gray-700">Venue setup?</span>
+                            </label>
+                        </div>
                         <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Location Preview:</label>
                             <div id="locationPreview" class="text-sm font-medium text-gray-800">Please select location details above</div>
@@ -369,6 +383,18 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Thumbnail -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">Thumbnail</label>
+                        <div class="file-upload" ondragover="event.preventDefault()" ondrop="handleThumbnailDrop(event)">
+                            <input type="file" id="thumbnailInput" accept="image/*">
+                            <label for="thumbnailInput" class="file-upload-label">
+                                <i class="fas fa-image mr-2"></i> Click or drag image — resized to 128×64px
+                            </label>
+                        </div>
+                        <div id="thumbnailStatus" class="hidden mt-2 text-xs text-gray-500"></div>
+                        <div id="thumbnailPreview" class="mt-3"></div>
+                    </div>
                     <!-- Catering -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-3">Catering</label>
@@ -422,20 +448,15 @@
                 </form>
 <div id="successMessage" class="hidden mt-6 p-6 rounded-xl text-white success-message shadow-lg">
     <p class="text-xl font-bold mb-4">Event Submitted Successfully! 🎉</p>
-    
     <div class="mb-6">
         <p class="text-sm opacity-90">You can now:</p>
     </div>
-
-    <!-- Duplicate Button -->
     <button id="duplicateEventBtn"
             class="duplicate-btn w-full py-3 px-6 text-white font-semibold rounded-lg mb-4 shadow-md hover:shadow-lg transition-all">
         <i class="fas fa-copy mr-2"></i> Duplicate This Event (New ID)
     </button>
-
     <p class="text-sm mt-4 mb-2 opacity-90">Or copy this link to re-open the form later (text fields only):</p>
     <div class="webhook-link mt-2 p-3 text-xs break-all bg-blue-900/30 border border-blue-400/40 rounded-lg" id="reopenLinkDisplay"></div>
-
     <button id="copyReopenLinkBtn"
             class="mt-3 px-5 py-2 bg-white text-orange-600 border-2 border-orange-500 rounded-lg hover:bg-orange-50 font-medium text-sm">
         Copy Re-Open Link
@@ -490,7 +511,6 @@
             function loadFromURL() {
                 const params = new URLSearchParams(window.location.search);
                 if (!params.toString()) return;
-                // Load text & checkbox
                 params.forEach((value, key) => {
                     const el = document.getElementById(key);
                     if (!el) return;
@@ -506,7 +526,6 @@
                         el.value = value;
                     }
                 });
-                // Special: link source radio
                 const linkSource = params.get('linkSource');
                 if (linkSource) {
                     const radio = document.querySelector(`input[name="linkSource"][value="${linkSource}"]`);
@@ -515,11 +534,9 @@
                         radio.dispatchEvent(new Event('change'));
                     }
                 }
-                // Special: eventId display
                 if (params.has('eventId')) {
                     eventIdDisplay.textContent = params.get('eventId');
                 }
-                // Load files from base64
                 let logoFile = null;
                 let edmBannerFile = null;
                 let keyFiles = [];
@@ -542,7 +559,6 @@
                         }
                     }
                 });
-                // Set files and trigger processing
                 if (logoFile) {
                     document.getElementById('posterLogoInput').files = createFileList([logoFile]);
                     processLogoFile(logoFile);
@@ -1053,6 +1069,63 @@
                     }
                 });
             });
+            // === THUMBNAIL UPLOAD (128×64px) ===
+            let processedThumbnailFile = null;
+            const thumbnailInput = document.getElementById('thumbnailInput');
+            const thumbnailPreview = document.getElementById('thumbnailPreview');
+            const thumbnailStatus = document.getElementById('thumbnailStatus');
+
+            window.handleThumbnailDrop = function(e) {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (file) processThumbnail(file);
+            };
+
+            thumbnailInput.addEventListener('change', () => {
+                if (thumbnailInput.files[0]) processThumbnail(thumbnailInput.files[0]);
+            });
+
+            function processThumbnail(file) {
+                processedThumbnailFile = null;
+                thumbnailPreview.innerHTML = '<p class="text-xs text-gray-500">Processing...</p>';
+                thumbnailStatus.classList.add('hidden');
+
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 128;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+
+                    // Cover-fit: scale so image fills 128×64, centred
+                    const scale = Math.max(128 / img.width, 64 / img.height);
+                    const drawW = img.width * scale;
+                    const drawH = img.height * scale;
+                    ctx.drawImage(img, (128 - drawW) / 2, (64 - drawH) / 2, drawW, drawH);
+
+                    canvas.toBlob(blob => {
+                        const fname = file.name.replace(/\.[^/.]+$/, '_thumb.png');
+                        processedThumbnailFile = new File([blob], fname, { type: 'image/png' });
+
+                        // Show preview at actual pixel size (2× for visibility)
+                        const previewUrl = URL.createObjectURL(processedThumbnailFile);
+                        thumbnailPreview.innerHTML = `
+                            <div class="inline-block border-2 border-dashed border-orange-400 rounded-lg p-2 bg-gray-50">
+                                <img src="${previewUrl}" width="256" height="128"
+                                     style="image-rendering:pixelated; display:block;"
+                                     alt="Thumbnail preview">
+                                <p class="text-xs text-green-600 mt-1 text-center">✓ 128×64px PNG ready</p>
+                            </div>`;
+                        thumbnailStatus.textContent = `Source: ${file.name}`;
+                        thumbnailStatus.classList.remove('hidden');
+                    }, 'image/png');
+                };
+                img.onerror = () => {
+                    thumbnailPreview.innerHTML = '<p class="text-xs text-red-600">Failed to load image.</p>';
+                };
+                img.src = URL.createObjectURL(file);
+            }
+
             // === CATERING & REGISTRATION LINK ===
             document.getElementById('haveCatering').addEventListener('change', function () {
                 document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
@@ -1089,12 +1162,12 @@ document.getElementById('eventForm').addEventListener('submit', async function (
     const formData = new FormData();
     const urlParams = new URLSearchParams();
 
-    // Text & checkbox fields
+    // Text & checkbox fields — ✅ needExtraAircon added here
     const fields = [
         'organizerName', 'organizerEmail', 'startTime', 'endTime', 'date',
         'clientName', 'clientContact', 'companyName', 'eventName', 'eventType', 'country', 'building', 'floor',
         'loungeArea', 'meetingRoom', 'room', 'regularRoomName',
-        'meetingRoomName', 'additionalRequirements', 'needPoster', 'needEDM', 'haveCatering',
+        'meetingRoomName', 'additionalRequirements', 'needExtraAircon', 'venueSetup', 'needPoster', 'needEDM', 'haveCatering',
         'cateringDetails', 'details', 'posterTitle', 'posterHasSubtitle', 'posterSubtitle',
         'posterBullet1', 'posterBullet2', 'posterBullet3', 'edmTitle', 'edmHasSubtitle',
         'edmSubtitle', 'edmBullet1', 'edmBullet2', 'edmBullet3', 'needRegisterLink', 'linkSource', 'registerLink'
@@ -1123,7 +1196,6 @@ document.getElementById('eventForm').addEventListener('submit', async function (
     formData.append('linkSource', linkSourceValue);
     urlParams.append('linkSource', linkSourceValue);
 
-    // Auto subtitle if not checked
     let posterSubtitle = document.getElementById('posterSubtitle').value;
     if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked) {
         posterSubtitle = '(Exclusive event for clients of Compass Offices)';
@@ -1138,7 +1210,6 @@ document.getElementById('eventForm').addEventListener('submit', async function (
     formData.append('edmSubtitle', edmSubtitle);
     urlParams.append('edmSubtitle', edmSubtitle);
 
-    // Files - send as real File objects (best practice)
     if (processedLogoFile) {
         formData.append('posterLogo', processedLogoFile);
     }
@@ -1150,8 +1221,10 @@ document.getElementById('eventForm').addEventListener('submit', async function (
     if (autoCroppedEdmBanner) {
         formData.append('edmBanner', autoCroppedEdmBanner);
     }
+    if (processedThumbnailFile) {
+        formData.append('thumbnail', processedThumbnailFile);
+    }
 
-    // Start loading UI
     loadingOverlay.classList.remove('hidden');
     submitButton.disabled = true;
     document.getElementById('submitText').textContent = 'Submitting...';
@@ -1176,28 +1249,20 @@ document.getElementById('eventForm').addEventListener('submit', async function (
         await new Promise(r => setTimeout(r, 600));
 
         if (response.ok) {
-            // ── Success UI with Duplicate Button ───────────────────────────────
             successMessage.innerHTML = `
                 <div class="text-center p-4">
                     <p class="text-2xl font-bold mb-5 text-white">Event Submitted Successfully! 🎉</p>
-                    
-                    <p class="text-base mb-6 opacity-90">
-                        What would you like to do next?
-                    </p>
-
-                    <button id="duplicateEventBtn" 
+                    <p class="text-base mb-6 opacity-90">What would you like to do next?</p>
+                    <button id="duplicateEventBtn"
                             class="duplicate-btn w-full max-w-md mx-auto py-4 px-8 text-lg font-semibold rounded-xl shadow-lg mb-6">
                         <i class="fas fa-copy mr-3"></i> Duplicate This Event (New ID)
                     </button>
-
                     <div class="mt-2 mb-3 text-sm opacity-90">
                         Or save this link to come back later (text fields only):
                     </div>
-                    
                     <div class="webhook-link p-4 text-sm break-all bg-blue-900/30 border border-blue-300/40 rounded-lg mb-4">
                         ${reopenUrl}
                     </div>
-
                     <button id="copyReopenLinkBtn"
                             class="px-6 py-2.5 bg-white text-orange-600 border-2 border-orange-500 rounded-lg hover:bg-orange-50 font-medium">
                         Copy Re-Open Link
@@ -1207,29 +1272,22 @@ document.getElementById('eventForm').addEventListener('submit', async function (
 
             successMessage.classList.remove('hidden');
 
-            // Copy reopen link
             document.getElementById('copyReopenLinkBtn').onclick = () => {
                 navigator.clipboard.writeText(reopenUrl)
                     .then(() => alert('Re-open link copied! ✓'))
                     .catch(() => alert('Copy failed'));
             };
 
-            // Duplicate event logic
             document.getElementById('duplicateEventBtn').onclick = () => {
                 const newEventId = generateEventId();
                 const dupParams = new URLSearchParams(urlParams);
                 dupParams.set('eventId', newEventId);
-                
-                // Remove images from URL (too large)
-                ['posterLogo','posterKeyImage1','posterKeyImage2','posterKeyImage3','edmBanner']
+                ['posterLogo','posterKeyImage1','posterKeyImage2','posterKeyImage3','edmBanner','thumbnail']
                     .forEach(k => dupParams.delete(k));
-
                 dupParams.set('duplicated', 'true');
-
                 window.location.href = `${window.location.origin}${window.location.pathname}?${dupParams.toString()}`;
             };
 
-            // Clean URL & storage
             window.history.replaceState({}, '', `?${urlParams.toString()}`);
             localStorage.removeItem('eventFormDraft');
         } else {
@@ -1265,7 +1323,7 @@ function fileToBase64(file) {
             document.querySelectorAll('input, select, textarea').forEach(el => {
                 el.addEventListener('touchstart', () => {}, { passive: true });
             });
-            // === LOCAL DRAFT (Optional) ===
+            // === LOCAL DRAFT ===
             const form = document.getElementById('eventForm');
             const saveKey = 'eventFormDraft';
             form.addEventListener('input', () => {
@@ -1289,7 +1347,7 @@ function fileToBase64(file) {
                 } catch (e) { }
             }
             window.scrollTo(0, 0);
-            loadFromURL(); // Call loadFromURL at the end to load any query params
+            loadFromURL();
         });
     </script>
 </body>
