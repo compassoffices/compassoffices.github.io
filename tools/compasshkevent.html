@@ -298,31 +298,14 @@ async function thumbToB64(url, tW, tH) {
 
 /* ─── CSV fetch ─── */
 async function fetchCSV() {
-  const urls = [
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv',
-  ];
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { mode:'cors' });
-      if (r.ok) {
-        const t = await r.text();
-        const s = t.trim().slice(0,80).toLowerCase();
-        if (t.trim() && !s.startsWith('<!') && !s.startsWith('<html') && s.includes(','))
-          return t;
-      }
-    } catch(_){}
-  }
-  // Sample fallback — correct header with space before Location
-  return [
-    'Time,Date,Client-Name,Region,Event-Name, Location,Reception,Details,Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type',
-    '6:00 PM - 9:00 PM,2026-04-01,Demo Client,Hong Kong,Product Launch Event,"Lee Garden Two, 16/F, Hong Kong, – Lounge area",,,Submit,TRUE,Q2,EVT001,,,,,,,,TRUE,https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=300&q=80,https://docs.google.com/forms/d/e/1FAIpQLSe4_6KUS8VLD5JQ9GrISknJFZLUczq0jKaO7JLrs0O22rgHTQ/viewform,,Seminar',
-    '2:00 PM - 5:00 PM,2026-04-08,ABC Corp,Hong Kong,Wellness Booth,"Lee Garden 1, 24/F, Hong Kong, – Lounge area",,,,TRUE,Q2,EVT002,,,,,,,,,,,,Networking',
-    '6:30 PM - 8:30 PM,2026-04-14,Tech Hub,Hong Kong,AI Workshop,"Lee Garden Two, 16/F, Hong Kong, – Lounge area",,,,TRUE,Q2,EVT003,,,,,,,,,,https://compassoffices.com/events/3,,Workshop',
-    '12:00 PM - 3:00 PM,2026-04-21,Pure Fitness,Hong Kong,Wellness Day,"Admiralty Centre, 15/F, Hong Kong, – Lounge area",,,,TRUE,Q2,EVT004,,,,,,,,TRUE,https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&q=80,,,',
-    '5:30 PM - 7:30 PM,2026-04-23,Harmony Wealth,Hong Kong,Investment Forum,"Lee Garden One, 24/F, Hong Kong, – Lounge area",,,,TRUE,Q2,EVT005,,,,,,,,,,https://compassoffices.com/events/5,,Seminar',
-    '6:00 PM - 9:00 PM,2026-04-28,Food Luck,Hong Kong,Sake Tasting Night,"Lee Garden Two, 28/F, Hong Kong, – Lounge area",,,,TRUE,Q2,EVT006,,,,,,,,TRUE,https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=300&q=80,https://compassoffices.com/events/6,,Networking',
-    '9:00 AM - 11:00 AM,2026-05-07,Women of HK,Hong Kong,Solopreneurs Breakfast,"Lee Garden Two, 16/F, Hong Kong, – Lounge area",,,,TRUE,Q2,EVT007,,,,,,,,,,https://compassoffices.com/events/7,,Workshop',
-  ].join('\n');
+  const URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
+  const r = await fetch(URL, { mode: 'cors' });
+  if (!r.ok) throw new Error(`Sheet fetch failed: HTTP ${r.status}`);
+  const t = await r.text();
+  const s = t.trim().slice(0, 80).toLowerCase();
+  if (!t.trim() || s.startsWith('<!') || s.startsWith('<html'))
+    throw new Error('Sheet returned HTML instead of CSV — check the sheet is published publicly.');
+  return t;
 }
 
 /* ─── STREAMING CSV PARSER ───────────────────────────────────────────
@@ -709,7 +692,19 @@ async function loadData(isRefresh=false) {
   document.getElementById('btn-next').disabled=true;
   if (isRefresh) thumbCache.clear();
   try {
-    const csv = await fetchCSV();
+    let csv;
+    try {
+      csv = await fetchCSV();
+    } catch(err) {
+      document.getElementById('event-page').innerHTML = `
+        <div class="state-box">
+          <div style="font-size:2rem;margin-bottom:8px">⚠️</div>
+          <p style="color:#cc4400;font-weight:700;font-size:1rem;">Could not load sheet data</p>
+          <p style="font-size:0.82rem;color:#888;margin-top:6px;max-width:340px;line-height:1.6">${err.message}<br><br>Make sure the Google Sheet is published:<br>File → Share → Publish to web → CSV</p>
+        </div>`;
+      document.getElementById('page-indicator').textContent = '– / –';
+      return;
+    }
     const rows = parseCSV(csv);
     allEvents = rows
       .map(r => ({...r, parsedDate:parseDate(r.Date)}))
