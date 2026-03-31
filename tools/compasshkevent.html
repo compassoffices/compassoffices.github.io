@@ -405,9 +405,44 @@ function isToday(d) {
 }
 
 function getQRUrl(ev) {
-  // Use exact column name from sheet
   const v = ev['register-url'];
   return (v && v.trim()) ? v.trim() : null;
+}
+
+/*
+ * Convert any Google Drive URL into a publicly loadable image URL.
+ *
+ * In your sheet, paste the standard sharing link:
+ *   https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+ * and make the file shared as "Anyone with the link > Viewer".
+ * This function converts it to a direct embeddable URL that works
+ * in <img> tags without requiring a Google login.
+ *
+ * Supported inputs:
+ *   drive.google.com/file/d/FILE_ID/view
+ *   drive.google.com/open?id=FILE_ID
+ *   drive.google.com/uc?id=FILE_ID
+ *   lh3.googleusercontent.com/drive-storage/... (private — cannot fix by URL alone)
+ */
+function resolveThumbUrl(url) {
+  if (!url) return url;
+
+  // Already converted to the public /d/ format
+  if (url.includes('lh3.googleusercontent.com/d/')) return url;
+
+  // Private drive-storage URL — can't be made public by rewriting
+  // (user must share the file AND use the /file/d/ share link)
+  if (url.includes('lh3.googleusercontent.com/drive-storage')) return url;
+
+  // Extract FILE_ID from drive.google.com/file/d/FILE_ID/...
+  const m1 = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m1) return `https://lh3.googleusercontent.com/d/${m1[1]}`;
+
+  // Extract FILE_ID from ?id=FILE_ID  (open, uc?id=, uc?export=view&id=)
+  const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m2) return `https://lh3.googleusercontent.com/d/${m2[1]}`;
+
+  return url;
 }
 
 /* ─── HTML builder ─── */
@@ -422,7 +457,7 @@ function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) 
     const time     = (ev.Time     || '').trim();
     const loc      = (ev.Location || ev[' Location'] || '').trim();
     const qrUrl    = getQRUrl(ev);
-    const rawThumb = (ev.thumbnail || '').trim();
+    const rawThumb = resolveThumbUrl((ev.thumbnail || '').trim());
     const today    = isToday(d);
 
     // Export: use pre-fetched base64; live: use raw URL
@@ -552,7 +587,7 @@ async function prefetchAssets() {
     if (!logoB64) logoB64 = await urlToBase64('https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png');
   }
   const urls = new Set();
-  pages.forEach(pg => pg.forEach(ev => { const u=(ev.thumbnail||'').trim(); if(u&&!thumbCache.has(u)) urls.add(u); }));
+  pages.forEach(pg => pg.forEach(ev => { const u=resolveThumbUrl((ev.thumbnail||'').trim()); if(u&&!thumbCache.has(u)) urls.add(u); }));
   if (urls.size) {
     overlay.show('Loading thumbnails…',`${urls.size} image${urls.size>1?'s':''}`);
     await Promise.all([...urls].map(async url => {
@@ -561,7 +596,7 @@ async function prefetchAssets() {
     }));
   }
   const thumbMap = new Map();
-  pages.forEach(pg => pg.forEach(ev => { const u=(ev.thumbnail||'').trim(); if(u) thumbMap.set(u, thumbCache.get(u)||null); }));
+  pages.forEach(pg => pg.forEach(ev => { const u=resolveThumbUrl((ev.thumbnail||'').trim()); if(u) thumbMap.set(u, thumbCache.get(u)||null); }));
   return { thumbMap, logoSrc: logoB64 };
 }
 
