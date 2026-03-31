@@ -489,7 +489,14 @@ async function fetchCSV() {
   for (const url of urls) {
     try {
       const r = await fetch(url, { mode: 'cors' });
-      if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
+      if (r.ok) {
+        const t = await r.text();
+        // Validate it's actually CSV: must start with a known header word, not HTML
+        const first = t.trim().slice(0, 100).toLowerCase();
+        if (t.trim() && !first.startsWith('<!') && !first.startsWith('<html') && first.includes(',')) {
+          return t;
+        }
+      }
     } catch (_) {}
   }
   // ── Sample data: exact columns from the live sheet ──
@@ -500,7 +507,7 @@ async function fetchCSV() {
   const HDR = 'Time,Date,Client-Name,Region,Event-Name, Location,Reception,Details,Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type';
   const ROWS = [
     // Real example row from your sheet (line 217) — has thumbnail, register-url, type, aircon, equipment
-    '6:00 PM - 9:00 PM,2026-04-01,Will,Hong Kong,Will test,"Lee Garden Two, 15/F, Hong Kong, – Lounge area",HKG2LG015@compassoffices.com,,Submit,TRUE,Q2,EVT20260330230949522,Submit,Delete,Will,wailap_ho@outlook.com,,,,TRUE,https://lh3.googleusercontent.com/drive-storage/AJQWtBMyoNMiUlogLwv4L0loCbWidvxZI-6-_5-rv3FQBXDQyr2_nDZfJsRHtARBI6olarTbw85ruekVLvvQ6LounG6EliaiZmaWBRPJPthASdY817XC=s220,https://docs.google.com/forms/d/e/1FAIpQLSe4_6KUS8VLD5JQ9GrISknJFZLUczq0jKaO7JLrs0O22rgHTQ/viewform,TV,Seminar',
+    '6:00 PM - 9:00 PM,2026-04-01,Will,Hong Kong,Will test,"Lee Garden Two, 15/F, Hong Kong, – Lounge area",HKG2LG015@compassoffices.com,,Submit,TRUE,Q2,EVT20260330230949522,Submit,Delete,Will,wailap_ho@outlook.com,,,,TRUE,https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=300&q=80,https://docs.google.com/forms/d/e/1FAIpQLSe4_6KUS8VLD5JQ9GrISknJFZLUczq0jKaO7JLrs0O22rgHTQ/viewform,TV,Seminar',
     // Extra sample rows (no thumbnail/QR) to show gradient fallback
     '12:30 PM-3:00 PM,2026-04-02,OfferToday,Hong Kong,Recruitment Day,"Lee Garden 2, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
     '6:00 PM-8:00 PM,2026-04-28,Harmony Wealth,Hong Kong,Wealth Management Sharing,"Lee Garden 1, 24/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
@@ -843,46 +850,39 @@ function stitchCanvases(canvases) {
 }
 
 /* ══════════════════════════════════════
-   Deliver file: download on desktop, new tab on mobile
+   Deliver file — no popups, works on all devices
+   Strategy:
+   1. Try Web Share API (iOS/Android native share sheet) — best mobile UX
+   2. Fall back to Blob URL + <a download> click — works desktop + Android
 ══════════════════════════════════════ */
-function deliverDataUrl(dataUrl, fileName, mimeLabel) {
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if (isMobile) {
-    const tab = window.open('', '_blank');
-    if (!tab) { alert('Please allow pop-ups, then try again.'); return; }
-    const isPdf = fileName.endsWith('.pdf');
-    tab.document.write(`<!DOCTYPE html><html><head>
-      <title>Compass HK Events</title>
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      <style>
-        *{box-sizing:border-box;margin:0;padding:0;}
-        body{background:#0a0a0a;display:flex;flex-direction:column;
-             align-items:center;padding:16px 12px 40px;gap:14px;}
-        .tip{color:#ff6600;font-family:sans-serif;font-size:0.8rem;line-height:1.6;
-             text-align:center;background:rgba(255,102,0,.1);
-             border:1px solid rgba(255,102,0,.3);border-radius:10px;
-             padding:12px 16px;max-width:500px;}
-        strong{color:#ff8844;}
-        img{max-width:100%;border-radius:10px;display:block;}
-        a.btn{display:inline-block;background:#ff6600;color:#fff;font-family:sans-serif;
-              font-weight:700;font-size:0.85rem;padding:11px 24px;border-radius:40px;
-              text-decoration:none;letter-spacing:0.05em;}
-      </style></head><body>
-      ${isPdf
-        ? `<div class="tip">📄 Tap the button below to open / download the <strong>PDF</strong></div>
-           <a class="btn" href="${dataUrl}" download="${fileName}">Download PDF</a>`
-        : `<div class="tip">📸 <strong>To save:</strong> Long-press the image → <strong>Save to Photos</strong><br>
-           🔗 <strong>To share:</strong> Long-press → <strong>Share Image</strong></div>
-           <img src="${dataUrl}" alt="Compass HK Events">`
+async function deliverFile(blob, fileName) {
+  // 1. Web Share API — triggers native iOS Share Sheet / Android intent
+  //    This is the ONLY reliable popup-free way to share on iPhone
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], fileName, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Compass Offices – HK Events' });
+        return;
       }
-    </body></html>`);
-    tab.document.close();
-  } else {
-    const a = document.createElement('a');
-    a.download = fileName;
-    a.href = dataUrl;
-    a.click();
+    } catch (e) {
+      // User cancelled share — that's fine, fall through
+      if (e.name === 'AbortError') return;
+      // Any other error: fall through to anchor download
+    }
   }
+
+  // 2. Blob URL + anchor download — works on desktop + Android Chrome
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = fileName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Revoke after a short delay to allow the download to start
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 /* ══════════════════════════════════════
@@ -910,8 +910,9 @@ async function downloadJPG() {
     await new Promise(r => setTimeout(r, 100));
 
     const { moName, yr } = getLabels();
-    const jpg = out.toDataURL('image/jpeg', 0.94);
-    deliverDataUrl(jpg, `compass-hk-${moName}-${yr}.jpg`, 'JPG');
+    // Convert canvas to Blob (avoids huge data-URL strings, works with Web Share API)
+    const jpgBlob = await new Promise(res => out.toBlob(res, 'image/jpeg', 0.94));
+    await deliverFile(jpgBlob, `compass-hk-${moName}-${yr}.jpg`);
 
   } catch (err) {
     console.error(err);
@@ -981,8 +982,8 @@ async function downloadPDF() {
     const pdfName = `compass-hk-${moName}-${yr}.pdf`;
 
     // jsPDF output: 'datauristring' gives a data URL we can deliver uniformly
-    const pdfDataUrl = doc.output('datauristring');
-    deliverDataUrl(pdfDataUrl, pdfName, 'PDF');
+    const pdfBlob = doc.output('blob');
+    await deliverFile(pdfBlob, pdfName);
 
   } catch (err) {
     console.error(err);
