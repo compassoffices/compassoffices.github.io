@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compass Offices – Hong Kong Events</title>
+      <link rel="icon" href="https://compassoffices.github.io/img/logo.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -252,6 +253,19 @@ select.pill option { background: #1a1a1a; color: #fff; }
 .gen-lbl { font-size: 0.88rem; font-weight: 600; color: #ccc; letter-spacing: 0.05em; }
 .gen-sub { font-size: 0.7rem; color: #555; margin-top: 5px; }
 
+/* Refresh button */
+.btn-refresh {
+  background: transparent; border: 1.5px solid #2c2c2c; color: #666;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: border-color .18s, color .18s;
+  flex-shrink: 0;
+}
+.btn-refresh:hover { border-color: var(--orange); color: var(--orange); }
+.btn-refresh svg { width: 14px; height: 14px; transition: transform .3s; }
+.btn-refresh.spinning svg { animation: spin .7s linear infinite; }
+.btn-refresh:disabled { opacity: 0.4; cursor: default; }
+
 /* Responsive */
 @media (max-width: 640px) {
   .ev-date { width: 62px; }
@@ -301,6 +315,1020 @@ select.pill option { background: #1a1a1a; color: #fff; }
     <span id="page-indicator">– / –</span>
     <button class="nav-btn" id="btn-next">&#8594;</button>
   </div>
+
+  <button class="btn-refresh" id="btn-refresh" title="Refresh data from sheet">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  </button>
+
+  <div class="dl-group">
+    <button class="btn-dl btn-dl-jpg" id="btn-jpg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      JPG
+    </button>
+    <button class="btn-dl btn-dl-pdf" id="btn-pdf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      PDF
+    </button>
+  </div>
+</div>
+
+<!-- Debug panel (hidden by default, shown via ?debug in URL) -->
+<div id="debug-panel" style="display:none;background:#0d1117;border:1px solid #30363d;border-radius:10px;
+  margin:12px 22px;padding:14px 18px;font-family:monospace;font-size:0.75rem;color:#8b949e;max-height:260px;overflow:auto;">
+  <div style="color:#ff6600;font-weight:700;margin-bottom:8px;font-family:sans-serif;">
+    📊 Debug: Sheet Data Inspector
+    <span style="color:#555;font-weight:400;font-size:0.7rem;margin-left:10px;">Add ?debug to URL to show this panel</span>
+  </div>
+  <div id="debug-content">Loading…</div>
+</div>
+
+<!-- Stage -->
+<div class="stage">
+  <div id="event-page" class="event-page">
+    <div class="state-box">
+      <div class="spinner"></div>
+      <p>Loading Hong Kong events…</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════
+   Constants
+══════════════════════════════════════ */
+const EVENTS_PER_PAGE = 6;
+const HK_KW    = ['hong kong', 'hk', 'hong-kong'];
+const MONTHS   = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+const MONTHS_S = ['JAN','FEB','MAR','APR','MAY','JUN',
+                  'JUL','AUG','SEP','OCT','NOV','DEC'];
+const WEEKDAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const GRAD_N   = 6;
+const JPG_TARGET_W = 1080;
+const PDF_W_MM = 210, PDF_H_MM = 297;
+
+/* ══════════════════════════════════════
+   State
+══════════════════════════════════════ */
+let allEvents  = [];
+let pages      = [];
+let curPage    = 0;
+let logoB64    = null;
+let thumbCache = new Map();   // url → base64, cleared on each refresh
+
+/* ══════════════════════════════════════
+   Image helpers
+══════════════════════════════════════ */
+async function urlToBase64(url) {
+  if (!url || !url.trim()) return null;
+  if (thumbCache.has(url)) return thumbCache.get(url);
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload  = () => resolve(r.result);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(blob);
+    });
+  } catch (_) { return null; }
+}
+
+async function svgUrlToPngBase64(svgUrl, logoH = 80) {
+  try {
+    const res = await fetch(svgUrl, { mode: 'cors' });
+    if (!res.ok) return null;
+    const svgText = await res.text();
+    const parser  = new DOMParser();
+    const doc     = parser.parseFromString(svgText, 'image/svg+xml');
+    const svgEl   = doc.querySelector('svg');
+    let svgW = parseFloat(svgEl?.getAttribute('width')  || '0');
+    let svgH = parseFloat(svgEl?.getAttribute('height') || '0');
+    if (!svgW || !svgH) {
+      const vb = (svgEl?.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+      if (vb.length >= 4) { svgW = vb[2]; svgH = vb[3]; }
+    }
+    if (!svgW || !svgH) { svgW = 300; svgH = 60; }
+    const pxH  = logoH;
+    const pxW  = Math.round(pxH * (svgW / svgH));
+    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+    const burl = URL.createObjectURL(blob);
+    return await new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = pxW * 2; c.height = pxH * 2;
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(burl);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = () => { URL.revokeObjectURL(burl); resolve(null); };
+      img.src = burl;
+    });
+  } catch (_) { return null; }
+}
+
+async function thumbToBase64Cropped(url, targetW, targetH) {
+  if (!url) return null;
+  return await new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW; canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(targetW / img.naturalWidth, targetH / img.naturalHeight);
+        const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+        ctx.drawImage(img, (targetW - dw) / 2, (targetH - dh) / 2, dw, dh);
+        resolve(canvas.toDataURL('image/png'));
+      } catch (_) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+    setTimeout(() => resolve(null), 8000);
+  });
+}
+
+/* ══════════════════════════════════════
+   CSV fetch + parse
+══════════════════════════════════════ */
+async function fetchCSV() {
+  const urls = [
+    'https://docs.google.com/spreadsheets/d/1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/export?format=csv&gid=1632866699',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv',
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { mode: 'cors' });
+      if (r.ok) {
+        const t = await r.text();
+        const first = t.trim().slice(0, 120).toLowerCase();
+        // Validate it's actually CSV — not an HTML login redirect
+        if (t.trim() && !first.startsWith('<!') && !first.startsWith('<html') && first.includes(',')) {
+          return t;
+        }
+      }
+    } catch (_) {}
+  }
+  // Sample fallback
+  const HDR = 'Time,Date,Client-Name,Region,Event-Name, Location,Reception,Details,Trigger,Confirmed,Quarter,Event ID,Marker,Delete,Staff,Staff email,edit-email-id,approval-email-id,edit-link,aircon,thumbnail,register-url,equipment,type';
+  const ROWS = [
+    '6:00 PM - 9:00 PM,2026-04-01,Will,Hong Kong,Will test,"Lee Garden Two, 15/F, Hong Kong, – Lounge area",HKG2LG015@compassoffices.com,,Submit,TRUE,Q2,EVT001,,,,Will,will@co.com,,,,TRUE,https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=300&q=80,https://docs.google.com/forms/d/e/1FAIpQLSe4_6KUS8VLD5JQ9GrISknJFZLUczq0jKaO7JLrs0O22rgHTQ/viewform,TV,Seminar',
+    '12:30 PM-3:00 PM,2026-04-02,OfferToday,Hong Kong,Recruitment Day,"Lee Garden 2, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
+    '6:00 PM-8:00 PM,2026-04-14,Harmony Wealth,Hong Kong,Wealth Management Sharing,"Lee Garden 1, 24/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,Seminar',
+    '2:00 PM-6:00 PM,2026-04-21,Pure Fitness,Hong Kong,Wellness Booth,"Lee Garden 2, 15/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,',
+    '6:00 PM-9:00 PM,2026-04-14,Casual Tech Meetup,Hong Kong,Productize Yourself Workshop,"Lee Garden 2, 16/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,,,,,Workshop',
+    '2:00 PM-6:00 PM,2026-04-28,Food Luck,Hong Kong,Sake Tasting Event,"Lee Garden 2, 28/F, Lounge area",,,,TRUE,Q2,,,,,,,,,,https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=300&q=80,https://compassoffices.com/events/sake,,Networking',
+    '9:00 AM-11:00 AM,2026-05-06,Women of HK,Hong Kong,Solopreneurs Breakfast,"Lee Garden 2, 16/F, Room 1631",,,,TRUE,Q2,,,,,,,,,,,,,,Workshop',
+  ];
+  return [HDR, ...ROWS].join('
+');
+}
+
+function parseCSVLine(line) {
+  const r = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else { inQ = !inQ; } }
+    else if (c === ',' && !inQ) { r.push(cur.trim()); cur = ''; }
+    else { cur += c; }
+  }
+  r.push(cur.trim()); return r;
+}
+
+function parseCSV(txt) {
+  const cleaned = txt.replace(/^﻿/, '').replace(/
+/g, '');
+  const lines   = cleaned.split('
+');
+  const hdrs    = parseCSVLine(lines[0]).map(h =>
+    h.replace(/[ --﻿​-‍￾￿]/g, '').trim()
+  );
+  console.log('[CSV] headers:', hdrs);
+  return lines.slice(1)
+    .filter(l => l.trim())
+    .map(l => {
+      const v = parseCSVLine(l); const row = {};
+      hdrs.forEach((h, i) => { row[h] = (v[i] || '').trim(); });
+      return row;
+    })
+    // Filter out Google Sheets formula error rows (#N/A, #REF!, etc.)
+    .filter(r => !r.Time?.startsWith('#') && !r.Date?.startsWith('#') && r.Date?.trim());
+}
+
+function parseDate(s) {
+  if (!s) return null;
+  let m;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) return new Date(+m[3],+m[2]-1,+m[1]);
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);   if (m) return new Date(+m[1],+m[2]-1,+m[3]);
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);   if (m) return new Date(+m[3],+m[1]-1,+m[2]);
+  const d = new Date(s); return isNaN(d) ? null : d;
+}
+
+function isHK(ev) {
+  // Check both 'Region' and 'Location' — handle the ' Location' header-space variant
+  const r = (ev.Region || '').toLowerCase();
+  const l = (ev.Location || ev[' Location'] || '').toLowerCase();
+  return HK_KW.some(kw => r.includes(kw) || l.includes(kw));
+}
+
+function isToday(d) {
+  const t = new Date();
+  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+}
+
+function getQRUrl(ev) {
+  if (ev['register-url']?.trim()) return ev['register-url'].trim();
+  return null;
+}
+
+/* ══════════════════════════════════════
+   HTML builder
+   thumbMap: null = live (raw URLs); Map = export (base64)
+══════════════════════════════════════ */
+function buildPage(slice, pageNum, total, yearLbl, monthLbl, logoSrc, thumbMap) {
+  const heading = monthLbl === 'All Months'
+    ? `${yearLbl} Events` : `${monthLbl} ${yearLbl} Events`;
+
+  const logoUrl = logoSrc ||
+    'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg';
+
+  const rows = slice.map((ev, i) => {
+    const d        = ev.parsedDate;
+    const type     = (ev.type || '').trim() || 'Event';
+    const name     = (ev['Event-Name'] || 'Untitled Event').trim();
+    const time     = (ev.Time || '').trim();
+    const loc      = (ev.Location || ev[' Location'] || '').trim();
+    const qrUrl    = getQRUrl(ev);
+    const rawThumb = (ev.thumbnail || '').trim();
+    const today    = isToday(d);
+
+    const thumbSrc = thumbMap ? (thumbMap.get(rawThumb) || null) : rawThumb;
+    const gradCls  = `g${i % GRAD_N}`;
+    const thumbEl  = thumbSrc
+      ? `<div class="ev-thumb-box ${gradCls}">
+           <img src="${thumbSrc}" alt=""
+                style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;"
+                onerror="this.style.display='none'">
+         </div>`
+      : `<div class="ev-thumb-box ${gradCls} no-img"></div>`;
+
+    return `
+<div class="event-row${today ? ' is-today' : ''}">
+  <div class="ev-date">
+    <div class="ev-wd">${WEEKDAYS[d.getDay()]}</div>
+    <div class="ev-day">${d.getDate()}</div>
+    <div class="ev-mon">${MONTHS_S[d.getMonth()]}</div>
+    ${today ? '<div class="today-badge">Today</div>' : ''}
+  </div>
+  <div class="ev-thumb">${thumbEl}</div>
+  <div class="ev-info">
+    <div class="ev-type">${type}</div>
+    <div class="ev-name">${name}</div>
+    <div class="ev-pills">
+      ${time ? `<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${time}</span>` : ''}
+      ${loc  ? `<span class="ev-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${loc}</span>` : ''}
+    </div>
+  </div>
+  ${qrUrl ? `<div class="ev-qr">
+    <div class="qr-box" data-url="${encodeURIComponent(qrUrl)}" id="qr-p${pageNum}-r${i}"></div>
+    <div class="qr-lbl">Scan&nbsp;to&nbsp;RSVP</div>
+  </div>` : ''}
+</div>`;
+  }).join('');
+
+  return `
+<div class="page-header">
+  <div class="hdr-logo"><img src="${logoUrl}" alt="Compass Offices" style="height:36px;width:auto;display:block;object-fit:contain;"></div>
+  <div class="hdr-right">
+    <h1>${heading.toUpperCase()}</h1>
+    <div class="hdr-sub">Hong Kong &nbsp;·&nbsp; Upcoming Events</div>
+  </div>
+</div>
+<div class="accent-bar"></div>
+<div class="events-body">${rows}</div>
+<div class="page-footer">
+  <div class="ft-l"><div class="ft-dot"></div><div class="ft-site">compassoffices.com</div></div>
+  <div class="ft-page">Page ${pageNum} of ${total}</div>
+</div>`;
+}
+
+function attachQR(root) {
+  const boxes = [...root.querySelectorAll('.qr-box[data-url]')];
+  if (!boxes.length) return Promise.resolve();
+  const promises = boxes.map(box => new Promise(resolve => {
+    const url = decodeURIComponent(box.getAttribute('data-url'));
+    try {
+      new QRCode(box, {
+        text: url, width: 80, height: 80,
+        colorDark: '#111111', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    } catch (_) { resolve(); }
+  }));
+  return Promise.all(promises);
+}
+
+/* ══════════════════════════════════════
+   Live rendering
+══════════════════════════════════════ */
+function getLabels() {
+  const yr = document.getElementById('year-sel').value;
+  const mo = document.getElementById('month-sel').value;
+  return {
+    yr, mo,
+    yearLbl:  yr === 'all' ? new Date().getFullYear().toString() : yr,
+    monthLbl: mo === 'all' ? 'All Months' : MONTHS[+mo],
+    moName:   mo === 'all' ? 'events'     : MONTHS[+mo].toLowerCase(),
+  };
+}
+
+function renderPage(idx) {
+  if (!pages.length) return;
+  curPage = idx;
+  const { yearLbl, monthLbl } = getLabels();
+  const el = document.getElementById('event-page');
+  el.innerHTML = buildPage(pages[idx], idx+1, pages.length, yearLbl, monthLbl, null, null);
+  attachQR(el); // fire-and-forget for live view
+  document.getElementById('page-indicator').textContent = `${idx+1} / ${pages.length}`;
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').disabled = idx === pages.length - 1;
+}
+
+function rebuildPages(events) {
+  pages = [];
+  for (let i = 0; i < events.length; i += EVENTS_PER_PAGE)
+    pages.push(events.slice(i, i + EVENTS_PER_PAGE));
+  curPage = 0;
+  if (!pages.length) {
+    const { monthLbl, yearLbl } = getLabels();
+    document.getElementById('event-page').innerHTML = `
+      <div class="state-box">
+        <div style="font-size:2rem;margin-bottom:10px">📭</div>
+        <p>No Hong Kong events for ${monthLbl === 'All Months' ? yearLbl : monthLbl + ' ' + yearLbl}</p>
+      </div>`;
+    document.getElementById('page-indicator').textContent = '0 / 0';
+    document.getElementById('btn-prev').disabled = true;
+    document.getElementById('btn-next').disabled = true;
+    return;
+  }
+  renderPage(0);
+}
+
+function getFiltered() {
+  const { yr, mo } = getLabels();
+  return allEvents.filter(e => {
+    if (yr !== 'all' && e.parsedDate.getFullYear() !== +yr) return false;
+    if (mo !== 'all' && e.parsedDate.getMonth()    !== +mo) return false;
+    return true;
+  });
+}
+function refresh() { rebuildPages(getFiltered()); }
+
+/* ══════════════════════════════════════
+   Auto-detect best month to show:
+   → Earliest month that has upcoming (today or future) HK events
+   → Falls back to current year / all months if nothing upcoming
+══════════════════════════════════════ */
+function autoSelectMonth() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const upcoming = allEvents.filter(e => e.parsedDate >= today);
+
+  if (upcoming.length > 0) {
+    upcoming.sort((a, b) => a.parsedDate - b.parsedDate);
+    const first = upcoming[0].parsedDate;
+    document.getElementById('year-sel').value  = first.getFullYear().toString();
+    document.getElementById('month-sel').value = first.getMonth().toString();
+  } else {
+    // No upcoming events — show current year, all months
+    const cy = new Date().getFullYear();
+    const years = [...new Set(allEvents.map(e => e.parsedDate.getFullYear()))];
+    document.getElementById('year-sel').value  = years.includes(cy) ? cy : 'all';
+    document.getElementById('month-sel').value = 'all';
+  }
+}
+
+/* ══════════════════════════════════════
+   Overlay
+══════════════════════════════════════ */
+const overlay = {
+  show(lbl, sub = '') {
+    document.getElementById('gen-overlay').classList.add('on');
+    document.getElementById('gen-lbl').textContent = lbl;
+    document.getElementById('gen-sub').textContent = sub;
+  },
+  hide() { document.getElementById('gen-overlay').classList.remove('on'); },
+};
+
+/* ══════════════════════════════════════
+   Export: prefetch assets
+══════════════════════════════════════ */
+const THUMB_PX_W = 244, THUMB_PX_H = 122; // 2× of CSS 122×61
+
+async function prefetchAssets() {
+  if (!logoB64) {
+    overlay.show('Fetching logo…', '');
+    logoB64 = await svgUrlToPngBase64(
+      'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg', 80
+    );
+    if (!logoB64) logoB64 = await urlToBase64(
+      'https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png'
+    );
+  }
+
+  // Collect unique thumbnail URLs across all pages
+  const urls = new Set();
+  pages.forEach(pg => pg.forEach(ev => {
+    const u = (ev.thumbnail || '').trim();
+    if (u && !thumbCache.has(u)) urls.add(u);
+  }));
+
+  if (urls.size > 0) {
+    overlay.show('Loading thumbnails…', `${urls.size} image${urls.size !== 1 ? 's' : ''}`);
+    await Promise.all([...urls].map(async url => {
+      const b64 = await thumbToBase64Cropped(url, THUMB_PX_W, THUMB_PX_H);
+      thumbCache.set(url, b64); // null → gradient fallback in export
+    }));
+  }
+
+  const thumbMap = new Map();
+  pages.forEach(pg => pg.forEach(ev => {
+    const u = (ev.thumbnail || '').trim();
+    if (u) thumbMap.set(u, thumbCache.get(u) || null);
+  }));
+
+  return { thumbMap, logoSrc: logoB64 };
+}
+
+/* ══════════════════════════════════════
+   Export: render all pages to canvases
+══════════════════════════════════════ */
+async function renderAllToCanvases(cardW, thumbMap, logoSrc, scale) {
+  const { yearLbl, monthLbl } = getLabels();
+
+  const off = document.createElement('div');
+  off.style.cssText = `position:fixed;left:-9999px;top:0;width:${cardW}px;background:#fff;overflow:visible;z-index:-1;`;
+  document.body.appendChild(off);
+
+  const canvases = [];
+  try {
+    for (let p = 0; p < pages.length; p++) {
+      overlay.show(`Rendering page ${p+1} of ${pages.length}…`, `${scale.toFixed(1)}× · ${Math.round(cardW * scale)}px`);
+
+      off.innerHTML = buildPage(pages[p], p+1, pages.length, yearLbl, monthLbl, logoSrc, thumbMap);
+
+      // Wait for all <img> elements to load
+      const imgs = [...off.querySelectorAll('img')];
+      await Promise.all(imgs.map(img =>
+        img.complete ? Promise.resolve() :
+        new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 5000); })
+      ));
+
+      // Generate QR codes and wait for paint
+      await attachQR(off);
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const c = await html2canvas(off, {
+        scale, useCORS: false, allowTaint: true,
+        backgroundColor: '#ffffff', logging: false,
+        width: cardW, scrollX: 0, scrollY: 0, imageTimeout: 15000,
+        onclone: cloned => {
+          cloned.querySelectorAll('.qr-box canvas').forEach(c => { c.style.display = 'block'; });
+        }
+      });
+      canvases.push(c);
+    }
+  } finally {
+    document.body.removeChild(off);
+  }
+  return canvases;
+}
+
+function stitchCanvases(canvases) {
+  const W = canvases[0].width;
+  const H = canvases.reduce((s, c) => s + c.height, 0);
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  let y = 0;
+  for (const c of canvases) { ctx.drawImage(c, 0, y); y += c.height; }
+  return out;
+}
+
+/* ══════════════════════════════════════
+   Deliver: Web Share API → Blob URL fallback
+   No window.open() — no popup blocks
+══════════════════════════════════════ */
+async function deliverFile(blob, fileName) {
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], fileName, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Compass Offices – HK Events' });
+        return;
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = fileName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/* ══════════════════════════════════════
+   Download JPG
+══════════════════════════════════════ */
+async function downloadJPG() {
+  if (!pages.length) return;
+  const btnJpg = document.getElementById('btn-jpg');
+  const btnPdf = document.getElementById('btn-pdf');
+  btnJpg.disabled = btnPdf.disabled = true;
+  try {
+    const { thumbMap, logoSrc } = await prefetchAssets();
+    const cardW = document.getElementById('event-page').offsetWidth;
+    const scale = Math.max(1, JPG_TARGET_W / cardW);
+    const canvases = await renderAllToCanvases(cardW, thumbMap, logoSrc, scale);
+    overlay.show('Stitching pages…', `${canvases.length} page${canvases.length !== 1 ? 's' : ''}`);
+    const out = stitchCanvases(canvases);
+    overlay.show('Saving…', `${out.width} × ${out.height} px`);
+    await new Promise(r => setTimeout(r, 80));
+    const jpgBlob = await new Promise(res => out.toBlob(res, 'image/jpeg', 0.94));
+    const { moName, yr } = getLabels();
+    await deliverFile(jpgBlob, `compass-hk-${moName}-${yr}.jpg`);
+  } catch (err) {
+    console.error(err);
+    alert('Could not generate JPG — please try again.');
+  } finally {
+    overlay.hide();
+    btnJpg.disabled = btnPdf.disabled = false;
+  }
+}
+
+/* ══════════════════════════════════════
+   Download PDF (A4)
+══════════════════════════════════════ */
+async function downloadPDF() {
+  if (!pages.length) return;
+  const btnJpg = document.getElementById('btn-jpg');
+  const btnPdf = document.getElementById('btn-pdf');
+  btnJpg.disabled = btnPdf.disabled = true;
+  try {
+    const { thumbMap, logoSrc } = await prefetchAssets();
+    const cardW    = document.getElementById('event-page').offsetWidth;
+    const canvases = await renderAllToCanvases(cardW, thumbMap, logoSrc, 2);
+    overlay.show('Building PDF…', `${canvases.length} A4 page${canvases.length !== 1 ? 's' : ''}`);
+    await new Promise(r => setTimeout(r, 60));
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const marginMM = 8;
+    const usableW  = PDF_W_MM - marginMM * 2;
+    const usableH  = PDF_H_MM - marginMM * 2;
+    canvases.forEach((c, idx) => {
+      if (idx > 0) doc.addPage();
+      const cAspect = c.width / c.height;
+      const uAspect = usableW / usableH;
+      let drawW, drawH;
+      if (cAspect >= uAspect) { drawW = usableW; drawH = usableW / cAspect; }
+      else                    { drawH = usableH; drawW = usableH * cAspect; }
+      const x = marginMM + (usableW - drawW) / 2;
+      const y = marginMM + (usableH - drawH) / 2;
+      doc.addImage(c.toDataURL('image/png'), 'PNG', x, y, drawW, drawH);
+    });
+    const { moName, yr } = getLabels();
+    const pdfBlob = doc.output('blob');
+    await deliverFile(pdfBlob, `compass-hk-${moName}-${yr}.pdf`);
+  } catch (err) {
+    console.error(err);
+    alert('Could not generate PDF — please try again.');
+  } finally {
+    overlay.hide();
+    btnJpg.disabled = btnPdf.disabled = false;
+  }
+}
+
+/* ══════════════════════════════════════
+   Load data (called on init + refresh)
+══════════════════════════════════════ */
+async function loadData(isRefresh = false) {
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+
+  // Show loading state
+  document.getElementById('event-page').innerHTML = `
+    <div class="state-box">
+      <div class="spinner"></div>
+      <p>${isRefresh ? 'Refreshing…' : 'Loading Hong Kong events…'}</p>
+    </div>`;
+  document.getElementById('page-indicator').textContent = '– / –';
+  document.getElementById('btn-prev').disabled = true;
+  document.getElementById('btn-next').disabled = true;
+
+  // Clear caches on refresh
+  if (isRefresh) thumbCache.clear();
+
+  try {
+    const csvText = await fetchCSV();
+    const rows    = parseCSV(csvText);
+
+    // Debug panel
+    if (window.location.search.includes('debug')) {
+      document.getElementById('debug-panel').style.display = 'block';
+      const allKeys  = rows.length ? Object.keys(rows[0]) : [];
+      const withThumb= rows.filter(r => r.thumbnail?.trim());
+      const withQR   = rows.filter(r => r['register-url']?.trim());
+      const withType = rows.filter(r => r.type?.trim());
+      document.getElementById('debug-content').innerHTML = [
+        `<b style="color:#58a6ff">Total rows: ${rows.length}</b>`,
+        `<b style="color:#58a6ff">Columns:</b> ${allKeys.map(k => `<span style="color:${k!==k.trim()?'#f97316':'#79c0ff'}">${JSON.stringify(k)}</span>`).join(', ')}`,
+        `<hr style="border-color:#222;margin:6px 0">`,
+        `<b style="color:${withThumb.length?'#3fb950':'#f85149'}">🖼 thumbnail: ${withThumb.length} rows</b>`,
+        withThumb.slice(0,3).map(r=>`<div style="margin:2px 0 2px 12px;color:#a5d6ff">• ${r['Event-Name']} — ${r.thumbnail.slice(0,50)}…</div>`).join(''),
+        `<b style="color:${withQR.length?'#3fb950':'#f85149'}">🔗 register-url: ${withQR.length} rows</b>`,
+        withQR.slice(0,3).map(r=>`<div style="margin:2px 0 2px 12px;color:#a5d6ff">• ${r['Event-Name']} — ${r['register-url'].slice(0,50)}…</div>`).join(''),
+        `<b style="color:${withType.length?'#3fb950':'#f85149'}">🏷 type: ${withType.length} rows</b>`,
+      ].join('<br>');
+    }
+
+    allEvents = rows
+      .map(r => ({ ...r, parsedDate: parseDate(r.Date) }))
+      .filter(r => r.parsedDate !== null && isHK(r))
+      .sort((a, b) => a.parsedDate - b.parsedDate);
+
+    // Populate year dropdown
+    const years   = [...new Set(allEvents.map(e => e.parsedDate.getFullYear()))].sort((a,b) => a-b);
+    const yearSel = document.getElementById('year-sel');
+    yearSel.innerHTML = '<option value="all">All Years</option>';
+    years.forEach(y => { const o = document.createElement('option'); o.value = o.textContent = y; yearSel.appendChild(o); });
+
+    // Auto-detect the best month to show
+    autoSelectMonth();
+    refresh();
+
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+/* ══════════════════════════════════════
+   Init — wire listeners once, then load data
+══════════════════════════════════════ */
+function init() {
+  // Fetch logo early (non-blocking)
+  svgUrlToPngBase64(
+    'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg', 80
+  ).then(b => { if (b) logoB64 = b; });
+
+  // Wire all event listeners ONCE here (not inside loadData)
+  document.getElementById('year-sel').addEventListener('change', refresh);
+  document.getElementById('month-sel').addEventListener('change', refresh);
+  document.getElementById('btn-prev').addEventListener('click', () => renderPage(curPage - 1));
+  document.getElementById('btn-next').addEventListener('click', () => renderPage(curPage + 1));
+  document.getElementById('btn-jpg').addEventListener('click', downloadJPG);
+  document.getElementById('btn-pdf').addEventListener('click', downloadPDF);
+  document.getElementById('btn-refresh').addEventListener('click', () => loadData(true));
+
+  // Load data for the first time
+  loadData(false);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --orange:  #ff6600;
+  --od:      #cc5200;
+  --black:   #0a0a0a;
+  --white:   #ffffff;
+  --light:   #f8f8f8;
+  --border:  #e4e4e4;
+  --text:    #111111;
+  --muted:   #999999;
+  --radius:  20px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--black);
+  min-height: 100vh;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Controls bar ── */
+.ctrl-bar {
+  position: sticky; top: 0; z-index: 100;
+  background: #0f0f0f; border-bottom: 1px solid #1e1e1e;
+  padding: 11px 22px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.ctrl-logo img { height: 32px; width: auto; display: block; }
+.ctrl-sep { width: 1px; height: 24px; background: #2a2a2a; flex-shrink: 0; }
+.ctrl-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.15rem; letter-spacing: 0.1em; color: var(--orange);
+  flex: 1; white-space: nowrap;
+}
+select.pill {
+  background: #161616; border: 1.5px solid #2c2c2c; color: #aaa;
+  padding: 6px 13px; border-radius: 40px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 500;
+  cursor: pointer; outline: none; transition: border-color .18s, color .18s;
+  -webkit-appearance: none; appearance: none;
+}
+select.pill:hover, select.pill:focus { border-color: var(--orange); color: var(--orange); }
+select.pill option { background: #1a1a1a; color: #fff; }
+
+.page-nav { display: flex; align-items: center; gap: 7px; color: #555; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; }
+.nav-btn {
+  background: #161616; border: 1.5px solid #2c2c2c; color: #777;
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; transition: border-color .18s, color .18s; user-select: none;
+}
+.nav-btn:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
+.nav-btn:disabled { opacity: 0.25; cursor: default; }
+
+/* Download buttons */
+.dl-group { display: flex; align-items: center; gap: 7px; }
+.btn-dl {
+  border: none; padding: 8px 15px; border-radius: 40px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; letter-spacing: 0.04em;
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  transition: background .18s, opacity .18s;
+}
+.btn-dl-jpg { background: var(--orange); color: #fff; }
+.btn-dl-jpg:hover:not(:disabled) { background: var(--od); }
+.btn-dl-pdf { background: #1e1e1e; color: #ccc; border: 1.5px solid #333; }
+.btn-dl-pdf:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
+.btn-dl:disabled { opacity: 0.5; cursor: wait; }
+.btn-dl svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+/* ── Stage ── */
+.stage {
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 36px 16px 60px; min-height: calc(100vh - 54px);
+}
+
+/* ── Event page card ── */
+.event-page {
+  width: 860px; max-width: 100%;
+  background: var(--white); border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* Card header */
+.page-header {
+  background: var(--black); padding: 20px 28px 16px;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+/* Full wordmark logo — fixed dimensions prevent distortion */
+.hdr-logo { display: flex; align-items: center; flex-shrink: 0; }
+.hdr-logo img {
+  height: 36px; width: auto;
+  display: block;
+  object-fit: contain; /* never stretch */
+}
+.hdr-right { text-align: right; }
+.hdr-right h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.75rem; letter-spacing: 0.12em; color: #fff; line-height: 1;
+}
+.hdr-sub {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.24em;
+  color: var(--orange); margin-top: 5px; text-transform: uppercase;
+}
+.accent-bar { height: 4px; background: linear-gradient(90deg, var(--orange) 0%, #ff9a00 100%); }
+
+/* Event rows */
+.events-body { padding: 0; }
+.event-row {
+  display: flex; align-items: stretch;
+  border-bottom: 1px solid var(--border); min-height: 108px;
+}
+.event-row:last-child { border-bottom: none; }
+.event-row:nth-child(odd)  { background: var(--white); }
+.event-row:nth-child(even) { background: var(--light); }
+.event-row.is-today {
+  background: #fff9f5 !important;
+  border-left: 3px solid var(--orange);
+}
+
+/* Date col */
+.ev-date {
+  width: 76px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 14px 6px; border-right: 1px solid var(--border); text-align: center;
+}
+.ev-wd   { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; }
+.ev-day  { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; line-height: 1; color: var(--orange); }
+.ev-mon  { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-top: 1px; }
+.today-badge {
+  background: var(--orange); color: #fff;
+  font-size: 0.5rem; font-weight: 700; letter-spacing: 0.08em;
+  border-radius: 4px; padding: 2px 5px; margin-top: 4px; text-transform: uppercase;
+}
+
+/* Thumbnail col — fixed 2:1 aspect, no distortion */
+.ev-thumb {
+  width: 144px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 10px; border-right: 1px solid var(--border);
+}
+.ev-thumb-box {
+  width: 122px;
+  height: 61px; /* exactly 2:1 */
+  border-radius: 8px; overflow: hidden;
+  flex-shrink: 0; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+/* Gradient fallbacks — cycling orange palette */
+.ev-thumb-box.g0 { background: linear-gradient(135deg,#ff6600,#ff9a00); }
+.ev-thumb-box.g1 { background: linear-gradient(135deg,#cc4400,#ff6600); }
+.ev-thumb-box.g2 { background: linear-gradient(135deg,#ff7700,#ffcc00); }
+.ev-thumb-box.g3 { background: linear-gradient(135deg,#e84000,#ff7b00); }
+.ev-thumb-box.g4 { background: linear-gradient(135deg,#ff6600,#ff3300); }
+.ev-thumb-box.g5 { background: linear-gradient(135deg,#ff8800,#ffbb44); }
+.ev-thumb-box img {
+  /* Cover the box exactly — no stretching, no distortion */
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+  display: block;
+}
+/* Watermark C on gradient fallback */
+.ev-thumb-box.no-img::after {
+  content: 'C'; font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem; color: rgba(255,255,255,0.22); line-height: 1;
+  user-select: none; pointer-events: none;
+}
+
+/* Info col */
+.ev-info {
+  flex: 1; min-width: 0;
+  padding: 13px 16px 13px 14px;
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+}
+.ev-type { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase; }
+.ev-name { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.25; word-break: break-word; }
+.ev-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.ev-pill {
+  display: inline-flex; align-items: flex-start; gap: 4px;
+  background: #eeeeee; border-radius: 10px; padding: 4px 9px;
+  font-size: 0.71rem; font-weight: 600; color: #555;
+  white-space: normal; word-break: break-word; line-height: 1.4;
+}
+.ev-pill svg { width: 11px; height: 11px; flex-shrink: 0; margin-top: 2px; opacity: 0.65; }
+
+/* QR col — only when URL present */
+.ev-qr {
+  width: 100px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 12px; border-left: 1px solid var(--border); gap: 5px;
+}
+.qr-box {
+  width: 68px; height: 68px; border-radius: 7px;
+  overflow: hidden; background: #fff; border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.qr-box canvas, .qr-box img { width: 64px !important; height: 64px !important; display: block; }
+.qr-lbl { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; text-align: center; }
+
+/* Card footer */
+.page-footer {
+  background: var(--black); padding: 11px 28px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.ft-l { display: flex; align-items: center; gap: 8px; }
+.ft-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
+.ft-site { font-size: 0.7rem; font-weight: 600; color: #444; letter-spacing: 0.1em; }
+.ft-page { font-size: 0.65rem; font-weight: 700; color: var(--orange); letter-spacing: 0.18em; text-transform: uppercase; }
+
+/* Loading */
+.state-box {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 80px 24px; min-height: 360px; text-align: center; gap: 14px;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid #e8e8e8; border-top-color: var(--orange);
+  border-radius: 50%; animation: spin .85s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.state-box p { font-size: 0.9rem; color: #999; font-weight: 500; }
+
+/* Generating overlay */
+.gen-overlay {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.78); backdrop-filter: blur(5px);
+  flex-direction: column; align-items: center; justify-content: center;
+}
+.gen-overlay.on { display: flex; }
+.gen-box {
+  background: #141414; border: 1px solid #272727; border-radius: 16px;
+  padding: 30px 44px; text-align: center; min-width: 240px;
+}
+.gen-spinner {
+  width: 34px; height: 34px; border: 3px solid #222; border-top-color: var(--orange);
+  border-radius: 50%; animation: spin .85s linear infinite; margin: 0 auto 14px;
+}
+.gen-lbl { font-size: 0.88rem; font-weight: 600; color: #ccc; letter-spacing: 0.05em; }
+.gen-sub { font-size: 0.7rem; color: #555; margin-top: 5px; }
+
+/* Refresh button */
+.btn-refresh {
+  background: transparent; border: 1.5px solid #2c2c2c; color: #666;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: border-color .18s, color .18s;
+  flex-shrink: 0;
+}
+.btn-refresh:hover { border-color: var(--orange); color: var(--orange); }
+.btn-refresh svg { width: 14px; height: 14px; transition: transform .3s; }
+.btn-refresh.spinning svg { animation: spin .7s linear infinite; }
+.btn-refresh:disabled { opacity: 0.4; cursor: default; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .ev-date { width: 62px; }
+  .ev-day  { font-size: 2rem; }
+  .ev-thumb { width: 110px; padding: 10px 8px; }
+  .ev-thumb-box { width: 90px; height: 45px; }
+  .ev-qr { width: 84px; padding: 9px; }
+  .qr-box { width: 58px; height: 58px; }
+  .qr-box canvas, .qr-box img { width: 54px !important; height: 54px !important; }
+  .ev-name { font-size: 0.92rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Overlay shown during export -->
+<div class="gen-overlay" id="gen-overlay">
+  <div class="gen-box">
+    <div class="gen-spinner"></div>
+    <div class="gen-lbl" id="gen-lbl">Preparing…</div>
+    <div class="gen-sub" id="gen-sub"></div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="ctrl-bar">
+  <div class="ctrl-logo">
+    <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg"
+         alt="Compass Offices">
+  </div>
+  <div class="ctrl-sep"></div>
+  <div class="ctrl-title">HK EVENTS</div>
+
+  <select class="pill" id="year-sel"></select>
+  <select class="pill" id="month-sel">
+    <option value="all">All Months</option>
+    <option value="0">January</option><option value="1">February</option>
+    <option value="2">March</option><option value="3">April</option>
+    <option value="4">May</option><option value="5">June</option>
+    <option value="6">July</option><option value="7">August</option>
+    <option value="8">September</option><option value="9">October</option>
+    <option value="10">November</option><option value="11">December</option>
+  </select>
+
+  <div class="page-nav">
+    <button class="nav-btn" id="btn-prev">&#8592;</button>
+    <span id="page-indicator">– / –</span>
+    <button class="nav-btn" id="btn-next">&#8594;</button>
+  </div>
+
+  <button class="btn-refresh" id="btn-refresh" title="Refresh data from sheet">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  </button>
 
   <div class="dl-group">
     <button class="btn-dl btn-dl-jpg" id="btn-jpg">
