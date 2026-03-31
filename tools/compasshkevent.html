@@ -208,7 +208,7 @@ const MONTHS   = ['January','February','March','April','May','June','July','Augu
 const MONTHS_S = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const WEEKDAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 const GRAD_N   = 6;
-const JPG_W    = 1080;
+const JPG_SCALE = 3;   // fixed 3× → ~2580px on a 860px card, crisp on any phone
 const PDF_W    = 210, PDF_H = 297; // A4 mm
 
 /* ─── State ─── */
@@ -277,8 +277,10 @@ async function svgToPng(svgUrl, h=80) {
 
 async function thumbToB64(url, tW, tH) {
   if (!url) return null;
-  return await new Promise(resolve => {
+  // Try with CORS first (works for publicly shared Google Drive / CDN images)
+  const tryLoad = (crossOrigin) => new Promise(resolve => {
     const img = new Image();
+    if (crossOrigin) img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
         const c = document.createElement('canvas');
@@ -287,13 +289,21 @@ async function thumbToB64(url, tW, tH) {
         const s = Math.max(tW/img.naturalWidth, tH/img.naturalHeight);
         const dw=img.naturalWidth*s, dh=img.naturalHeight*s;
         ctx.drawImage(img,(tW-dw)/2,(tH-dh)/2,dw,dh);
-        resolve(c.toDataURL('image/png'));
-      } catch(_){ resolve(null); }
+        // toDataURL throws if canvas is tainted (cross-origin without CORS header)
+        const dataUrl = c.toDataURL('image/png');
+        resolve(dataUrl);
+      } catch(_){ resolve(null); }  // canvas tainted — fall through
     };
     img.onerror = () => resolve(null);
     img.src = url;
     setTimeout(()=>resolve(null), 8000);
   });
+
+  // First attempt: with CORS (lh3 public Drive images support this)
+  const r1 = await tryLoad(true);
+  if (r1) return r1;
+  // Second attempt: without CORS (taint-safe fallback — html2canvas allowTaint will draw it)
+  return await tryLoad(false);
 }
 
 /* ─── CSV fetch ─── */
@@ -602,10 +612,19 @@ async function renderAllToCanvases(cardW, thumbMap, logoSrc, scale) {
       await attachQR(off);
       await new Promise(r => requestAnimationFrame(()=>requestAnimationFrame(r)));
       const c = await html2canvas(off, {
-        scale, useCORS:false, allowTaint:true,
-        backgroundColor:'#ffffff', logging:false,
-        width:cardW, scrollX:0, scrollY:0, imageTimeout:15000,
-        onclone: d => { d.querySelectorAll('.qr-box canvas').forEach(c=>c.style.display='block'); }
+        scale,
+        useCORS:    true,   // request images with CORS headers → untainted canvas
+        allowTaint: true,   // still draw tainted images if CORS fails (shows them, can't export pixel-perfect)
+        backgroundColor: '#ffffff', logging: false,
+        width: cardW, scrollX: 0, scrollY: 0, imageTimeout: 15000,
+        onclone: d => {
+          d.querySelectorAll('.qr-box canvas').forEach(c => c.style.display='block');
+          // Ensure thumb images are fully visible in clone
+          d.querySelectorAll('.ev-thumb-box img').forEach(img => {
+            img.style.display = 'block';
+            img.style.opacity = '1';
+          });
+        }
       });
       canvases.push(c);
     }
@@ -613,14 +632,7 @@ async function renderAllToCanvases(cardW, thumbMap, logoSrc, scale) {
   return canvases;
 }
 
-function stitch(canvases) {
-  const W=canvases[0].width, H=canvases.reduce((s,c)=>s+c.height,0);
-  const out=document.createElement('canvas'); out.width=W; out.height=H;
-  const ctx=out.getContext('2d');
-  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
-  let y=0; for(const c of canvases){ctx.drawImage(c,0,y);y+=c.height;}
-  return out;
-}
+/* stitch() removed — JPG now exports one image per page */
 
 async function deliverFile(blob, name) {
   if (navigator.share && navigator.canShare) {
@@ -638,22 +650,47 @@ async function deliverFile(blob, name) {
   setTimeout(()=>URL.revokeObjectURL(url), 10000);
 }
 
-/* ─── Download JPG ─── */
+/* ─── Download JPG — one high-res image per page, share all at once ─── */
 async function downloadJPG() {
   if (!pages.length) return;
   const [j,p] = [document.getElementById('btn-jpg'),document.getElementById('btn-pdf')];
   j.disabled=p.disabled=true;
   try {
     const {thumbMap,logoSrc} = await prefetchAssets();
-    const cardW = document.getElementById('event-page').offsetWidth;
-    const scale = Math.max(1, JPG_W/cardW);
-    const canvases = await renderAllToCanvases(cardW,thumbMap,logoSrc,scale);
-    overlay.show('Stitching…',`${canvases.length} page${canvases.length>1?'s':''}`);
-    const out = stitch(canvases);
-    const jpgBlob = await new Promise(res=>out.toBlob(res,'image/jpeg',0.94));
-    const {moName,yr} = getLabels();
-    await deliverFile(jpgBlob, `compass-hk-${moName}-${yr}.jpg`);
-  } catch(err){ console.error(err); alert('Could not generate JPG.\n'+err.message); }
+    const cardW   = document.getElementById('event-page').offsetWidth;
+    const canvases = await renderAllToCanvases(cardW, thumbMap, logoSrc, JPG_SCALE);
+
+    overlay.show('Saving images…', `${canvases.length} high-res image${canvases.length>1?'s':''}`);
+    const {moName, yr} = getLabels();
+
+    // Convert each canvas to a Blob
+    const blobs = await Promise.all(canvases.map((c, i) =>
+      new Promise(res => c.toBlob(res, 'image/jpeg', 0.95))
+        .then(blob => ({ blob, name: pages.length===1
+          ? `compass-hk-${moName}-${yr}.jpg`
+          : `compass-hk-${moName}-${yr}-p${i+1}.jpg` }))
+    ));
+
+    // Try Web Share API with all files at once (iOS/Android native share sheet)
+    if (navigator.share && navigator.canShare) {
+      const files = blobs.map(({blob, name}) => new File([blob], name, {type:'image/jpeg'}));
+      if (navigator.canShare({files})) {
+        await navigator.share({files, title:'Compass Offices – HK Events'});
+        return;
+      }
+    }
+
+    // Desktop fallback: download each file with a small delay between them
+    for (const {blob, name} of blobs) {
+      const url = URL.createObjectURL(blob);
+      const a   = Object.assign(document.createElement('a'), {href:url, download:name, style:'display:none'});
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url), 10000);
+      if (blobs.length > 1) await new Promise(r=>setTimeout(r,400)); // small gap between downloads
+    }
+  } catch(err){
+    if (err.name !== 'AbortError') { console.error(err); alert('Could not generate JPG.\n'+err.message); }
+  }
   finally { overlay.hide(); j.disabled=p.disabled=false; }
 }
 
