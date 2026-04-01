@@ -195,6 +195,43 @@ body.ss .edit-badge{display:none!important}
 .tbtn-layout { background: #1a1a1a; color: #888; border: 1px solid #2a2a2a; }
 .tbtn-layout:hover { background: #252525; color: #ccc; }
 .tbtn-layout.active { border-color: var(--orange); color: var(--orange); }
+
+/* IMAGE ADJUSTER MODAL */
+#adj-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:2000; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+#adj-modal.on { display:flex; }
+#adj-title { font-size:12px; font-weight:700; color:#aaa; letter-spacing:.1em; text-transform:uppercase; }
+#adj-box { position:relative; border-radius:10px; overflow:hidden; background:#222; cursor:grab; box-shadow:0 0 0 2px var(--orange); }
+#adj-box.dragging { cursor:grabbing; }
+#adj-img { position:absolute; background-size:auto; background-repeat:no-repeat; pointer-events:none; }
+#adj-hint { font-size:11px; color:#444; text-align:center; line-height:1.7; }
+.adj-btn-row { display:flex; gap:8px; }
+.adj-btn { padding:8px 20px; border-radius:8px; border:none; font-family:var(--nhg); font-size:12px; font-weight:700; cursor:pointer; transition:all .18s; }
+.adj-done { background:var(--orange); color:white; }
+.adj-done:hover { background:var(--orange-dk); }
+.adj-reset { background:#1e1e1e; color:#888; border:1px solid #2a2a2a; }
+.adj-reset:hover { background:#252525; color:#ccc; }
+.adj-zoom-row { display:flex; align-items:center; gap:10px; }
+.adj-zoom-label { font-size:10px; color:#555; font-weight:600; letter-spacing:.08em; white-space:nowrap; }
+#adj-zoom-slider { width:160px; accent-color:var(--orange); }
+
+/* ADJUST BUTTON in sidebar */
+.btn-adjust-img { width:100%; padding:8px; background:transparent; border:1px solid #2a2a2a; color:#888; font-family:var(--nhg); font-size:11px; font-weight:600; border-radius:7px; cursor:pointer; transition:all .18s; display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:8px; }
+.btn-adjust-img:hover { border-color:var(--orange); color:var(--orange); }
+
+/* CAT adjust button */
+.cat-adj-btn { width:100%; padding:5px; background:transparent; border:1px solid #2a2a2a; color:#555; font-family:var(--nhg); font-size:10px; font-weight:600; border-radius:6px; cursor:pointer; transition:all .18s; margin-top:4px; }
+.cat-adj-btn:hover { border-color:var(--orange); color:var(--orange); }
+
+/* TOOLBAR save/load */
+.tbtn-save { background:transparent; color:#555; border:1px solid #252525; }
+.tbtn-save:hover { background:#1a1a1a; color:#bbb; }
+
+/* ICON COLOUR PICKER */
+.icon-col-row { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+.icon-col-swatch { width:24px; height:24px; border-radius:6px; cursor:pointer; border:2px solid transparent; transition:all .15s; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(0,0,0,.15); }
+.icon-col-swatch:hover { transform:scale(1.15); }
+.icon-col-swatch.on { outline:2px solid var(--orange); outline-offset:2px; }
+.icon-col-custom { width:32px; height:24px; border:1px solid #2a2a2a; border-radius:6px; padding:1px; background:#111; cursor:pointer; flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -204,6 +241,9 @@ body.ss .edit-badge{display:none!important}
   <div class="tb-sep"></div>
   <span class="tb-hint">Click any tile to edit</span>
   <div class="tb-sp"></div>
+  <button class="tbtn tbtn-save" onclick="saveJSON()" title="Save layout as JSON">&#11015; Save JSON</button>
+  <label class="tbtn tbtn-save" title="Load saved layout" style="cursor:pointer">&#11014; Load JSON<input type="file" accept=".json" onchange="loadJSON(this)" style="display:none"></label>
+  <div class="tb-sep"></div>
   <button class="tbtn tbtn-ghost" onclick="clearSel()" id="btn-layout">&#9638; Layouts</button>
   <button class="tbtn tbtn-orange" onclick="downloadPoster()">&#8595; Download A4 PNG</button>
 </div>
@@ -366,6 +406,7 @@ const IL = {
   'home':         `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
   'sparkles':     `<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4M19 17v4M3 5h4M17 19h4"/>`,
   'heart':        `<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>`,
+  'move': `<polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>`,
   'image-placeholder': `<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>`,
   'map':          `<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/>`,
 };
@@ -401,19 +442,19 @@ const ICON_SIZES = {loc:40,office:34,teams:34,movein:28,events:34,amenity:28,cta
 /* STATE */
 const S = {
   header:  {logoVariant:'white', badge:'WORKSPACES', tagline:'Flexible. Connected. Ready.', taglineSize:11, bg:'black'},
-  loc:     {icon:'map-pin',    stat:'12', unit:'CBD',  title:'Prime Locations',           desc:'Strategically placed offices across every major business district', bg:'orange',   img:null, textColor:'auto'},
-  office:  {icon:'layers',     tag:'WORKSPACE',       title:'Flexible Serviced Office',  desc:'Scale up or down to fit your team — no long-term lock-in',          bg:'white',    img:null, textColor:'auto'},
-  teams:   {icon:'users',      tag:'HOSPITALITY',     title:'Supportive On-Site Teams',  desc:'Dedicated staff ensuring every day runs seamlessly from arrival to close', bg:'black', img:null, textColor:'auto'},
-  movein:  {icon:'check-circle',tag:'READY FROM DAY ONE',title:'Move-In Ready Workspaces',desc:'Fully furnished, wired and set up — just bring your team',         bg:'grey',     img:null, textColor:'auto'},
-  perks:   {tag:'MEMBER BENEFITS', title:'Perks & Partnerships', bg:'white', img:null, textColor:'auto', categories:[{name:'Fitness',img:null},{name:'Food & Beverage',img:null},{name:'Lifestyle',img:null}]},
-  events:  {icon:'target',     tag:'SPACES & EVENTS', title:'Events & Meeting Rooms',   desc:'State-of-the-art boardrooms, event lounges and collaboration spaces', bg:'grey',     img:null, textColor:'auto'},
-  amenity: {icon:'zap',        title:'Modern Amenities',desc:'Everything to keep you at your best', chips:['wifi','coffee','monitor','shield','clock','printer'],   bg:'black',    textColor:'auto'},
-  cta:     {icon:'send',       title:'Book a Tour',   btn:'Visit Us Today',             bg:'orange',   textColor:'auto'},
+  loc:     {icon:'map-pin',    stat:'12', unit:'CBD',  title:'Prime Locations',           desc:'Strategically placed offices across every major business district', bg:'orange',   img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#ffffff'},
+  office:  {icon:'layers',     tag:'WORKSPACE',       title:'Flexible Serviced Office',  desc:'Scale up or down to fit your team — no long-term lock-in',          bg:'white',    img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#0f0f0f'},
+  teams:   {icon:'users',      tag:'HOSPITALITY',     title:'Supportive On-Site Teams',  desc:'Dedicated staff ensuring every day runs seamlessly from arrival to close', bg:'black', img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#ffffff'},
+  movein:  {icon:'check-circle',tag:'READY FROM DAY ONE',title:'Move-In Ready Workspaces',desc:'Fully furnished, wired and set up — just bring your team',         bg:'grey',     img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#0f0f0f'},
+  perks:   {tag:'MEMBER BENEFITS', title:'Perks & Partnerships', bg:'white', img:null, textColor:'auto', categories:[{name:'Fitness',img:null,imgScale:1,imgX:0.5,imgY:0.5,imgNW:0,imgNH:0},{name:'Food & Beverage',img:null,imgScale:1,imgX:0.5,imgY:0.5,imgNW:0,imgNH:0},{name:'Lifestyle',img:null,imgScale:1,imgX:0.5,imgY:0.5,imgNW:0,imgNH:0}]},
+  events:  {icon:'target',     tag:'SPACES & EVENTS', title:'Events & Meeting Rooms',   desc:'State-of-the-art boardrooms, event lounges and collaboration spaces', bg:'grey',     img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#0f0f0f'},
+  amenity: {icon:'zap',        title:'Modern Amenities',desc:'Everything to keep you at your best', chips:['wifi','coffee','monitor','shield','clock','printer'],   bg:'black',    textColor:'auto', iconColor:'#ffffff'},
+  cta:     {icon:'send',       title:'Book a Tour',   btn:'Visit Us Today',             bg:'orange',   textColor:'auto', iconColor:'#ffffff'},
 };
 
 /* SVG HELPER */
-function svg(key, size=24, sw=1.75) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="display:block">${IL[key]||''}</svg>`;
+function svg(key, size=24, sw=1.75, color='currentColor') {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="display:block">${IL[key]||''}</svg>`;
 }
 
 /* LAYOUT THUMBNAIL */
@@ -487,15 +528,28 @@ function renderPerks() {
   if (!el) return;
   el.innerHTML = (S.perks.categories || []).map((cat, i) => {
     const hasBg = !!cat.img;
-    const bgStyle = hasBg ? `style="background-image:url('${cat.img}')"` : '';
     const empty = !hasBg ? `<div class="perk-cat-empty">${svg('image-placeholder',18,1.5)}<span>Add image</span></div>` : '';
-    return `<div class="perk-cat">
-      <div class="perk-cat-bg" ${bgStyle}></div>
+    return `<div class="perk-cat" data-cat-idx="${i}">
+      <div class="perk-cat-bg"></div>
       ${hasBg ? '<div class="perk-cat-ov"></div>' : ''}
       ${empty}
       <div class="perk-cat-name">${cat.name}</div>
     </div>`;
   }).join('');
+  // Apply image positions after DOM is ready
+  requestAnimationFrame(() => {
+    (S.perks.categories || []).forEach((cat, i) => {
+      if (!cat.img) return;
+      const catEl = el.querySelector(`[data-cat-idx="${i}"] .perk-cat-bg`);
+      if (!catEl) return;
+      const box = catEl.parentElement;
+      const bs = calcBgStyle(box.offsetWidth, box.offsetHeight, cat.imgNW, cat.imgNH, cat.imgScale, cat.imgX, cat.imgY);
+      catEl.style.backgroundImage = `url('${cat.img}')`;
+      catEl.style.backgroundSize = bs.size;
+      catEl.style.backgroundPosition = bs.pos;
+      catEl.style.backgroundRepeat = 'no-repeat';
+    });
+  });
 }
 
 function renderPerkCatsSidebar() {
@@ -503,6 +557,7 @@ function renderPerkCatsSidebar() {
     const hasImg = !!cat.img;
     const imgZone = hasImg
       ? `<div class="cat-img-zone filled"><img class="cat-img-prev" src="${cat.img}"></div>
+         <button class="cat-adj-btn" onclick="openAdj('perks',${i})">&#10021; Adjust position & zoom</button>
          <span class="cat-img-clear" onclick="clearCatImg(${i})">&#215; Remove image</span>`
       : `<div class="cat-img-zone" onclick="document.getElementById('catf-${i}').click()">
            <input type="file" id="catf-${i}" accept="image/*" style="display:none" onchange="handleCatImg(${i},this)">
@@ -532,10 +587,7 @@ function renderAmenityRow() {
 function init() {
   renderHeaderLogo();
   applyLayout(0);
-  Object.entries(ICON_SIZES).forEach(([id, sz]) => {
-    const el = document.getElementById(`${id}-icon`);
-    if (el) el.innerHTML = svg(S[id].icon, sz);
-  });
+  Object.entries(ICON_SIZES).forEach(([id]) => renderTileIcon(id));
   renderPerks();
   renderAmenityRow();
   // Show layout picker by default
@@ -598,7 +650,7 @@ function buildSidebar(id) {
     h = ipick(S.loc.icon,'loc') + sdiv() +
     `<div class="fg"><label class="fl">Stat Number & Unit</label><div class="frow"><input class="fi" id="f-stat" value="${esc(S.loc.stat)}" style="width:70px;flex:none"><input class="fi" id="f-unit" value="${esc(S.loc.unit)}" placeholder="unit"></div></div>` +
     fld('Title','f-title',S.loc.title) + fld('Description','f-desc',S.loc.desc,true) + sdiv() +
-    bgp(S.loc.bg,'loc') + tcol('loc') + imgup('loc',S.loc.img) + apply('applyLoc()');
+    bgp(S.loc.bg,'loc') + iconColorPicker('loc') + tcol('loc') + imgup('loc',S.loc.img) + apply('applyLoc()');
 
   } else if (id === 'perks') {
     h = fld('Tag Label','f-tag',S.perks.tag) + fld('Title','f-title',S.perks.title) + sdiv() +
@@ -612,23 +664,42 @@ function buildSidebar(id) {
     h = ipick(S.amenity.icon,'amenity') + sdiv() +
     fld('Title','f-title',S.amenity.title) + fld('Description','f-desc',S.amenity.desc,true) + sdiv() +
     `<div class="fg"><label class="fl">Amenity Chips</label><div class="am-picker">${APOOL.map(([k,lb])=>`<div class="am-btn ${S.amenity.chips.includes(k)?'on':''}" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${lb}</span></div>`).join('')}</div></div>` + sdiv() +
-    bgp(S.amenity.bg,'amenity') + tcol('amenity') + apply('applyAmenity()');
+    bgp(S.amenity.bg,'amenity') + iconColorPicker('amenity') + tcol('amenity') + apply('applyAmenity()');
 
   } else if (id === 'cta') {
     h = ipick(S.cta.icon,'cta') + sdiv() +
     fld('Title','f-title',S.cta.title) + fld('Button Text','f-btn',S.cta.btn) + sdiv() +
-    bgp(S.cta.bg,'cta') + tcol('cta') + apply('applyCta()');
+    bgp(S.cta.bg,'cta') + iconColorPicker('cta') + tcol('cta') + apply('applyCta()');
 
   } else {
     const s = S[id];
     h = ipick(s.icon,id) + sdiv() +
     (s.tag!==undefined ? fld('Tag Label','f-tag',s.tag) : '') +
     fld('Title','f-title',s.title) + fld('Description','f-desc',s.desc,true) + sdiv() +
-    bgp(s.bg,id) + tcol(id) + imgup(id,s.img) + apply(`applyGeneric('${id}')`);
+    bgp(s.bg,id) + iconColorPicker(id) + tcol(id) + imgup(id,s.img) + apply(`applyGeneric('${id}')`);
   }
   sb.innerHTML = h;
 }
 
+
+function iconColorPicker(tid) {
+  const cur = (S[tid] && S[tid].iconColor) || 'currentColor';
+  const presets = [{c:'#ffffff',l:'White'}, {c:'#0f0f0f',l:'Black'}, {c:'#ff6600',l:'Orange'}, {c:'#888888',l:'Grey'}, {c:'#f0f0f0',l:'Light'}, {c:'#ffcc00',l:'Yellow'}, {c:'#44aaff',l:'Blue'}, {c:'#44dd88',l:'Green'}, {c:'#ff4466',l:'Red'}];
+  const swatches = presets.map(p => {
+    const active = cur === p.c ? 'on' : '';
+    const border = p.c === '#ffffff' ? '#444' : 'transparent';
+    return '<div class="icon-col-swatch ' + active + '" data-tid="' + tid + '" data-color="' + p.c + '"'
+      + ' style="background:' + p.c + ';border-color:' + border + '"'
+      + ' onclick="setIconColor(\'' + tid + '\',\'' + p.c + '\')" title="' + p.l + '"></div>';
+  }).join('');
+  const customVal = (cur === 'currentColor') ? '#ffffff' : cur;
+  return '<div class="fg"><label class="fl">Icon Colour</label>'
+    + '<div class="icon-col-row">'
+    + swatches
+    + '<input class="icon-col-custom" type="color" id="icon-col-custom-' + tid + '"'
+    + ' value="' + customVal + '" oninput="setIconColor(\'' + tid + '\',this.value)" title="Custom colour">'
+    + '</div></div>';
+}
 /* FIELD HELPERS */
 function fld(label,id,val,multi=false) {
   if (multi) return `<div class="fg"><label class="fl">${label}</label><textarea class="fi" rows="3" id="${id}">${val}</textarea></div>`;
@@ -653,7 +724,11 @@ function tcol(tid) {
   </div></div>`;
 }
 function imgup(tid, imgData) {
-  if (imgData) return `<div class="fg"><label class="fl">Background Image</label><div class="up-zone filled"><img class="up-prev" src="${imgData}"></div><span class="up-clear" onclick="clearImg('${tid}')">&#215; Remove image</span></div>`;
+  if (imgData) return `<div class="fg"><label class="fl">Background Image</label>
+    <div class="up-zone filled"><img class="up-prev" src="${imgData}"></div>
+    <button class="btn-adjust-img" onclick="openAdj('${tid}',null)">${svg('move',13,2)} Adjust Position & Zoom</button>
+    <span class="up-clear" onclick="clearImg('${tid}')">&#215; Remove image</span>
+  </div>`;
   return `<div class="fg"><label class="fl">Background Image</label><div class="up-zone" onclick="document.getElementById('upf-${tid}').click()"><input type="file" id="upf-${tid}" accept="image/*" style="display:none" onchange="handleImg('${tid}',this)">${svg('laptop',14)} Click to upload</div></div>`;
 }
 
@@ -662,8 +737,23 @@ function setIcon(tid, key, el) {
   S[tid].icon = key;
   el.closest('.icon-grid').querySelectorAll('.ig-btn').forEach(b => b.classList.remove('on'));
   el.classList.add('on');
+  renderTileIcon(tid);
+}
+function renderTileIcon(tid) {
+  const s = S[tid];
   const iconEl = document.getElementById(`${tid}-icon`);
-  if (iconEl) iconEl.innerHTML = svg(key, ICON_SIZES[tid]||30);
+  if (iconEl) iconEl.innerHTML = svg(s.icon, ICON_SIZES[tid]||30, 1.75, s.iconColor||'currentColor');
+}
+function setIconColor(tid, color) {
+  S[tid].iconColor = color;
+  renderTileIcon(tid);
+  // Update swatch active state
+  document.querySelectorAll(`.icon-col-swatch[data-tid="${tid}"]`).forEach(s => {
+    s.classList.toggle('on', s.dataset.color === color);
+  });
+  // Update custom color input if present
+  const inp = document.getElementById(`icon-col-custom-${tid}`);
+  if (inp) inp.value = color;
 }
 function setChipIcon(key, el) {
   S.perks.chipIcon = key;
@@ -705,20 +795,61 @@ function liveTaglineSize(val) {
 function handleImg(tid, input) {
   const f = input.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = e => { S[tid].img = e.target.result; setImg(tid, e.target.result); buildSidebar(tid); };
+  r.onload = e => {
+    const data = e.target.result;
+    const img = new Image();
+    img.onload = () => {
+      S[tid].img = data; S[tid].imgNW = img.naturalWidth; S[tid].imgNH = img.naturalHeight;
+      S[tid].imgScale = 1; S[tid].imgX = 0.5; S[tid].imgY = 0.5;
+      setImg(tid); buildSidebar(tid);
+    };
+    img.src = data;
+  };
   r.readAsDataURL(f);
 }
-function clearImg(tid) { S[tid].img = null; setImg(tid, null); buildSidebar(tid); }
-function setImg(tid, d) {
+function clearImg(tid) {
+  S[tid].img = null; S[tid].imgScale = 1; S[tid].imgX = 0.5; S[tid].imgY = 0.5;
+  setImg(tid); buildSidebar(tid);
+}
+function calcBgStyle(elW, elH, nW, nH, scale, posX, posY) {
+  if (!nW || !nH) return {size:'cover', pos:'center'};
+  const minScale = Math.max(elW/nW, elH/nH);
+  const s = minScale * Math.max(1, scale);
+  const rW = nW * s, rH = nH * s;
+  const overX = Math.max(0, rW - elW), overY = Math.max(0, rH - elH);
+  const bgX = -(overX * posX), bgY = -(overY * posY);
+  return {size: `${rW.toFixed(1)}px ${rH.toFixed(1)}px`, pos: `${bgX.toFixed(1)}px ${bgY.toFixed(1)}px`};
+}
+
+function setImg(tid) {
+  const s = S[tid];
   const t = document.querySelector(`[data-tile="${tid}"]`);
+  if (!t) return;
   t.querySelector('.t-img')?.remove();
   t.querySelector('.t-ov')?.remove();
-  if (!d) return;
-  const bg = Object.assign(document.createElement('div'), {className:'t-img'});
-  bg.style.backgroundImage = `url('${d}')`;
-  const ov = Object.assign(document.createElement('div'), {className:'t-ov'});
+  if (!s.img) return;
+  const bg = document.createElement('div');
+  bg.className = 't-img';
+  const bs = calcBgStyle(t.offsetWidth, t.offsetHeight, s.imgNW, s.imgNH, s.imgScale, s.imgX, s.imgY);
+  bg.style.backgroundImage = `url('${s.img}')`;
+  bg.style.backgroundSize = bs.size;
+  bg.style.backgroundPosition = bs.pos;
+  bg.style.backgroundRepeat = 'no-repeat';
+  const ov = document.createElement('div');
+  ov.className = 't-ov';
   t.insertBefore(ov, t.firstChild);
   t.insertBefore(bg, t.firstChild);
+}
+
+function refreshImgPos(tid) {
+  const s = S[tid];
+  const t = document.querySelector(`[data-tile="${tid}"]`);
+  if (!t || !s.img) return;
+  const bg = t.querySelector('.t-img');
+  if (!bg) return;
+  const bs = calcBgStyle(t.offsetWidth, t.offsetHeight, s.imgNW, s.imgNH, s.imgScale, s.imgX, s.imgY);
+  bg.style.backgroundSize = bs.size;
+  bg.style.backgroundPosition = bs.pos;
 }
 function toggleAmenity(k, el) {
   const arr = S.amenity.chips;
@@ -734,10 +865,24 @@ function addCat() { S.perks.categories.push({name:'New Category',img:null}); ren
 function handleCatImg(i, input) {
   const f = input.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = e => { S.perks.categories[i].img = e.target.result; renderPerks(); buildSidebar('perks'); };
+  r.onload = e => {
+    const data = e.target.result;
+    const img = new Image();
+    img.onload = () => {
+      const c = S.perks.categories[i];
+      c.img = data; c.imgNW = img.naturalWidth; c.imgNH = img.naturalHeight;
+      c.imgScale = 1; c.imgX = 0.5; c.imgY = 0.5;
+      renderPerks(); buildSidebar('perks');
+    };
+    img.src = data;
+  };
   r.readAsDataURL(f);
 }
-function clearCatImg(i) { S.perks.categories[i].img = null; renderPerks(); buildSidebar('perks'); }
+function clearCatImg(i) {
+  const c = S.perks.categories[i];
+  c.img = null; c.imgScale = 1; c.imgX = 0.5; c.imgY = 0.5;
+  renderPerks(); buildSidebar('perks');
+}
 
 /* APPLY FUNCTIONS */
 function applyHeader() {
@@ -780,6 +925,258 @@ function v(id)        { const e=ge(id); return e?e.value.trim():''; }
 function ge(id)       { return document.getElementById(id); }
 function setText(id,t){ const e=ge(id); if(e) e.textContent=t; }
 
+
+/* ══════════════════════
+   IMAGE ADJUSTER
+══════════════════════ */
+let adjCtx = null; // {tid, catIdx, boxW, boxH}
+let adjDrag = null; // {startX, startY, startPosX, startPosY}
+
+function openAdj(tid, catIdx) {
+  const s = catIdx !== null ? S.perks.categories[catIdx] : S[tid];
+  if (!s || !s.img) return;
+  adjCtx = {tid, catIdx};
+
+  // Determine box aspect ratio from the actual tile element
+  let refEl;
+  if (catIdx !== null) {
+    const cats = document.querySelectorAll('.perk-cat');
+    refEl = cats[catIdx];
+  } else {
+    refEl = document.querySelector(`[data-tile="${tid}"]`);
+  }
+  const aspect = refEl ? (refEl.offsetWidth / Math.max(1, refEl.offsetHeight)) : 1;
+
+  // Size preview box
+  const maxH = Math.min(420, window.innerHeight * 0.55);
+  const boxH = maxH, boxW = Math.round(boxH * aspect);
+  adjCtx.boxW = boxW; adjCtx.boxH = boxH;
+  adjCtx.nW = s.imgNW; adjCtx.nH = s.imgNH;
+
+  const box = document.getElementById('adj-box');
+  box.style.width = boxW + 'px'; box.style.height = boxH + 'px';
+
+  const img = document.getElementById('adj-img');
+  img.style.inset = '0';
+  img.style.width = '100%'; img.style.height = '100%';
+  img.style.backgroundImage = `url('${s.img}')`;
+  img.style.backgroundRepeat = 'no-repeat';
+
+  adjCtx.scale = s.imgScale || 1;
+  adjCtx.posX  = s.imgX !== undefined ? s.imgX : 0.5;
+  adjCtx.posY  = s.imgY !== undefined ? s.imgY : 0.5;
+
+  adjApply();
+  document.getElementById('adj-modal').classList.add('on');
+  document.getElementById('adj-zoom-slider').value = Math.round(adjCtx.scale * 100);
+  document.getElementById('adj-zoom-pct').textContent = Math.round(adjCtx.scale * 100) + '%';
+
+  // Events
+  box.addEventListener('mousedown',  adjMouseDown);
+  box.addEventListener('wheel',      adjWheel, {passive:false});
+  box.addEventListener('touchstart', adjTouchStart, {passive:false});
+  box.addEventListener('touchmove',  adjTouchMove, {passive:false});
+  box.addEventListener('touchend',   adjTouchEnd);
+}
+
+function adjApply() {
+  if (!adjCtx) return;
+  const {boxW, boxH, nW, nH} = adjCtx;
+  const bs = calcBgStyle(boxW, boxH, nW, nH, adjCtx.scale, adjCtx.posX, adjCtx.posY);
+  const img = document.getElementById('adj-img');
+  img.style.backgroundSize     = bs.size;
+  img.style.backgroundPosition = bs.pos;
+  // Show actual scale % (relative to cover)
+  const minS = Math.max(boxW / Math.max(1,nW), boxH / Math.max(1,nH));
+  const actualScale = minS * adjCtx.scale;
+  const coverPct = Math.round(adjCtx.scale * 100);
+  document.getElementById('adj-zoom-pct').textContent = coverPct + '%';
+  document.getElementById('adj-zoom-slider').value = Math.min(300, coverPct);
+}
+
+function adjMouseDown(e) {
+  e.preventDefault();
+  adjDrag = {startX: e.clientX, startY: e.clientY, startPX: adjCtx.posX, startPY: adjCtx.posY};
+  document.getElementById('adj-box').classList.add('dragging');
+  document.addEventListener('mousemove', adjMouseMove);
+  document.addEventListener('mouseup', adjMouseUp);
+}
+function adjMouseMove(e) {
+  if (!adjDrag) return;
+  adjMoveBy(e.clientX - adjDrag.startX, e.clientY - adjDrag.startY, adjDrag.startPX, adjDrag.startPY);
+}
+function adjMouseUp() {
+  adjDrag = null;
+  document.getElementById('adj-box').classList.remove('dragging');
+  document.removeEventListener('mousemove', adjMouseMove);
+  document.removeEventListener('mouseup', adjMouseUp);
+}
+
+let adjLastPinchDist = null;
+function adjTouchStart(e) {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    adjDrag = {startX:e.touches[0].clientX, startY:e.touches[0].clientY, startPX:adjCtx.posX, startPY:adjCtx.posY};
+  } else if (e.touches.length === 2) {
+    adjLastPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    adjDrag = null;
+  }
+}
+function adjTouchMove(e) {
+  e.preventDefault();
+  if (e.touches.length === 1 && adjDrag) {
+    adjMoveBy(e.touches[0].clientX - adjDrag.startX, e.touches[0].clientY - adjDrag.startY, adjDrag.startPX, adjDrag.startPY);
+  } else if (e.touches.length === 2 && adjLastPinchDist) {
+    const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    const delta = (dist - adjLastPinchDist) / adjCtx.boxH;
+    adjCtx.scale = Math.max(1, adjCtx.scale + delta * 1.5);
+    adjLastPinchDist = dist;
+    adjClampPos();
+    adjApply();
+  }
+}
+function adjTouchEnd() { adjDrag = null; adjLastPinchDist = null; }
+
+function adjMoveBy(dx, dy, startPX, startPY) {
+  const {boxW, boxH, nW, nH} = adjCtx;
+  const minS = Math.max(boxW / Math.max(1,nW), boxH / Math.max(1,nH));
+  const s = minS * adjCtx.scale;
+  const overX = Math.max(0.001, nW * s - boxW), overY = Math.max(0.001, nH * s - boxH);
+  // moving mouse right = shifting image right = decreasing posX (showing more right side)
+  adjCtx.posX = Math.max(0, Math.min(1, startPX - dx / overX));
+  adjCtx.posY = Math.max(0, Math.min(1, startPY - dy / overY));
+  adjApply();
+}
+
+function adjWheel(e) {
+  e.preventDefault();
+  const delta = -e.deltaY / 500;
+  adjCtx.scale = Math.max(1, adjCtx.scale + delta);
+  adjClampPos();
+  adjApply();
+}
+
+function adjZoomFromSlider(val) {
+  adjCtx.scale = Math.max(1, parseInt(val) / 100);
+  adjClampPos();
+  adjApply();
+}
+
+function adjClampPos() {
+  adjCtx.posX = Math.max(0, Math.min(1, adjCtx.posX));
+  adjCtx.posY = Math.max(0, Math.min(1, adjCtx.posY));
+}
+
+function adjReset() {
+  adjCtx.scale = 1; adjCtx.posX = 0.5; adjCtx.posY = 0.5;
+  adjApply();
+}
+
+function adjDone() {
+  if (!adjCtx) return;
+  const {tid, catIdx} = adjCtx;
+  const s = catIdx !== null ? S.perks.categories[catIdx] : S[tid];
+  s.imgScale = adjCtx.scale; s.imgX = adjCtx.posX; s.imgY = adjCtx.posY;
+  // Apply to poster
+  if (catIdx !== null) {
+    const cats = document.querySelectorAll('.perk-cat');
+    const catEl = cats[catIdx]?.querySelector('.perk-cat-bg');
+    if (catEl) {
+      const box = catEl.parentElement;
+      const bs = calcBgStyle(box.offsetWidth, box.offsetHeight, s.imgNW, s.imgNH, s.imgScale, s.imgX, s.imgY);
+      catEl.style.backgroundImage = `url('${s.img}')`;
+      catEl.style.backgroundSize = bs.size;
+      catEl.style.backgroundPosition = bs.pos;
+    }
+  } else {
+    refreshImgPos(tid);
+  }
+  // Clean up events
+  const box = document.getElementById('adj-box');
+  box.removeEventListener('mousedown', adjMouseDown);
+  box.removeEventListener('wheel', adjWheel);
+  box.removeEventListener('touchstart', adjTouchStart);
+  box.removeEventListener('touchmove', adjTouchMove);
+  box.removeEventListener('touchend', adjTouchEnd);
+  document.getElementById('adj-modal').classList.remove('on');
+  adjCtx = null;
+}
+
+/* ══════════════════════
+   SAVE / LOAD JSON
+══════════════════════ */
+function saveJSON() {
+  const data = { version: 1, layout: curLayout, state: S };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'compass-poster-layout.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function loadJSON(input) {
+  const f = input.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.state) throw new Error('Invalid file');
+      // Restore state
+      Object.keys(data.state).forEach(k => { if (S[k] !== undefined) Object.assign(S[k], data.state[k]); });
+      // Restore layout
+      if (typeof data.layout === 'number') applyLayout(data.layout);
+      // Re-render everything
+      renderHeaderLogo();
+      setText('h-badge-text', S.header.badge);
+      const tEl = document.getElementById('h-tag-text');
+      if (tEl) { tEl.textContent = S.header.tagline; tEl.style.fontSize = (S.header.taglineSize||11)+'px'; }
+      setBgClass('header', S.header.bg);
+      const tileIds = ['loc','office','teams','movein','events','amenity','cta'];
+      tileIds.forEach(tid => {
+        const s = S[tid];
+        setBgClass(tid, s.bg);
+        const tile = document.querySelector(`[data-tile="${tid}"]`);
+        if (tile) { tile.classList.remove('tl-light','tl-dark'); if (s.textColor==='light') tile.classList.add('tl-light'); if (s.textColor==='dark') tile.classList.add('tl-dark'); }
+        if (s.icon) renderTileIcon(tid);
+        if (s.tag !== undefined) setText(`${tid}-tag`, s.tag);
+        if (s.title)  setText(`${tid}-title`, s.title);
+        if (s.desc)   setText(`${tid}-desc`,  s.desc);
+        if (tid === 'loc') {
+          const el = document.getElementById('loc-stat-el');
+          if (el) el.innerHTML = `${s.stat}<span class="t-unit"> ${s.unit}</span>`;
+        }
+        if (s.img) setImg(tid); else { const t=document.querySelector(`[data-tile="${tid}"]`); t?.querySelector('.t-img')?.remove(); t?.querySelector('.t-ov')?.remove(); }
+      });
+      // CTA
+      setText('cta-title', S.cta.title); setText('cta-btn-text', S.cta.btn);
+      const ctaTile = document.querySelector('[data-tile="cta"]');
+      if (ctaTile) { ctaTile.classList.remove('tl-light','tl-dark'); if (S.cta.textColor==='light') ctaTile.classList.add('tl-light'); }
+      setBgClass('cta', S.cta.bg);
+      renderTileIcon('cta');
+      // Perks
+      setText('perks-tag', S.perks.tag); setText('perks-title', S.perks.title);
+      setBgClass('perks', S.perks.bg);
+      renderPerks();
+      // Amenity
+      setText('amenity-title', S.amenity.title); setText('amenity-desc', S.amenity.desc);
+      renderTileIcon('amenity');
+      setBgClass('amenity', S.amenity.bg);
+      renderAmenityRow();
+      clearSel();
+      input.value = '';
+    } catch(err) { alert('Could not load file: ' + err.message); }
+  };
+  r.readAsText(f);
+}
+
+function setBgClass(tid, key) {
+  const tile = document.querySelector(`[data-tile="${tid}"]`);
+  if (!tile) return;
+  ['bg-white','bg-grey','bg-black','bg-orange','bg-darkgrey'].forEach(c => tile.classList.remove(c));
+  tile.classList.add(`bg-${key}`);
+}
+
 /* DOWNLOAD */
 async function downloadPoster() {
   const ov = document.getElementById('dl-ov');
@@ -796,15 +1193,14 @@ async function downloadPoster() {
       onclone: (doc, el) => {
         el.querySelectorAll('.edit-badge').forEach(e => e.style.display='none');
         el.querySelectorAll('.tile').forEach(t => t.style.outline='none');
-        const origBgs = poster.querySelectorAll('.t-img');
-        const cloneBgs = el.querySelectorAll('.t-img');
-        origBgs.forEach((orig, i) => {
-          if (cloneBgs[i]) {
-            cloneBgs[i].style.cssText = orig.style.cssText;
-            cloneBgs[i].style.backgroundSize = 'cover';
-            cloneBgs[i].style.backgroundPosition = 'center';
-          }
-        });
+        // Copy computed bg styles from live tiles to cloned tiles
+        const copyBg = (origSel, cloneSel) => {
+          const orig = poster.querySelectorAll(origSel);
+          const clon = el.querySelectorAll(cloneSel);
+          orig.forEach((o, i) => { if (clon[i]) { clon[i].style.backgroundImage = o.style.backgroundImage; clon[i].style.backgroundSize = o.style.backgroundSize; clon[i].style.backgroundPosition = o.style.backgroundPosition; clon[i].style.backgroundRepeat = 'no-repeat'; } });
+        };
+        copyBg('.t-img', '.t-img');
+        copyBg('.perk-cat-bg', '.perk-cat-bg');
       }
     });
     const a = document.createElement('a');
@@ -816,5 +1212,23 @@ async function downloadPoster() {
   ov.classList.remove('on');
 }
 </script>
+
+<!-- IMAGE ADJUSTER MODAL -->
+<div id="adj-modal">
+  <div id="adj-title">Adjust Image Position &amp; Zoom</div>
+  <div id="adj-box">
+    <div id="adj-img"></div>
+  </div>
+  <div class="adj-zoom-row">
+    <span class="adj-zoom-label">Zoom</span>
+    <input type="range" id="adj-zoom-slider" min="100" max="300" value="100" oninput="adjZoomFromSlider(this.value)">
+    <span class="adj-zoom-label" id="adj-zoom-pct">100%</span>
+  </div>
+  <div id="adj-hint">Drag to reposition &nbsp;·&nbsp; Scroll or slider to zoom in</div>
+  <div class="adj-btn-row">
+    <button class="adj-btn adj-reset" onclick="adjReset()">Reset</button>
+    <button class="adj-btn adj-done" onclick="adjDone()">Done</button>
+  </div>
+</div>
 </body>
 </html>
