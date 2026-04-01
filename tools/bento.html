@@ -6,6 +6,7 @@
 <title>Compass Offices — Poster Editor</title>
 <link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -232,6 +233,58 @@ body.ss .edit-badge{display:none!important}
 .icon-col-swatch:hover { transform:scale(1.15); }
 .icon-col-swatch.on { outline:2px solid var(--orange); outline-offset:2px; }
 .icon-col-custom { width:32px; height:24px; border:1px solid #2a2a2a; border-radius:6px; padding:1px; background:#111; cursor:pointer; flex-shrink:0; }
+
+/* IMAGE SOURCE TABS */
+.img-src-tabs { display:flex; gap:0; margin-bottom:8px; border-radius:7px; overflow:hidden; border:1px solid #1e1e1e; }
+.img-src-tab  { flex:1; padding:6px 4px; background:#111; color:#444; font-family:var(--nhg); font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; border:none; cursor:pointer; transition:all .15s; text-align:center; }
+.img-src-tab:first-child { border-right:1px solid #1e1e1e; }
+.img-src-tab.on  { background:#1e1e1e; color:#ccc; }
+.img-src-tab:hover:not(.on) { color:#888; }
+
+/* URL INPUT */
+.img-url-row { display:flex; gap:6px; }
+.img-url-inp { flex:1; background:#111; border:1px solid #1e1e1e; border-radius:7px; padding:8px 11px; color:#ddd; font-family:var(--nhg); font-size:11px; outline:none; transition:border-color .18s; min-width:0; }
+.img-url-inp:focus { border-color:var(--orange); }
+.img-url-inp::placeholder { color:#333; }
+.img-url-btn { background:var(--orange); border:none; border-radius:7px; padding:8px 12px; color:white; font-family:var(--nhg); font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; transition:background .15s; flex-shrink:0; }
+.img-url-btn:hover { background:var(--orange-dk); }
+.img-url-err { font-size:10px; color:#cc4444; margin-top:4px; display:none; }
+.img-url-err.on { display:block; }
+
+/* Desc line breaks */
+.t-desc { white-space: pre-line; }
+
+/* QR CODE IN CTA TILE */
+.cta-qr-wrap { display:none; margin:8px auto 4px; }
+.cta-qr-wrap.on { display:block; }
+.cta-qr-container { position:relative; display:inline-block; border-radius:10px; overflow:hidden; background:#fff; }
+.cta-qr-img { display:block; border-radius:10px; }
+.cta-qr-logo-badge {
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  background:#fff; border-radius:6px; padding:4px;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 0 2px rgba(255,255,255,.9);
+  pointer-events:none;
+}
+
+/* QR sidebar toggle */
+.qr-toggle-row { display:flex; align-items:center; justify-content:space-between; }
+.qr-toggle-label { font-size:9px; font-weight:700; color:#444; letter-spacing:.12em; text-transform:uppercase; }
+.qr-toggle { position:relative; width:36px; height:20px; cursor:pointer; }
+.qr-toggle input { opacity:0; width:0; height:0; }
+.qr-toggle-track { position:absolute; inset:0; background:#1e1e1e; border-radius:20px; border:1px solid #2a2a2a; transition:all .2s; }
+.qr-toggle input:checked + .qr-toggle-track { background:var(--orange); border-color:var(--orange); }
+.qr-toggle-thumb { position:absolute; top:2px; left:2px; width:14px; height:14px; background:#444; border-radius:50%; transition:all .2s; }
+.qr-toggle input:checked ~ .qr-toggle-thumb { left:18px; background:#fff; }
+
+/* QR loading */
+.qr-loading { font-size:10px; color:#555; text-align:center; padding:8px 0; }
+
+/* CTA tile layout when QR active */
+.t-cta.qr-mode { justify-content:center; }
+.t-cta.qr-mode .t-iconbox { display:none; }
+.t-cta.qr-mode .cta-pill { margin-top:4px; }
 </style>
 </head>
 <body>
@@ -335,6 +388,12 @@ body.ss .edit-badge{display:none!important}
     <div class="t-cnt" style="text-align:center">
       <div class="t-iconbox cw" id="cta-icon" style="justify-content:center"></div>
       <div class="t-title sm cw" id="cta-title">Book a Tour</div>
+      <div class="cta-qr-wrap" id="cta-qr-wrap">
+        <div class="cta-qr-container" id="cta-qr-container">
+          <img class="cta-qr-img" id="cta-qr-img" src="" alt="QR Code">
+          <div class="cta-qr-logo-badge" id="cta-qr-logo"></div>
+        </div>
+      </div>
       <span class="cta-pill" id="cta-btn-text">Visit Us Today</span>
     </div>
   </div>
@@ -448,8 +507,8 @@ const S = {
   movein:  {icon:'check-circle',tag:'READY FROM DAY ONE',title:'Move-In Ready Workspaces',desc:'Fully furnished, wired and set up — just bring your team',         bg:'grey',     img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#0f0f0f'},
   perks:   {tag:'MEMBER BENEFITS', title:'Perks & Partnerships', bg:'white', img:null, textColor:'auto', categories:[{name:'Fitness',img:null,imgScale:1,imgX:0.5,imgY:0.5,imgNW:0,imgNH:0},{name:'Food & Beverage',img:null,imgScale:1,imgX:0.5,imgY:0.5,imgNW:0,imgNH:0},{name:'Lifestyle',img:null,imgScale:1,imgX:0.5,imgY:0.5,imgNW:0,imgNH:0}]},
   events:  {icon:'target',     tag:'SPACES & EVENTS', title:'Events & Meeting Rooms',   desc:'State-of-the-art boardrooms, event lounges and collaboration spaces', bg:'grey',     img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#0f0f0f'},
-  amenity: {icon:'zap',        title:'Modern Amenities',desc:'Everything to keep you at your best', chips:['wifi','coffee','monitor','shield','clock','printer'],   bg:'black',    textColor:'auto', iconColor:'#ffffff'},
-  cta:     {icon:'send',       title:'Book a Tour',   btn:'Visit Us Today',             bg:'orange',   textColor:'auto', iconColor:'#ffffff'},
+  amenity: {icon:'zap',        title:'Modern Amenities',desc:'Everything to keep you at your best', chips:['wifi','coffee','monitor','shield','clock','printer'],   bg:'black',    img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#ffffff'},
+  cta:     {icon:'send',       title:'Book a Tour',   btn:'Visit Us Today',             bg:'orange',   img:null, imgScale:1, imgX:0.5, imgY:0.5, imgNW:0, imgNH:0, textColor:'auto', iconColor:'#ffffff', showQR:false, qrUrl:'https://compassoffices.com', qrData:null},
 };
 
 /* SVG HELPER */
@@ -536,18 +595,30 @@ function renderPerks() {
       <div class="perk-cat-name">${cat.name}</div>
     </div>`;
   }).join('');
-  // Apply image positions after DOM is ready
+  // Apply image positions after DOM is ready, measuring dims if needed
   requestAnimationFrame(() => {
-    (S.perks.categories || []).forEach((cat, i) => {
-      if (!cat.img) return;
-      const catEl = el.querySelector(`[data-cat-idx="${i}"] .perk-cat-bg`);
-      if (!catEl) return;
-      const box = catEl.parentElement;
-      const bs = calcBgStyle(box.offsetWidth, box.offsetHeight, cat.imgNW, cat.imgNH, cat.imgScale, cat.imgX, cat.imgY);
-      catEl.style.backgroundImage = `url('${cat.img}')`;
-      catEl.style.backgroundSize = bs.size;
-      catEl.style.backgroundPosition = bs.pos;
-      catEl.style.backgroundRepeat = 'no-repeat';
+    const applyAllCats = () => {
+      (S.perks.categories || []).forEach((cat, i) => {
+        if (!cat.img) return;
+        const catEl = el.querySelector('[data-cat-idx="' + i + '"] .perk-cat-bg');
+        if (!catEl) return;
+        const box = catEl.parentElement;
+        const bs = calcBgStyle(box.offsetWidth, box.offsetHeight, cat.imgNW, cat.imgNH, cat.imgScale, cat.imgX, cat.imgY);
+        catEl.style.backgroundImage  = "url('" + cat.img + "')";
+        catEl.style.backgroundSize     = bs.size;
+        catEl.style.backgroundPosition = bs.pos;
+        catEl.style.backgroundRepeat   = 'no-repeat';
+      });
+    };
+    // Measure any cats with unknown dims first
+    const pending = (S.perks.categories || []).filter(c => c.img && (!c.imgNW || !c.imgNH));
+    if (pending.length === 0) { applyAllCats(); return; }
+    let done = 0;
+    pending.forEach(cat => {
+      const img = new Image();
+      img.onload = () => { cat.imgNW = img.naturalWidth; cat.imgNH = img.naturalHeight; if (++done === pending.length) applyAllCats(); };
+      img.onerror = () => { if (++done === pending.length) applyAllCats(); };
+      img.src = cat.img;
     });
   });
 }
@@ -555,14 +626,26 @@ function renderPerks() {
 function renderPerkCatsSidebar() {
   return (S.perks.categories || []).map((cat, i) => {
     const hasImg = !!cat.img;
-    const imgZone = hasImg
-      ? `<div class="cat-img-zone filled"><img class="cat-img-prev" src="${cat.img}"></div>
-         <button class="cat-adj-btn" onclick="openAdj('perks',${i})">&#10021; Adjust position & zoom</button>
-         <span class="cat-img-clear" onclick="clearCatImg(${i})">&#215; Remove image</span>`
-      : `<div class="cat-img-zone" onclick="document.getElementById('catf-${i}').click()">
+    const catTab = window._catTab && window._catTab[i] ? window._catTab[i] : 'file';
+    const catTabBar = `<div class="img-src-tabs" style="margin-bottom:6px">
+      <button class="img-src-tab ${catTab==='file'?'on':''}" onclick="setCatTab(${i},'file')">&#8679; Upload</button>
+      <button class="img-src-tab ${catTab==='url'?'on':''}"  onclick="setCatTab(${i},'url')">&#127758; URL</button>
+    </div>`;
+    const catInput = catTab === 'file'
+      ? `<div class="cat-img-zone" onclick="document.getElementById('catf-${i}').click()">
            <input type="file" id="catf-${i}" accept="image/*" style="display:none" onchange="handleCatImg(${i},this)">
            ${svg('laptop',12)} Upload image
-         </div>`;
+         </div>`
+      : `<div class="img-url-row">
+           <input class="img-url-inp" id="curl-inp-${i}" type="url" placeholder="https://..." value="" style="font-size:10px">
+           <button class="img-url-btn" onclick="handleCatImgUrl(${i})">Use</button>
+         </div>
+         <div class="img-url-err" id="curl-err-${i}">Could not load image</div>`;
+    const imgZone = hasImg
+      ? `${catTabBar}<div class="cat-img-zone filled"><img class="cat-img-prev" src="${cat.img}"></div>
+         <button class="cat-adj-btn" onclick="openAdj('perks',${i})">&#10021; Adjust position & zoom</button>
+         <span class="cat-img-clear" onclick="clearCatImg(${i})">&#215; Remove image</span>`
+      : `${catTabBar}${catInput}`;
     return `<div class="cat-editor">
       <div class="cat-editor-top">
         <input type="text" value="${cat.name}" placeholder="Category name" oninput="S.perks.categories[${i}].name=this.value;renderPerks()">
@@ -590,6 +673,11 @@ function init() {
   Object.entries(ICON_SIZES).forEach(([id]) => renderTileIcon(id));
   renderPerks();
   renderAmenityRow();
+  // Apply desc line breaks from state
+  ['loc','office','teams','movein','events','amenity'].forEach(tid => {
+    if (S[tid].desc) setDesc(tid+'-desc', S[tid].desc);
+  });
+  if (S.amenity.desc) setDesc('amenity-desc', S.amenity.desc);
   // Show layout picker by default
   document.getElementById('sb-body').innerHTML = renderLayoutPicker();
 }
@@ -664,12 +752,31 @@ function buildSidebar(id) {
     h = ipick(S.amenity.icon,'amenity') + sdiv() +
     fld('Title','f-title',S.amenity.title) + fld('Description','f-desc',S.amenity.desc,true) + sdiv() +
     `<div class="fg"><label class="fl">Amenity Chips</label><div class="am-picker">${APOOL.map(([k,lb])=>`<div class="am-btn ${S.amenity.chips.includes(k)?'on':''}" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${lb}</span></div>`).join('')}</div></div>` + sdiv() +
-    bgp(S.amenity.bg,'amenity') + iconColorPicker('amenity') + tcol('amenity') + apply('applyAmenity()');
+    bgp(S.amenity.bg,'amenity') + iconColorPicker('amenity') + tcol('amenity') + imgup('amenity',S.amenity.img) + apply('applyAmenity()');
 
   } else if (id === 'cta') {
+    const qrOn = S.cta.showQR;
     h = ipick(S.cta.icon,'cta') + sdiv() +
     fld('Title','f-title',S.cta.title) + fld('Button Text','f-btn',S.cta.btn) + sdiv() +
-    bgp(S.cta.bg,'cta') + iconColorPicker('cta') + tcol('cta') + apply('applyCta()');
+    bgp(S.cta.bg,'cta') + iconColorPicker('cta') + tcol('cta') + imgup('cta',S.cta.img) + sdiv() +
+    `<div class="fg">
+      <div class="qr-toggle-row">
+        <span class="qr-toggle-label">Show QR Code</span>
+        <label class="qr-toggle">
+          <input type="checkbox" id="qr-toggle-cb" ${qrOn?'checked':''} onchange="toggleQR(this.checked)">
+          <div class="qr-toggle-track"></div>
+          <div class="qr-toggle-thumb"></div>
+        </label>
+      </div>
+    </div>` +
+    (qrOn ? `<div class="fg"><label class="fl">QR Code URL or Text</label>
+      <div class="frow">
+        <input class="fi" id="f-qrurl" value="${esc(S.cta.qrUrl)}" placeholder="https://...">
+        <button class="img-url-btn" onclick="applyQR()" style="white-space:nowrap">Generate</button>
+      </div>
+      <div class="qr-loading" id="qr-loading" style="display:none">Generating QR...</div>
+    </div>` : '') +
+    apply('applyCta()');
 
   } else {
     const s = S[id];
@@ -724,12 +831,70 @@ function tcol(tid) {
   </div></div>`;
 }
 function imgup(tid, imgData) {
-  if (imgData) return `<div class="fg"><label class="fl">Background Image</label>
-    <div class="up-zone filled"><img class="up-prev" src="${imgData}"></div>
-    <button class="btn-adjust-img" onclick="openAdj('${tid}',null)">${svg('move',13,2)} Adjust Position & Zoom</button>
-    <span class="up-clear" onclick="clearImg('${tid}')">&#215; Remove image</span>
+  const tab = window._imgTab && window._imgTab[tid] ? window._imgTab[tid] : 'file';
+  const fileActive = tab === 'file' ? 'on' : '';
+  const urlActive  = tab === 'url'  ? 'on' : '';
+  const tabBar = `<div class="img-src-tabs">
+    <button class="img-src-tab ${fileActive}" onclick="setImgTab('${tid}','file')">&#8679; Upload File</button>
+    <button class="img-src-tab ${urlActive}"  onclick="setImgTab('${tid}','url')">&#127758; Image URL</button>
   </div>`;
-  return `<div class="fg"><label class="fl">Background Image</label><div class="up-zone" onclick="document.getElementById('upf-${tid}').click()"><input type="file" id="upf-${tid}" accept="image/*" style="display:none" onchange="handleImg('${tid}',this)">${svg('laptop',14)} Click to upload</div></div>`;
+  const fileZone = tab === 'file'
+    ? `<div class="up-zone" onclick="document.getElementById('upf-${tid}').click()">
+        <input type="file" id="upf-${tid}" accept="image/*" style="display:none" onchange="handleImg('${tid}',this)">
+        ${svg('laptop',14)} Click to upload
+      </div>`
+    : `<div class="img-url-row">
+        <input class="img-url-inp" id="url-inp-${tid}" type="url" placeholder="https://example.com/photo.jpg" value="">
+        <button class="img-url-btn" onclick="handleImgUrl('${tid}')">Use</button>
+      </div>
+      <div class="img-url-err" id="url-err-${tid}">Could not load image — check URL</div>`;
+  if (imgData) {
+    return `<div class="fg"><label class="fl">Background Image</label>
+      ${tabBar}
+      <div class="up-zone filled"><img class="up-prev" src="${imgData}"></div>
+      <button class="btn-adjust-img" onclick="openAdj('${tid}',null)">${svg('move',13,2)} Adjust Position & Zoom</button>
+      <span class="up-clear" onclick="clearImg('${tid}')">&#215; Remove image</span>
+    </div>`;
+  }
+  return `<div class="fg"><label class="fl">Background Image</label>${tabBar}${fileZone}</div>`;
+}
+
+/* Image source tab toggle */
+window._imgTab = {};
+function setImgTab(tid, tab) {
+  window._imgTab[tid] = tab;
+  buildSidebar(tid); // rebuild sidebar to show correct tab
+}
+
+/* Handle URL input */
+function handleImgUrl(tid) {
+  const inp = document.getElementById('url-inp-' + tid);
+  const errEl = document.getElementById('url-err-' + tid);
+  if (!inp) return;
+  const url = inp.value.trim();
+  if (!url) return;
+  if (errEl) errEl.classList.remove('on');
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    // Draw to canvas to get base64 (handles CORS)
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      const data = canvas.toDataURL('image/jpeg', 0.92);
+      S[tid].img = data; S[tid].imgNW = img.naturalWidth; S[tid].imgNH = img.naturalHeight;
+      S[tid].imgScale = 1; S[tid].imgX = 0.5; S[tid].imgY = 0.5;
+      setImg(tid); buildSidebar(tid);
+    } catch(e) {
+      // CORS blocked — store URL directly (works for display, may not export)
+      S[tid].img = url; S[tid].imgNW = img.naturalWidth; S[tid].imgNH = img.naturalHeight;
+      S[tid].imgScale = 1; S[tid].imgX = 0.5; S[tid].imgY = 0.5;
+      setImg(tid); buildSidebar(tid);
+    }
+  };
+  img.onerror = () => { if (errEl) errEl.classList.add('on'); };
+  img.src = url;
 }
 
 /* ACTIONS */
@@ -812,33 +977,51 @@ function clearImg(tid) {
   setImg(tid); buildSidebar(tid);
 }
 function calcBgStyle(elW, elH, nW, nH, scale, posX, posY) {
-  if (!nW || !nH) return {size:'cover', pos:'center'};
+  if (!nW || !nH || !elW || !elH) return {size:'cover', pos:'center'};
   const minScale = Math.max(elW/nW, elH/nH);
-  const s = minScale * Math.max(1, scale);
+  const s = minScale * Math.max(1, scale || 1);
   const rW = nW * s, rH = nH * s;
-  const overX = Math.max(0, rW - elW), overY = Math.max(0, rH - elH);
-  const bgX = -(overX * posX), bgY = -(overY * posY);
-  return {size: `${rW.toFixed(1)}px ${rH.toFixed(1)}px`, pos: `${bgX.toFixed(1)}px ${bgY.toFixed(1)}px`};
+  const overX = Math.max(0, rW - elW);
+  const overY = Math.max(0, rH - elH);
+  const bgX = -(overX * (posX !== undefined ? posX : 0.5));
+  const bgY = -(overY * (posY !== undefined ? posY : 0.5));
+  return {size: rW.toFixed(1)+'px '+rH.toFixed(1)+'px', pos: bgX.toFixed(1)+'px '+bgY.toFixed(1)+'px'};
 }
 
 function setImg(tid) {
   const s = S[tid];
-  const t = document.querySelector(`[data-tile="${tid}"]`);
+  const t = document.querySelector('[data-tile="' + tid + '"]');
   if (!t) return;
   t.querySelector('.t-img')?.remove();
   t.querySelector('.t-ov')?.remove();
   if (!s.img) return;
-  const bg = document.createElement('div');
-  bg.className = 't-img';
-  const bs = calcBgStyle(t.offsetWidth, t.offsetHeight, s.imgNW, s.imgNH, s.imgScale, s.imgX, s.imgY);
-  bg.style.backgroundImage = `url('${s.img}')`;
-  bg.style.backgroundSize = bs.size;
-  bg.style.backgroundPosition = bs.pos;
-  bg.style.backgroundRepeat = 'no-repeat';
-  const ov = document.createElement('div');
-  ov.className = 't-ov';
-  t.insertBefore(ov, t.firstChild);
-  t.insertBefore(bg, t.firstChild);
+
+  const applyStyle = () => {
+    const bg = document.createElement('div');
+    bg.className = 't-img';
+    const bs = calcBgStyle(t.offsetWidth, t.offsetHeight, s.imgNW, s.imgNH, s.imgScale, s.imgX, s.imgY);
+    bg.style.backgroundImage  = "url('" + s.img + "')";
+    bg.style.backgroundSize     = bs.size;
+    bg.style.backgroundPosition = bs.pos;
+    bg.style.backgroundRepeat   = 'no-repeat';
+    const ov = document.createElement('div');
+    ov.className = 't-ov';
+    t.insertBefore(ov, t.firstChild);
+    t.insertBefore(bg, t.firstChild);
+  };
+
+  // If natural dims unknown, measure first then apply
+  if (!s.imgNW || !s.imgNH) {
+    const img = new Image();
+    img.onload = () => {
+      s.imgNW = img.naturalWidth;
+      s.imgNH = img.naturalHeight;
+      applyStyle();
+    };
+    img.src = s.img;
+  } else {
+    applyStyle();
+  }
 }
 
 function refreshImgPos(tid) {
@@ -878,6 +1061,38 @@ function handleCatImg(i, input) {
   };
   r.readAsDataURL(f);
 }
+window._catTab = {};
+function setCatTab(i, tab) { window._catTab[i] = tab; buildSidebar('perks'); }
+
+function handleCatImgUrl(i) {
+  const inp = document.getElementById('curl-inp-' + i);
+  const errEl = document.getElementById('curl-err-' + i);
+  if (!inp) return;
+  const url = inp.value.trim();
+  if (!url) return;
+  if (errEl) errEl.classList.remove('on');
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      const data = canvas.toDataURL('image/jpeg', 0.92);
+      const c = S.perks.categories[i];
+      c.img = data; c.imgNW = img.naturalWidth; c.imgNH = img.naturalHeight;
+      c.imgScale = 1; c.imgX = 0.5; c.imgY = 0.5;
+    } catch(e) {
+      const c = S.perks.categories[i];
+      c.img = url; c.imgNW = img.naturalWidth; c.imgNH = img.naturalHeight;
+      c.imgScale = 1; c.imgX = 0.5; c.imgY = 0.5;
+    }
+    renderPerks(); buildSidebar('perks');
+  };
+  img.onerror = () => { if (errEl) errEl.classList.add('on'); };
+  img.src = url;
+}
+
 function clearCatImg(i) {
   const c = S.perks.categories[i];
   c.img = null; c.imgScale = 1; c.imgX = 0.5; c.imgY = 0.5;
@@ -898,13 +1113,13 @@ function applyLoc() {
   S.loc.title = v('f-title'); S.loc.desc = v('f-desc');
   const el = document.getElementById('loc-stat-el');
   if (el) el.innerHTML = `${S.loc.stat}<span class="t-unit"> ${S.loc.unit}</span>`;
-  setText('loc-title', S.loc.title); setText('loc-desc', S.loc.desc);
+  setText('loc-title', S.loc.title); setDesc('loc-desc', S.loc.desc);
 }
 function applyGeneric(id) {
   const s = S[id];
   if (ge('f-tag'))   { s.tag   = v('f-tag');   setText(`${id}-tag`,   s.tag); }
   if (ge('f-title')) { s.title = v('f-title'); setText(`${id}-title`, s.title); }
-  if (ge('f-desc'))  { s.desc  = v('f-desc');  setText(`${id}-desc`,  s.desc); }
+  if (ge('f-desc'))  { s.desc  = v('f-desc');  setDesc(`${id}-desc`,  s.desc); }
 }
 function applyPerks() {
   if (ge('f-tag'))   S.perks.tag   = v('f-tag');
@@ -914,16 +1129,125 @@ function applyPerks() {
 }
 function applyAmenity() {
   S.amenity.title = v('f-title'); S.amenity.desc = v('f-desc');
-  setText('amenity-title', S.amenity.title); setText('amenity-desc', S.amenity.desc);
+  setText('amenity-title', S.amenity.title); setDesc('amenity-desc', S.amenity.desc);
   renderAmenityRow();
 }
 function applyCta() {
-  S.cta.title = v('f-title'); S.cta.btn = v('f-btn');
-  setText('cta-title', S.cta.title); setText('cta-btn-text', S.cta.btn);
+  if (ge('f-title')) S.cta.title = v('f-title');
+  if (ge('f-btn'))   S.cta.btn   = v('f-btn');
+  if (ge('f-qrurl')) S.cta.qrUrl = v('f-qrurl');
+  setText('cta-title', S.cta.title);
+  setText('cta-btn-text', S.cta.btn);
+}
+function toggleQR(on) {
+  S.cta.showQR = on;
+  buildSidebar('cta');
+  renderQR();
+}
+function applyQR() {
+  if (ge('f-qrurl')) S.cta.qrUrl = v('f-qrurl');
+  renderQR();
+}
+async function renderQR() {
+  const wrap = document.getElementById('cta-qr-wrap');
+  const ctaTile = document.querySelector('[data-tile="cta"]');
+  if (!S.cta.showQR || !S.cta.qrUrl) {
+    if (wrap) wrap.classList.remove('on');
+    if (ctaTile) ctaTile.classList.remove('qr-mode');
+    S.cta.qrData = null;
+    return;
+  }
+  if (wrap) wrap.classList.add('on');
+  if (ctaTile) ctaTile.classList.add('qr-mode');
+  // Show loading
+  const loading = document.getElementById('qr-loading');
+  if (loading) loading.style.display = 'block';
+  try {
+    const dataUrl = await buildQRCanvas(S.cta.qrUrl, 200);
+    S.cta.qrData = dataUrl;
+    const img = document.getElementById('cta-qr-img');
+    if (img) { img.src = dataUrl; img.style.width = '120px'; img.style.height = '120px'; }
+    // Logo badge in center
+    const badge = document.getElementById('cta-qr-logo');
+    if (badge) {
+      badge.style.width = '28px'; badge.style.height = '28px';
+      badge.innerHTML = LOGOS.icon.replace('<svg ','<svg width="24" height="24" ');
+    }
+  } catch(e) {
+    console.error('QR failed', e);
+  }
+  if (loading) loading.style.display = 'none';
+}
+async function buildQRCanvas(text, size) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Use QRCode library if available
+      if (typeof QRCode !== 'undefined') {
+        const container = document.createElement('div');
+        container.style.position = 'absolute'; container.style.left = '-9999px';
+        document.body.appendChild(container);
+        const qr = new QRCode(container, {
+          text: text, width: size, height: size,
+          colorDark: '#111111', colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.H
+        });
+        // QRCode creates an img asynchronously
+        setTimeout(() => {
+          const img = container.querySelector('img') || container.querySelector('canvas');
+          if (!img) { document.body.removeChild(container); reject(new Error('No QR element')); return; }
+          const srcCanvas = document.createElement('canvas');
+          srcCanvas.width = size; srcCanvas.height = size;
+          const ctx = srcCanvas.getContext('2d');
+          const qrImg = new Image();
+          const src = img.tagName === 'CANVAS' ? img.toDataURL() : img.src;
+          qrImg.onload = () => {
+            // White bg
+            ctx.fillStyle = '#fff'; ctx.fillRect(0,0,size,size);
+            ctx.drawImage(qrImg, 0, 0, size, size);
+            document.body.removeChild(container);
+            overlayLogo(ctx, size).then(() => resolve(srcCanvas.toDataURL('image/png')));
+          };
+          qrImg.onerror = () => { document.body.removeChild(container); reject(new Error('QR img load fail')); };
+          qrImg.src = src;
+        }, 200);
+      } else {
+        reject(new Error('QRCode library not loaded'));
+      }
+    } catch(e) { reject(e); }
+  });
+}
+function overlayLogo(ctx, size) {
+  return new Promise(resolve => {
+    const logoSz = Math.round(size * 0.22);
+    const lx = (size - logoSz) / 2, ly = (size - logoSz) / 2;
+    const pad = 5, r = 7;
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(lx-pad+r, ly-pad);
+    ctx.lineTo(lx+logoSz+pad-r, ly-pad);
+    ctx.quadraticCurveTo(lx+logoSz+pad, ly-pad, lx+logoSz+pad, ly-pad+r);
+    ctx.lineTo(lx+logoSz+pad, ly+logoSz+pad-r);
+    ctx.quadraticCurveTo(lx+logoSz+pad, ly+logoSz+pad, lx+logoSz+pad-r, ly+logoSz+pad);
+    ctx.lineTo(lx-pad+r, ly+logoSz+pad);
+    ctx.quadraticCurveTo(lx-pad, ly+logoSz+pad, lx-pad, ly+logoSz+pad-r);
+    ctx.lineTo(lx-pad, ly-pad+r);
+    ctx.quadraticCurveTo(lx-pad, ly-pad, lx-pad+r, ly-pad);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    const svgBlob = new Blob([LOGOS.icon], {type:'image/svg+xml;charset=utf-8'});
+    const svgUrl = URL.createObjectURL(svgBlob);
+    const li = new Image();
+    li.onload = () => { ctx.drawImage(li, lx, ly, logoSz, logoSz); URL.revokeObjectURL(svgUrl); resolve(); };
+    li.onerror = () => { URL.revokeObjectURL(svgUrl); resolve(); };
+    li.src = svgUrl;
+  });
 }
 function v(id)        { const e=ge(id); return e?e.value.trim():''; }
 function ge(id)       { return document.getElementById(id); }
 function setText(id,t){ const e=ge(id); if(e) e.textContent=t; }
+function setDesc(id,t){ const e=ge(id); if(e) e.innerHTML=String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
 
 
 /* ══════════════════════
@@ -1106,68 +1430,151 @@ function adjDone() {
    SAVE / LOAD JSON
 ══════════════════════ */
 function saveJSON() {
-  const data = { version: 1, layout: curLayout, state: S };
-  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  // Deep-clone so we don't serialise live DOM references
+  const snap = JSON.parse(JSON.stringify(S));
+  const data = { version: 2, layout: curLayout, state: snap };
+  const json = JSON.stringify(data, null, 2);
+  const sizeMB = (json.length / 1048576).toFixed(1);
+  const blob = new Blob([json], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'compass-poster-layout.json';
   a.click();
   URL.revokeObjectURL(a.href);
+  // Notify user of file size (images inflate JSON)
+  if (parseFloat(sizeMB) > 2) {
+    const tb = document.getElementById('dl-ov');  // reuse overlay briefly
+    // just show a small console note; don't interrupt UX
+  }
 }
 
 function loadJSON(input) {
   const f = input.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = e => {
+  const reader = new FileReader();
+  reader.onload = async e => {
     try {
       const data = JSON.parse(e.target.result);
-      if (!data.state) throw new Error('Invalid file');
-      // Restore state
-      Object.keys(data.state).forEach(k => { if (S[k] !== undefined) Object.assign(S[k], data.state[k]); });
-      // Restore layout
-      if (typeof data.layout === 'number') applyLayout(data.layout);
-      // Re-render everything
-      renderHeaderLogo();
-      setText('h-badge-text', S.header.badge);
-      const tEl = document.getElementById('h-tag-text');
-      if (tEl) { tEl.textContent = S.header.tagline; tEl.style.fontSize = (S.header.taglineSize||11)+'px'; }
-      setBgClass('header', S.header.bg);
-      const tileIds = ['loc','office','teams','movein','events','amenity','cta'];
-      tileIds.forEach(tid => {
-        const s = S[tid];
-        setBgClass(tid, s.bg);
-        const tile = document.querySelector(`[data-tile="${tid}"]`);
-        if (tile) { tile.classList.remove('tl-light','tl-dark'); if (s.textColor==='light') tile.classList.add('tl-light'); if (s.textColor==='dark') tile.classList.add('tl-dark'); }
-        if (s.icon) renderTileIcon(tid);
-        if (s.tag !== undefined) setText(`${tid}-tag`, s.tag);
-        if (s.title)  setText(`${tid}-title`, s.title);
-        if (s.desc)   setText(`${tid}-desc`,  s.desc);
-        if (tid === 'loc') {
-          const el = document.getElementById('loc-stat-el');
-          if (el) el.innerHTML = `${s.stat}<span class="t-unit"> ${s.unit}</span>`;
-        }
-        if (s.img) setImg(tid); else { const t=document.querySelector(`[data-tile="${tid}"]`); t?.querySelector('.t-img')?.remove(); t?.querySelector('.t-ov')?.remove(); }
+      if (!data.state) throw new Error('Invalid file format');
+      const loaded = data.state;
+
+      // ── Deep restore state ──
+      // Replace each top-level key entirely (handles nested arrays/objects)
+      Object.keys(loaded).forEach(k => {
+        if (k in S) S[k] = JSON.parse(JSON.stringify(loaded[k]));
       });
-      // CTA
-      setText('cta-title', S.cta.title); setText('cta-btn-text', S.cta.btn);
-      const ctaTile = document.querySelector('[data-tile="cta"]');
-      if (ctaTile) { ctaTile.classList.remove('tl-light','tl-dark'); if (S.cta.textColor==='light') ctaTile.classList.add('tl-light'); }
-      setBgClass('cta', S.cta.bg);
-      renderTileIcon('cta');
-      // Perks
-      setText('perks-tag', S.perks.tag); setText('perks-title', S.perks.title);
-      setBgClass('perks', S.perks.bg);
-      renderPerks();
-      // Amenity
-      setText('amenity-title', S.amenity.title); setText('amenity-desc', S.amenity.desc);
-      renderTileIcon('amenity');
-      setBgClass('amenity', S.amenity.bg);
-      renderAmenityRow();
+
+      // ── Layout ──
+      if (typeof data.layout === 'number') applyLayout(data.layout);
+
+      // ── Re-measure all base64 images so calcBgStyle works correctly ──
+      const measureImg = (src) => new Promise(res => {
+        if (!src) return res({w:0,h:0});
+        const img = new Image();
+        img.onload = () => res({w:img.naturalWidth, h:img.naturalHeight});
+        img.onerror = () => res({w:0,h:0});
+        img.src = src;
+      });
+
+      // Tile images
+      const imgTiles = ['loc','office','teams','movein','events'];
+      for (const tid of imgTiles) {
+        if (S[tid].img) {
+          const {w,h} = await measureImg(S[tid].img);
+          S[tid].imgNW = w; S[tid].imgNH = h;
+        }
+      }
+      // Perk category images
+      for (let i = 0; i < (S.perks.categories||[]).length; i++) {
+        const cat = S.perks.categories[i];
+        if (cat.img) {
+          const {w,h} = await measureImg(cat.img);
+          cat.imgNW = w; cat.imgNH = h;
+        }
+      }
+
+      // ── Re-render everything ──
+      reRenderAll();
       clearSel();
       input.value = '';
-    } catch(err) { alert('Could not load file: ' + err.message); }
+    } catch(err) { alert('Could not load file: ' + err.message); console.error(err); }
   };
-  r.readAsText(f);
+  reader.readAsText(f);
+}
+
+/* Full re-render — used by loadJSON */
+function reRenderAll() {
+  // Header
+  renderHeaderLogo();
+  setBgClass('header', S.header.bg);
+  setText('h-badge-text', S.header.badge);
+  const tTag = document.getElementById('h-tag-text');
+  if (tTag) { tTag.textContent = S.header.tagline; tTag.style.fontSize = (S.header.taglineSize||11)+'px'; }
+
+  // Content tiles
+  const tileIds = ['loc','office','teams','movein','events','amenity','cta'];
+  tileIds.forEach(tid => {
+    const s = S[tid];
+    // Background colour
+    setBgClass(tid, s.bg);
+    // Text colour override
+    const tile = document.querySelector('[data-tile="' + tid + '"]');
+    if (tile) {
+      tile.classList.remove('tl-light','tl-dark');
+      if (s.textColor === 'light') tile.classList.add('tl-light');
+      if (s.textColor === 'dark')  tile.classList.add('tl-dark');
+    }
+    // Icon + colour
+    renderTileIcon(tid);
+    // Text fields
+    if (s.tag   !== undefined) setText(tid + '-tag',   s.tag);
+    if (s.title !== undefined) setText(tid + '-title', s.title);
+    if (s.desc  !== undefined) setDesc(tid + '-desc',  s.desc);
+    // Loc stat
+    if (tid === 'loc') {
+      const el = document.getElementById('loc-stat-el');
+      if (el) el.innerHTML = s.stat + '<span class="t-unit"> ' + s.unit + '</span>';
+    }
+    // CTA extras
+    if (tid === 'cta') {
+      setText('cta-btn-text', s.btn);
+      // Restore QR
+      if (s.showQR && s.qrData) {
+        const wrap = document.getElementById('cta-qr-wrap');
+        const ctaTile = document.querySelector('[data-tile="cta"]');
+        if (wrap) wrap.classList.add('on');
+        if (ctaTile) ctaTile.classList.add('qr-mode');
+        const img = document.getElementById('cta-qr-img');
+        if (img) { img.src = s.qrData; img.style.width = '120px'; img.style.height = '120px'; }
+        const badge = document.getElementById('cta-qr-logo');
+        if (badge) { badge.style.width='28px'; badge.style.height='28px'; badge.innerHTML = LOGOS.icon.replace('<svg ','<svg width="24" height="24" '); }
+      } else if (s.showQR && s.qrUrl) {
+        renderQR();
+      }
+    }
+    // Background image — use setImg which reads S[tid] incl. position/zoom
+    const el = document.querySelector('[data-tile="' + tid + '"]');
+    el?.querySelector('.t-img')?.remove();
+    el?.querySelector('.t-ov')?.remove();
+    if (s.img) setImg(tid);
+  });
+
+  // Perks tile
+  setText('perks-tag',   S.perks.tag);
+  setText('perks-title', S.perks.title);
+  setBgClass('perks', S.perks.bg);
+  const perksTile = document.querySelector('[data-tile="perks"]');
+  if (perksTile) {
+    perksTile.classList.remove('tl-light','tl-dark');
+    if (S.perks.textColor === 'light') perksTile.classList.add('tl-light');
+    if (S.perks.textColor === 'dark')  perksTile.classList.add('tl-dark');
+  }
+  // Render perk cats (includes images via requestAnimationFrame in renderPerks)
+  renderPerks();
+
+  // Amenity tile
+  setText('amenity-title', S.amenity.title);
+  setDesc('amenity-desc',  S.amenity.desc);
+  renderAmenityRow();
 }
 
 function setBgClass(tid, key) {
@@ -1201,6 +1608,14 @@ async function downloadPoster() {
         };
         copyBg('.t-img', '.t-img');
         copyBg('.perk-cat-bg', '.perk-cat-bg');
+        // Copy QR image src
+        const origQR = poster.querySelector('#cta-qr-img');
+        const clonQR = el.querySelector('#cta-qr-img');
+        if (origQR && clonQR) clonQR.src = origQR.src;
+        // Copy QR logo badge
+        const origBadge = poster.querySelector('#cta-qr-logo');
+        const clonBadge = el.querySelector('#cta-qr-logo');
+        if (origBadge && clonBadge) clonBadge.innerHTML = origBadge.innerHTML;
       }
     });
     const a = document.createElement('a');
