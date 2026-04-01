@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workspace Bento — Poster Editor</title>
+<link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --orange:    #ff6600;
+  --orange-dk: #e05500;
+  --black:     #0f0f0f;
+  --dkgrey:    #252525;
+  --midgrey:   #888;
+  --ltgrey:    #f0f0f0;
+  --white:     #ffffff;
+  --r:         14px;
+  --gap:       10px;
+  --sw:        304px;
+  --th:        54px;
+  --nhg:       'Neue Haas Grotesk Display Pro', sans-serif;
+}
+
+body { font-family: var(--nhg); background: #141414; display: flex; height: 100vh; overflow: hidden; }
+
+/* TOOLBAR */
+.toolbar {
+  position: fixed; top: 0; left: 0; right: var(--sw);
+  height: var(--th); background: #0a0a0a; border-bottom: 1px solid #1e1e1e;
+  display: flex; align-items: center; padding: 0 20px; gap: 10px; z-index: 100;
+}
+.tb-brand { font-size: 13px; font-weight: 700; color: white; letter-spacing: .08em; text-transform: uppercase; }
+.tb-brand em { color: var(--orange); font-style: normal; }
+.tb-sep  { width: 1px; height: 18px; background: #222; margin: 0 4px; }
+.tb-hint { font-size: 11px; color: #3a3a3a; }
+.tb-sp   { flex: 1; }
+.tbtn {
+  padding: 7px 15px; border-radius: 8px; border: none;
+  font-family: var(--nhg); font-size: 12px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; gap: 5px;
+  transition: all .18s; white-space: nowrap;
+}
+.tbtn-ghost  { background: transparent; color: #555; border: 1px solid #252525; }
+.tbtn-ghost:hover { background: #1a1a1a; color: #bbb; }
+.tbtn-orange { background: var(--orange); color: white; }
+.tbtn-orange:hover  { background: var(--orange-dk); }
+.tbtn-orange:active { transform: scale(.97); }
+
+/* CANVAS AREA */
+.canvas-area {
+  flex: 1; margin-right: var(--sw); margin-top: var(--th);
+  overflow: auto; display: flex; align-items: flex-start; justify-content: center;
+  padding: 28px; background: #141414;
+  background-image: radial-gradient(circle,#222 1px,transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* A4 POSTER */
+#poster {
+  width: 794px; height: 1123px;
+  background: #e8e8e8; padding: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 78px 1fr 1fr 1fr 1fr;
+  gap: var(--gap); flex-shrink: 0;
+  box-shadow: 0 24px 80px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+}
+
+/* TILE BASE */
+.tile {
+  border-radius: var(--r); overflow: hidden; cursor: pointer;
+  position: relative; display: flex; flex-direction: column;
+  justify-content: flex-end; padding: 16px; transition: outline .12s;
+  user-select: none;
+}
+.tile:hover  { outline: 2px solid rgba(255,102,0,.4); }
+.tile.active { outline: 2.5px solid var(--orange); }
+.tile.active .edit-badge { display: flex; }
+.edit-badge {
+  display: none; position: absolute; top: 9px; right: 9px;
+  background: var(--orange); color: white;
+  font-size: 9px; font-weight: 700; letter-spacing: .08em;
+  padding: 3px 9px; border-radius: 100px; z-index: 20;
+}
+
+/* Grid placements */
+.t-header  { grid-column: 1/-1;  grid-row: 1;   }
+.t-loc     { grid-column: 1;     grid-row: 2/4; }
+.t-office  { grid-column: 2;     grid-row: 2;   }
+.t-teams   { grid-column: 3;     grid-row: 2/4; }
+.t-movein  { grid-column: 2;     grid-row: 3;   }
+.t-perks   { grid-column: 1/3;   grid-row: 4;   }
+.t-events  { grid-column: 3;     grid-row: 4/6; }
+.t-amenity { grid-column: 1;     grid-row: 5;   }
+.t-cta     { grid-column: 2;     grid-row: 5;   }
+
+/* Backgrounds */
+.bg-white   { background: var(--white); }
+.bg-grey    { background: var(--ltgrey); }
+.bg-black   { background: var(--black); }
+.bg-orange  { background: var(--orange); }
+.bg-darkgrey{ background: #252525; }
+
+/* Image overlay */
+.t-img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0; }
+.t-ov  { position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.8) 0%,rgba(0,0,0,.15) 55%,transparent 100%);z-index:1; }
+.t-cnt { position:relative;z-index:2;width:100%; }
+
+/* TILE TYPOGRAPHY */
+.t-iconbox { margin-bottom: 10px; display: flex; line-height: 1; }
+.t-tag     { font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px;display:block; }
+.t-title   { font-weight:800;line-height:1.08; }
+.t-title.xl{ font-size:38px; }
+.t-title.lg{ font-size:24px; }
+.t-title.md{ font-size:18px; }
+.t-title.sm{ font-size:14px; }
+.t-desc    { font-size:11px;line-height:1.55;margin-top:5px;display:block;font-weight:400; }
+.t-stat    { font-size:52px;font-weight:800;line-height:1;margin-bottom:2px;display:block; }
+.t-unit    { font-size:14px;font-weight:400;opacity:.6; }
+
+/* Color helpers */
+.cw  { color:#fff; }
+.cb  { color:var(--black); }
+.co  { color:var(--orange); }
+.cg  { color:var(--midgrey); }
+.cdw { color:rgba(255,255,255,.5); }
+.cdo { color:rgba(255,102,0,.9); }
+
+/* HEADER */
+.t-header {
+  background:var(--black); border-radius:var(--r);
+  flex-direction:row; justify-content:flex-start; align-items:center; padding:0 22px;
+}
+.h-logo  { font-size:18px;font-weight:800;color:white;letter-spacing:-.01em;display:flex;align-items:center;gap:8px; }
+.h-dot   { width:7px;height:7px;background:var(--orange);border-radius:50%;flex-shrink:0; }
+.h-div   { width:1px;height:20px;background:rgba(255,255,255,.1);margin:0 16px; }
+.h-badge { font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);border:1px solid rgba(255,102,0,.4);padding:3px 10px;border-radius:100px; }
+.h-tag   { margin-left:auto;font-size:11px;color:rgba(255,255,255,.3);letter-spacing:.04em;font-weight:400; }
+
+/* PERKS */
+.perks-flex  { display:flex;gap:14px;align-items:center;width:100%; }
+.perks-left  { flex-shrink:0; }
+.perks-chips { display:flex;flex-wrap:wrap;gap:5px;flex:1; }
+.perk-chip   { font-size:10px;font-weight:600;padding:4px 11px;border-radius:100px;background:rgba(255,102,0,.07);border:1px solid rgba(255,102,0,.22);color:var(--orange);white-space:nowrap;display:flex;align-items:center;gap:5px; }
+.perk-chip svg { flex-shrink:0; }
+
+/* CTA */
+.t-cta { align-items:center;justify-content:center;text-align:center;flex-direction:column; }
+.cta-pill { background:white;color:var(--orange);font-weight:700;font-size:11px;padding:8px 20px;border-radius:100px;margin-top:10px;display:inline-block;letter-spacing:.03em; }
+
+/* AMENITY ROW */
+.a-row  { display:flex;gap:6px;flex-wrap:wrap;margin-top:9px; }
+.a-chip { display:flex;align-items:center;gap:4px;font-size:9px;font-weight:600;letter-spacing:.06em;padding:4px 8px;border-radius:7px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.5); }
+
+/* Screenshot mode */
+body.ss .tile { outline:none !important; cursor:default; }
+body.ss .edit-badge { display:none !important; }
+
+/* SIDEBAR */
+.sidebar {
+  position:fixed;top:0;right:0;width:var(--sw);height:100vh;
+  background:#0a0a0a;border-left:1px solid #1a1a1a;
+  display:flex;flex-direction:column;overflow:hidden;z-index:50;
+}
+.sb-top  { margin-top:var(--th);padding:14px 18px;border-bottom:1px solid #1a1a1a;flex-shrink:0; }
+.sb-name { font-size:12px;font-weight:700;color:white;letter-spacing:.08em;text-transform:uppercase; }
+.sb-hint { font-size:11px;color:#333;margin-top:2px; }
+.sb-body { flex:1;overflow-y:auto;padding:14px 18px 28px; }
+.sb-body::-webkit-scrollbar { width:3px; }
+.sb-body::-webkit-scrollbar-thumb { background:#252525;border-radius:2px; }
+.no-sel  { text-align:center;padding:48px 16px;color:#2a2a2a;font-size:12px;line-height:1.8; }
+.no-sel .ns-ic { margin-bottom:12px;display:flex;justify-content:center; }
+
+/* FORM */
+.fg  { margin-bottom:14px; }
+.fl  { display:block;font-size:9px;font-weight:700;color:#444;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px; }
+.fi  { width:100%;background:#111;border:1px solid #1e1e1e;border-radius:7px;padding:8px 11px;color:#ddd;font-family:var(--nhg);font-size:12px;outline:none;transition:border-color .18s;resize:vertical; }
+.fi:focus { border-color:var(--orange); }
+.frow { display:flex;gap:6px; }
+
+/* Swatches */
+.swatches { display:flex;gap:6px; }
+.sw { width:26px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all .15s;flex-shrink:0; }
+.sw:hover { transform:scale(1.12); }
+.sw.on    { border-color:white;box-shadow:0 0 0 1px var(--orange); }
+
+/* Icon grid */
+.icon-grid { display:grid;grid-template-columns:repeat(6,1fr);gap:4px; }
+.ig-btn {
+  background:#111;border:1px solid #1e1e1e;border-radius:7px;
+  padding:7px 4px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:all .14s;color:#444;
+}
+.ig-btn:hover { background:#1e1e1e;color:#aaa;transform:scale(1.06); }
+.ig-btn.on    { border-color:var(--orange);background:rgba(255,102,0,.1);color:var(--orange); }
+
+/* Upload */
+.up-zone { border:2px dashed #252525;border-radius:8px;padding:14px;text-align:center;cursor:pointer;color:#333;font-size:11px;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:7px; }
+.up-zone:hover { border-color:var(--orange);color:var(--orange); }
+.up-zone.filled { border-style:solid;border-color:#1e1e1e;padding:4px; }
+.up-prev { width:100%;height:72px;object-fit:cover;border-radius:6px;display:block; }
+.up-clear { display:block;margin-top:5px;font-size:10px;color:#883;cursor:pointer;text-align:center; }
+
+/* Perk editor */
+.perk-row { display:flex;gap:5px;margin-bottom:4px;align-items:center; }
+.perk-row input { flex:1;background:#111;border:1px solid #1e1e1e;border-radius:6px;padding:5px 9px;color:#ccc;font-family:var(--nhg);font-size:11px;outline:none; }
+.perk-row input:focus { border-color:var(--orange); }
+.perk-del { background:none;border:none;color:#4a2a2a;cursor:pointer;font-size:17px;line-height:1;padding:2px 4px;transition:color .15s; }
+.perk-del:hover { color:#f44; }
+.btn-add  { width:100%;background:transparent;border:1px dashed #252525;color:#333;font-family:var(--nhg);font-size:11px;padding:6px;border-radius:6px;cursor:pointer;margin-top:4px;transition:all .18s; }
+.btn-add:hover { border-color:var(--orange);color:var(--orange); }
+
+/* Amenity picker */
+.am-picker { display:grid;grid-template-columns:repeat(4,1fr);gap:4px; }
+.am-btn {
+  background:#111;border:1px solid #1e1e1e;border-radius:7px;
+  padding:6px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:#3a3a3a;font-size:8px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;transition:all .14s;
+}
+.am-btn:hover { background:#1a1a1a;color:#777; }
+.am-btn.on    { border-color:var(--orange);background:rgba(255,102,0,.1);color:var(--orange); }
+
+.sdiv { height:1px;background:#141414;margin:14px 0; }
+.btn-apply { width:100%;padding:9px;background:var(--orange);color:white;font-family:var(--nhg);font-weight:700;font-size:12px;letter-spacing:.05em;border:none;border-radius:8px;cursor:pointer;margin-top:10px;transition:all .18s; }
+.btn-apply:hover  { background:var(--orange-dk); }
+.btn-apply:active { transform:scale(.98); }
+
+/* OVERLAY */
+.dl-ov { display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:14px; }
+.dl-ov.on { display:flex; }
+.dl-spin { width:38px;height:38px;border:3px solid #282828;border-top-color:var(--orange);border-radius:50%;animation:spin .75s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.dl-txt { color:rgba(255,255,255,.7);font-size:13px;font-weight:500; }
+.dl-sub { color:#3a3a3a;font-size:11px; }
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span class="tb-brand">Bento<em>.</em>Studio</span>
+  <div class="tb-sep"></div>
+  <span class="tb-hint">Click any tile to edit</span>
+  <div class="tb-sp"></div>
+  <button class="tbtn tbtn-ghost" onclick="clearSel()">Preview</button>
+  <button class="tbtn tbtn-orange" onclick="downloadPoster()">&#8595; Download A4 PNG</button>
+</div>
+
+<!-- CANVAS -->
+<div class="canvas-area">
+<div id="poster">
+
+  <!-- HEADER -->
+  <div class="tile t-header" data-tile="header" onclick="sel('header')">
+    <span class="edit-badge">Edit</span>
+    <div class="h-logo"><div class="h-dot"></div><span id="h-logo-text">NEXUS SPACES</span></div>
+    <div class="h-div"></div>
+    <div class="h-badge" id="h-badge-text">WORKSPACES</div>
+    <div class="h-tag" id="h-tag-text">Flexible. Connected. Ready.</div>
+  </div>
+
+  <!-- LOCATIONS -->
+  <div class="tile t-loc bg-orange" data-tile="loc" onclick="sel('loc')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt">
+      <div class="t-iconbox cw" id="loc-icon"></div>
+      <span class="t-stat cw" id="loc-stat-el">12<span class="t-unit"> CBD</span></span>
+      <div class="t-title xl cw" id="loc-title">Prime Locations</div>
+      <span class="t-desc cw" id="loc-desc" style="opacity:.82">Strategically placed offices across every major business district</span>
+    </div>
+  </div>
+
+  <!-- FLEXIBLE OFFICE -->
+  <div class="tile t-office bg-white" data-tile="office" onclick="sel('office')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt">
+      <div class="t-iconbox cb" id="office-icon"></div>
+      <span class="t-tag cg" id="office-tag">WORKSPACE</span>
+      <div class="t-title md cb" id="office-title">Flexible Serviced Office</div>
+      <span class="t-desc cg" id="office-desc">Scale up or down to fit your team — no long-term lock-in</span>
+    </div>
+  </div>
+
+  <!-- ON-SITE TEAMS -->
+  <div class="tile t-teams bg-black" data-tile="teams" onclick="sel('teams')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt">
+      <div class="t-iconbox cw" id="teams-icon"></div>
+      <span class="t-tag cdo" id="teams-tag">HOSPITALITY</span>
+      <div class="t-title md cw" id="teams-title">Supportive On-Site Teams</div>
+      <span class="t-desc cdw" id="teams-desc">Dedicated staff ensuring every day runs seamlessly from arrival to close</span>
+    </div>
+  </div>
+
+  <!-- MOVE-IN READY -->
+  <div class="tile t-movein bg-grey" data-tile="movein" onclick="sel('movein')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt">
+      <div class="t-iconbox cb" id="movein-icon"></div>
+      <span class="t-tag cg" id="movein-tag">READY FROM DAY ONE</span>
+      <div class="t-title sm cb" id="movein-title">Move-In Ready Workspaces</div>
+      <span class="t-desc cg" id="movein-desc">Fully furnished, wired and set up — just bring your team</span>
+    </div>
+  </div>
+
+  <!-- PERKS -->
+  <div class="tile t-perks bg-white" data-tile="perks" onclick="sel('perks')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt">
+      <div class="perks-flex">
+        <div class="perks-left">
+          <span class="t-tag cg" id="perks-tag">PERKS</span>
+          <div class="t-title sm cb" id="perks-title">Everything Included</div>
+        </div>
+        <div class="perks-chips" id="perks-chips-el"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EVENTS -->
+  <div class="tile t-events bg-grey" data-tile="events" onclick="sel('events')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt">
+      <div class="t-iconbox cb" id="events-icon"></div>
+      <span class="t-tag cg" id="events-tag">SPACES &amp; EVENTS</span>
+      <div class="t-title md cb" id="events-title">Events &amp; Meeting Rooms</div>
+      <span class="t-desc cg" id="events-desc">State-of-the-art boardrooms, event lounges and collaboration spaces</span>
+    </div>
+  </div>
+
+  <!-- AMENITIES -->
+  <div class="tile t-amenity bg-black" data-tile="amenity" onclick="sel('amenity')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt">
+      <div class="t-iconbox cw" id="amenity-icon"></div>
+      <div class="t-title sm cw" id="amenity-title">Modern Amenities</div>
+      <span class="t-desc cdw" id="amenity-desc">Everything to keep you at your best</span>
+      <div class="a-row" id="amenity-row-el"></div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="tile t-cta bg-orange" data-tile="cta" onclick="sel('cta')">
+    <span class="edit-badge">Edit</span>
+    <div class="t-cnt" style="text-align:center">
+      <div class="t-iconbox cw" id="cta-icon" style="justify-content:center"></div>
+      <div class="t-title sm cw" id="cta-title">Book a Tour</div>
+      <span class="cta-pill" id="cta-btn-text">Visit Us Today</span>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-top">
+    <div class="sb-name" id="sb-name">Select a Tile</div>
+    <div class="sb-hint" id="sb-hint">Click any tile to begin editing</div>
+  </div>
+  <div class="sb-body" id="sb-body">
+    <div class="no-sel">
+      <div class="ns-ic" id="ns-ic"></div>
+      Click any tile on the canvas<br>to edit its content, icons &amp; colour
+    </div>
+  </div>
+</div>
+
+<!-- OVERLAY -->
+<div class="dl-ov" id="dl-ov">
+  <div class="dl-spin"></div>
+  <div class="dl-txt">Rendering A4 at 3x resolution...</div>
+  <div class="dl-sub">This may take a few seconds</div>
+</div>
+
+<script>
+/* ══════════════════════
+   SVG ICON LIBRARY
+══════════════════════ */
+const IL = {
+  'map-pin':      `<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>`,
+  'building':     `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
+  'building-2':   `<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/>`,
+  'users':        `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+  'user':         `<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
+  'check-circle': `<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>`,
+  'check':        `<polyline points="20 6 9 17 4 12"/>`,
+  'layers':       `<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>`,
+  'target':       `<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>`,
+  'zap':          `<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>`,
+  'send':         `<path d="m22 2-7 20-4-9-9-4 20-7z"/><path d="M22 2 11 13"/>`,
+  'arrow-right':  `<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>`,
+  'star':         `<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>`,
+  'award':        `<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>`,
+  'briefcase':    `<rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>`,
+  'globe':        `<circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>`,
+  'key':          `<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>`,
+  'shield':       `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>`,
+  'lock':         `<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
+  'wifi':         `<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>`,
+  'coffee':       `<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/>`,
+  'calendar':     `<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>`,
+  'clock':        `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+  'bell':         `<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>`,
+  'mail':         `<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>`,
+  'phone':        `<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.72 13 19.79 19.79 0 0 1 1.62 4.36 2 2 0 0 1 3.6 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>`,
+  'monitor':      `<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>`,
+  'laptop':       `<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>`,
+  'printer':      `<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>`,
+  'bar-chart':    `<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>`,
+  'trending-up':  `<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>`,
+  'sun':          `<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>`,
+  'leaf':         `<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>`,
+  'presentation': `<path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/>`,
+  'bike':         `<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>`,
+  'home':         `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
+  'sparkles':     `<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4M19 17v4M3 5h4M17 19h4"/>`,
+  'heart':        `<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>`,
+  'map':          `<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/>`,
+};
+
+// Amenity pool [key, label]
+const APOOL = [
+  ['wifi','WiFi'],['coffee','Coffee'],['printer','Print'],['monitor','AV'],
+  ['shield','Secure'],['lock','Access'],['clock','24/7'],['phone','Reception'],
+  ['mail','Mail'],['bike','Bikes'],['leaf','Green'],['sun','Light'],
+  ['bar-chart','Reports'],['bell','Concierge'],['calendar','Events'],['briefcase','Storage'],
+];
+
+const BG_OPTS = [
+  {k:'white',   c:'#ffffff'},
+  {k:'grey',    c:'#f0f0f0'},
+  {k:'black',   c:'#0f0f0f'},
+  {k:'orange',  c:'#ff6600'},
+  {k:'darkgrey',c:'#252525'},
+];
+
+/* ══════════════════════
+   STATE
+══════════════════════ */
+const S = {
+  header:  { logo:'NEXUS SPACES', badge:'WORKSPACES', tag:'Flexible. Connected. Ready.' },
+  loc:     { icon:'map-pin',     stat:'12', unit:'CBD',  title:'Prime Locations',           desc:'Strategically placed offices across every major business district', bg:'orange',   img:null },
+  office:  { icon:'layers',      tag:'WORKSPACE',       title:'Flexible Serviced Office',  desc:'Scale up or down to fit your team — no long-term lock-in',          bg:'white',    img:null },
+  teams:   { icon:'users',       tag:'HOSPITALITY',     title:'Supportive On-Site Teams',  desc:'Dedicated staff ensuring every day runs seamlessly from arrival to close', bg:'black', img:null },
+  movein:  { icon:'check-circle',tag:'READY FROM DAY ONE', title:'Move-In Ready Workspaces', desc:'Fully furnished, wired and set up — just bring your team',        bg:'grey',     img:null },
+  perks:   { tag:'PERKS', title:'Everything Included', chipIcon:'check', items:['High-Speed WiFi','Barista Coffee','Mail Handling','Reception','Bike Storage','Event Access','IT Support','Cleaning'], bg:'white' },
+  events:  { icon:'target',      tag:'SPACES & EVENTS', title:'Events & Meeting Rooms',   desc:'State-of-the-art boardrooms, event lounges and collaboration spaces', bg:'grey',     img:null },
+  amenity: { icon:'zap',         title:'Modern Amenities', desc:'Everything to keep you at your best', chips:['wifi','coffee','monitor','shield','clock','printer'], bg:'black' },
+  cta:     { icon:'send',        title:'Book a Tour',   btn:'Visit Us Today',             bg:'orange' },
+};
+
+const ICON_SIZES = { loc:40, office:34, teams:34, movein:28, events:34, amenity:28, cta:32 };
+
+let cur = null;
+
+/* ══════════════════════
+   SVG HELPER
+══════════════════════ */
+function svg(key, size=24, sw=1.75) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="display:block">${IL[key]||''}</svg>`;
+}
+
+/* ══════════════════════
+   INIT
+══════════════════════ */
+function init() {
+  Object.entries(ICON_SIZES).forEach(([id, sz]) => {
+    const el = document.getElementById(`${id}-icon`);
+    if (el) el.innerHTML = svg(S[id].icon, sz);
+  });
+  const ns = document.getElementById('ns-ic');
+  if (ns) { ns.style.color='#282828'; ns.innerHTML = svg('layers', 36, 1.5); }
+  renderPerks();
+  renderAmenityRow();
+}
+
+function renderPerks() {
+  const el = document.getElementById('perks-chips-el');
+  if (!el) return;
+  el.innerHTML = S.perks.items.map(it =>
+    `<span class="perk-chip">${svg(S.perks.chipIcon||'check',11,2.25)} ${it}</span>`
+  ).join('');
+}
+
+function renderAmenityRow() {
+  const el = document.getElementById('amenity-row-el');
+  if (!el) return;
+  el.innerHTML = S.amenity.chips.map(k => {
+    const label = (APOOL.find(p=>p[0]===k)||[k,k])[1];
+    return `<div class="a-chip">${svg(k,11,2.25)} ${label}</div>`;
+  }).join('');
+}
+
+init();
+
+/* ══════════════════════
+   SELECTION
+══════════════════════ */
+function sel(id) {
+  document.querySelectorAll('.tile.active').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`[data-tile="${id}"]`).classList.add('active');
+  cur = id;
+  const names = { header:'Header Bar',loc:'Locations',office:'Flexible Office',teams:'On-Site Teams',movein:'Move-In Ready',perks:'Perks',events:'Events & Rooms',amenity:'Amenities',cta:'Call to Action' };
+  document.getElementById('sb-name').textContent = names[id]||id;
+  document.getElementById('sb-hint').textContent = 'Edit this tile below';
+  buildSidebar(id);
+}
+
+function clearSel() {
+  document.querySelectorAll('.tile.active').forEach(t=>t.classList.remove('active'));
+  cur = null;
+  document.getElementById('sb-name').textContent = 'Select a Tile';
+  document.getElementById('sb-hint').textContent = 'Click any tile to begin editing';
+  document.getElementById('sb-body').innerHTML = `<div class="no-sel"><div class="ns-ic" style="color:#282828;display:flex;justify-content:center">${svg('layers',36,1.5)}</div>Click any tile on the canvas<br>to edit its content, icons &amp; colour</div>`;
+}
+
+/* ══════════════════════
+   SIDEBAR BUILD
+══════════════════════ */
+function buildSidebar(id) {
+  const sb = document.getElementById('sb-body');
+  let h = '';
+
+  if (id === 'header') {
+    h = fld('Brand Name','h-logo',S.header.logo) + fld('Badge Label','h-badge',S.header.badge) + fld('Tagline','h-tag',S.header.tag) +
+        apply('applyHeader()');
+
+  } else if (id === 'loc') {
+    h = ipick(S.loc.icon,'loc') + sdiv() +
+        `<div class="fg"><label class="fl">Stat Number &amp; Unit</label><div class="frow"><input class="fi" id="f-stat" value="${esc(S.loc.stat)}" style="width:70px;flex:none"><input class="fi" id="f-unit" value="${esc(S.loc.unit)}" placeholder="unit"></div></div>` +
+        fld('Title','f-title',S.loc.title) + fld('Description','f-desc',S.loc.desc,true) + sdiv() +
+        bgp(S.loc.bg,'loc') + imgup('loc',S.loc.img) + apply('applyLoc()');
+
+  } else if (id === 'perks') {
+    h = fld('Tag Label','f-tag',S.perks.tag) + fld('Title','f-title',S.perks.title) + sdiv() +
+        `<div class="fg"><label class="fl">Chip Icon</label><div class="icon-grid">${Object.keys(IL).map(k=>`<div class="ig-btn ${k===S.perks.chipIcon?'on':''}" onclick="setChipIcon('${k}',this)">${svg(k,15)}</div>`).join('')}</div></div>` + sdiv() +
+        `<div class="fg"><label class="fl">Perk Items</label><div id="perks-ed">${S.perks.items.map((it,i)=>`<div class="perk-row"><input type="text" value="${esc(it)}" oninput="S.perks.items[${i}]=this.value;renderPerks()"><button class="perk-del" onclick="delPerk(${i})">&#215;</button></div>`).join('')}</div><button class="btn-add" onclick="addPerk()">+ Add Perk</button></div>` + sdiv() +
+        bgp(S.perks.bg,'perks') + apply('applyPerks()');
+
+  } else if (id === 'amenity') {
+    h = ipick(S.amenity.icon,'amenity') + sdiv() +
+        fld('Title','f-title',S.amenity.title) + fld('Description','f-desc',S.amenity.desc,true) + sdiv() +
+        `<div class="fg"><label class="fl">Amenity Chips</label><div class="am-picker">${APOOL.map(([k,lb])=>`<div class="am-btn ${S.amenity.chips.includes(k)?'on':''}" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${lb}</span></div>`).join('')}</div></div>` + sdiv() +
+        bgp(S.amenity.bg,'amenity') + apply('applyAmenity()');
+
+  } else if (id === 'cta') {
+    h = ipick(S.cta.icon,'cta') + sdiv() +
+        fld('Title','f-title',S.cta.title) + fld('Button Text','f-btn',S.cta.btn) + sdiv() +
+        bgp(S.cta.bg,'cta') + apply('applyCta()');
+
+  } else {
+    const s = S[id];
+    h = ipick(s.icon,id) + sdiv() +
+        (s.tag !== undefined ? fld('Tag Label','f-tag',s.tag) : '') +
+        fld('Title','f-title',s.title) + fld('Description','f-desc',s.desc,true) + sdiv() +
+        bgp(s.bg,id) + imgup(id,s.img) + apply(`applyGeneric('${id}')`);
+  }
+
+  sb.innerHTML = h;
+}
+
+/* ── Helpers ── */
+function fld(label,id,val,multi=false) {
+  if (multi) return `<div class="fg"><label class="fl">${label}</label><textarea class="fi" rows="3" id="${id}">${val}</textarea></div>`;
+  return `<div class="fg"><label class="fl">${label}</label><input class="fi" id="${id}" value="${esc(val)}"></div>`;
+}
+function sdiv()  { return `<div class="sdiv"></div>`; }
+function apply(fn) { return `<button class="btn-apply" onclick="${fn}">Apply Changes</button>`; }
+function esc(s='') { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function ipick(curKey, tid) {
+  return `<div class="fg"><label class="fl">Icon</label><div class="icon-grid">${Object.keys(IL).map(k=>`<div class="ig-btn ${k===curKey?'on':''}" onclick="setIcon('${tid}','${k}',this)" title="${k}">${svg(k,15)}</div>`).join('')}</div></div>`;
+}
+function bgp(cur, tid) {
+  return `<div class="fg"><label class="fl">Background</label><div class="swatches">${BG_OPTS.map(b=>`<div class="sw ${b.k===cur?'on':''}" style="background:${b.c}" onclick="setBg('${tid}','${b.k}',this)"></div>`).join('')}</div></div>`;
+}
+function imgup(tid, imgData) {
+  if (imgData) return `<div class="fg"><label class="fl">Background Image</label><div class="up-zone filled"><img class="up-prev" src="${imgData}"></div><span class="up-clear" onclick="clearImg('${tid}')">&#215; Remove image</span></div>`;
+  return `<div class="fg"><label class="fl">Background Image (optional)</label><div class="up-zone" onclick="document.getElementById('upf-${tid}').click()"><input type="file" id="upf-${tid}" accept="image/*" style="display:none" onchange="handleImg('${tid}',this)">${svg('laptop',14)} Click to upload</div></div>`;
+}
+
+/* ══════════════════════
+   ACTIONS
+══════════════════════ */
+function setIcon(tid, key, el) {
+  S[tid].icon = key;
+  el.closest('.icon-grid').querySelectorAll('.ig-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  const iconEl = document.getElementById(`${tid}-icon`);
+  if (iconEl) iconEl.innerHTML = svg(key, ICON_SIZES[tid]||30);
+}
+
+function setChipIcon(key, el) {
+  S.perks.chipIcon = key;
+  el.closest('.icon-grid').querySelectorAll('.ig-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderPerks();
+}
+
+function setBg(tid, key, el) {
+  S[tid].bg = key;
+  el.closest('.swatches').querySelectorAll('.sw').forEach(s=>{ s.classList.remove('on'); s.style.boxShadow=''; });
+  el.classList.add('on');
+  const tile = document.querySelector(`[data-tile="${tid}"]`);
+  ['bg-white','bg-grey','bg-black','bg-orange','bg-darkgrey'].forEach(c=>tile.classList.remove(c));
+  tile.classList.add(`bg-${key}`);
+}
+
+function handleImg(tid, input) {
+  const f = input.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = e => { S[tid].img = e.target.result; setImg(tid, e.target.result); buildSidebar(tid); };
+  r.readAsDataURL(f);
+}
+function clearImg(tid) { S[tid].img = null; setImg(tid, null); buildSidebar(tid); }
+function setImg(tid, d) {
+  const t = document.querySelector(`[data-tile="${tid}"]`);
+  t.querySelector('.t-img')?.remove();
+  t.querySelector('.t-ov')?.remove();
+  if (!d) return;
+  const img = Object.assign(document.createElement('img'), {className:'t-img', src:d});
+  const ov  = Object.assign(document.createElement('div'), {className:'t-ov'});
+  t.insertBefore(ov, t.firstChild);
+  t.insertBefore(img, t.firstChild);
+}
+
+function toggleAmenity(k, el) {
+  const arr = S.amenity.chips;
+  const i = arr.indexOf(k);
+  if (i > -1) arr.splice(i,1); else arr.push(k);
+  el.classList.toggle('on', arr.includes(k));
+  renderAmenityRow();
+}
+
+function delPerk(i) { S.perks.items.splice(i,1); renderPerks(); buildSidebar('perks'); }
+function addPerk()  { S.perks.items.push('New Perk'); renderPerks(); buildSidebar('perks'); }
+
+/* ── Apply functions ── */
+function applyHeader() {
+  S.header.logo  = v('h-logo');
+  S.header.badge = v('h-badge');
+  S.header.tag   = v('h-tag');
+  setText('h-logo-text',  S.header.logo);
+  setText('h-badge-text', S.header.badge);
+  setText('h-tag-text',   S.header.tag);
+}
+function applyLoc() {
+  S.loc.stat  = v('f-stat');
+  S.loc.unit  = v('f-unit');
+  S.loc.title = v('f-title');
+  S.loc.desc  = v('f-desc');
+  const el = document.getElementById('loc-stat-el');
+  if (el) el.innerHTML = `${S.loc.stat}<span class="t-unit"> ${S.loc.unit}</span>`;
+  setText('loc-title', S.loc.title);
+  setText('loc-desc',  S.loc.desc);
+}
+function applyGeneric(id) {
+  const s = S[id];
+  if (ge('f-tag'))   { s.tag   = v('f-tag');   setText(`${id}-tag`,   s.tag);   }
+  if (ge('f-title')) { s.title = v('f-title'); setText(`${id}-title`, s.title); }
+  if (ge('f-desc'))  { s.desc  = v('f-desc');  setText(`${id}-desc`,  s.desc);  }
+}
+function applyPerks() {
+  S.perks.tag   = v('f-tag');
+  S.perks.title = v('f-title');
+  setText('perks-tag',   S.perks.tag);
+  setText('perks-title', S.perks.title);
+  renderPerks();
+}
+function applyAmenity() {
+  S.amenity.title = v('f-title');
+  S.amenity.desc  = v('f-desc');
+  setText('amenity-title', S.amenity.title);
+  setText('amenity-desc',  S.amenity.desc);
+  renderAmenityRow();
+}
+function applyCta() {
+  S.cta.title = v('f-title');
+  S.cta.btn   = v('f-btn');
+  setText('cta-title',    S.cta.title);
+  setText('cta-btn-text', S.cta.btn);
+}
+
+function v(id)        { const e=ge(id); return e?e.value.trim():''; }
+function ge(id)       { return document.getElementById(id); }
+function setText(id,t){ const e=ge(id); if(e) e.textContent=t; }
+
+/* ══════════════════════
+   DOWNLOAD
+══════════════════════ */
+async function downloadPoster() {
+  const ov = document.getElementById('dl-ov');
+  ov.classList.add('on');
+  document.querySelectorAll('.tile.active').forEach(t=>t.classList.remove('active'));
+  document.body.classList.add('ss');
+  await new Promise(r=>setTimeout(r,250));
+  const poster = document.getElementById('poster');
+  try {
+    const canvas = await html2canvas(poster, {
+      scale: 3, useCORS: true, allowTaint: true,
+      backgroundColor: '#e8e8e8', logging: false,
+      width: poster.offsetWidth, height: poster.offsetHeight,
+      onclone: doc => {
+        doc.querySelectorAll('.edit-badge').forEach(e=>e.style.display='none');
+        doc.querySelectorAll('.tile').forEach(t=>{ t.style.outline='none'; });
+      }
+    });
+    const a = document.createElement('a');
+    a.download = 'workspace-bento-A4.png';
+    a.href = canvas.toDataURL('image/png',1.0);
+    a.click();
+  } catch(e) { console.error(e); alert('Render failed — see console.'); }
+  document.body.classList.remove('ss');
+  if (cur) document.querySelector(`[data-tile="${cur}"]`)?.classList.add('active');
+  ov.classList.remove('on');
+}
+</script>
+</body>
+</html>
