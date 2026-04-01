@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compass Offices – Hong Kong Events</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --orange:#ff6600; --od:#d95500;
+  --black:#0a0a0a;  --white:#ffffff;
+  --off:#f5f5f5;    --border:#e8e8e8;
+  --text:#0f0f0f;   --muted:#999;
+  --radius:18px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--black);min-height:100vh;color:var(--text);-webkit-font-smoothing:antialiased;}
+
+/* ── Controls ── */
+.ctrl-bar{position:sticky;top:0;z-index:100;background:#0c0c0c;border-bottom:1px solid #1c1c1c;padding:10px 20px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.ctrl-logo img{height:30px;width:auto;display:block;}
+.ctrl-sep{width:1px;height:22px;background:#252525;flex-shrink:0;}
+.ctrl-title{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.1em;color:var(--orange);flex:1;white-space:nowrap;}
+select.pill{background:#141414;border:1.5px solid #282828;color:#999;padding:5px 12px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:500;cursor:pointer;outline:none;transition:border-color .15s,color .15s;-webkit-appearance:none;appearance:none;}
+select.pill:hover,select.pill:focus{border-color:var(--orange);color:var(--orange);}
+select.pill option{background:#1a1a1a;color:#fff;}
+.page-nav{display:flex;align-items:center;gap:6px;color:#444;font-size:.78rem;font-weight:700;letter-spacing:.05em;}
+.nav-btn{background:#141414;border:1.5px solid #282828;color:#666;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s;user-select:none;}
+.nav-btn:hover:not(:disabled){border-color:var(--orange);color:var(--orange);}
+.nav-btn:disabled{opacity:.22;cursor:default;}
+.btn-refresh{background:transparent;border:1.5px solid #282828;color:#555;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color .15s,color .15s;flex-shrink:0;}
+.btn-refresh:hover:not(:disabled){border-color:var(--orange);color:var(--orange);}
+.btn-refresh:disabled{opacity:.35;cursor:default;}
+.btn-refresh svg{width:13px;height:13px;}
+.btn-refresh.spinning svg{animation:spin .65s linear infinite;}
+.dl-group{display:flex;align-items:center;gap:6px;}
+.btn-dl{border:none;padding:7px 14px;border-radius:30px;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;letter-spacing:.04em;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:background .15s,opacity .15s;}
+.btn-dl-jpg{background:var(--orange);color:#fff;}
+.btn-dl-jpg:hover:not(:disabled){background:var(--od);}
+.btn-dl-pdf{background:#1c1c1c;color:#aaa;border:1.5px solid #2e2e2e;}
+.btn-dl-pdf:hover:not(:disabled){border-color:var(--orange);color:var(--orange);}
+.btn-dl:disabled{opacity:.45;cursor:wait;}
+.btn-dl svg{width:12px;height:12px;flex-shrink:0;}
+
+/* ── Stage ── */
+.stage{display:flex;justify-content:center;align-items:flex-start;padding:32px 16px 64px;min-height:calc(100vh - 52px);}
+
+/* ── Screen card (900px, desktop optimised) ── */
+.event-page{width:900px;max-width:100%;background:var(--white);border-radius:var(--radius);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55),0 4px 12px rgba(0,0,0,.3);}
+.page-header{background:var(--black);padding:22px 30px 18px;display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.hdr-logo img{height:38px;width:auto;display:block;object-fit:contain;}
+.hdr-right{text-align:right;}
+.hdr-title{font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:.14em;color:#fff;line-height:1;}
+.hdr-sub{font-size:.7rem;font-weight:700;letter-spacing:.26em;color:var(--orange);margin-top:6px;text-transform:uppercase;}
+.accent-bar{height:4px;background:linear-gradient(90deg,var(--orange),#ff9a00);}
+.events-body{padding:0;}
+.event-row{display:flex;align-items:stretch;border-bottom:1px solid var(--border);min-height:120px;}
+.event-row:last-child{border-bottom:none;}
+.event-row:nth-child(odd){background:var(--white);}
+.event-row:nth-child(even){background:var(--off);}
+.event-row.is-today{background:#fffaf6!important;border-left:4px solid var(--orange);}
+.ev-date{width:84px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 8px;border-right:1px solid var(--border);text-align:center;gap:1px;}
+.ev-wd{font-size:.62rem;font-weight:800;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;}
+.ev-day{font-family:'Bebas Neue',sans-serif;font-size:3rem;line-height:1;color:var(--orange);}
+.ev-mon{font-size:.62rem;font-weight:800;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;}
+.today-badge{background:var(--orange);color:#fff;font-size:.52rem;font-weight:800;letter-spacing:.1em;border-radius:4px;padding:2px 6px;margin-top:5px;text-transform:uppercase;}
+.ev-thumb{width:180px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:12px 10px;border-right:1px solid var(--border);}
+.ev-thumb-box{width:158px;height:88px;border-radius:10px;overflow:hidden;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;}
+.ev-thumb-box img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;}
+.ev-thumb-box.g0{background:linear-gradient(135deg,#ff6600,#ff9a00);}
+.ev-thumb-box.g1{background:linear-gradient(135deg,#cc4400,#ff6600);}
+.ev-thumb-box.g2{background:linear-gradient(135deg,#ff7700,#ffd000);}
+.ev-thumb-box.g3{background:linear-gradient(135deg,#e84000,#ff7b00);}
+.ev-thumb-box.g4{background:linear-gradient(135deg,#ff5500,#ff3300);}
+.ev-thumb-box.g5{background:linear-gradient(135deg,#ff8800,#ffbb44);}
+.ev-thumb-box.no-img::after{content:'C';font-family:'Bebas Neue',sans-serif;font-size:3rem;color:rgba(255,255,255,.18);line-height:1;user-select:none;pointer-events:none;}
+.ev-info{flex:1;min-width:0;padding:16px 20px 16px 18px;display:flex;flex-direction:column;justify-content:center;gap:5px;}
+.ev-type-badge{display:inline-flex;align-items:center;background:rgba(255,102,0,.1);border:1px solid rgba(255,102,0,.25);color:var(--orange);font-size:.6rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;padding:3px 8px;border-radius:4px;align-self:flex-start;}
+.ev-name{font-size:1.2rem;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word;}
+.ev-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.ev-meta-item{display:inline-flex;align-items:flex-start;gap:5px;font-size:.78rem;font-weight:600;color:#555;line-height:1.4;}
+.ev-meta-item svg{width:13px;height:13px;flex-shrink:0;margin-top:1px;color:var(--orange);opacity:.8;}
+/* QR column — screen view */
+.ev-qr{width:112px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 16px;border-left:1px solid var(--border);gap:6px;}
+/* QR box: 84px outer. border 1.5px×2=3px. padding 8px×2=16px. inner=65px. QR=62px. Always fits. */
+.qr-box{width:84px;height:84px;border-radius:10px;overflow:hidden;background:#fff;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:8px;}
+.qr-box canvas,.qr-box img{width:62px!important;height:62px!important;display:block;flex-shrink:0;}
+.qr-lbl{font-size:.57rem;font-weight:800;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;text-align:center;}
+/* Page footer */
+.page-footer{background:var(--black);padding:12px 30px;display:flex;justify-content:space-between;align-items:center;}
+.ft-l{display:flex;align-items:center;gap:8px;}
+.ft-dot{width:5px;height:5px;border-radius:50%;background:var(--orange);}
+.ft-site{font-size:.72rem;font-weight:700;color:#444;letter-spacing:.1em;}
+.ft-page{font-size:.67rem;font-weight:800;color:var(--orange);letter-spacing:.18em;text-transform:uppercase;}
+
+/* ── States ── */
+.state-box{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;min-height:360px;text-align:center;gap:14px;}
+.spinner{width:36px;height:36px;border:3px solid #e8e8e8;border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite;}
+.state-box p{font-size:.92rem;color:#999;font-weight:500;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── Overlay ── */
+.gen-overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.82);backdrop-filter:blur(6px);flex-direction:column;align-items:center;justify-content:center;}
+.gen-overlay.on{display:flex;}
+.gen-box{background:#111;border:1px solid #222;border-radius:16px;padding:28px 44px;text-align:center;min-width:230px;}
+.gen-spinner{width:32px;height:32px;border:3px solid #1e1e1e;border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
+.gen-lbl{font-size:.88rem;font-weight:700;color:#ccc;letter-spacing:.05em;}
+.gen-sub{font-size:.7rem;color:#444;margin-top:5px;}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .ev-date{width:68px;} .ev-day{font-size:2.4rem;}
+  .ev-thumb{width:130px;padding:10px 8px;} .ev-thumb-box{width:112px;height:63px;}
+  .ev-qr{width:96px;padding:10px 12px;}
+  .qr-box{width:70px;height:70px;padding:6px;}
+  .qr-box canvas,.qr-box img{width:56px!important;height:56px!important;}
+  .ev-name{font-size:1rem;} .ev-meta-item{font-size:.72rem;}
+}
+</style>
+</head>
+<body>
+
+<div class="gen-overlay" id="gen-overlay">
+  <div class="gen-box">
+    <div class="gen-spinner"></div>
+    <div class="gen-lbl" id="gen-lbl">Preparing…</div>
+    <div class="gen-sub" id="gen-sub"></div>
+  </div>
+</div>
+
+<div class="ctrl-bar">
+  <div class="ctrl-logo">
+    <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices">
+  </div>
+  <div class="ctrl-sep"></div>
+  <div class="ctrl-title">HK EVENTS</div>
+  <select class="pill" id="year-sel"></select>
+  <select class="pill" id="month-sel">
+    <option value="all">All Months</option>
+    <option value="0">January</option><option value="1">February</option>
+    <option value="2">March</option><option value="3">April</option>
+    <option value="4">May</option><option value="5">June</option>
+    <option value="6">July</option><option value="7">August</option>
+    <option value="8">September</option><option value="9">October</option>
+    <option value="10">November</option><option value="11">December</option>
+  </select>
+  <div class="page-nav">
+    <button class="nav-btn" id="btn-prev">&#8592;</button>
+    <span id="page-indicator">– / –</span>
+    <button class="nav-btn" id="btn-next">&#8594;</button>
+  </div>
+  <button class="btn-refresh" id="btn-refresh" title="Refresh live data">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+  </button>
+  <div class="dl-group">
+    <button class="btn-dl btn-dl-jpg" id="btn-jpg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      JPG
+    </button>
+    <button class="btn-dl btn-dl-pdf" id="btn-pdf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      PDF
+    </button>
+  </div>
+</div>
+
+<div class="stage">
+  <div id="event-page" class="event-page">
+    <div class="state-box"><div class="spinner"></div><p>Loading Hong Kong events…</p></div>
+  </div>
+</div>
+
+<script>
+/* ── Constants ── */
+const EVENTS_PER_PAGE = 6;
+const HK_KW    = ['hong kong','hk','hong-kong'];
+const MONTHS   = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_S = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const WEEKDAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const GRAD_N   = 6;
+// Export: 540px offscreen × 2× scale = 1080px wide (phone-optimised, WhatsApp-friendly)
+const EXPORT_W     = 540;
+const EXPORT_SCALE = 2;
+const PDF_W = 210, PDF_H = 297;
+
+/* ── State ── */
+let allEvents  = [];
+let pages      = [];
+let curPage    = 0;
+let logoB64    = null;
+let thumbCache = new Map();   // url → base64
+let qrCache    = new Map();   // url → png data URL
+
+/* ── Overlay ── */
+const overlay = {
+  show(lbl, sub='') {
+    document.getElementById('gen-overlay').classList.add('on');
+    document.getElementById('gen-lbl').textContent = lbl;
+    document.getElementById('gen-sub').textContent = sub;
+  },
+  hide() { document.getElementById('gen-overlay').classList.remove('on'); }
+};
+
+/* ── Image helpers ── */
+async function urlToBase64(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { mode:'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise(r => { const rd = new FileReader(); rd.onload=()=>r(rd.result); rd.onerror=()=>r(null); rd.readAsDataURL(blob); });
+  } catch(_) { return null; }
+}
+
+async function svgToPng(svgUrl, h=80) {
+  try {
+    const res = await fetch(svgUrl, { mode:'cors' });
+    if (!res.ok) return null;
+    const txt = await res.text();
+    const doc = new DOMParser().parseFromString(txt, 'image/svg+xml');
+    const el  = doc.querySelector('svg');
+    let W = parseFloat(el?.getAttribute('width')||'0'), H = parseFloat(el?.getAttribute('height')||'0');
+    if (!W||!H) { const vb=(el?.getAttribute('viewBox')||'').split(/[\s,]+/).map(Number); if(vb.length>=4){W=vb[2];H=vb[3];} }
+    if (!W||!H){W=300;H=60;}
+    const pW=Math.round(h*(W/H)), burl=URL.createObjectURL(new Blob([txt],{type:'image/svg+xml'}));
+    return await new Promise(resolve=>{
+      const img=new Image();
+      img.onload=()=>{ const c=document.createElement('canvas'); c.width=pW*2; c.height=h*2; c.getContext('2d').drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(burl); resolve(c.toDataURL('image/png')); };
+      img.onerror=()=>{URL.revokeObjectURL(burl);resolve(null);};
+      img.src=burl;
+    });
+  } catch(_){ return null; }
+}
+
+/* Pre-generate a QR code as a PNG data URL using QRCode.js.
+   Done into a hidden temp div — completely separate from the visible DOM.
+   Returns a data URL string, or null if generation fails. */
+function generateQRDataUrl(text, size) {
+  if (!text || !text.trim()) return Promise.resolve(null);
+  return new Promise(resolve => {
+    const tmp = document.createElement('div');
+    tmp.style.cssText = 'position:fixed;left:-9999px;top:-9999px;visibility:hidden;';
+    document.body.appendChild(tmp);
+    try {
+      new QRCode(tmp, { text, width:size, height:size, colorDark:'#111', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M });
+      // Wait two frames for paint
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try {
+          const canvas = tmp.querySelector('canvas');
+          const dataUrl = canvas ? canvas.toDataURL('image/png') : null;
+          document.body.removeChild(tmp);
+          resolve(dataUrl);
+        } catch(_) { document.body.removeChild(tmp); resolve(null); }
+      }));
+    } catch(_) { document.body.removeChild(tmp); resolve(null); }
+  });
+}
+
+/* Thumbnail: CORS fetch first, then plain img (auth cookies for Drive) */
+async function thumbToB64(url, tW, tH) {
+  if (!url) return null;
+  const drawImg = img => {
+    const c=document.createElement('canvas'); c.width=tW; c.height=tH;
+    const ctx=c.getContext('2d');
+    const s=Math.max(tW/img.naturalWidth, tH/img.naturalHeight);
+    const dw=img.naturalWidth*s, dh=img.naturalHeight*s;
+    ctx.drawImage(img,(tW-dw)/2,(tH-dh)/2,dw,dh);
+    return c.toDataURL('image/png');
+  };
+  // Attempt 1: CORS fetch (public CDN / public Drive shares)
+  try {
+    const res=await fetch(url,{mode:'cors',credentials:'omit'});
+    if (res.ok) {
+      const blob=await res.blob(), burl=URL.createObjectURL(blob);
+      const result=await new Promise(resolve=>{
+        const img=new Image();
+        img.onload=()=>{try{resolve(drawImg(img));}catch(_){resolve(null);}URL.revokeObjectURL(burl);};
+        img.onerror=()=>{URL.revokeObjectURL(burl);resolve(null);};
+        img.src=burl; setTimeout(()=>resolve(null),6000);
+      });
+      if (result) return result;
+    }
+  } catch(_){}
+  // Attempt 2: plain img (sends auth cookies for private Drive URLs)
+  return await new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{try{resolve(drawImg(img));}catch(_){resolve(null);}};
+    img.onerror=()=>resolve(null);
+    img.src=url;
+    setTimeout(()=>resolve(null),8000);
+  });
+}
+
+/* Google Drive URL resolver */
+function resolveThumbUrl(url) {
+  if (!url) return url;
+  if (url.includes('lh3.googleusercontent.com/d/')) return url;
+  if (url.includes('lh3.googleusercontent.com/drive-storage')) return url;
+  const m1=url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m1) return `https://lh3.googleusercontent.com/d/${m1[1]}`;
+  const m2=url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m2) return `https://lh3.googleusercontent.com/d/${m2[1]}`;
+  return url;
+}
+
+/* ── CSV fetch ── */
+async function fetchCSV() {
+  const URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
+  const r=await fetch(URL,{mode:'cors'});
+  if (!r.ok) throw new Error(`Sheet fetch failed: HTTP ${r.status}`);
+  const t=await r.text();
+  const s=t.trim().slice(0,80).toLowerCase();
+  if (!t.trim()||s.startsWith('<!')||s.startsWith('<html'))
+    throw new Error('Sheet returned HTML — ensure the sheet is published (File → Share → Publish to web → CSV).');
+  return t;
+}
+
+/* ── Streaming CSV parser (handles newlines inside quoted fields) ── */
+function parseCSV(txt) {
+  const src=txt.replace(/^\uFEFF/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const STRIP=/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\uFEFF\u200B-\u200D\u2028\u2029\uFFFE\uFFFF]/g;
+  const allRows=[]; let fields=[],cur='',inQ=false;
+  for(let i=0;i<=src.length;i++){
+    const ch=i<src.length?src[i]:'\n';
+    if(ch==='"'){if(inQ&&src[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+    else if(ch===','&&!inQ){fields.push(cur);cur='';}
+    else if(ch==='\n'&&!inQ){
+      fields.push(cur);cur='';
+      const cleaned=fields.map(f=>f.replace(STRIP,'').trim());
+      if(cleaned.some(f=>f)) allRows.push(cleaned);
+      fields=[];
+    } else cur+=ch;
+  }
+  if(!allRows.length) return [];
+  const hdrs=allRows[0].map(h=>h.trim());
+  console.log('[CSV]',allRows.length,'rows,',hdrs.length,'cols:',hdrs);
+  return allRows.slice(1)
+    .filter(r=>{const d=r[1]||'',t=r[0]||'';return d.trim()&&!d.startsWith('#')&&!t.startsWith('#');})
+    .map(r=>{const o={};hdrs.forEach((h,i)=>{o[h]=r[i]||'';});return o;});
+}
+
+function parseDate(s){
+  if(!s) return null;
+  let m;
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  m=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);if(m)return new Date(+m[3],+m[1]-1,+m[2]);
+  const d=new Date(s);return isNaN(d)?null:d;
+}
+function isHK(ev){const r=(ev.Region||'').toLowerCase(),l=(ev.Location||ev[' Location']||'').toLowerCase();return HK_KW.some(kw=>r.includes(kw)||l.includes(kw));}
+function isToday(d){const t=new Date();return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()&&d.getDate()===t.getDate();}
+function getQRUrl(ev){const v=ev['register-url'];return(v&&v.trim())?v.trim():null;}
+
+/* ── Screen HTML builder ── */
+function buildPage(slice,pageNum,total,yearLbl,monthLbl,logoSrc,thumbMap){
+  const heading=monthLbl==='All Months'?`${yearLbl} Events`:`${monthLbl} ${yearLbl} Events`;
+  const logoUrl=logoSrc||'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg';
+  const SVG_CLOCK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+  const SVG_PIN=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+  const rows=slice.map((ev,i)=>{
+    const d=ev.parsedDate;
+    const type=(ev.type||'').trim()||'Event';
+    const name=(ev['Event-Name']||'Untitled Event').trim();
+    const time=(ev.Time||'').trim();
+    const loc=(ev.Location||ev[' Location']||'').trim();
+    const qrUrl=getQRUrl(ev);
+    const rawThumb=resolveThumbUrl((ev.thumbnail||'').trim());
+    const today=isToday(d);
+    const thumbSrc=thumbMap?(thumbMap.get(rawThumb)||null):rawThumb;
+    const gradCls=`g${i%GRAD_N}`;
+    const thumbEl=thumbSrc
+      ?`<div class="ev-thumb-box ${gradCls}"><img src="${thumbSrc}" alt="" loading="eager" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" onerror="this.parentNode.classList.add('no-img');this.remove()"></div>`
+      :`<div class="ev-thumb-box ${gradCls} no-img"></div>`;
+    return `
+<div class="event-row${today?' is-today':''}">
+  <div class="ev-date"><div class="ev-wd">${WEEKDAYS[d.getDay()]}</div><div class="ev-day">${d.getDate()}</div><div class="ev-mon">${MONTHS_S[d.getMonth()]}</div>${today?'<div class="today-badge">Today</div>':''}</div>
+  <div class="ev-thumb">${thumbEl}</div>
+  <div class="ev-info">
+    <div class="ev-type-badge">${type}</div>
+    <div class="ev-name">${name}</div>
+    <div class="ev-meta">
+      ${time?`<span class="ev-meta-item">${SVG_CLOCK}${time}</span>`:''}
+      ${loc?`<span class="ev-meta-item">${SVG_PIN}${loc}</span>`:''}
+    </div>
+  </div>
+  ${qrUrl?`<div class="ev-qr"><div class="qr-box" data-url="${encodeURIComponent(qrUrl)}" id="qr-p${pageNum}-r${i}"></div><div class="qr-lbl">Scan to RSVP</div></div>`:''}
+</div>`;
+  }).join('');
+  return `
+<div class="page-header"><div class="hdr-logo"><img src="${logoUrl}" alt="Compass Offices" style="height:38px;width:auto;display:block;object-fit:contain;"></div><div class="hdr-right"><div class="hdr-title">${heading.toUpperCase()}</div><div class="hdr-sub">Hong Kong &nbsp;·&nbsp; Upcoming Events</div></div></div>
+<div class="accent-bar"></div>
+<div class="events-body">${rows}</div>
+<div class="page-footer"><div class="ft-l"><div class="ft-dot"></div><div class="ft-site">compassoffices.com</div></div><div class="ft-page">Page ${pageNum} of ${total}</div></div>`;
+}
+
+/* ── Screen QR attach ── */
+function attachQR(root){
+  const boxes=[...root.querySelectorAll('.qr-box[data-url]')];
+  if(!boxes.length) return Promise.resolve();
+  return Promise.all(boxes.map(box=>new Promise(resolve=>{
+    const url=decodeURIComponent(box.getAttribute('data-url'));
+    // Generate at 62px — matches the CSS constraint exactly
+    try{
+      new QRCode(box,{text:url,width:62,height:62,colorDark:'#111',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
+      requestAnimationFrame(()=>requestAnimationFrame(resolve));
+    }catch(_){resolve();}
+  })));
+}
+
+/* ── Live rendering ── */
+function getLabels(){
+  const yr=document.getElementById('year-sel').value;
+  const mo=document.getElementById('month-sel').value;
+  return{yr,mo,yearLbl:yr==='all'?new Date().getFullYear().toString():yr,monthLbl:mo==='all'?'All Months':MONTHS[+mo],moName:mo==='all'?'events':MONTHS[+mo].toLowerCase()};
+}
+function renderPage(idx){
+  if(!pages.length)return;
+  curPage=idx;
+  const{yearLbl,monthLbl}=getLabels();
+  const el=document.getElementById('event-page');
+  el.innerHTML=buildPage(pages[idx],idx+1,pages.length,yearLbl,monthLbl,null,null);
+  attachQR(el);
+  document.getElementById('page-indicator').textContent=`${idx+1} / ${pages.length}`;
+  document.getElementById('btn-prev').disabled=idx===0;
+  document.getElementById('btn-next').disabled=idx===pages.length-1;
+}
+function rebuildPages(events){
+  pages=[];
+  for(let i=0;i<events.length;i+=EVENTS_PER_PAGE)pages.push(events.slice(i,i+EVENTS_PER_PAGE));
+  curPage=0;
+  if(!pages.length){
+    const{monthLbl,yearLbl}=getLabels();
+    document.getElementById('event-page').innerHTML=`<div class="state-box"><div style="font-size:2rem">📭</div><p>No events for ${monthLbl==='All Months'?yearLbl:monthLbl+' '+yearLbl}</p></div>`;
+    document.getElementById('page-indicator').textContent='0 / 0';
+    ['btn-prev','btn-next'].forEach(id=>{document.getElementById(id).disabled=true;});
+    return;
+  }
+  renderPage(0);
+}
+function getFiltered(){const{yr,mo}=getLabels();return allEvents.filter(e=>{if(yr!=='all'&&e.parsedDate.getFullYear()!==+yr)return false;if(mo!=='all'&&e.parsedDate.getMonth()!==+mo)return false;return true;});}
+function refresh(){rebuildPages(getFiltered());}
+function autoSelectMonth(){
+  const now=new Date();now.setHours(0,0,0,0);
+  const upcoming=allEvents.filter(e=>e.parsedDate>=now).sort((a,b)=>a.parsedDate-b.parsedDate);
+  if(upcoming.length){const f=upcoming[0].parsedDate;document.getElementById('year-sel').value=f.getFullYear().toString();document.getElementById('month-sel').value=f.getMonth().toString();}
+  else{const cy=new Date().getFullYear(),yrs=[...new Set(allEvents.map(e=>e.parsedDate.getFullYear()))];document.getElementById('year-sel').value=yrs.includes(cy)?cy:'all';document.getElementById('month-sel').value='all';}
+}
+
+/* ══════════════════════════════════════════════════════════
+   EXPORT PIPELINE
+   • Separate inline-styled template at 540px → ×2 = 1080px
+   • QR codes pre-generated as data URLs (no DOM canvas issues)
+   • Thumbnails pre-fetched as base64
+   • One image per page, each ~1080×1460px (WhatsApp-friendly)
+══════════════════════════════════════════════════════════ */
+const EXPORT_THUMB_W = 300, EXPORT_THUMB_H = 168; // 16:9 at export scale
+const EXPORT_QR_SIZE = 80;  // QR generated at 80px
+
+/* Pre-generate a QR data URL for every unique register-url in pages */
+async function prefetchQRs() {
+  const urls=new Set();
+  pages.forEach(pg=>pg.forEach(ev=>{const u=getQRUrl(ev);if(u&&!qrCache.has(u))urls.add(u);}));
+  if(!urls.size)return;
+  overlay.show('Generating QR codes…',`${urls.size} code${urls.size>1?'s':''}`);
+  await Promise.all([...urls].map(async url=>{
+    const dataUrl=await generateQRDataUrl(url,EXPORT_QR_SIZE);
+    qrCache.set(url,dataUrl||null);
+  }));
+}
+
+async function prefetchAssets(){
+  // Logo
+  if(!logoB64){
+    overlay.show('Fetching logo…','');
+    logoB64=await svgToPng('https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg',80);
+    if(!logoB64)logoB64=await urlToBase64('https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png');
+  }
+  // Thumbnails
+  const urls=new Set();
+  pages.forEach(pg=>pg.forEach(ev=>{const u=resolveThumbUrl((ev.thumbnail||'').trim());if(u&&!thumbCache.has(u))urls.add(u);}));
+  if(urls.size){
+    overlay.show('Loading thumbnails…',`${urls.size} image${urls.size>1?'s':''}`);
+    await Promise.all([...urls].map(async url=>{thumbCache.set(url,await thumbToB64(url,EXPORT_THUMB_W,EXPORT_THUMB_H));}));
+  }
+  // QR codes
+  await prefetchQRs();
+  const thumbMap=new Map();
+  pages.forEach(pg=>pg.forEach(ev=>{const u=resolveThumbUrl((ev.thumbnail||'').trim());if(u)thumbMap.set(u,thumbCache.get(u)||null);}));
+  return{thumbMap,logoSrc:logoB64};
+}
+
+/* Build phone-optimised export HTML with full inline styles.
+   Width: 540px. All sizes in px, inline. No external CSS dependency.
+   QR codes are plain <img src="data:..."> — zero chance of clipping. */
+function buildExportPage(slice,pageNum,total,yearLbl,monthLbl,logoSrc,thumbMap){
+  const heading=monthLbl==='All Months'?`${yearLbl} EVENTS`:`${monthLbl.toUpperCase()} ${yearLbl} EVENTS`;
+  const logoUrl=logoSrc||'https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg';
+
+  // Gradient colours per row index
+  const GRADS=['linear-gradient(135deg,#ff6600,#ff9a00)','linear-gradient(135deg,#cc4400,#ff6600)','linear-gradient(135deg,#ff7700,#ffd000)','linear-gradient(135deg,#e84000,#ff7b00)','linear-gradient(135deg,#ff5500,#ff3300)','linear-gradient(135deg,#ff8800,#ffbb44)'];
+
+  const rows=slice.map((ev,i)=>{
+    const d=ev.parsedDate;
+    const type=(ev.type||'').trim()||'Event';
+    const name=(ev['Event-Name']||'Untitled Event').trim();
+    const time=(ev.Time||'').trim();
+    const loc=(ev.Location||ev[' Location']||'').trim();
+    const qrUrl=getQRUrl(ev);
+    const qrDataUrl=qrUrl?qrCache.get(qrUrl):null;
+    const rawThumb=resolveThumbUrl((ev.thumbnail||'').trim());
+    const thumbSrc=rawThumb?(thumbMap.get(rawThumb)||null):null;
+    const bg=i%2===0?'#ffffff':'#f7f7f7';
+    const grad=GRADS[i%GRADS.length];
+
+    // Thumbnail cell (100px wide, 2:1 thumbnail)
+    const thumbCell=thumbSrc
+      ?`<td style="width:100px;padding:10px 8px 10px 0;vertical-align:middle;"><div style="width:84px;height:48px;border-radius:8px;overflow:hidden;flex-shrink:0;"><img src="${thumbSrc}" width="84" height="48" style="width:84px;height:48px;object-fit:cover;display:block;border-radius:8px;"></div></td>`
+      :`<td style="width:100px;padding:10px 8px 10px 0;vertical-align:middle;"><div style="width:84px;height:48px;border-radius:8px;background:${grad};display:flex;align-items:center;justify-content:center;"><span style="font-family:Georgia,serif;font-size:24px;color:rgba(255,255,255,.22);font-weight:900;">C</span></div></td>`;
+
+    // QR cell
+    const qrCell=qrDataUrl
+      ?`<td style="width:106px;padding:10px 12px;vertical-align:middle;border-left:1px solid #e8e8e8;text-align:center;">
+          <div style="width:98px;height:98px;border-radius:10px;background:#fff;border:1.5px solid #e8e8e8;display:flex;align-items:center;justify-content:center;margin:0 auto;overflow:hidden;">
+            <img src="${qrDataUrl}" width="${EXPORT_QR_SIZE}" height="${EXPORT_QR_SIZE}" style="width:${EXPORT_QR_SIZE}px;height:${EXPORT_QR_SIZE}px;display:block;border-radius:4px;">
+          </div>
+          <div style="font-size:7px;font-weight:800;letter-spacing:1.5px;color:#aaa;text-transform:uppercase;margin-top:5px;">SCAN TO RSVP</div>
+        </td>`
+      :'';
+
+    return `<tr style="background:${bg};">
+  <td style="width:68px;border-right:1px solid #e8e8e8;padding:12px 6px;vertical-align:middle;text-align:center;border-bottom:1px solid #efefef;">
+    <div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#aaa;text-transform:uppercase;font-family:'DM Sans',Arial,sans-serif;">${WEEKDAYS[d.getDay()]}</div>
+    <div style="font-family:'Bebas Neue',Georgia,serif;font-size:42px;line-height:1;color:#ff6600;margin:1px 0;">${d.getDate()}</div>
+    <div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#aaa;text-transform:uppercase;font-family:'DM Sans',Arial,sans-serif;">${MONTHS_S[d.getMonth()]}</div>
+  </td>
+  ${thumbCell}
+  <td style="padding:12px 14px 12px 4px;vertical-align:middle;border-bottom:1px solid #efefef;">
+    <div style="display:inline-block;background:rgba(255,102,0,.1);border:1px solid rgba(255,102,0,.3);color:#ff6600;font-size:8px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-bottom:6px;font-family:'DM Sans',Arial,sans-serif;">${type}</div>
+    <div style="font-size:15px;font-weight:900;color:#0f0f0f;line-height:1.2;margin-bottom:7px;font-family:'DM Sans',Arial,sans-serif;">${name}</div>
+    ${time?`<div style="font-size:11px;font-weight:700;color:#555;font-family:'DM Sans',Arial,sans-serif;margin-bottom:3px;">🕐 ${time}</div>`:''}
+    ${loc?`<div style="font-size:10px;font-weight:600;color:#777;font-family:'DM Sans',Arial,sans-serif;line-height:1.4;">📍 ${loc}</div>`:''}
+  </td>
+  ${qrCell}
+</tr>`;
+  }).join('');
+
+  return `<div style="width:540px;background:#fff;font-family:'DM Sans',Arial,sans-serif;border-radius:16px;overflow:hidden;">
+  <div style="background:#0a0a0a;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;">
+    <img src="${logoUrl}" alt="Compass Offices" height="32" style="height:32px;width:auto;display:block;object-fit:contain;">
+    <div style="text-align:right;">
+      <div style="font-family:'Bebas Neue',Georgia,serif;font-size:22px;letter-spacing:2px;color:#fff;line-height:1;">${heading}</div>
+      <div style="font-size:8px;font-weight:800;letter-spacing:3px;color:#ff6600;margin-top:4px;text-transform:uppercase;">HONG KONG · UPCOMING EVENTS</div>
+    </div>
+  </div>
+  <div style="height:4px;background:linear-gradient(90deg,#ff6600,#ff9a00);"></div>
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+    <colgroup>
+      <col style="width:68px">
+      <col style="width:100px">
+      <col style="width:auto">
+      ${slice.some(ev=>getQRUrl(ev))?'<col style="width:106px">':''}
+    </colgroup>
+    <tbody>${rows}</tbody>
+  </table>
+  <div style="background:#0a0a0a;padding:10px 22px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:10px;font-weight:700;color:#444;letter-spacing:1px;">compassoffices.com</span>
+    <span style="font-size:9px;font-weight:900;color:#ff6600;letter-spacing:2px;text-transform:uppercase;">PAGE ${pageNum} OF ${total}</span>
+  </div>
+</div>`;
+}
+
+async function renderExportCanvases(thumbMap,logoSrc){
+  const{yearLbl,monthLbl}=getLabels();
+  const off=document.createElement('div');
+  off.style.cssText=`position:fixed;left:-9999px;top:0;width:${EXPORT_W}px;background:transparent;overflow:visible;z-index:-1;`;
+  document.body.appendChild(off);
+  const canvases=[];
+  try{
+    for(let p=0;p<pages.length;p++){
+      overlay.show(`Rendering page ${p+1} of ${pages.length}…`,`${EXPORT_W*EXPORT_SCALE}px wide · phone size`);
+      off.innerHTML=buildExportPage(pages[p],p+1,pages.length,yearLbl,monthLbl,logoSrc,thumbMap);
+      // Wait for img elements (thumbnails + QR data URLs already embedded — instant)
+      await Promise.all([...off.querySelectorAll('img')].map(img=>
+        img.complete?Promise.resolve():new Promise(res=>{img.onload=res;img.onerror=res;setTimeout(res,5000);})
+      ));
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      const c=await html2canvas(off,{
+        scale:EXPORT_SCALE,useCORS:true,allowTaint:true,
+        backgroundColor:'#ffffff',logging:false,
+        width:EXPORT_W,scrollX:0,scrollY:0,imageTimeout:15000,
+      });
+      canvases.push(c);
+    }
+  }finally{document.body.removeChild(off);}
+  return canvases;
+}
+
+/* Direct download — no Web Share API.
+   On iPhone: file goes to Files app → user saves to Photos and shares from there.
+   Much more reliable than navigator.share which WhatsApp blocks. */
+async function directDownload(blob,name){
+  const url=URL.createObjectURL(blob);
+  const a=Object.assign(document.createElement('a'),{href:url,download:name,style:'display:none'});
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),15000);
+}
+
+/* ── Download JPG ── */
+async function downloadJPG(){
+  if(!pages.length)return;
+  const btnJ=document.getElementById('btn-jpg'),btnP=document.getElementById('btn-pdf');
+  btnJ.disabled=btnP.disabled=true;
+  try{
+    const{thumbMap,logoSrc}=await prefetchAssets();
+    const canvases=await renderExportCanvases(thumbMap,logoSrc);
+    overlay.show('Saving…',`${canvases.length} image${canvases.length>1?'s at 1080px wide':' at 1080px wide'}`);
+    const{moName,yr}=getLabels();
+    for(let i=0;i<canvases.length;i++){
+      const blob=await new Promise(res=>canvases[i].toBlob(res,'image/jpeg',0.95));
+      const name=canvases.length===1?`compass-hk-${moName}-${yr}.jpg`:`compass-hk-${moName}-${yr}-p${i+1}.jpg`;
+      await directDownload(blob,name);
+      if(canvases.length>1&&i<canvases.length-1)await new Promise(r=>setTimeout(r,400));
+    }
+  }catch(err){console.error(err);alert('Could not generate JPG.\n'+err.message);}
+  finally{overlay.hide();btnJ.disabled=btnP.disabled=false;}
+}
+
+/* ── Download PDF ── */
+async function downloadPDF(){
+  if(!pages.length)return;
+  const btnJ=document.getElementById('btn-jpg'),btnP=document.getElementById('btn-pdf');
+  btnJ.disabled=btnP.disabled=true;
+  try{
+    const{thumbMap,logoSrc}=await prefetchAssets();
+    const canvases=await renderExportCanvases(thumbMap,logoSrc);
+    overlay.show('Building PDF…',`${canvases.length} A4 page${canvases.length>1?'s':''}`);
+    const{jsPDF}=window.jspdf;
+    const doc=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+    const m=8,uw=PDF_W-m*2,uh=PDF_H-m*2;
+    canvases.forEach((c,idx)=>{
+      if(idx>0)doc.addPage();
+      const ca=c.width/c.height,ua=uw/uh;
+      const[dw,dh]=ca>=ua?[uw,uw/ca]:[uh*ca,uh];
+      doc.addImage(c.toDataURL('image/png'),'PNG',m+(uw-dw)/2,m+(uh-dh)/2,dw,dh);
+    });
+    const{moName,yr}=getLabels();
+    await directDownload(doc.output('blob'),`compass-hk-${moName}-${yr}.pdf`);
+  }catch(err){console.error(err);alert('Could not generate PDF.\n'+err.message);}
+  finally{overlay.hide();btnJ.disabled=btnP.disabled=false;}
+}
+
+/* ── Load data ── */
+async function loadData(isRefresh=false){
+  const btn=document.getElementById('btn-refresh');
+  btn.disabled=true;btn.classList.add('spinning');
+  document.getElementById('event-page').innerHTML=`<div class="state-box"><div class="spinner"></div><p>${isRefresh?'Refreshing…':'Loading Hong Kong events…'}</p></div>`;
+  document.getElementById('page-indicator').textContent='– / –';
+  ['btn-prev','btn-next'].forEach(id=>{document.getElementById(id).disabled=true;});
+  if(isRefresh){thumbCache.clear();qrCache.clear();}
+  try{
+    let csv;
+    try{csv=await fetchCSV();}
+    catch(err){
+      document.getElementById('event-page').innerHTML=`<div class="state-box"><div style="font-size:2rem">⚠️</div><p style="color:#cc4400;font-weight:700">Could not load sheet data</p><p style="font-size:.8rem;color:#777;margin-top:6px;max-width:320px;line-height:1.6">${err.message}</p></div>`;
+      document.getElementById('page-indicator').textContent='– / –';
+      return;
+    }
+    const rows=parseCSV(csv);
+    allEvents=rows.map(r=>({...r,parsedDate:parseDate(r.Date)})).filter(r=>r.parsedDate!==null&&isHK(r)).sort((a,b)=>a.parsedDate-b.parsedDate);
+    const yrs=[...new Set(allEvents.map(e=>e.parsedDate.getFullYear()))].sort((a,b)=>a-b);
+    const ySel=document.getElementById('year-sel');
+    ySel.innerHTML='<option value="all">All Years</option>';
+    yrs.forEach(y=>{const o=document.createElement('option');o.value=o.textContent=y;ySel.appendChild(o);});
+    autoSelectMonth();
+    refresh();
+  }finally{btn.disabled=false;btn.classList.remove('spinning');}
+}
+
+/* ── Init ── */
+function init(){
+  svgToPng('https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg',80).then(b=>{if(b)logoB64=b;});
+  document.getElementById('year-sel').addEventListener('change',refresh);
+  document.getElementById('month-sel').addEventListener('change',refresh);
+  document.getElementById('btn-prev').addEventListener('click',()=>renderPage(curPage-1));
+  document.getElementById('btn-next').addEventListener('click',()=>renderPage(curPage+1));
+  document.getElementById('btn-jpg').addEventListener('click',downloadJPG);
+  document.getElementById('btn-pdf').addEventListener('click',downloadPDF);
+  document.getElementById('btn-refresh').addEventListener('click',()=>loadData(true));
+  loadData(false);
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
