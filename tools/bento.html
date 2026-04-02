@@ -377,7 +377,7 @@ body.ss .grid-handle { display:none !important; }
   <label class="tbtn tbtn-save" title="Load saved layout" style="cursor:pointer">&#11014; Load JSON<input type="file" accept=".json" onchange="loadJSON(this)" style="display:none"></label>
   <div class="tb-sep"></div>
   <button class="tbtn tbtn-ghost" onclick="clearSel()" id="btn-layout">&#9638; Layouts</button>
-  <button class="tbtn tbtn-orange" onclick="downloadPoster()">&#8595; Download A4 PNG</button>
+  <button class="tbtn tbtn-orange" onclick="downloadPoster()">&#8595; Download A4 JPG</button>
 </div>
 
 <div class="canvas-area">
@@ -2244,60 +2244,81 @@ async function downloadPoster() {
   ov.classList.add('on');
   document.querySelectorAll('.tile.active').forEach(t => t.classList.remove('active'));
   document.body.classList.add('ss');
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 350));
+
   const poster = document.getElementById('poster');
+
+  /* ── Pre-load all images at full native resolution into Image objects
+     so html2canvas has them cached and draws them at maximum quality ── */
+  const allImgUrls = new Set();
+  poster.querySelectorAll('.t-img, .perk-cat-bg').forEach(el => {
+    const m = el.style.backgroundImage.match(/url\(['"]?([^'")\s]+)['"]?\)/);
+    if (m) allImgUrls.add(m[1]);
+  });
+  poster.querySelectorAll('img').forEach(el => { if (el.src) allImgUrls.add(el.src); });
+  await Promise.all([...allImgUrls].map(url => new Promise(res => {
+    const img = new Image();
+    img.onload = res; img.onerror = res;
+    img.src = url;
+  })));
+
   try {
+    const SCALE = 5; // 5× = ~3970×5615 px — crisp at 300 DPI on A4
     const canvas = await html2canvas(poster, {
-      scale: 4, useCORS: true, allowTaint: true,
-      backgroundColor: '#e8e8e8', logging: false, imageTimeout: 0,
-      width: poster.offsetWidth, height: poster.offsetHeight,
+      scale:           SCALE,
+      useCORS:         true,
+      allowTaint:      true,
+      backgroundColor: '#e8e8e8',
+      logging:         false,
+      imageTimeout:    0,
+      width:           poster.offsetWidth,
+      height:          poster.offsetHeight,
       onclone: (doc, el) => {
-        el.querySelectorAll('.edit-badge').forEach(e => e.style.display='none');
-        el.querySelectorAll('.tile').forEach(t => t.style.outline='none');
-        // Copy computed bg styles from live tiles to cloned tiles
-        const copyBg = (origSel, cloneSel) => {
-          const orig = poster.querySelectorAll(origSel);
-          const clon = el.querySelectorAll(cloneSel);
-          orig.forEach((o, i) => { if (clon[i]) { clon[i].style.backgroundImage = o.style.backgroundImage; clon[i].style.backgroundSize = o.style.backgroundSize; clon[i].style.backgroundPosition = o.style.backgroundPosition; clon[i].style.backgroundRepeat = 'no-repeat'; } });
+        // Hide editing UI
+        el.querySelectorAll('.edit-badge, .tile-drag-handle, .grid-handle')
+          .forEach(e => e.style.display = 'none');
+        el.querySelectorAll('.tile').forEach(t => { t.style.outline = 'none'; t.style.cursor = 'default'; });
+
+        // Re-apply all background images with same computed style as live poster
+        const copyBgEl = (orig, clone) => {
+          if (!orig || !clone) return;
+          clone.style.backgroundImage    = orig.style.backgroundImage;
+          clone.style.backgroundSize     = orig.style.backgroundSize;
+          clone.style.backgroundPosition = orig.style.backgroundPosition;
+          clone.style.backgroundRepeat   = 'no-repeat';
         };
-        copyBg('.t-img', '.t-img');
-        copyBg('.perk-cat-bg', '.perk-cat-bg');
-        // Copy QR image src
+        poster.querySelectorAll('.t-img').forEach((o, i) => copyBgEl(o, el.querySelectorAll('.t-img')[i]));
+        poster.querySelectorAll('.perk-cat-bg').forEach((o, i) => copyBgEl(o, el.querySelectorAll('.perk-cat-bg')[i]));
+
+        // QR code image
         const origQR = poster.querySelector('#cta-qr-img');
         const clonQR = el.querySelector('#cta-qr-img');
-        if (origQR && clonQR) clonQR.src = origQR.src;
-        // Copy QR logo badge
-        const origBadge = poster.querySelector('#cta-qr-logo');
-        const clonBadge = el.querySelector('#cta-qr-logo');
-        if (origBadge && clonBadge) clonBadge.innerHTML = origBadge.innerHTML;
+        if (origQR && clonQR) { clonQR.src = origQR.src; clonQR.style.background = 'transparent'; }
+
+        // Restore gradient backgrounds (inline style is cloned but confirm it)
+        el.querySelectorAll('[data-tile]').forEach(tile => {
+          const orig = poster.querySelector('[data-tile="' + tile.dataset.tile + '"]');
+          if (orig && orig.style.background) tile.style.background = orig.style.background;
+        });
+
+        // Apply correct grid sizes (colFrs/rowFrs) to clone
+        el.style.gridTemplateColumns = poster.style.gridTemplateColumns;
+        el.style.gridTemplateRows    = poster.style.gridTemplateRows;
       }
     });
+
+    /* ── Convert to high-quality JPEG ── */
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.97);
+
     const a = document.createElement('a');
-    a.download = 'compass-offices-poster-A4.png';
-    a.href = canvas.toDataURL('image/png', 1.0);
+    a.download = 'compass-offices-poster-A4.jpg';
+    a.href     = jpegDataUrl;
     a.click();
-  } catch(e) { console.error(e); alert('Render failed — see console.'); }
+  } catch(e) {
+    console.error('Render failed:', e);
+    alert('Render failed — see console for details.');
+  }
+
   document.body.classList.remove('ss');
   ov.classList.remove('on');
 }
-</script>
-
-<!-- IMAGE ADJUSTER MODAL -->
-<div id="adj-modal">
-  <div id="adj-title">Adjust Image Position &amp; Zoom</div>
-  <div id="adj-box">
-    <div id="adj-img"></div>
-  </div>
-  <div class="adj-zoom-row">
-    <span class="adj-zoom-label">Zoom</span>
-    <input type="range" id="adj-zoom-slider" min="100" max="300" value="100" oninput="adjZoomFromSlider(this.value)">
-    <span class="adj-zoom-label" id="adj-zoom-pct">100%</span>
-  </div>
-  <div id="adj-hint">Drag to reposition &nbsp;·&nbsp; Scroll or slider to zoom in</div>
-  <div class="adj-btn-row">
-    <button class="adj-btn adj-reset" onclick="adjReset()">Reset</button>
-    <button class="adj-btn adj-done" onclick="adjDone()">Done</button>
-  </div>
-</div>
-</body>
-</html>
