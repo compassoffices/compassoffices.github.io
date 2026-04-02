@@ -151,7 +151,7 @@ body.ss .edit-badge{display:none!important}
 
 /* LAYOUT PICKER */
 .sb-section{font-size:9px;font-weight:700;color:#333;letter-spacing:.1em;text-transform:uppercase;margin:0 0 8px;display:block}
-.layout-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.layout-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-height:none}
 .layout-btn{background:#111;border:2px solid #1e1e1e;border-radius:9px;padding:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .15s}
 .layout-btn:hover{border-color:#3a3a3a}
 .layout-btn.on{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}
@@ -317,6 +317,7 @@ body.ss .edit-badge{display:none!important}
 .tile.dragging   { opacity:.45; outline:2px dashed rgba(255,102,0,.5) !important; }
 .tile.drag-over  { outline:3px solid var(--orange) !important; }
 body.ss .tile-drag-handle { display:none !important; }
+body.ss .grid-handle { display:none !important; }
 
 /* GRADIENT SECTION */
 .grad-presets { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:8px; }
@@ -330,6 +331,39 @@ body.ss .tile-drag-handle { display:none !important; }
 .grad-color-item { flex:1; display:flex; flex-direction:column; gap:4px; }
 .grad-color-item label { font-size:8px; color:#444; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
 .grad-color-item input[type=color] { width:100%; height:28px; border:1px solid #252525; border-radius:6px; padding:1px; background:#111; cursor:pointer; }
+
+/* GRID RESIZE HANDLES */
+.grid-handle {
+  position: absolute; z-index: 100; border-radius: 4px;
+  transition: opacity .15s, background .15s;
+}
+.col-handle {
+  width: 8px; cursor: col-resize;
+  background: transparent;
+}
+.col-handle::after {
+  content: ''; position: absolute; inset: 0;
+  left: 3px; width: 2px; border-radius: 2px;
+  background: rgba(255,102,0,0); transition: background .2s;
+}
+.col-handle:hover::after, .col-handle.dragging::after { background: var(--orange); }
+
+.row-handle {
+  height: 8px; cursor: row-resize;
+  background: transparent;
+}
+.row-handle::after {
+  content: ''; position: absolute; inset: 0;
+  top: 3px; height: 2px; border-radius: 2px;
+  background: rgba(255,102,0,0); transition: background .2s;
+}
+.row-handle:hover::after, .row-handle.dragging::after { background: var(--orange); }
+
+/* LAYOUT PICKER controls */
+.layout-controls { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+.lc-btn { flex:1; padding:6px 8px; background:#111; border:1px solid #1e1e1e; border-radius:7px; color:#555; font-family:var(--nhg); font-size:10px; font-weight:700; cursor:pointer; text-align:center; letter-spacing:.06em; text-transform:uppercase; transition:all .15s; white-space:nowrap; }
+.lc-btn:hover { border-color:#3a3a3a; color:#aaa; }
+.lc-btn:active { border-color:var(--orange); color:var(--orange); }
 </style>
 </head>
 <body>
@@ -452,6 +486,14 @@ body.ss .tile-drag-handle { display:none !important; }
     </div>
   </div>
 
+  <!-- COLUMN RESIZE HANDLES -->
+  <div class="grid-handle col-handle" id="ch0" onmousedown="startColDrag(event,0)"></div>
+  <div class="grid-handle col-handle" id="ch1" onmousedown="startColDrag(event,1)"></div>
+  <!-- ROW RESIZE HANDLES -->
+  <div class="grid-handle row-handle" id="rh0" onmousedown="startRowDrag(event,0)"></div>
+  <div class="grid-handle row-handle" id="rh1" onmousedown="startRowDrag(event,1)"></div>
+  <div class="grid-handle row-handle" id="rh2" onmousedown="startRowDrag(event,2)"></div>
+
 </div>
 </div>
 
@@ -459,6 +501,7 @@ body.ss .tile-drag-handle { display:none !important; }
   <div class="sb-top">
     <div class="sb-name" id="sb-name">Layout &amp; Design</div>
     <div class="sb-hint" id="sb-hint">Pick a layout or click a tile to edit</div>
+    <div style="margin-top:4px"><span id="co-icon-status" style="font-size:9px;color:#3a3a3a;font-weight:600;letter-spacing:.05em">Loading CO icons…</span></div>
   </div>
   <div class="sb-body" id="sb-body"></div>
 </div>
@@ -546,6 +589,7 @@ const LAYOUTS = [
   {name:'Mosaic',       areas:'"header header header" "office loc loc" "teams loc loc" "movein perks events" "amenity cta events"'},
   {name:'Editorial',    areas:'"header header header" "teams teams office" "loc movein office" "loc perks events" "amenity cta events"'},
   {name:'Magazine',     areas:'"header header header" "loc office teams" "events movein teams" "events perks amenity" "events cta cta"'},
+  {name:'Events & Perks',areas:'"header header header" "perks events loc" "perks events movein" "perks events office" "amenity teams cta"'},
 ];
 
 let curLayout = 0;
@@ -604,15 +648,15 @@ function layoutThumb(areasStr, w=68, h=90) {
 /* APPLY LAYOUT */
 function applyLayout(idx, resetCustom) {
   curLayout = idx;
-  if (resetCustom) customAreas = null; // new layout clears custom positioning
+  if (resetCustom) { customAreas = null; colFrs = [1,1,1]; rowFrs = [1,1,1,1]; }
   const poster = document.getElementById('poster');
   poster.style.gridTemplateAreas = customAreas || LAYOUTS[idx].areas;
-  poster.style.gridTemplateRows = '78px 1fr 1fr 1fr 1fr';
   TILE_IDS.forEach(id => {
-    const t = document.querySelector(`[data-tile="${id}"]`);
+    const t = document.querySelector('[data-tile="' + id + '"]');
     if (t) t.style.gridArea = id;
   });
   document.querySelectorAll('.layout-btn').forEach((b,i) => b.classList.toggle('on', i===idx));
+  applyGridSizes(); // apply current fr sizes (resets only if resetCustom)
 }
 
 /* RENDER LAYOUT PICKER */
@@ -624,7 +668,13 @@ function renderLayoutPicker() {
       <span>${l.name}</span>
     </div>`;
   }).join('');
-  return `<span class="sb-section">Layout</span><div class="layout-grid">${thumbs}</div>`;
+  return `<span class="sb-section">Layout</span>
+    <div class="layout-controls">
+      <div class="lc-btn" onclick="resetGridSizes()" title="Reset all rows and columns to equal size">⊞ Equal</div>
+      <div class="lc-btn" onclick="smartBalance()" title="Auto-balance rows based on tile spans">⚡ Smart Balance</div>
+    </div>
+    <div style="font-size:9px;color:#333;margin-bottom:8px;letter-spacing:.04em">Drag orange lines on poster to resize rows &amp; columns</div>
+    <div class="layout-grid">${thumbs}</div>`;
 }
 
 /* RENDER LOGO */
@@ -646,7 +696,7 @@ function renderPerks() {
     const empty = !hasBg ? `<div class="perk-cat-empty">${svg('image-placeholder',18,1.5)}<span>Add image</span></div>` : '';
     return `<div class="perk-cat" data-cat-idx="${i}">
       <div class="perk-cat-bg"></div>
-      ${hasBg ? '<div class="perk-cat-ov"></div>' : ''}
+      ${hasBg ? '<div class="perk-cat-ov"></div>' : '<div style="position:absolute;inset:0;background:#d0d0d0;border-radius:10px"></div>'}
       ${empty}
       <div class="perk-cat-name">${cat.name}</div>
     </div>`;
@@ -731,30 +781,136 @@ function renderAmenityRow() {
 ══════════════════════ */
 let CO_ICONS = {}; // key → svg path string
 
-async function loadCOIcons() {
-  try {
-    const res = await fetch('https://compassoffices.github.io/img/icon-svg/icons.json');
-    if (!res.ok) return;
-    const data = await res.json();
-    // icons.json may be array of {name, path} or {name, svg} or object
-    const entries = Array.isArray(data) ? data : Object.entries(data).map(([k,v])=>({name:k,...(typeof v==='string'?{path:v}:v)}));
-    entries.forEach(ic => {
-      const key = 'co-' + (ic.name || ic.id || '').toLowerCase().replace(/\s+/g,'-');
-      const paths = ic.path || ic.svg || ic.paths || ic.d || '';
-      if (key && paths) {
-        CO_ICONS[key] = paths;
-        IL[key] = paths; // merge into main icon library
-      }
-    });
-    // Re-render any open icon pickers
-    if (typeof cur !== 'undefined' && cur) buildSidebar(cur);
-  } catch(e) { console.warn('CO icons not loaded:', e.message); }
+/* Parse an SVG string or path string into IL-compatible path content */
+function parseSVGtoPath(raw) {
+  if (!raw) return '';
+  raw = String(raw).trim();
+  // Full SVG — strip outer tags and defs
+  if (raw.includes('<svg')) {
+    raw = raw
+      .replace(/<\?xml[^>]*\?>/gi, '')
+      .replace(/<svg[^>]*>/gi, '')
+      .replace(/<\/svg>/gi, '')
+      .replace(/<defs[\s\S]*?<\/defs>/gi, '')
+      .replace(/<title[\s\S]*?<\/title>/gi, '')
+      .replace(/<desc[\s\S]*?<\/desc>/gi, '')
+      .replace(/class="[^"]*"/g, '')  // strip class attrs that might conflict
+      .trim();
+  }
+  // Already a shape element
+  if (/^<(path|circle|rect|polygon|polyline|line|g|ellipse)/i.test(raw)) return raw;
+  // Bare path data
+  if (/^[Mm]/.test(raw)) return '<path d="' + raw + '"/>';
+  return raw;
 }
+
+async function loadCOIcons() {
+  const STATUS_EL_ID = 'co-icon-status';
+  const setStatus = (msg, ok) => {
+    const el = document.getElementById(STATUS_EL_ID);
+    if (el) { el.textContent = msg; el.style.color = ok ? '#44cc88' : '#cc4444'; }
+  };
+
+  try {
+    console.log('[CO Icons] Fetching icons.json...');
+    const iconUrl = 'https://compassoffices.github.io/img/icon-svg/icons.json';
+    const res = await fetch(iconUrl, {
+      cache: 'no-cache',
+      headers: {'Accept': 'application/json, text/plain, */*'}
+    });
+    if (!res.ok) { console.warn('[CO Icons] HTTP ' + res.status + ' for ' + iconUrl); setStatus('Icons: HTTP ' + res.status, false); return; }
+
+    const raw = await res.text();
+    console.log('[CO Icons] Raw response (first 300 chars):', raw.slice(0,300));
+
+    let data;
+    try { data = JSON.parse(raw); } catch(e) { setStatus('Failed: invalid JSON', false); return; }
+
+    let count = 0;
+
+    const addIcon = (name, rawPath) => {
+      const key = 'co-' + String(name||'icon').toLowerCase()
+        .replace(/\.svg$/i,'').replace(/[\s_/\\]+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-');
+      const parsed = parseSVGtoPath(String(rawPath||''));
+      if (key && parsed) { CO_ICONS[key] = parsed; IL[key] = parsed; count++; }
+    };
+
+    /* Format 1: Array of objects or strings */
+    if (Array.isArray(data)) {
+      data.forEach((ic, idx) => {
+        if (typeof ic === 'string') {
+          // Could be a filename like "meeting-room.svg" or an SVG string
+          if (ic.trim().startsWith('<')) { addIcon('icon-'+idx, ic); }
+          // else: filename — skip (we can't fetch individual files easily)
+          return;
+        }
+        const name = ic.name || ic.id || ic.title || ic.key || ic.slug || ('icon-' + idx);
+        const raw  = ic.path || ic.svg || ic.paths || ic.d || ic.content || ic.data || ic.body || ic.markup || '';
+        addIcon(name, raw);
+      });
+    }
+    /* Format 2: Object map {name: svgString|object} */
+    else if (typeof data === 'object' && data !== null) {
+      Object.entries(data).forEach(([name, val]) => {
+        if (typeof val === 'string') { addIcon(name, val); return; }
+        if (val && typeof val === 'object') {
+          const raw = val.path || val.svg || val.d || val.content || val.paths || val.markup || '';
+          addIcon(name, raw);
+        }
+      });
+    }
+
+    console.log('[CO Icons] Loaded ' + count + ' icons. Keys:', Object.keys(CO_ICONS).slice(0,5));
+
+    if (count > 0) {
+      setStatus('✓ ' + count + ' CO icons', true);
+      console.log('[CO Icons] Keys:', Object.keys(CO_ICONS));
+      // Re-render open sidebar so CO icons appear immediately
+      if (typeof cur !== 'undefined' && cur) { setTimeout(() => buildSidebar(cur), 0); }
+      renderAmenityRow();
+    } else {
+      setStatus('0 icons parsed (check console)', false);
+      console.warn('[CO Icons] Data received but nothing parsed. First entry:', JSON.stringify(data).slice(0,300));
+    }
+  } catch(e) {
+    console.error('[CO Icons] Error:', e);
+    setStatus('Error: ' + e.message, false);
+  }
+}
+
+/* Manual upload fallback for icons.json */
+function loadCOIconsFromFile(input) {
+  const f = input.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      // Reuse same logic — inject as if fetched
+      let count = 0;
+      const process = (ic, name) => {
+        const key = 'co-' + String(name).toLowerCase().replace(/[\s_/\\]+/g,'-').replace(/[^a-z0-9-]/g,'');
+        const pathStr = typeof ic === 'string' ? ic : (ic.path || ic.svg || ic.d || ic.content || '');
+        const parsed = parseSVGtoPath(String(pathStr));
+        if (key && parsed) { CO_ICONS[key] = parsed; IL[key] = parsed; count++; }
+      };
+      if (Array.isArray(data)) data.forEach((ic,i) => process(ic, ic.name||ic.id||'icon-'+i));
+      else Object.entries(data).forEach(([k,v]) => process(v,k));
+      console.log('[CO Icons] Manual upload: ' + count + ' icons');
+      const el = document.getElementById('co-icon-status');
+      if (el) { el.textContent = '✓ ' + count + ' icons from file'; el.style.color = '#44cc88'; }
+      if (typeof cur !== 'undefined' && cur) buildSidebar(cur);
+      renderAmenityRow();
+    } catch(e2) { alert('Could not parse icons.json: ' + e2.message); }
+  };
+  r.readAsText(f);
+}
+
 /* INIT */
 function init() {
   renderHeaderLogo();
   applyLayout(0);
   loadCOIcons(); // async load CO icons
+  applyGridSizes();
   Object.entries(ICON_SIZES).forEach(([id]) => renderTileIcon(id));
   renderPerks();
   renderAmenityRow();
@@ -766,6 +922,27 @@ function init() {
   // Show layout picker by default
   document.getElementById('sb-body').innerHTML = renderLayoutPicker();
 }
+/* === Hoisted declarations (must be before init()) === */
+const GRAD_PRESETS = [
+  {name:'Brand',    angle:135, c1:'#ff6600', c2:'#7a2a00'},
+  {name:'Night',    angle:160, c1:'#0f0f0f',  c2:'#252525'},
+  {name:'Navy',     angle:150, c1:'#0a1628',  c2:'#1e4080'},
+  {name:'Slate',    angle:135, c1:'#1e2433',  c2:'#2d3a50'},
+  {name:'Warm',     angle:120, c1:'#fff5ee',  c2:'#f5e0d0'},
+  {name:'Gold',     angle:145, c1:'#1a1200',  c2:'#3d2b00'},
+  {name:'Ocean',    angle:160, c1:'#003049',  c2:'#0a7ea4'},
+  {name:'Forest',   angle:155, c1:'#0e1f0e',  c2:'#1a4020'},
+];
+
+let colFrs = [1, 1, 1];       // 3 column proportions
+let rowFrs = [1, 1, 1, 1];    // 4 content-row proportions
+const MIN_FR = 0.25;           // no tile can collapse below 25% of its row/col share
+const POSTER_PAD = 18;
+const POSTER_GAP = 10;
+const HEADER_H   = 78;
+
+/* === End hoisted declarations === */
+
 init();
 
 /* TILE SELECT */
@@ -844,7 +1021,10 @@ function buildSidebar(id) {
     h = ipick(S.amenity.icon,'amenity') + sdiv() +
     fld('Title','f-title',S.amenity.title) + fld('Description','f-desc',S.amenity.desc,true) + sdiv() +
     `<div class="fg"><label class="fl">Active Chips (edit label)</label>${chipEditor}</div>` +
-    `<div class="fg"><label class="fl">Add Chip</label><div class="am-picker">${APOOL.filter(([k])=>!S.amenity.chips.includes(k)).map(([k,lb])=>`<div class="am-btn" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${lb}</span></div>`).join('')}</div></div>` + sdiv() +
+    (() => {
+      const coAmenity = Object.keys(CO_ICONS).filter(k => !S.amenity.chips.includes(k)).map(k => `<div class="am-btn" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${k.replace('co-','').replace(/-/g,' ')}</span></div>`).join('');
+      return `<div class="fg"><label class="fl">Add Chip</label><div class="am-picker">${APOOL.filter(([k])=>!S.amenity.chips.includes(k)).map(([k,lb])=>`<div class="am-btn" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${lb}</span></div>`).join('')}${coAmenity}</div></div>`;
+    })() + sdiv() +
     bgp(S.amenity.bg,'amenity') + gradSection('amenity') + iconColorPicker('amenity') + tcol('amenity') + imgup('amenity',S.amenity.img) + apply('applyAmenity()');
 
   } else if (id === 'cta') {
@@ -959,16 +1139,7 @@ function swapTileAreas(tid1, tid2) {
 /* ══════════════════════
    GRADIENT BACKGROUNDS
 ══════════════════════ */
-const GRAD_PRESETS = [
-  {name:'Brand',    angle:135, c1:'#ff6600', c2:'#7a2a00'},
-  {name:'Night',    angle:160, c1:'#0f0f0f',  c2:'#252525'},
-  {name:'Navy',     angle:150, c1:'#0a1628',  c2:'#1e4080'},
-  {name:'Slate',    angle:135, c1:'#1e2433',  c2:'#2d3a50'},
-  {name:'Warm',     angle:120, c1:'#fff5ee',  c2:'#f5e0d0'},
-  {name:'Gold',     angle:145, c1:'#1a1200',  c2:'#3d2b00'},
-  {name:'Ocean',    angle:160, c1:'#003049',  c2:'#0a7ea4'},
-  {name:'Forest',   angle:155, c1:'#0e1f0e',  c2:'#1a4020'},
-];
+/* GRAD_PRESETS moved to top */
 
 function getGrad(tid) {
   return S[tid]?.gradient || {enabled:false, angle:135, c1:'#ff6600', c2:'#1a1a1a'};
@@ -1037,6 +1208,182 @@ function gradSection(tid) {
     '</div>' : '') +
   '</div>';
 }
+
+/* ══════════════════════════════════════════════
+   SMART GRID RESIZE ENGINE
+══════════════════════════════════════════════ */
+/* resize consts moved to top */
+
+/* Apply fr values to the grid */
+function applyGridSizes() {
+  const poster = document.getElementById('poster');
+  if (!poster) return;
+  poster.style.gridTemplateColumns = colFrs.map(f => f + 'fr').join(' ');
+  poster.style.gridTemplateRows    = HEADER_H + 'px ' + rowFrs.map(f => f + 'fr').join(' ');
+  requestAnimationFrame(positionHandles);
+}
+
+/* Read actual pixel sizes from computed style and position handles */
+function positionHandles() {
+  const poster = document.getElementById('poster');
+  if (!poster) return;
+  const cs    = getComputedStyle(poster);
+  const gap   = parseFloat(cs.gap) || POSTER_GAP;
+  const pad   = POSTER_PAD;
+
+  // Parse computed px widths/heights (browser resolves fr → px)
+  const colPx = cs.gridTemplateColumns.split(' ').map(parseFloat);
+  const rowPx = cs.gridTemplateRows.split(' ').map(parseFloat); // [headerH, r1, r2, r3, r4]
+
+  // Column handles — one per gap between columns
+  let cx = pad;
+  for (let i = 0; i < 2; i++) {
+    cx += colPx[i]; // right edge of column i
+    const el = document.getElementById('ch' + i);
+    if (el) {
+      el.style.left   = (cx + gap / 2 - 4) + 'px';
+      el.style.top    = (pad + rowPx[0] + gap) + 'px'; // start below header
+      el.style.height = (poster.offsetHeight - pad - (pad + rowPx[0] + gap)) + 'px';
+    }
+    cx += gap;
+  }
+
+  // Row handles — between the 4 content rows (3 handles)
+  let ry = pad + rowPx[0]; // bottom of header row
+  for (let i = 0; i < 3; i++) {
+    ry += gap + rowPx[i + 1]; // bottom of content row i
+    const el = document.getElementById('rh' + i);
+    if (el) {
+      el.style.top   = (ry + gap / 2 - 4) + 'px';
+      el.style.left  = pad + 'px';
+      el.style.width = (poster.offsetWidth - pad * 2) + 'px';
+    }
+    // ry stays at bottom of row i, next iteration adds gap + next row height
+  }
+}
+
+/* ── Column drag ── */
+let _rDrag = null; // { type:'col'|'row', idx, startPx, startFrs, totalPx }
+
+function startColDrag(e, idx) {
+  e.preventDefault();
+  e.stopPropagation();
+  const poster  = document.getElementById('poster');
+  const cs      = getComputedStyle(poster);
+  const gap     = parseFloat(cs.gap) || POSTER_GAP;
+  const colPx   = cs.gridTemplateColumns.split(' ').map(parseFloat);
+  const totalPx = colPx.reduce((a, b) => a + b, 0) + gap * (colPx.length - 1);
+
+  _rDrag = { type: 'col', idx, startPx: e.clientX, startFrs: [...colFrs], totalPx };
+  document.getElementById('ch' + idx).classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  document.addEventListener('mousemove', onResizeDrag);
+  document.addEventListener('mouseup',   endResizeDrag);
+}
+
+function startRowDrag(e, idx) {
+  e.preventDefault();
+  e.stopPropagation();
+  const poster  = document.getElementById('poster');
+  const cs      = getComputedStyle(poster);
+  const gap     = parseFloat(cs.gap) || POSTER_GAP;
+  const rowPx   = cs.gridTemplateRows.split(' ').map(parseFloat); // [header, r1, r2, r3, r4]
+  const rowsPx  = rowPx.slice(1); // content rows only
+  const totalPx = rowsPx.reduce((a, b) => a + b, 0) + gap * (rowsPx.length - 1);
+
+  _rDrag = { type: 'row', idx, startPx: e.clientY, startFrs: [...rowFrs], totalPx };
+  document.getElementById('rh' + idx).classList.add('dragging');
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+  document.addEventListener('mousemove', onResizeDrag);
+  document.addEventListener('mouseup',   endResizeDrag);
+}
+
+function onResizeDrag(e) {
+  if (!_rDrag) return;
+  const { type, idx, startPx, startFrs, totalPx } = _rDrag;
+
+  if (type === 'col') {
+    const delta    = e.clientX - startPx;
+    const sumFrs   = startFrs[idx] + startFrs[idx + 1];
+    const fracDelta= delta / totalPx * (colFrs.reduce((a,b)=>a+b,0));
+    let newA = startFrs[idx]     + fracDelta;
+    let newB = startFrs[idx + 1] - fracDelta;
+    // Clamp so neither column gets too small
+    const minA = MIN_FR, minB = MIN_FR;
+    if (newA < minA) { newA = minA; newB = sumFrs - minA; }
+    if (newB < minB) { newB = minB; newA = sumFrs - minB; }
+    colFrs = [...startFrs];
+    colFrs[idx]     = +newA.toFixed(4);
+    colFrs[idx + 1] = +newB.toFixed(4);
+    applyGridSizes();
+  } else {
+    const delta    = e.clientY - startPx;
+    const sumFrs   = startFrs[idx] + startFrs[idx + 1];
+    const fracDelta= delta / totalPx * (rowFrs.reduce((a,b)=>a+b,0));
+    let newA = startFrs[idx]     + fracDelta;
+    let newB = startFrs[idx + 1] - fracDelta;
+    const minA = MIN_FR, minB = MIN_FR;
+    if (newA < minA) { newA = minA; newB = sumFrs - minA; }
+    if (newB < minB) { newB = minB; newA = sumFrs - minB; }
+    rowFrs = [...startFrs];
+    rowFrs[idx]     = +newA.toFixed(4);
+    rowFrs[idx + 1] = +newB.toFixed(4);
+    applyGridSizes();
+  }
+}
+
+function endResizeDrag() {
+  if (!_rDrag) return;
+  const el = document.getElementById((_rDrag.type === 'col' ? 'ch' : 'rh') + _rDrag.idx);
+  if (el) el.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  document.removeEventListener('mousemove', onResizeDrag);
+  document.removeEventListener('mouseup',   endResizeDrag);
+  _rDrag = null;
+  // Save state
+  customAreas = document.getElementById('poster').style.gridTemplateAreas || customAreas;
+}
+
+/* Reset all sizes to equal */
+function resetGridSizes() {
+  colFrs = [1, 1, 1];
+  rowFrs = [1, 1, 1, 1];
+  applyGridSizes();
+}
+
+/* Equal-width columns, taller first row */
+function smartBalance() {
+  // analyse which tiles span multiple rows → give them more height
+  const poster = document.getElementById('poster');
+  const areas  = (poster.style.gridTemplateAreas || (LAYOUTS[curLayout] && LAYOUTS[curLayout].areas) || '').replace(/"/g,'');
+  const rows   = areas.trim().split(/\s{2,}|\n/).filter(Boolean);
+  const contentRows = rows.slice(1); // skip header
+  // Count how many unique tiles span multiple content rows
+  const tileCounts = {};
+  contentRows.forEach(row => {
+    row.trim().split(/\s+/).forEach(t => { tileCounts[t] = (tileCounts[t]||0) + 1; });
+  });
+  // Give rows with tall-spanning tiles a larger fr
+  const newFrs = contentRows.map((row, ri) => {
+    const tiles = [...new Set(row.trim().split(/\s+/))];
+    const maxSpan = Math.max(...tiles.map(t => tileCounts[t]||1));
+    return maxSpan > 2 ? 1.4 : maxSpan > 1 ? 1.1 : 0.8;
+  });
+  rowFrs = newFrs.length === 4 ? newFrs : [1,1,1,1];
+  colFrs = [1, 1, 1];
+  applyGridSizes();
+}
+
+/* ──────────────────────────────────────────────
+   Re-position handles whenever layout changes
+────────────────────────────────────────────── */
+const _origApplyLayout = applyLayout;
+
+window.addEventListener('resize', () => requestAnimationFrame(positionHandles));
+
 /* FIELD HELPERS */
 function fld(label,id,val,multi=false) {
   if (multi) return `<div class="fg"><label class="fl">${label}</label><textarea class="fi" rows="3" id="${id}">${val}</textarea></div>`;
@@ -1047,7 +1394,14 @@ function apply(fn) { return `<button class="btn-apply" onclick="${fn}">Apply Cha
 function esc(s='') { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function ipick(curKey, tid) {
-  return `<div class="fg"><label class="fl">Icon</label><div class="icon-grid">${Object.keys(IL).map(k=>`<div class="ig-btn ${k===curKey?'on':''}" onclick="setIcon('${tid}','${k}',this)" title="${k}">${svg(k,15)}</div>`).join('')}</div></div>`;
+  const stdKeys = Object.keys(IL).filter(k => !k.startsWith('co-'));
+  const coKeys  = Object.keys(IL).filter(k =>  k.startsWith('co-'));
+  const coSection = coKeys.length > 0
+    ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #1e1e1e">
+        <div style="font-size:8px;color:#444;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Compass Offices Icons</div>
+        <div class="icon-grid">${coKeys.map(k=>`<div class="ig-btn ${k===curKey?'on':''}" onclick="setIcon('${tid}','${k}',this)" title="${k.replace('co-','')}">${svg(k,15)}</div>`).join('')}</div>
+      </div>` : `<div style="font-size:9px;color:#3a3a3a;margin-top:4px">CO icons loading… (check status at top)</div>`;
+  return `<div class="fg"><label class="fl">Icon</label><div class="icon-grid">${stdKeys.map(k=>`<div class="ig-btn ${k===curKey?'on':''}" onclick="setIcon('${tid}','${k}',this)" title="${k}">${svg(k,15)}</div>`).join('')}</div>${coSection}</div>`;
 }
 function bgp(cur, tid) {
   return `<div class="fg"><label class="fl">Background</label><div class="swatches">${BG_OPTS.map(b=>`<div class="sw ${b.k===cur?'on':''}" style="background:${b.c}" onclick="setBg('${tid}','${b.k}',this)"></div>`).join('')}</div></div>`;
@@ -1163,10 +1517,12 @@ function setBg(tid, key, el) {
   if (!tile) return;
   ['bg-white','bg-grey','bg-black','bg-orange','bg-darkgrey'].forEach(c => tile.classList.remove(c));
   tile.classList.add('bg-' + key);
-  // Header uses CSS rule background:var(--black) which wins over class — force inline
-  if (tid === 'header') tile.style.background = BG_COLOR_MAP[key] || '';
-  // Clear gradient if switching via solid color
-  if (S[tid]?.gradient?.enabled) { /* keep gradient */ } else tile.style.background = tid === 'header' ? (BG_COLOR_MAP[key]||'') : '';
+  // Disable gradient when user explicitly picks a solid colour
+  if (S[tid] && S[tid].gradient) S[tid].gradient.enabled = false;
+  // Always force inline style (header CSS rule overrides class otherwise)
+  tile.style.background = BG_COLOR_MAP[key] || '';
+  // Rebuild sidebar so gradient toggle reflects disabled state
+  if (typeof cur !== 'undefined' && cur === tid) buildSidebar(tid);
 }
 function setTextColor(tid, color, el) {
   if (S[tid]) S[tid].textColor = color;
@@ -1724,7 +2080,7 @@ function adjDone() {
 function saveJSON() {
   // Deep-clone so we don't serialise live DOM references
   const snap = JSON.parse(JSON.stringify(S));
-  const data = { version: 2, layout: curLayout, state: snap, customAreas: customAreas };
+  const data = { version: 3, layout: curLayout, state: snap, customAreas: customAreas, colFrs, rowFrs };
   const json = JSON.stringify(data, null, 2);
   const sizeMB = (json.length / 1048576).toFixed(1);
   const blob = new Blob([json], {type:'application/json'});
@@ -1755,8 +2111,10 @@ function loadJSON(input) {
         if (k in S) S[k] = JSON.parse(JSON.stringify(loaded[k]));
       });
 
-      // ── Layout + custom areas ──
+      // ── Layout + custom areas + grid sizes ──
       customAreas = data.customAreas || null;
+      if (Array.isArray(data.colFrs) && data.colFrs.length === 3) colFrs = data.colFrs;
+      if (Array.isArray(data.rowFrs) && data.rowFrs.length === 4) rowFrs = data.rowFrs;
       if (typeof data.layout === 'number') applyLayout(data.layout);
 
       // ── Re-measure all base64 images so calcBgStyle works correctly ──
@@ -1803,9 +2161,8 @@ function reRenderAll() {
   const tTag = document.getElementById('h-tag-text');
   if (tTag) { tTag.textContent = S.header.tagline; tTag.style.fontSize = (S.header.taglineSize||11)+'px'; }
 
-  // Restore custom areas if any
-  if (S._customAreas) { customAreas = S._customAreas; }
-  if (customAreas) { document.getElementById('poster').style.gridTemplateAreas = customAreas; }
+  // Restore custom areas if any (customAreas already set by loadJSON before calling reRenderAll)
+  if (customAreas) { const p = document.getElementById('poster'); if(p) p.style.gridTemplateAreas = customAreas; }
 
   // Content tiles
   const tileIds = ['loc','office','teams','movein','events','amenity','cta'];
@@ -1876,9 +2233,9 @@ function setBgClass(tid, key) {
   if (!tile) return;
   ['bg-white','bg-grey','bg-black','bg-orange','bg-darkgrey'].forEach(c => tile.classList.remove(c));
   tile.classList.add('bg-' + key);
-  const g = S[tid]?.gradient;
-  if (g && g.enabled) { applyGradient(tid); }
-  else { tile.style.background = tid === 'header' ? (BG_COLOR_MAP[key] || '') : ''; }
+  const g = S[tid] && S[tid].gradient;
+  if (g && g.enabled) applyGradient(tid);
+  else tile.style.background = BG_COLOR_MAP[key] || '';
 }
 
 /* DOWNLOAD */
