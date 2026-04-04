@@ -1536,7 +1536,11 @@ async function downloadPoster(){
   try{
     const canvas = await pass1();
     const ctx    = canvas.getContext('2d');
-    // Draw images sequentially so clip states don't overlap
+    // CRITICAL: html2canvas leaves scale(SCALE,SCALE) on the context.
+    // Reset to identity so our canvas-pixel coordinates (already ×SCALE) work correctly.
+    // Without this, everything is scaled TWICE = 25× too large.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Draw images sequentially so clip states never overlap
     for(const job of jobs) await drawJob(ctx, job);
 
     const a=document.createElement('a');
