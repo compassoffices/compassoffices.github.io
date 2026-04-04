@@ -1458,7 +1458,8 @@ async function downloadPoster(){
   async function pass1(){
     return html2canvas(poster,{
       scale:SCALE, useCORS:true, allowTaint:true,
-      backgroundColor: null,      logging:false, imageTimeout:0,  // null = transparent canvas so destination-over works
+      backgroundColor: null,     // fully transparent — poster bg set in CSS renders, but tile parents don't bleed
+      logging:false, imageTimeout:0,
       width:poster.offsetWidth, height:poster.offsetHeight,
       onclone:(doc,el)=>{
         el.querySelectorAll('.edit-badge,.tile-drag-handle,#resize-overlay')
@@ -1467,62 +1468,82 @@ async function downloadPoster(){
         el.style.gridTemplateColumns=poster.style.gridTemplateColumns;
         el.style.gridTemplateRows   =poster.style.gridTemplateRows;
         el.style.gridTemplateAreas  =poster.style.gridTemplateAreas;
+
+        // CRITICAL: Set poster bg transparent so image-tiles have truly transparent canvas pixels
+        el.style.background='transparent';
+        el.style.backgroundColor='transparent';
+        el.style.boxShadow='none';
+
+        // Clone solid backgrounds for non-image tiles
         el.querySelectorAll('[data-tile]').forEach(tile=>{
-          const orig=poster.querySelector('[data-tile="'+tile.dataset.tile+'"]');
-          if(orig&&orig.style.background)tile.style.background=orig.style.background;
-        });
-        // Image-tiles: transparent bg so text sits on transparent canvas
-        el.querySelectorAll('[data-tile]').forEach(tile=>{
-          if(tile.querySelector('.t-img')){
+          const tid=tile.dataset.tile;
+          const orig=poster.querySelector('[data-tile="'+tid+'"]');
+          const hasImg=orig&&orig.querySelector('.t-img');
+          if(hasImg){
+            // Image tile: transparent — canvasB draws image here, canvasA draws text on top
             tile.style.background='transparent';
             tile.style.backgroundColor='transparent';
+          } else {
+            // Solid tile: copy its actual rendered background
+            if(orig&&orig.style.background) tile.style.background=orig.style.background;
           }
         });
-        el.querySelectorAll('.perk-cat').forEach(cat=>{
-          if(cat.querySelector('.perk-cat-bg')){
-            cat.style.background='transparent';
-            cat.style.backgroundColor='transparent';
-          }
-        });
+
+        // Hide image and gradient layers (redrawn in pass2)
         el.querySelectorAll('.t-img,.perk-cat-bg').forEach(bg=>{
           bg.style.backgroundImage='none'; bg.style.display='none';
         });
         el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o=>o.style.display='none');
+
+        // Perk cats: transparent if has image
+        el.querySelectorAll('.perk-cat').forEach((cat,i)=>{
+          const liveCat=poster.querySelectorAll('.perk-cat')[i];
+          if(liveCat&&liveCat.querySelector('.perk-cat-bg')){
+            cat.style.background='transparent';
+            cat.style.backgroundColor='transparent';
+          }
+        });
+
+        // QR
         const oQR=poster.querySelector('#cta-qr-img'),cQR=el.querySelector('#cta-qr-img');
         if(oQR&&cQR){cQR.src=oQR.src;cQR.style.background='transparent';}
       }
     });
   }
 
-  function drawJob(ctx,job){
+  function drawJob(ctx, job){
     return new Promise(resolve=>{
       const img=new Image();
       img.onload=()=>{
         const{x,y,w,h,posX,posY,zoom,nW,nH,radius}=job;
         const cx=x*SCALE,cy=y*SCALE,cw=w*SCALE,ch=h*SCALE,cr=radius*SCALE;
+
         ctx.save();
+        // Rounded rect clip
         ctx.beginPath();
         ctx.moveTo(cx+cr,cy);
-        ctx.arcTo(cx+cw,cy,   cx+cw,cy+ch,cr);
-        ctx.arcTo(cx+cw,cy+ch,cx,   cy+ch,cr);
-        ctx.arcTo(cx,   cy+ch,cx,   cy,   cr);
-        ctx.arcTo(cx,   cy,   cx+cw,cy,   cr);
+        ctx.arcTo(cx+cw,cy,    cx+cw,cy+ch,cr);
+        ctx.arcTo(cx+cw,cy+ch, cx,   cy+ch,cr);
+        ctx.arcTo(cx,   cy+ch, cx,   cy,   cr);
+        ctx.arcTo(cx,   cy,    cx+cw,cy,   cr);
         ctx.closePath();
         ctx.clip();
-        // destination-over: draw BEHIND existing pixels (text/icons from pass1)
-        ctx.globalCompositeOperation='destination-over';
-        // 1. Gradient first (sits between text and image)
+
+        // 1. Draw native-resolution image (source-over = normal, on canvasB)
+        const iW=nW||img.naturalWidth, iH=nH||img.naturalHeight;
+        const minS=Math.max(cw/iW,ch/iH), s=minS*Math.max(1,zoom||1);
+        const rW=iW*s, rH=iH*s;
+        const oX=Math.max(0,rW-cw), oY=Math.max(0,rH-ch);
+        ctx.drawImage(img, cx-oX*(posX||0.5), cy-oY*(posY||0.5), rW, rH);
+
+        // 2. Dark gradient overlay for text readability
         const grad=ctx.createLinearGradient(cx,cy+ch,cx,cy);
-        grad.addColorStop(0,   'rgba(0,0,0,0.80)');
-        grad.addColorStop(0.55,'rgba(0,0,0,0.20)');
-        grad.addColorStop(1,   'rgba(0,0,0,0.00)');
+        grad.addColorStop(0,    'rgba(0,0,0,0.78)');
+        grad.addColorStop(0.55, 'rgba(0,0,0,0.18)');
+        grad.addColorStop(1,    'rgba(0,0,0,0.00)');
         ctx.fillStyle=grad;
         ctx.fillRect(cx,cy,cw,ch);
-        // 2. Image behind everything
-        const iW=nW||img.naturalWidth,iH=nH||img.naturalHeight;
-        const minS=Math.max(cw/iW,ch/iH),s=minS*Math.max(1,zoom||1);
-        const rW=iW*s,rH=iH*s,oX=Math.max(0,rW-cw),oY=Math.max(0,rH-ch);
-        ctx.drawImage(img,cx-oX*(posX||0.5),cy-oY*(posY||0.5),rW,rH);
+
         ctx.restore();
         resolve();
       };
@@ -1532,15 +1553,35 @@ async function downloadPoster(){
   }
 
   try{
-    const canvas=await pass1();
-    const ctx=canvas.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0); // reset html2canvas scale transform
-    for(const job of jobs) await drawJob(ctx,job);
+    // Pass 1: render text/icons + solid tile backgrounds on transparent canvas
+    const canvasA = await pass1();
+    // canvasA has: opaque text/icon/solid-tile pixels, transparent where images go
+
+    // Pass 2: build canvasB — poster grey bg + native-res images + gradients
+    const canvasB = document.createElement('canvas');
+    canvasB.width  = canvasA.width;
+    canvasB.height = canvasA.height;
+    const ctxB = canvasB.getContext('2d');
+
+    // Poster background (grey paper)
+    ctxB.fillStyle = '#e8e8e8';
+    ctxB.fillRect(0, 0, canvasB.width, canvasB.height);
+
+    // Draw each image at native resolution
+    for(const job of jobs) await drawJob(ctxB, job);
+
+    // Merge: draw canvasA (text/icons/solid tiles) ON TOP of canvasB (images)
+    // No transform reset needed — we're drawing canvasA as an image onto canvasB
+    ctxB.drawImage(canvasA, 0, 0);
+
     const a=document.createElement('a');
     a.download='compass-offices-poster-A4.jpg';
-    a.href=canvas.toDataURL('image/jpeg',0.97);
+    a.href=canvasB.toDataURL('image/jpeg',0.97);
     a.click();
-  }catch(e){console.error('Download failed:',e);alert('Download failed — see console.');}
+  }catch(e){
+    console.error('Download failed:',e);
+    alert('Download failed — see console.');
+  }
 
   document.body.classList.remove('ss');
   ov.classList.remove('on');
