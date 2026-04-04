@@ -652,10 +652,16 @@ async function loadCOIcons() {
   };
   try {
     setStatus('Loading CO icons…', false);
-    const res = await fetch(BASE + 'icons.json', {cache:'no-cache'});
+    console.log('[CO Icons] Fetching:', BASE + 'icons.json');
+    const res = await fetch(BASE + 'icons.json', {
+      cache: 'no-cache',
+      mode: 'cors',
+      headers: { 'Accept': 'application/json, text/plain, */*' }
+    });
     if (!res.ok) { setStatus('HTTP ' + res.status, false); return; }
     const raw = await res.text();
-    console.log('[CO Icons] Response (first 300):', raw.slice(0,300));
+    console.log('[CO Icons] Response length:', raw.length, 'bytes');
+    console.log('[CO Icons] First 500 chars:', raw.slice(0,500));
     let data; try { data = JSON.parse(raw); } catch(e) { setStatus('JSON error', false); return; }
     let count = 0, filenames = [];
     if (Array.isArray(data)) {
@@ -710,12 +716,15 @@ async function loadCOIcons() {
       }
     }
     if (count > 0) {
-      setStatus('✓ ' + count + ' CO icons', true);
-      if (_overlayTid) buildSidebar(_overlayTid);
+      setStatus('✓ ' + count + ' CO icons loaded', true);
+      console.log('[CO Icons] Loaded keys:', Object.keys(CO_ICONS));
+      if (_overlayTid) { setTimeout(()=>buildSidebar(_overlayTid), 0); }
       renderAmenityRow();
     } else {
-      setStatus('0 icons parsed', false);
-      console.warn('[CO Icons]', JSON.stringify(data).slice(0,300));
+      setStatus('⚠ 0 icons parsed — check console', false);
+      console.warn('[CO Icons] Data structure:', typeof data, Array.isArray(data) ? 'array of '+data.length : '');
+      console.warn('[CO Icons] First item:', JSON.stringify(data && (Array.isArray(data) ? data[0] : Object.entries(data)[0])));
+      console.warn('[CO Icons] Full response:', raw.slice(0,1000));
     }
   } catch(e) {
     setStatus('Error: ' + e.message, false);
