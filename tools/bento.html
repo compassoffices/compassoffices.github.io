@@ -1410,78 +1410,144 @@ async function downloadPoster(){
   document.body.classList.add('ss');
   await new Promise(r=>setTimeout(r,300));
 
-  const poster=document.getElementById('poster');
-  const SCALE=5;
+  const poster  = document.getElementById('poster');
+  const SCALE   = 5;
+  const GAP     = 14; /* border-radius px for clip */
 
-  // Helper: scale a CSS px value string by SCALE
-  const scalePx = str => String(str||'').replace(/-?[\d.]+px/g, m => (parseFloat(m)*SCALE)+'px');
+  /* ─────────────────────────────────────────────────────────────────────
+     COLLECT IMAGE JOBS
+     Read tile positions from the LIVE poster BEFORE any cloning.
+     offsetLeft/Top walk the real layout — cumulative so perk-cats work.
+  ───────────────────────────────────────────────────────────────────── */
+  function cumulativeOffset(el, ancestor) {
+    let x=0, y=0, cur=el;
+    while(cur && cur!==ancestor){x+=cur.offsetLeft;y+=cur.offsetTop;cur=cur.offsetParent;}
+    return {x,y};
+  }
 
-  try {
-    const canvas = await html2canvas(poster,{
-      scale: SCALE,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#e8e8e8',
-      logging: false,
-      imageTimeout: 15000,
-      width: poster.offsetWidth,
-      height: poster.offsetHeight,
+  const jobs = [];
+
+  // Tile background images
+  ['loc','office','teams','movein','events','amenity','cta'].forEach(tid=>{
+    const s=S[tid]; if(!s||!s.img)return;
+    const el=document.querySelector('[data-tile="'+tid+'"]'); if(!el)return;
+    const {x,y}=cumulativeOffset(el,poster);
+    jobs.push({
+      src:s.img, x,y, w:el.offsetWidth, h:el.offsetHeight,
+      posX:s.imgX||0.5, posY:s.imgY||0.5, zoom:s.imgScale||1,
+      nW:s.imgNW||0, nH:s.imgNH||0, radius:GAP
+    });
+  });
+
+  // Perk category images
+  const catEls=poster.querySelectorAll('.perk-cat');
+  (S.perks.categories||[]).forEach((cat,i)=>{
+    if(!cat.img||!catEls[i])return;
+    const {x,y}=cumulativeOffset(catEls[i],poster);
+    jobs.push({
+      src:cat.img, x,y, w:catEls[i].offsetWidth, h:catEls[i].offsetHeight,
+      posX:cat.imgX||0.5, posY:cat.imgY||0.5, zoom:cat.imgScale||1,
+      nW:cat.imgNW||0, nH:cat.imgNH||0, radius:GAP
+    });
+  });
+
+  /* ─────────────────────────────────────────────────────────────────────
+     PASS 1 — html2canvas with ALL images hidden
+     Gets sharp text, icons, gradients, solid colours
+  ───────────────────────────────────────────────────────────────────── */
+  async function pass1(){
+    return html2canvas(poster,{
+      scale:SCALE, useCORS:true, allowTaint:true,
+      backgroundColor:'#e8e8e8', logging:false, imageTimeout:0,
+      width:poster.offsetWidth, height:poster.offsetHeight,
       onclone:(doc,el)=>{
-        // Hide UI chrome
-        el.querySelectorAll('.edit-badge,.tile-drag-handle').forEach(e=>e.style.display='none');
+        el.querySelectorAll('.edit-badge,.tile-drag-handle,#resize-overlay').forEach(e=>e.style.display='none');
         el.querySelectorAll('.tile').forEach(t=>{t.style.outline='none';t.style.cursor='default';});
-
-        // Clone grid layout
-        el.style.gridTemplateColumns = poster.style.gridTemplateColumns;
-        el.style.gridTemplateRows    = poster.style.gridTemplateRows;
-        el.style.gridTemplateAreas   = poster.style.gridTemplateAreas;
-
-        // Clone inline backgrounds (gradients / solid colours)
+        // Clone gradients / solid bg
         el.querySelectorAll('[data-tile]').forEach(tile=>{
           const orig=poster.querySelector('[data-tile="'+tile.dataset.tile+'"]');
-          if(orig&&orig.style.background) tile.style.background=orig.style.background;
+          if(orig&&orig.style.background)tile.style.background=orig.style.background;
         });
-
-        // KEY FIX: Scale background-size and background-position on .t-img and .perk-cat-bg
-        // html2canvas renders at SCALE× — we must scale the pixel values to match
-        const scaleImgEl = (cloneEl, origEl) => {
-          if(!cloneEl||!origEl) return;
-          const src = origEl.style.backgroundImage;
-          if(!src||src==='none') return;
-          cloneEl.style.backgroundImage    = src;
-          cloneEl.style.backgroundRepeat   = 'no-repeat';
-          // DO NOT pre-scale: html2canvas at scale:5 already scales all CSS pixels by 5×.
-          // Using scalePx would cause 25× zoom. Copy values as-is.
-          cloneEl.style.backgroundSize     = origEl.style.backgroundSize;
-          cloneEl.style.backgroundPosition = origEl.style.backgroundPosition;
-          cloneEl.style.display = '';
-        };
-
-        poster.querySelectorAll('.t-img').forEach((orig,i)=>{
-          scaleImgEl(el.querySelectorAll('.t-img')[i], orig);
+        // HIDE images — pass2 will draw them at native resolution
+        el.querySelectorAll('.t-img,.perk-cat-bg').forEach(bg=>{
+          bg.style.backgroundImage='none'; bg.style.display='none';
         });
-        poster.querySelectorAll('.perk-cat-bg').forEach((orig,i)=>{
-          scaleImgEl(el.querySelectorAll('.perk-cat-bg')[i], orig);
-        });
-
-        // Scale .t-ov overlay gradient (it's a pseudo-element so no action needed,
-        // but any inline gradient divs should be kept visible)
-        el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o=>o.style.display='');
-
-        // QR code
-        const origQR=poster.querySelector('#cta-qr-img'),clonQR=el.querySelector('#cta-qr-img');
-        if(origQR&&clonQR){clonQR.src=origQR.src;clonQR.style.background='transparent';}
+        el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o=>o.style.display='none');
+        // Grid layout
+        el.style.gridTemplateColumns=poster.style.gridTemplateColumns;
+        el.style.gridTemplateRows   =poster.style.gridTemplateRows;
+        el.style.gridTemplateAreas  =poster.style.gridTemplateAreas;
+        // QR
+        const oQR=poster.querySelector('#cta-qr-img'),cQR=el.querySelector('#cta-qr-img');
+        if(oQR&&cQR){cQR.src=oQR.src;cQR.style.background='transparent';}
       }
     });
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────
+     PASS 2 — draw each image at NATIVE resolution with rounded clip
+  ───────────────────────────────────────────────────────────────────── */
+  function drawJob(ctx, job){
+    return new Promise(resolve=>{
+      const img=new Image();
+      img.onload=()=>{
+        const {x,y,w,h,posX,posY,zoom,nW,nH,radius}=job;
+        // Canvas coords — everything ×SCALE
+        const cx=x*SCALE, cy=y*SCALE, cw=w*SCALE, ch=h*SCALE, cr=radius*SCALE;
+
+        ctx.save();
+
+        /* Rounded-rect clip — matches tile border-radius */
+        ctx.beginPath();
+        ctx.moveTo(cx+cr,cy);
+        ctx.arcTo(cx+cw,cy,   cx+cw,cy+ch, cr);
+        ctx.arcTo(cx+cw,cy+ch,cx,   cy+ch, cr);
+        ctx.arcTo(cx,   cy+ch,cx,   cy,    cr);
+        ctx.arcTo(cx,   cy,   cx+cw,cy,    cr);
+        ctx.closePath();
+        ctx.clip();
+
+        /* Compute draw rect: cover tile at native resolution */
+        const iW = nW||img.naturalWidth;
+        const iH = nH||img.naturalHeight;
+        const minS = Math.max(cw/iW, ch/iH);     // cover scale (canvas px / native px)
+        const s    = minS * Math.max(1, zoom||1); // apply user zoom
+        const rW   = iW*s, rH = iH*s;
+        const oX   = Math.max(0, rW-cw);
+        const oY   = Math.max(0, rH-ch);
+        ctx.drawImage(img, cx - oX*(posX||0.5), cy - oY*(posY||0.5), rW, rH);
+
+        /* Dark gradient overlay so text stays readable */
+        const grad=ctx.createLinearGradient(cx,cy+ch,cx,cy);
+        grad.addColorStop(0,   'rgba(0,0,0,0.75)');
+        grad.addColorStop(0.5, 'rgba(0,0,0,0.10)');
+        grad.addColorStop(1,   'rgba(0,0,0,0.00)');
+        ctx.fillStyle=grad;
+        ctx.fillRect(cx,cy,cw,ch);
+
+        ctx.restore();
+        resolve();
+      };
+      img.onerror=resolve;
+      img.src=job.src;
+    });
+  }
+
+  try{
+    const canvas = await pass1();
+    const ctx    = canvas.getContext('2d');
+    // Draw images sequentially so clip states don't overlap
+    for(const job of jobs) await drawJob(ctx, job);
 
     const a=document.createElement('a');
     a.download='compass-offices-poster-A4.jpg';
     a.href=canvas.toDataURL('image/jpeg',0.97);
     a.click();
-  } catch(e) {
-    console.error('Render failed:',e);
-    alert('Render failed — see console.');
+  }catch(e){
+    console.error('Download failed:',e);
+    alert('Download failed — see console.');
   }
+
   document.body.classList.remove('ss');
   ov.classList.remove('on');
 }
