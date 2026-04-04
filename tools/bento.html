@@ -114,17 +114,11 @@ body.ss .edit-badge{display:none!important}
 
 /* RESIZE OVERLAY */
 #resize-overlay{
-  /* Grid item — sits in same cells as selected tile */
-  pointer-events:none;
-  z-index:400;
-  display:none;
-  position:relative;          /* so abs children anchor here */
-  border:2.5px solid var(--orange);
-  border-radius:var(--r);
-  box-shadow:0 0 0 1px rgba(255,102,0,.15),0 0 24px rgba(255,102,0,.2);
-  background:transparent;
-  align-self:stretch;
-  justify-self:stretch;
+  pointer-events:none;z-index:400;display:none;position:relative;
+  margin:-2px;border:2.5px solid var(--orange);border-radius:var(--r);
+  box-shadow:0 0 0 1px rgba(255,102,0,.1),0 0 20px rgba(255,102,0,.25);
+  background:transparent;align-self:stretch;justify-self:stretch;
+  width:auto!important;height:auto!important;left:auto!important;top:auto!important;
 }
 #resize-overlay.on{display:block}
 body.ss #resize-overlay{display:none!important}
@@ -1370,8 +1364,9 @@ function updateResizeOverlay(tid){
   if(!_overlayTid)return;
   const ov=document.getElementById('resize-overlay');
   if(!ov)return;
-  // Place overlay in the SAME grid-area as the tile — no coordinate math needed.
-  // The CSS Grid engine handles positioning perfectly, scroll-safe, always exact.
+  // Clear any stale position styles, then let CSS Grid do the placement
+  ov.style.removeProperty('left');ov.style.removeProperty('top');
+  ov.style.removeProperty('width');ov.style.removeProperty('height');
   ov.style.gridArea=_overlayTid;
   ov.classList.add('on');const{colStart,colEnd,rowStart,rowEnd}=getTileGridInfo(_overlayTid);const nCols=colEnd-colStart,nRows=rowEnd-rowStart;const label=document.getElementById('ro-label');if(label)label.textContent=(nCols>1?nCols+' cols':'')+(nCols>1&&nRows>1?' · ':'')+(nRows>1?nRows+' rows':'');ov.querySelector('.ro-right').style.display=colEnd<3?'':'none';ov.querySelector('.ro-bottom').style.display=rowEnd<5?'':'none';ov.querySelector('.ro-left').style.display=colStart>0?'':'none';ov.querySelector('.ro-top').style.display=rowStart>1?'':'none';}
 function hideResizeOverlay(){_overlayTid=null;const ov=document.getElementById('resize-overlay');if(ov){ov.classList.remove('on');ov.style.gridArea='';}}
@@ -1455,8 +1450,10 @@ async function downloadPoster(){
           if(!src||src==='none') return;
           cloneEl.style.backgroundImage    = src;
           cloneEl.style.backgroundRepeat   = 'no-repeat';
-          cloneEl.style.backgroundSize     = scalePx(origEl.style.backgroundSize);
-          cloneEl.style.backgroundPosition = scalePx(origEl.style.backgroundPosition);
+          // DO NOT pre-scale: html2canvas at scale:5 already scales all CSS pixels by 5×.
+          // Using scalePx would cause 25× zoom. Copy values as-is.
+          cloneEl.style.backgroundSize     = origEl.style.backgroundSize;
+          cloneEl.style.backgroundPosition = origEl.style.backgroundPosition;
           cloneEl.style.display = '';
         };
 
