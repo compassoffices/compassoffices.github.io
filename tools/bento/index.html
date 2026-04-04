@@ -531,24 +531,50 @@ function parseSVG(raw) {
   if (!raw) return {paths:'', viewBox:'0 0 24 24'};
   raw = String(raw).trim();
   let viewBox = '0 0 24 24';
+
   if (raw.includes('<svg')) {
     const vbMatch = raw.match(/viewBox=["']([^"']+)["']/i);
     if (vbMatch) viewBox = vbMatch[1];
+
+    const cssRules = {};
+    const styleM = raw.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+    if (styleM) {
+      const rx = /\.([\w-]+)\s*\{([^}]+)\}/g;
+      let rm;
+      while ((rm = rx.exec(styleM[1])) !== null) {
+        const props = {};
+        rm[2].split(';').forEach(function(p) {
+          const ci = p.indexOf(':');
+          if (ci < 0) return;
+          const k = p.slice(0, ci).trim();
+          const v = p.slice(ci+1).trim().replace(/#f60\b|#ff6600\b/gi, 'currentColor');
+          if (k) props[k] = v;
+        });
+        cssRules[rm[1]] = props;
+      }
+    }
+
     raw = raw
-      .replace(/<\?xml[^>]*\?>/gi,'')
-      .replace(/<svg[^>]*>/gi,'')
-      .replace(/<\/svg>/gi,'')
-      .replace(/<defs[\s\S]*?<\/defs>/gi,'')
-      .replace(/<title[\s\S]*?<\/title>/gi,'')
-      .replace(/<desc[\s\S]*?<\/desc>/gi,'')
-      .replace(/class="[^"]*"/g,'')
-      .trim();
+      .replace(/<\?xml[^>]*\?>/gi, '').replace(/<svg[^>]*>/gi, '').replace(/<\/svg>/gi, '')
+      .replace(/<defs[\s\S]*?<\/defs>/gi, '').replace(/<title[\s\S]*?<\/title>/gi, '')
+      .replace(/<desc[\s\S]*?<\/desc>/gi, '');
+
+    if (Object.keys(cssRules).length > 0) {
+      raw = raw.replace(/class="([^"]*)"/g, function(_, cl) {
+        const merged = {};
+        cl.trim().split(/\s+/).forEach(function(cn) { if (cssRules[cn]) Object.assign(merged, cssRules[cn]); });
+        return Object.entries(merged).map(function(kv) { return kv[0]+'="'+kv[1].replace(/px$/,'')+'"'; }).join(' ');
+      });
+    } else {
+      raw = raw.replace(/class="[^"]*"/g, '');
+    }
+    raw = raw.trim();
   }
+
   if (/^<(path|circle|rect|polygon|polyline|line|g|ellipse)/i.test(raw)) return {paths:raw, viewBox};
   if (/^[Mm]/.test(raw)) return {paths:'<path d="'+raw+'"/>', viewBox};
   return {paths:raw, viewBox};
 }
-
 function parseSVGtoPath(raw) { return parseSVG(raw).paths; }
 
 /* SVG RENDER — uses real viewBox for CO icons */
@@ -556,7 +582,8 @@ function svg(key, size=24, sw=1.75, color='currentColor') {
   const vb = IL_VIEWBOX[key] || '0 0 24 24';
   const isCO = key && key.startsWith('co-');
   if (isCO) {
-    return `<svg width="${size}" height="${size}" viewBox="${vb}" style="display:block">${IL[key]||''}</svg>`;
+    // CO icons use stroke="currentColor" — pass color via CSS `color` property
+    return `<svg width="${size}" height="${size}" viewBox="${vb}" style="display:block;color:${color};overflow:visible">${IL[key]||''}</svg>`;
   }
   return `<svg width="${size}" height="${size}" viewBox="${vb}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="display:block">${IL[key]||''}</svg>`;
 }
@@ -664,37 +691,34 @@ async function loadCOIcons() {
     console.log('[CO Icons] First 500 chars:', raw.slice(0,500));
     let data; try { data = JSON.parse(raw); } catch(e) { setStatus('JSON error', false); return; }
     let count = 0, filenames = [];
-    if (Array.isArray(data)) {
-      data.forEach((item, idx) => {
-        if (!item) return;
-        if (typeof item === 'string') {
-          const s = item.trim();
-          if (s.includes('<svg') || s.startsWith('<path') || s.startsWith('<circle')) { if (addIcon('icon-'+idx, s)) count++; }
-          else filenames.push(s.endsWith('.svg') ? s : s + '.svg');
-          return;
+    // Normalise: unwrap { "icons": [...] } wrapper if present
+    const items = Array.isArray(data) ? data
+                : (data && Array.isArray(data.icons)) ? data.icons
+                : (data && typeof data === 'object') ? Object.entries(data).map(([k,v])=>(
+                    typeof v === 'object' ? Object.assign({name:k}, v) : {name:k, svg:v}
+                  ))
+                : [];
+
+    items.forEach((item, idx) => {
+      if (!item) return;
+      // String item = raw SVG or filename
+      if (typeof item === 'string') {
+        const s = item.trim();
+        if (s.includes('<svg') || s.startsWith('<path') || s.startsWith('<circle')) {
+          if (addIcon('icon-'+idx, s)) count++;
+        } else {
+          filenames.push(s.endsWith('.svg') ? s : s + '.svg');
         }
-        const name = item.name || item.id || item.title || item.key || item.slug || ('icon-'+idx);
-        const content = item.path || item.svg || item.d || item.content || item.data || item.markup || item.body || '';
-        if (content && addIcon(name, content)) { count++; return; }
-        const file = item.file || item.filename || item.src || '';
-        if (file) filenames.push({name, file: file.endsWith('.svg') ? file : file + '.svg'});
-        else if (name) filenames.push({name, file: name.toLowerCase().replace(/\s+/g,'-') + '.svg'});
-      });
-    } else if (typeof data === 'object' && data !== null) {
-      Object.entries(data).forEach(([name, val]) => {
-        if (typeof val === 'string') {
-          const s = val.trim();
-          if (s.includes('<') || s.startsWith('M') || s.startsWith('m')) { if (addIcon(name, s)) count++; }
-          else filenames.push({name, file: s.endsWith('.svg') ? s : s + '.svg'});
-          return;
-        }
-        if (val && typeof val === 'object') {
-          const c2 = val.path || val.svg || val.d || val.content || val.markup || '';
-          if (c2 && addIcon(name, c2)) { count++; }
-          else { const f = val.file || val.filename || val.src || ''; if (f) filenames.push({name, file: f}); }
-        }
-      });
-    }
+        return;
+      }
+      // Object item: {name, svg, filename, path, ...}
+      const name = item.name || item.id || item.title || item.key || item.slug || ('icon-'+idx);
+      const svgContent = item.svg || item.path || item.d || item.content || item.data || item.markup || item.body || '';
+      if (svgContent && addIcon(name, svgContent)) { count++; return; }
+      const file = item.file || item.filename || item.src || '';
+      if (file) filenames.push({name, file: file.endsWith('.svg') ? file : file + '.svg'});
+      else if (name && !svgContent) filenames.push({name, file: name.toLowerCase().replace(/\s+/g,'-') + '.svg'});
+    });
     if (filenames.length > 0) {
       setStatus('Loading ' + filenames.length + ' SVGs…', false);
       const MAX = 12; let fetched = 0;
