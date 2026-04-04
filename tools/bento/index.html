@@ -1461,88 +1461,68 @@ async function downloadPoster(){
       backgroundColor:'#e8e8e8', logging:false, imageTimeout:0,
       width:poster.offsetWidth, height:poster.offsetHeight,
       onclone:(doc,el)=>{
-        el.querySelectorAll('.edit-badge,.tile-drag-handle,#resize-overlay').forEach(e=>e.style.display='none');
+        el.querySelectorAll('.edit-badge,.tile-drag-handle,#resize-overlay')
+          .forEach(e=>e.style.display='none');
         el.querySelectorAll('.tile').forEach(t=>{t.style.outline='none';t.style.cursor='default';});
-        // Clone gradients / solid bg
+        el.style.gridTemplateColumns=poster.style.gridTemplateColumns;
+        el.style.gridTemplateRows   =poster.style.gridTemplateRows;
+        el.style.gridTemplateAreas  =poster.style.gridTemplateAreas;
         el.querySelectorAll('[data-tile]').forEach(tile=>{
           const orig=poster.querySelector('[data-tile="'+tile.dataset.tile+'"]');
           if(orig&&orig.style.background)tile.style.background=orig.style.background;
         });
-        // HIDE image layers — pass2 draws them at native resolution
+        // Image-tiles: transparent bg so text sits on transparent canvas
+        el.querySelectorAll('[data-tile]').forEach(tile=>{
+          if(tile.querySelector('.t-img')){
+            tile.style.background='transparent';
+            tile.style.backgroundColor='transparent';
+          }
+        });
+        el.querySelectorAll('.perk-cat').forEach(cat=>{
+          if(cat.querySelector('.perk-cat-bg')){
+            cat.style.background='transparent';
+            cat.style.backgroundColor='transparent';
+          }
+        });
         el.querySelectorAll('.t-img,.perk-cat-bg').forEach(bg=>{
           bg.style.backgroundImage='none'; bg.style.display='none';
         });
-        // Keep .t-ov and .perk-cat-ov VISIBLE — they provide the dark gradient
-        // that makes white text readable. Without them, white text = invisible on grey.
-        // For tiles that have an image, set a dark fallback bg so text has contrast.
-        el.querySelectorAll('[data-tile]').forEach(tile=>{
-          const tid=tile.dataset.tile;
-          const liveEl=poster.querySelector('[data-tile="'+tid+'"]');
-          const hasImg = liveEl && liveEl.querySelector('.t-img');
-          if(hasImg){
-            // Dark fallback so white text remains visible while image is hidden
-            tile.style.background='#1a1a1a';
-          }
-        });
-        // Same for perk category cards with images
-        el.querySelectorAll('.perk-cat').forEach((cat,i)=>{
-          const liveCat=poster.querySelectorAll('.perk-cat')[i];
-          if(liveCat && liveCat.querySelector('.perk-cat-bg')){
-            cat.style.background='#1a1a1a';
-          }
-        });
-        // Grid layout
-        el.style.gridTemplateColumns=poster.style.gridTemplateColumns;
-        el.style.gridTemplateRows   =poster.style.gridTemplateRows;
-        el.style.gridTemplateAreas  =poster.style.gridTemplateAreas;
-        // QR
+        el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o=>o.style.display='none');
         const oQR=poster.querySelector('#cta-qr-img'),cQR=el.querySelector('#cta-qr-img');
         if(oQR&&cQR){cQR.src=oQR.src;cQR.style.background='transparent';}
       }
     });
   }
 
-  /* ─────────────────────────────────────────────────────────────────────
-     PASS 2 — draw each image at NATIVE resolution with rounded clip
-  ───────────────────────────────────────────────────────────────────── */
-  function drawJob(ctx, job){
+  function drawJob(ctx,job){
     return new Promise(resolve=>{
       const img=new Image();
       img.onload=()=>{
-        const {x,y,w,h,posX,posY,zoom,nW,nH,radius}=job;
-        // Canvas coords — everything ×SCALE
-        const cx=x*SCALE, cy=y*SCALE, cw=w*SCALE, ch=h*SCALE, cr=radius*SCALE;
-
+        const{x,y,w,h,posX,posY,zoom,nW,nH,radius}=job;
+        const cx=x*SCALE,cy=y*SCALE,cw=w*SCALE,ch=h*SCALE,cr=radius*SCALE;
         ctx.save();
-
-        /* Rounded-rect clip — matches tile border-radius */
         ctx.beginPath();
         ctx.moveTo(cx+cr,cy);
-        ctx.arcTo(cx+cw,cy,   cx+cw,cy+ch, cr);
-        ctx.arcTo(cx+cw,cy+ch,cx,   cy+ch, cr);
-        ctx.arcTo(cx,   cy+ch,cx,   cy,    cr);
-        ctx.arcTo(cx,   cy,   cx+cw,cy,    cr);
+        ctx.arcTo(cx+cw,cy,   cx+cw,cy+ch,cr);
+        ctx.arcTo(cx+cw,cy+ch,cx,   cy+ch,cr);
+        ctx.arcTo(cx,   cy+ch,cx,   cy,   cr);
+        ctx.arcTo(cx,   cy,   cx+cw,cy,   cr);
         ctx.closePath();
         ctx.clip();
-
-        /* Compute draw rect: cover tile at native resolution */
-        const iW = nW||img.naturalWidth;
-        const iH = nH||img.naturalHeight;
-        const minS = Math.max(cw/iW, ch/iH);     // cover scale (canvas px / native px)
-        const s    = minS * Math.max(1, zoom||1); // apply user zoom
-        const rW   = iW*s, rH = iH*s;
-        const oX   = Math.max(0, rW-cw);
-        const oY   = Math.max(0, rH-ch);
-        ctx.drawImage(img, cx - oX*(posX||0.5), cy - oY*(posY||0.5), rW, rH);
-
-        /* Dark gradient overlay so text stays readable */
+        // destination-over: draw BEHIND existing pixels (text/icons from pass1)
+        ctx.globalCompositeOperation='destination-over';
+        // 1. Gradient first (sits between text and image)
         const grad=ctx.createLinearGradient(cx,cy+ch,cx,cy);
-        grad.addColorStop(0,   'rgba(0,0,0,0.75)');
-        grad.addColorStop(0.5, 'rgba(0,0,0,0.10)');
+        grad.addColorStop(0,   'rgba(0,0,0,0.80)');
+        grad.addColorStop(0.55,'rgba(0,0,0,0.20)');
         grad.addColorStop(1,   'rgba(0,0,0,0.00)');
         ctx.fillStyle=grad;
         ctx.fillRect(cx,cy,cw,ch);
-
+        // 2. Image behind everything
+        const iW=nW||img.naturalWidth,iH=nH||img.naturalHeight;
+        const minS=Math.max(cw/iW,ch/iH),s=minS*Math.max(1,zoom||1);
+        const rW=iW*s,rH=iH*s,oX=Math.max(0,rW-cw),oY=Math.max(0,rH-ch);
+        ctx.drawImage(img,cx-oX*(posX||0.5),cy-oY*(posY||0.5),rW,rH);
         ctx.restore();
         resolve();
       };
@@ -1552,23 +1532,15 @@ async function downloadPoster(){
   }
 
   try{
-    const canvas = await pass1();
-    const ctx    = canvas.getContext('2d');
-    // CRITICAL: html2canvas leaves scale(SCALE,SCALE) on the context.
-    // Reset to identity so our canvas-pixel coordinates (already ×SCALE) work correctly.
-    // Without this, everything is scaled TWICE = 25× too large.
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    // Draw images sequentially so clip states never overlap
-    for(const job of jobs) await drawJob(ctx, job);
-
+    const canvas=await pass1();
+    const ctx=canvas.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0); // reset html2canvas scale transform
+    for(const job of jobs) await drawJob(ctx,job);
     const a=document.createElement('a');
     a.download='compass-offices-poster-A4.jpg';
     a.href=canvas.toDataURL('image/jpeg',0.97);
     a.click();
-  }catch(e){
-    console.error('Download failed:',e);
-    alert('Download failed — see console.');
-  }
+  }catch(e){console.error('Download failed:',e);alert('Download failed — see console.');}
 
   document.body.classList.remove('ss');
   ov.classList.remove('on');
