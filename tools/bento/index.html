@@ -1447,7 +1447,7 @@ async function downloadPoster(){
     jobs.push({
       src:cat.img, x,y, w:catEls[i].offsetWidth, h:catEls[i].offsetHeight,
       posX:cat.imgX||0.5, posY:cat.imgY||0.5, zoom:cat.imgScale||1,
-      nW:cat.imgNW||0, nH:cat.imgNH||0, radius:GAP
+      nW:cat.imgNW||0, nH:cat.imgNH||0, radius:10 /* perk-cat border-radius:10px */
     });
   });
 
@@ -1495,10 +1495,17 @@ async function downloadPoster(){
         });
         el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o=>o.style.display='none');
 
-        // Perk cats: transparent if has image
+        // If any perk category has an image, the perks TILE must also be transparent.
+        // Otherwise canvasA's solid perks-tile background covers perk-cat images in canvasB.
+        const hasPerkImages = (S.perks.categories||[]).some(cat=>!!cat.img);
+        if(hasPerkImages){
+          const perkTile=el.querySelector('[data-tile="perks"]');
+          if(perkTile){perkTile.style.background='transparent';perkTile.style.backgroundColor='transparent';}
+        }
+        // Individual perk-cats: transparent if their category has an image
         el.querySelectorAll('.perk-cat').forEach((cat,i)=>{
-          const liveCat=poster.querySelectorAll('.perk-cat')[i];
-          if(liveCat&&liveCat.querySelector('.perk-cat-bg')){
+          const catData=(S.perks.categories||[])[i];
+          if(catData&&catData.img){
             cat.style.background='transparent';
             cat.style.backgroundColor='transparent';
           }
@@ -1566,6 +1573,27 @@ async function downloadPoster(){
     // Poster background (grey paper)
     ctxB.fillStyle = '#e8e8e8';
     ctxB.fillRect(0, 0, canvasB.width, canvasB.height);
+
+    // If perks tile was made transparent in canvasA, draw its solid bg here on canvasB
+    // so the tile background colour shows (black/dark) with perk-cat images inside it.
+    if((S.perks.categories||[]).some(cat=>!!cat.img)){
+      const perkEl=poster.querySelector('[data-tile="perks"]');
+      if(perkEl){
+        const {x,y}=cumulativeOffset(perkEl,poster);
+        const px=x*SCALE,py=y*SCALE,pw=perkEl.offsetWidth*SCALE,ph=perkEl.offsetHeight*SCALE;
+        const pr=GAP*SCALE;
+        // Draw perks tile bg with rounded corners
+        const bgColor=getComputedStyle(perkEl).backgroundColor||'#0f0f0f';
+        ctxB.save();
+        ctxB.beginPath();
+        ctxB.moveTo(px+pr,py);ctxB.arcTo(px+pw,py,px+pw,py+ph,pr);
+        ctxB.arcTo(px+pw,py+ph,px,py+ph,pr);ctxB.arcTo(px,py+ph,px,py,pr);
+        ctxB.arcTo(px,py,px+pw,py,pr);ctxB.closePath();
+        ctxB.fillStyle=bgColor;
+        ctxB.fill();
+        ctxB.restore();
+      }
+    }
 
     // Draw each image at native resolution
     for(const job of jobs) await drawJob(ctxB, job);
