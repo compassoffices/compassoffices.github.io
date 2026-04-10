@@ -1866,18 +1866,22 @@ function updateFpUrl(i){
   if(!roomInp||!urlInp) return;
   const room=roomInp.value.trim();
   if(room){
-    // Build URL: base URL (which already ends with separator like -)  + room + .jpg
-    const base=FP_BASE_URL||(FP_PLANS[0]?.url||'').replace(/(master|\d+)\.jpg$/i,'');
-    FP_PLANS[i].url=base+room.toLowerCase()+'.jpg';
-    FP_PLANS[i].label=room.toLowerCase()==='master'?'Master':room;
-    urlInp.value=FP_PLANS[i].url;
+    // FP_BASE_URL already ends with the separator prefix e.g. "…/floorplan_lg1-24-"
+    // Just append room number + .jpg directly
+    const base=FP_BASE_URL;
+    if(base){
+      FP_PLANS[i].url=base+room+'.jpg';
+      FP_PLANS[i].label=room.toLowerCase()==='master'?'Master':room;
+      urlInp.value=FP_PLANS[i].url;
+    }
   } else {
     FP_PLANS[i].url=urlInp.value.trim();
-    const m=FP_PLANS[i].url.match(/[-_]?(master|\d+)\.jpg$/i);
-    FP_PLANS[i].label=m?(m[1].toLowerCase()==='master'?'Master':m[1]):FP_PLANS[i].url.split('/').pop().replace(/\.jpg$/i,'');
+    // Extract label from filename
+    const fname=FP_PLANS[i].url.split('/').pop().replace(/\.jpg$/i,'');
+    FP_PLANS[i].label=fname||FP_PLANS[i].label;
   }
-  if(i===0){ S.floorplan=FP_PLANS[0].url||null; }
-  gen();
+  if(i===0) S.floorplan=FP_PLANS[0].url||null;
+  renderFpList();gen();
 }
 
 function updateFpUrlDirect(i){
@@ -1886,22 +1890,47 @@ function updateFpUrlDirect(i){
   if(!urlInp) return;
   const url=urlInp.value.trim();
   FP_PLANS[i].url=url;
-  // Extract room number: everything after the last - or _ before .jpg
-  const roomMatch=url.match(/[-_]?(master|\d+)\.jpg$/i);
-  if(roomMatch){
-    const room=roomMatch[1];
+  if(!url){if(i===0)S.floorplan=null;gen();return;}
+  // Extract base URL: everything up to and including the last separator before the number/master
+  // e.g. https://…/floorplan_lg1-24-master.jpg → base = https://…/floorplan_lg1-24-
+  //      https://…/floorplan_lg1-24-2412.jpg   → base = https://…/floorplan_lg1-24-
+  const baseMatch=url.match(/^(.+[-_])(master|\d+)\.jpg$/i);
+  if(baseMatch){
+    const base=baseMatch[1];
+    const room=baseMatch[2];
     FP_PLANS[i].label=room.toLowerCase()==='master'?'Master':room;
     if(roomInp) roomInp.value=room;
-    // Extract base: strip the room part (master/digits + .jpg), keep the separator
-    const extracted=url.replace(/(master|\d+)\.jpg$/i,'');
     if(!FP_BASE_URL||i===0){
-      FP_BASE_URL=extracted;
+      FP_BASE_URL=base;
       const bInp=document.getElementById('fp-base-url');
       if(bInp) bInp.value=FP_BASE_URL;
     }
+  } else {
+    // No recognisable pattern — use the full filename as label
+    FP_PLANS[i].label=url.split('/').pop().replace(/\.jpg$/i,'')||('Plan '+(i+1));
+    if(roomInp) roomInp.value='';
   }
   if(i===0) S.floorplan=FP_PLANS[0].url||null;
   gen();
+}
+
+function onFpUpload(i,e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    if(!FP_PLANS[i]) return;
+    FP_PLANS[i].url=ev.target.result;
+    FP_PLANS[i].label=file.name.replace(/\.[^.]+$/,'')||('Plan '+(i+1));
+    if(i===0) S.floorplan=ev.target.result;
+    // Clear room input since this is an uploaded file, not a URL
+    const roomInp=document.getElementById('fp-room-'+i);
+    const urlInp=document.getElementById('fp-url-'+i);
+    if(roomInp) roomInp.value='';
+    if(urlInp) urlInp.value='';
+    renderFpList();gen();
+  };
+  reader.readAsDataURL(file);
+  e.target.value=''; // allow re-uploading same file
 }
 
 function renderFpList(){
