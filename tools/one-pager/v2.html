@@ -1866,22 +1866,29 @@ function updateFpUrl(i){
   if(!roomInp||!urlInp) return;
   const room=roomInp.value.trim();
   if(room){
-    // FP_BASE_URL already ends with the separator prefix e.g. "…/floorplan_lg1-24-"
-    // Just append room number + .jpg directly
-    const base=FP_BASE_URL;
+    // Base URL ends with the separator e.g. "…/floorplan_lg1-24-"
+    // Fall back to deriving from plan 0's URL if base not set
+    let base=FP_BASE_URL;
+    if(!base&&FP_PLANS[0]?.url){
+      const m=FP_PLANS[0].url.match(/^(.+[-_])[^-_]+\.jpg$/i);
+      base=m?m[1]:'';
+    }
     if(base){
       FP_PLANS[i].url=base+room+'.jpg';
-      FP_PLANS[i].label=room.toLowerCase()==='master'?'Master':room;
+      FP_PLANS[i].label=room;
       urlInp.value=FP_PLANS[i].url;
     }
   } else {
     FP_PLANS[i].url=urlInp.value.trim();
-    // Extract label from filename
     const fname=FP_PLANS[i].url.split('/').pop().replace(/\.jpg$/i,'');
     FP_PLANS[i].label=fname||FP_PLANS[i].label;
   }
   if(i===0) S.floorplan=FP_PLANS[0].url||null;
-  renderFpList();gen();
+  // Don't call renderFpList here — it destroys focus on Tab
+  // Only update the thumbnail preview inline
+  const thumb=document.querySelector(`#fp-list .fp-thumb-${i}`);
+  if(thumb&&FP_PLANS[i].url) thumb.src=FP_PLANS[i].url;
+  gen();
 }
 
 function updateFpUrlDirect(i){
@@ -1891,10 +1898,11 @@ function updateFpUrlDirect(i){
   const url=urlInp.value.trim();
   FP_PLANS[i].url=url;
   if(!url){if(i===0)S.floorplan=null;gen();return;}
-  // Extract base URL: everything up to and including the last separator before the number/master
-  // e.g. https://…/floorplan_lg1-24-master.jpg → base = https://…/floorplan_lg1-24-
-  //      https://…/floorplan_lg1-24-2412.jpg   → base = https://…/floorplan_lg1-24-
-  const baseMatch=url.match(/^(.+[-_])(master|\d+)\.jpg$/i);
+  // Detect base: split at the last - or _ before the filename
+  // Matches: …/floorplan_lg1-24-master.jpg → base=…/floorplan_lg1-24-  room=master
+  //          …/LG1-1234.jpg                → base=…/LG1-               room=1234
+  //          …/floorplan-2412.jpg          → base=…/floorplan-          room=2412
+  const baseMatch=url.match(/^(.+[-_])([^-_/]+)\.jpg$/i);
   if(baseMatch){
     const base=baseMatch[1];
     const room=baseMatch[2];
@@ -1906,11 +1914,13 @@ function updateFpUrlDirect(i){
       if(bInp) bInp.value=FP_BASE_URL;
     }
   } else {
-    // No recognisable pattern — use the full filename as label
     FP_PLANS[i].label=url.split('/').pop().replace(/\.jpg$/i,'')||('Plan '+(i+1));
     if(roomInp) roomInp.value='';
   }
   if(i===0) S.floorplan=FP_PLANS[0].url||null;
+  // Don't call renderFpList — only update thumbnail inline to preserve focus
+  const thumb=document.querySelector(`#fp-list .fp-thumb-${i}`);
+  if(thumb&&url) thumb.src=url;
   gen();
 }
 
@@ -1942,8 +1952,8 @@ function renderFpList(){
   list.innerHTML=FP_PLANS.map((fp,i)=>`
     <div style="border:1.5px solid var(--bd);border-radius:8px;padding:8px 10px;background:var(--wh);">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-        ${fp.url?`<img src="${fp.url}" style="width:36px;height:28px;object-fit:contain;border-radius:4px;border:1px solid var(--bd);background:#f5f5f5;flex-shrink:0;">`
-          :`<div style="width:36px;height:28px;border-radius:4px;border:1px solid var(--bd);background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>`}
+        ${fp.url?`<img src="${fp.url}" class="fp-thumb-${i}" style="width:36px;height:28px;object-fit:contain;border-radius:4px;border:1px solid var(--bd);background:#f5f5f5;flex-shrink:0;">`
+          :`<div class="fp-thumb-${i}" style="width:36px;height:28px;border-radius:4px;border:1px solid var(--bd);background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>`}
         <span style="font-size:11px;font-weight:700;color:var(--o);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i===0?'Master':fp.label||'Plan '+(i+1)}</span>
         <button onclick="delFpPlan(${i})" style="width:20px;height:20px;border:none;background:transparent;color:var(--xlt);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='var(--xlt)'">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1955,16 +1965,16 @@ function renderFpList(){
           placeholder="${i===0?'master':'e.g. 2412'}"
           style="width:90px;flex-shrink:0;border:1px solid var(--bd);border-radius:5px;padding:3px 7px;font-size:12px;font-family:inherit;outline:none;"
           oninput="updateFpUrl(${i})"
-          onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
-        <input type="file" id="fp-up-${i}" accept="image/*" style="display:none" onchange="onFpUpload(${i},event)">
+          oninput="updateFpUrl(${i})"
+          onfocus="this.style.borderColor='var(--o)'" onblur="renderFpList();">
         <label for="fp-up-${i}" class="mc-upload-btn" style="font-size:10px;padding:3px 7px;cursor:pointer;flex-shrink:0;">↑ Upload</label>
       </div>
       <input id="fp-url-${i}" type="url" value="${fp.url&&!fp.url.startsWith('data:')?fp.url:''}"
         placeholder="https://…/floorplan.jpg"
         style="width:100%;box-sizing:border-box;border:1px solid var(--bd);border-radius:5px;padding:3px 8px;font-size:11px;font-family:inherit;outline:none;"
         oninput="updateFpUrlDirect(${i})"
+        onchange="updateFpUrlDirect(${i})"
         onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
-    </div>
   `).join('');
 
   // ── Page assignment selector (only in page-2-different mode) ─────────────
