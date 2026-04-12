@@ -105,8 +105,18 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
         <p style="font-size:13px;font-weight:500">Rooms</p>
         <div class="tip" style="font-size:11px">Auto-detected on PDF load. <strong>Click</strong> to select → drag to move, handles to resize. Select then <strong>✏ Refine</strong> for precise pen cutting.</div>
         <div id="room-list"></div>
+        <div id="color-picker-row" style="display:none;flex-direction:column;gap:6px;padding:8px 0;border-top:0.5px solid #eee">
+          <p style="font-size:11px;font-weight:500;color:#555">Room fill colour</p>
+          <div style="display:flex;gap:5px;flex-wrap:wrap" id="color-swatches"></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+            <input type="color" id="custom-color" value="#2563eb" style="width:28px;height:28px;border:none;background:none;cursor:pointer;padding:0" oninput="applyRoomColor(this.value)">
+            <span style="font-size:11px;color:#888">Custom colour</span>
+            <button onclick="clearRoomColor()" style="margin-left:auto;font-size:11px;padding:2px 8px">✕ Clear</button>
+          </div>
+        </div>
         <div style="margin-top:auto;border-top:0.5px solid #eee;padding-top:8px;display:flex;flex-direction:column;gap:6px">
-          <button class="primary" onclick="downloadAll()" id="dl-btn">⬇ Download ZIP (JPG)</button>
+          <button class="primary" onclick="downloadAll()" id="dl-btn">⬇ Download rooms ZIP (JPG)</button>
+          <button onclick="downloadFloorplan()" id="fp-btn" style="background:#0f766e;color:#fff;border-color:#0f766e">🗺 Download full floorplan (PNG)</button>
           <p id="dl-status" style="font-size:11px;color:#666;text-align:center;min-height:16px"></p>
         </div>
       </div>
@@ -294,7 +304,7 @@ function onDown(e){
     if(hitRoom(rooms[selectedRoom].rect,x,y)){mode='moving';return;}
   }
   const hit=findRoomAt(x,y);
-  if(hit){selectedRoom=hit;mode='moving';redrawRooms();renderList();updatePenBtn();return;}
+  if(hit){selectedRoom=hit;mode='moving';redrawRooms();renderList();updatePenBtn();showColorPicker();return;}
   selectedRoom=null;mode='drawing';drawStart={x,y};drawCur={x,y};redrawRooms();renderList();updatePenBtn();
 }
 function onMove(e){
@@ -330,7 +340,7 @@ function confirmNewRoom(){
   rooms[lbl]={label:lbl,type:'box',rect:pendingRect,polygon:null,colorIdx:colorCounter++};
   if(pdfDoc)pageRooms[currentPage]=rooms;selectedRoom=lbl;pendingRect=null;
   document.getElementById('popup').classList.remove('open');document.getElementById('popup-bg').classList.remove('open');
-  sc.clearRect(0,0,origW,origH);redrawRooms();renderList();updateBadge();updatePenBtn();
+  sc.clearRect(0,0,origW,origH);redrawRooms();renderList();updateBadge();updatePenBtn();showColorPicker();
 }
 function cancelNewRoom(){pendingRect=null;document.getElementById('popup').classList.remove('open');document.getElementById('popup-bg').classList.remove('open');sc.clearRect(0,0,origW,origH);}
 
@@ -578,6 +588,20 @@ function redrawRooms(){
       rc.strokeStyle=col;rc.lineWidth=sel?2.5:1.5;rc.stroke();
       rc.restore();
     }
+    // fill colour overlay (10% opacity)
+    if(room.fillColor){
+      const fr=parseInt(room.fillColor.slice(1,3),16),fg=parseInt(room.fillColor.slice(3,5),16),fb=parseInt(room.fillColor.slice(5,7),16);
+      rc.save();
+      if(room.polygon&&room.polygon.length>=3){
+        rc.beginPath();rc.moveTo(room.polygon[0].x,room.polygon[0].y);
+        for(let i=0;i<room.polygon.length;i++){const A=room.polygon[i],B=room.polygon[(i+1)%room.polygon.length];if(A.hOut){rc.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}else if(B.hIn){rc.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}else{rc.lineTo(B.x,B.y);}}
+        rc.closePath();
+      } else {
+        rc.beginPath();rc.rect(room.rect.x1,room.rect.y1,room.rect.x2-room.rect.x1,room.rect.y2-room.rect.y1);
+      }
+      rc.fillStyle=`rgba(${fr},${fg},${fb},0.13)`;rc.fill();
+      rc.restore();
+    }
     // label
     rc.font='bold 12px system-ui';const tw=rc.measureText(room.label).width+14;const lx=x1+4,ly=y1+4,lh=20;
     rrect(rc,lx,ly,tw,lh,5);rc.fillStyle=col;rc.fill();
@@ -612,10 +636,13 @@ function renderList(){
   for(const k of keys){
     const rm=rooms[k];const d=document.createElement('div');d.className='ri';
     if(k===selectedRoom)d.classList.add('selected');
-    d.innerHTML=`<span class="dot" style="background:${gc(rm.colorIdx)}"></span><span class="lbl">${rm.label}</span><span class="tag">${rm.type}</span><span class="redit" title="Refine with pen">✏</span><span class="rdel" title="Remove">✕</span>`;
+    const colorSwatch = rm.fillColor
+  ? `<span title="Fill: ${rm.fillColor}" style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${rm.fillColor};border:1.5px solid rgba(0,0,0,0.15);flex-shrink:0;margin-left:1px"></span>`
+  : `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px dashed #ccc;flex-shrink:0;margin-left:1px" title="No fill colour"></span>`;
+d.innerHTML=`<span class="dot" style="background:${gc(rm.colorIdx)}"></span><span class="lbl">${rm.label}</span><span class="tag">${rm.type}</span>${colorSwatch}<span class="redit" title="Refine with pen">✏</span><span class="rdel" title="Remove">✕</span>`;
     d.querySelector('.rdel').onclick=ev=>{ev.stopPropagation();delete rooms[k];if(k===selectedRoom)selectedRoom=null;if(pdfDoc)pageRooms[currentPage]=rooms;redrawRooms();renderList();updateBadge();updatePenBtn();};
     d.querySelector('.redit').onclick=ev=>{ev.stopPropagation();selectedRoom=k;redrawRooms();renderList();updatePenBtn();openPenEditor();};
-    d.onclick=()=>{selectedRoom=(selectedRoom===k)?null:k;redrawRooms();renderList();updatePenBtn();};
+    d.onclick=()=>{selectedRoom=(selectedRoom===k)?null:k;redrawRooms();renderList();updatePenBtn();showColorPicker();};
     list.appendChild(d);
   }
 }
@@ -678,6 +705,115 @@ function gotoEditor(){
   document.getElementById('step-editor').classList.add('active');
   redrawRooms();renderList();updateBadge();updatePenBtn();
   setStatus('Click a room to select · drag handles to resize · ✏ Refine for precise pen editing');
+}
+
+
+// ── room fill colour ───────────────────────────────────────────────────────
+const PRESET_COLORS = [
+  '#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6'
+];
+
+function buildSwatches(){
+  const wrap = document.getElementById('color-swatches');
+  wrap.innerHTML = '';
+  for(const c of PRESET_COLORS){
+    const btn = document.createElement('button');
+    btn.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:${c};cursor:pointer;box-shadow:0 0 0 1px #ccc;padding:0;flex-shrink:0`;
+    btn.title = c;
+    btn.onclick = () => applyRoomColor(c);
+    wrap.appendChild(btn);
+  }
+}
+
+function applyRoomColor(hex){
+  if(!selectedRoom || !rooms[selectedRoom]) return;
+  rooms[selectedRoom].fillColor = hex;
+  if(pdfDoc) pageRooms[currentPage] = rooms;
+  redrawRooms();
+}
+
+function clearRoomColor(){
+  if(!selectedRoom || !rooms[selectedRoom]) return;
+  delete rooms[selectedRoom].fillColor;
+  if(pdfDoc) pageRooms[currentPage] = rooms;
+  redrawRooms();
+}
+
+function showColorPicker(){
+  const row = document.getElementById('color-picker-row');
+  if(!selectedRoom){row.style.display='none';return;}
+  row.style.display='flex';
+  buildSwatches();
+  const rm = rooms[selectedRoom];
+  if(rm && rm.fillColor) document.getElementById('custom-color').value = rm.fillColor;
+}
+
+// ── download full floorplan ────────────────────────────────────────────────
+async function downloadFloorplan(){
+  const btn = document.getElementById('fp-btn');
+  const status = document.getElementById('dl-status');
+  btn.disabled = true;
+  status.textContent = 'Rendering full floorplan…';
+
+  // Get the high-res base image for current page
+  let img = origImage, w = origW, h = origH;
+  if(pdfDoc){
+    pageRooms[currentPage] = rooms;
+    status.textContent = 'Re-rendering PDF at high resolution…';
+    const page = await pdfDoc.getPage(currentPage);
+    const vp = page.getViewport({scale: 3.5});
+    const tmp = document.createElement('canvas');
+    tmp.width = vp.width; tmp.height = vp.height;
+    await page.render({canvasContext: tmp.getContext('2d'), viewport: vp}).promise;
+    const pi = new Image();
+    await new Promise(res => { pi.onload = res; pi.src = tmp.toDataURL('image/png'); });
+    img = pi; w = vp.width; h = vp.height;
+  }
+
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const ctx = out.getContext('2d');
+
+  // Draw base floorplan
+  ctx.drawImage(img, 0, 0);
+
+  // Draw all room colour overlays
+  const allRooms = pdfDoc ? Object.values(pageRooms[currentPage] || {}) : Object.values(rooms);
+  for(const room of allRooms){
+    if(!room.fillColor) continue;
+    const r = parseInt(room.fillColor.slice(1,3),16);
+    const g = parseInt(room.fillColor.slice(3,5),16);
+    const b = parseInt(room.fillColor.slice(5,7),16);
+    ctx.save();
+    // Clip to polygon if exists, else box
+    if(room.polygon && room.polygon.length >= 3){
+      ctx.beginPath();
+      ctx.moveTo(room.polygon[0].x, room.polygon[0].y);
+      for(let i=0;i<room.polygon.length;i++){
+        const A=room.polygon[i], B=room.polygon[(i+1)%room.polygon.length];
+        if(A.hOut){ctx.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}
+        else if(B.hIn){ctx.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}
+        else{ctx.lineTo(B.x,B.y);}
+      }
+      ctx.closePath();
+    } else {
+      const{x1,y1,x2,y2}=room.rect;
+      ctx.beginPath(); ctx.rect(x1,y1,x2-x1,y2-y1); ctx.closePath();
+    }
+    ctx.fillStyle = `rgba(${r},${g},${b},0.10)`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Export as high-res PNG
+  const blob = await new Promise(res => out.toBlob(res, 'image/png'));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'floorplan-coloured.png';
+  a.click();
+  btn.disabled = false;
+  status.textContent = `✓ Full floorplan exported (${w}×${h}px)`;
+  setTimeout(() => status.textContent = '', 4000);
 }
 
 // ── save / load edit layout ───────────────────────────────────────────────
