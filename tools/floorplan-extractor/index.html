@@ -90,6 +90,9 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
         <span id="page-lbl" style="font-size:12px;color:#555">1/1</span>
         <button onclick="changePage(1)" id="pbtn-next">Next →</button>
       </div>
+      <button onclick="saveLayout()" title="Save all room selections as JSON">💾 Save edit layout</button>
+      <button onclick="document.getElementById('load-li').click()" title="Load a previously saved layout">📂 Load edit layout</button>
+      <input type="file" id="load-li" accept=".json" style="display:none" onchange="loadLayout(this)">
       <button onclick="resetApp()">↺ New file</button>
     </div>
     <div id="editor-body">
@@ -676,6 +679,88 @@ function gotoEditor(){
   redrawRooms();renderList();updateBadge();updatePenBtn();
   setStatus('Click a room to select · drag handles to resize · ✏ Refine for precise pen editing');
 }
+
+// ── save / load edit layout ───────────────────────────────────────────────
+function saveLayout(){
+  if(pdfDoc) pageRooms[currentPage] = rooms;
+  const allRooms = pdfDoc
+    ? Object.fromEntries(Object.entries(pageRooms).map(([pg,rm])=>[pg, Object.values(rm)]))
+    : {1: Object.values(rooms)};
+
+  const totalRooms = Object.values(allRooms).flat().length;
+  if(!totalRooms){ alert('No rooms to save yet!'); return; }
+
+  const payload = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    sourceFile: document.getElementById('fi').files[0]?.name || 'unknown',
+    isPDF: !!pdfDoc,
+    totalPages,
+    imageSize: { width: origW, height: origH },
+    pages: allRooms
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'floorplan-layout.json';
+  a.click();
+  setStatus(`✓ Layout saved — ${totalRooms} rooms`);
+  setTimeout(()=>setStatus(''), 3000);
+}
+
+function loadLayout(input){
+  const file = input.files[0];
+  if(!file){ return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.version || !data.pages){ alert('Invalid layout file.'); return; }
+
+      // Check image dimensions match
+      if(origImage && (data.imageSize.width !== origW || data.imageSize.height !== origH)){
+        const ok = confirm(
+          `Warning: The saved layout was made for an image of ${data.imageSize.width}×${data.imageSize.height}px,
+` +
+          `but the current image is ${origW}×${origH}px.
+
+` +
+          `Room boxes may not align correctly. Load anyway?`
+        );
+        if(!ok){ input.value=''; return; }
+      }
+
+      // Restore rooms
+      if(pdfDoc){
+        pageRooms = {};
+        for(const [pg, rms] of Object.entries(data.pages)){
+          const pgNum = parseInt(pg);
+          pageRooms[pgNum] = {};
+          for(const rm of rms) pageRooms[pgNum][rm.label] = rm;
+        }
+        rooms = pageRooms[currentPage] || {};
+      } else {
+        rooms = {};
+        const firstPage = Object.values(data.pages)[0] || [];
+        for(const rm of firstPage) rooms[rm.label] = rm;
+        // restore colorCounter
+        colorCounter = Math.max(...Object.values(rooms).map(r=>r.colorIdx||0)) + 1;
+      }
+
+      selectedRoom = null;
+      redrawRooms(); renderList(); updateBadge(); updatePenBtn();
+      const total = Object.values(rooms).length;
+      setStatus(`✓ Layout loaded — ${total} rooms restored`);
+      setTimeout(()=>setStatus(''), 3000);
+    } catch(err){
+      alert('Failed to parse layout file: ' + err.message);
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
 function resetApp(){
   if(raf)cancelAnimationFrame(raf);if(penRaf)cancelAnimationFrame(penRaf);
   rooms={};origImage=null;wallData=null;pdfDoc=null;pageRooms={};currentPage=1;totalPages=1;colorCounter=0;selectedRoom=null;mode='idle';
