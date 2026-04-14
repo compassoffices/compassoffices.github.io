@@ -2131,7 +2131,13 @@ function _ingestFiles(files){
       try{
         const data=JSON.parse(ev.target.result);if(!data.name)throw new Error('Missing name');
         const n=typeof data.name==='object'?data.name.en:data.name;
-        const idx=lib.findIndex(l=>{const a=typeof l.name==='object'?l.name.en:l.name;return a===n;});
+        // Deduplicate on name + floor together — same building different floor = different entry
+        const floor=data.floor||data.langs?.en?.floor||'';
+        const idx=lib.findIndex(l=>{
+          const a=typeof l.name==='object'?l.name.en:l.name;
+          const lFloor=l.floor||l.langs?.en?.floor||'';
+          return a===n&&lFloor===floor;
+        });
         if(idx>=0)lib[idx]=data;else lib.push(data);ok++;
       }catch(err){console.warn(file.name,err.message);}
       if(++done===files.length){saveLib(lib);showStatus(`${ok} of ${files.length} file${files.length>1?'s':''} loaded — library has ${lib.length} location${lib.length!==1?'s':''}.`,'s-ok');updateLibStatus();renderJsonDropdown(lib,document.getElementById('json-search').value);showJsonDropdown();}
@@ -2151,7 +2157,7 @@ async function reloadLibFromServer(){
     if(!Array.isArray(index)||!index.length){showStatus('json/index.json is empty.','s-info');return;}
     const lib=getLib();let added=0,updated=0;
     await Promise.all(index.map(async fn=>{
-      try{const r=await fetch(base+'json/'+fn,{cache:'no-cache'});if(!r.ok)return;const data=await r.json();if(!data.name)return;const getName=d=>typeof d.name==='object'?(d.name.en||Object.values(d.name)[0]):d.name;const idx2=lib.findIndex(l=>getName(l)===getName(data));if(idx2>=0){lib[idx2]=data;updated++;}else{lib.push(data);added++;}}catch{}
+      try{const r=await fetch(base+'json/'+fn,{cache:'no-cache'});if(!r.ok)return;const data=await r.json();if(!data.name)return;const getName=d=>typeof d.name==='object'?(d.name.en||Object.values(d.name)[0]):d.name;const getFloor=d=>d.floor||d.langs?.en?.floor||'';const idx2=lib.findIndex(l=>getName(l)===getName(data)&&getFloor(l)===getFloor(data));if(idx2>=0){lib[idx2]=data;updated++;}else{lib.push(data);added++;}}catch{}
     }));
     saveLib(lib);renderJsonDropdown(lib,document.getElementById('json-search')?.value||'');updateLibStatus();showStatus('Reloaded — '+added+' new, '+updated+' updated.','s-ok');
   }catch(e){showStatus('Reload failed: '+e.message,'s-err');}
