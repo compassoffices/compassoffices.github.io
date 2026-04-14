@@ -141,10 +141,11 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
 <div id="edit-bg">
   <div id="edit-modal">
     <div id="edit-header">
-      <span id="edit-title" style="font-weight:500;color:#fff;font-size:13px">Pen editor</span>
+      <span style="font-size:12px;color:#aaa;flex-shrink:0">Room label:</span>
+      <input id="edit-room-name" type="text" value="" style="background:#3a3a3a;border:0.5px solid #555;border-radius:6px;color:#fff;font-size:13px;font-weight:500;padding:3px 8px;width:90px;font-family:inherit" title="Rename this room" />
       <span id="edit-pts" style="color:#888;font-size:12px">0 pts</span>
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-        <span style="font-size:11px;color:#777;padding:0 4px" id="edit-hint">Click = corner · Drag = curve</span>
+        <span style="font-size:11px;color:#777;padding:0 4px" id="edit-hint">Click=corner · Drag=curve · Drag point=move</span>
         <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="undoPenPoint()">⌫ Undo <span style="opacity:.6">(Z)</span></button>
         <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="clearPen()">✕ Clear</button>
         <button class="eb green" id="pen-apply-btn" onclick="applyPen()" disabled>✓ Apply mask</button>
@@ -194,6 +195,7 @@ const mc=mainCanvas.getContext('2d'),rc=roomsCanvas.getContext('2d'),sc=selCanva
 let editLabel=null,editRect=null,editScale=1;
 let penPts=[],penSnap=null;
 let penDragStart=null,penDragCurr=null,penIsDragging=false;
+let penDragPtIdx=-1; // index of existing point being dragged (-1 = none)
 let penDash=0,penRaf=null;
 const editCanvas=document.getElementById('edit-canvas');
 const editOverlay=document.getElementById('edit-overlay');
@@ -365,8 +367,8 @@ function openPenEditor(){
   ec.setLineDash([8,5]);ec.strokeStyle='rgba(37,99,235,0.6)';ec.lineWidth=1.5;ec.strokeRect(bx1,by1,bw,bh);ec.setLineDash([]);
   // load existing polygon
   penPts=room.polygon?room.polygon.map(p=>({...p})):[];
-  penSnap=null;penDragStart=null;penDragCurr=null;penIsDragging=false;
-  document.getElementById('edit-title').textContent=`Pen editor — Room ${editLabel}`;
+  penSnap=null;penDragStart=null;penDragCurr=null;penIsDragging=false;penDragPtIdx=-1;
+  document.getElementById('edit-room-name').value = editLabel;
   document.getElementById('edit-bg').classList.add('open');
   // wire events to editCanvas (which receives clicks through the overlay)
   editCanvas.onmousedown=onPenDown;
@@ -390,21 +392,36 @@ function snapEdit(ex,ey){const[ox,oy]=e2o(ex,ey);return snapToWall(ox,oy,25);}
 // ── pen events ─────────────────────────────────────────────────────────────
 function onPenDown(e){
   const[ex,ey]=editCoords(e);
+  // Check if clicking near an existing anchor point — if so, drag it
+  const HIT=12;
+  for(let i=0;i<penPts.length;i++){
+    const[px,py]=o2e(penPts[i].x,penPts[i].y);
+    if(Math.hypot(ex-px,ey-py)<HIT){
+      penDragPtIdx=i;penDragStart=null;return;
+    }
+  }
+  penDragPtIdx=-1;
   const snapped=snapEdit(ex,ey);
   penDragStart={orig:snapped,ex,ey};penDragCurr=null;penIsDragging=false;
 }
 function onPenMove(e){
   const[ex,ey]=editCoords(e);
   penSnap=o2e(...snapEdit(ex,ey));
+  // dragging existing point
+  if(penDragPtIdx>=0){
+    const snapped=snapEdit(ex,ey);
+    penPts[penDragPtIdx].x=snapped[0];penPts[penDragPtIdx].y=snapped[1];
+    editCanvas.style.cursor='grabbing';return;
+  }
   if(penDragStart){
-    const[sx,sy]=o2e(...penDragStart.orig);
     if(Math.hypot(ex-penDragStart.ex,ey-penDragStart.ey)>7){
       penIsDragging=true;
-      penDragCurr=e2o(ex,ey); // handle tip in orig coords
+      penDragCurr=e2o(ex,ey);
     }
   }
 }
 function onPenUp(e){
+  if(penDragPtIdx>=0){penDragPtIdx=-1;editCanvas.style.cursor='crosshair';return;}
   if(!penDragStart){penDragStart=null;return;}
   const anchor=penDragStart.orig;
   // check close polygon
@@ -432,7 +449,22 @@ function updatePenUI(){
 }
 function applyPen(){
   if(penPts.length<3){alert('Place at least 3 points to create a mask.');return;}
-  if(rooms[editLabel]){rooms[editLabel].polygon=penPts.map(p=>({...p}));rooms[editLabel].type='pen';if(pdfDoc)pageRooms[currentPage]=rooms;redrawRooms();renderList();}
+  const newLabel = document.getElementById('edit-room-name').value.trim() || editLabel;
+  if(rooms[editLabel]){
+    const room = rooms[editLabel];
+    room.polygon=penPts.map(p=>({...p}));
+    room.type='pen';
+    // rename if changed
+    if(newLabel !== editLabel){
+      room.label = newLabel;
+      rooms[newLabel] = room;
+      delete rooms[editLabel];
+      if(selectedRoom===editLabel) selectedRoom=newLabel;
+      editLabel=newLabel;
+    }
+    if(pdfDoc)pageRooms[currentPage]=rooms;
+    redrawRooms();renderList();updateBadge();
+  }
   closeEditModal();
 }
 
@@ -537,6 +569,13 @@ function redrawPen(){
   }
 
   // snap crosshair (when not dragging)
+  // hint cursor near existing points
+  if(penPts.length>0&&penSnap){
+    const[sx,sy]=penSnap;
+    let nearPt=false;
+    for(const pt of penPts){const[px,py]=o2e(pt.x,pt.y);if(Math.hypot(sx-px,sy-py)<14){nearPt=true;break;}}
+    editCanvas.style.cursor=nearPt?'grab':'crosshair';
+  }
   if(penSnap&&!penIsDragging){
     const[sx,sy]=penSnap;
     eo.beginPath();eo.moveTo(sx-7,sy);eo.lineTo(sx+7,sy);eo.moveTo(sx,sy-7);eo.lineTo(sx,sy+7);
