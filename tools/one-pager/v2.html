@@ -2185,10 +2185,17 @@ function renderJsonDropdown(lib,q=''){
     dd.innerHTML=filtered.map(l=>{
       const displayName=typeof l.name==='object'?(l.name[LANG]||l.name.en||Object.values(l.name)[0]):l.name;
       const slug=(typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):(l.name||'location')).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+      // Extract floor: prefer JSON floor field, else parse from slug (name_FLOOR pattern)
+      const floorFromSlug=(slug.match(/_([^_]+)$/) || [])[1]||'';
+      const floorRaw=l.floor||l.langs?.en?.floor||floorFromSlug||'';
+      // Clean up: remove common suffixes for display
+      const floorDisplay=floorRaw.replace(/^(\d+)[Ff].*$/,'$1F').replace(/^([A-Z0-9-]+[Ff]).*$/,'$1')||floorRaw;
       return`<div class="json-opt" onmousedown="loadFromLib(${lib.indexOf(l)})">
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:6px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span style="font-weight:600;font-size:13px;">${displayName}</span>${l.city?`<span class="json-city">${l.city}</span>`:''}</div>
-          <div style="font-size:10px;color:var(--xlt);padding-left:17px;">${slug}.json</div>
+        <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow:hidden;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${displayName}</span>
+          ${floorDisplay?`<span style="flex-shrink:0;font-size:10px;font-weight:700;color:var(--o);background:var(--olt);border:1px solid var(--o);border-radius:4px;padding:1px 5px;line-height:1.4;">${floorDisplay}</span>`:''}
+          ${l.city?`<span class="json-city">${l.city}</span>`:''}
         </div>
       </div>`;
     }).join('');
