@@ -1195,28 +1195,39 @@ function renderLocList(items){
 async function loadLocation(item, el){
   if(!item.pdfUrl){ alert('No file URL for this location.'); return; }
   el.classList.add('loading');
-  setLocStatus('<span class="spin"></span> Loading ' + item.name + '…');
+  setLocStatus('<span class="spin"></span> Downloading ' + item.name + '…');
   try{
-    const directUrl = driveLinkToDirectUrl(item.pdfUrl);
-    const resp = await fetch(directUrl);
-    if(!resp.ok) throw new Error(`HTTP ${resp.status} — make sure the file is shared publicly`);
+    // Step 1: fetch the PDF/image through CORS proxy
+    const fetchUrl = driveFetchUrl(item.pdfUrl);
+    const resp = await fetch(fetchUrl);
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const blob = await resp.blob();
-    const ext = blob.type === 'application/pdf' ? '.pdf' : (blob.type.includes('png') ? '.png' : '.jpg');
-    const file = new File([blob], item.name + ext, {type: blob.type});
-    // load JSON layout if available
-    if(item.jsonUrl){
+
+    // Step 2: determine file type — Drive returns octet-stream, check URL too
+    const isPDF = blob.type === 'application/pdf'
+      || item.pdfUrl.toLowerCase().includes('.pdf')
+      || blob.type === 'application/octet-stream';
+    const mimeType = isPDF ? 'application/pdf' : blob.type;
+    const ext = isPDF ? '.pdf' : (blob.type.includes('png') ? '.png' : '.jpg');
+    const file = new File([blob], item.name + ext, {type: mimeType});
+
+    // Step 3: fetch JSON layout if available
+    if(item.jsonUrl && item.jsonUrl.trim()){
       try{
-        const jr = await fetch(driveLinkToDirectUrl(item.jsonUrl));
+        const jUrl = driveFetchUrl(item.jsonUrl);
+        const jr = await fetch(jUrl);
         if(jr.ok) pendingLayout = await jr.json();
       } catch(e){ console.warn('Layout JSON load failed:', e); }
     }
+
     el.classList.remove('loading');
     el.classList.add('loaded');
     setLocStatus('✓ Loaded: ' + item.name);
     handleFile(file);
   } catch(err){
     el.classList.remove('loading');
-    setLocStatus('⚠ ' + err.message, true);
+    setLocStatus('⚠ Failed to load file: ' + err.message
+      + ' — ensure the Drive file is shared as "Anyone with the link"', true);
   }
 }
 
@@ -1226,16 +1237,29 @@ function setLocStatus(html, isError=false){
   el.style.color = isError ? '#c0392b' : '#666';
 }
 
-function driveLinkToDirectUrl(url){
+// ── Drive URL helpers ─────────────────────────────────────────────────────
+// Extracts the file ID from any Google Drive share link format
+function driveFileId(url){
+  if(!url) return null;
+  for(const p of [/\/file\/d\/([a-zA-Z0-9_-]+)/, /id=([a-zA-Z0-9_-]+)/]){
+    const m = url.match(p); if(m) return m[1];
+  }
+  return null;
+}
+
+// Returns a fetch-able URL for a Google Drive file.
+// Uses corsproxy.io to bypass CORS restrictions on Drive downloads.
+// confirm=t skips the "large file" virus-scan warning page.
+function driveFetchUrl(url){
   if(!url || !url.trim()) return null;
   url = url.trim();
-  if(url.includes('uc?export=download')) return url;
+  // Non-Drive URL — use as-is
   if(!url.includes('drive.google.com')) return url;
-  let id = null;
-  for(const p of [/\/file\/d\/([a-zA-Z0-9_-]+)/,/id=([a-zA-Z0-9_-]+)/]){
-    const m = url.match(p); if(m){id=m[1];break;}
-  }
-  return id ? `https://drive.google.com/uc?export=download&id=${id}` : url;
+  const id = driveFileId(url);
+  if(!id) return url;
+  const driveDownload = `https://drive.google.com/uc?export=download&confirm=t&id=${id}`;
+  // Route through CORS proxy so browser can fetch it
+  return `https://corsproxy.io/?${encodeURIComponent(driveDownload)}`;
 }
 
 function parseCSV(text){
