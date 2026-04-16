@@ -1050,15 +1050,42 @@ function resetApp(){
 
 
 // ── Location picker (Google Sheets) ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION — Edit this section to update sheet source or add countries
+// ═══════════════════════════════════════════════════════════════════════════
+
+// The published Google Sheet ID (from File → Share → Publish to web)
+// To update: replace the string below with your new published sheet ID
+// Your sheet URL looks like: https://docs.google.com/spreadsheets/d/e/PUBID/pubhtml
 const SHEET_PUB_ID = '2PACX-1vSvcrpAkLzgXwtlCQvysASc983Caks7zFUu_8lygudCH9r4nOrNrYcWhhEj2CASc5Du1GWQyy7WqxZJ';
+
+// Country tabs — each entry is one sheet tab in your Google Sheet
+// To add a country:  add a new line following the same format
+// To remove:         delete the line
+// To reorder:        move lines up/down
+// gid: find this in the tab's URL when you click it (?gid=XXXXXXX)
 const COUNTRIES = [
-  {code:'HK', flag:'🇭🇰', name:'Hong Kong'},
-  {code:'JP', flag:'🇯🇵', name:'Japan'},
-  {code:'AU', flag:'🇦🇺', name:'Australia'},
-  {code:'VN', flag:'🇻🇳', name:'Vietnam'},
-  {code:'SG', flag:'🇸🇬', name:'Singapore'},
-  {code:'PH', flag:'🇵🇭', name:'Philippines'},
+  { code:'HK', flag:'🇭🇰', name:'Hong Kong',  gid: 0          },
+  { code:'JP', flag:'🇯🇵', name:'Japan',       gid: 950099932  },
+  { code:'AU', flag:'🇦🇺', name:'Australia',   gid: 408509551  },
+  { code:'VN', flag:'🇻🇳', name:'Vietnam',     gid: 234333070  },
+  { code:'SG', flag:'🇸🇬', name:'Singapore',   gid: 1294236502 },
+  { code:'PH', flag:'🇵🇭', name:'Philippines', gid: 618007799  },
 ];
+
+// Column mapping — which column in your sheet contains what
+// 0 = column A, 1 = column B, 2 = column C
+// Change these if you rearrange your sheet columns
+const COL_NAME    = 0;   // Location name
+const COL_PDF     = 1;   // PDF / image file URL (Google Drive share link)
+const COL_LAYOUT  = 2;   // Saved layout JSON URL (optional, leave blank if none)
+
+// Header row — set to true if row 1 of your sheet is a header (Location / PDF / JSON)
+const HAS_HEADER  = true;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// END CONFIGURATION — do not edit below unless you know what you're doing
+// ═══════════════════════════════════════════════════════════════════════════
 let sheetData = {};       // {HK:[{name,pdfUrl,jsonUrl},...], ...}
 let activeCountry = null;
 let pendingLayout = null;
@@ -1072,19 +1099,20 @@ async function loadAllTabs(){
   const errors = [];
   await Promise.all(COUNTRIES.map(async c => {
     try{
-      const url = `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/gviz/tq?tqx=out:csv&sheet=${c.code}`;
+      // Fetch this tab's CSV using its GID (more reliable than sheet name)
+      const url = `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?gid=${c.gid}&single=true&output=csv`;
       const resp = await fetch(url);
       if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const text = await resp.text();
       const rows = parseCSV(text);
-      // skip header row
-      const dataRows = rows.length && rows[0][0].toLowerCase().match(/location|name|title/) ? rows.slice(1) : rows;
+      // Skip header row if configured
+      const dataRows = HAS_HEADER ? rows.slice(1) : rows;
       sheetData[c.code] = dataRows
-        .filter(r => r[0] && r[0].trim())
+        .filter(r => r[COL_NAME] && r[COL_NAME].trim())
         .map(r => ({
-          name: r[0].replace(/^"|"$/g,'').trim(),
-          pdfUrl: (r[1]||'').replace(/^"|"$/g,'').trim(),
-          jsonUrl: (r[2]||'').replace(/^"|"$/g,'').trim(),
+          name:    (r[COL_NAME]   ||'').replace(/^"|"$/g,'').trim(),
+          pdfUrl:  (r[COL_PDF]    ||'').replace(/^"|"$/g,'').trim(),
+          jsonUrl: (r[COL_LAYOUT] ||'').replace(/^"|"$/g,'').trim(),
         }));
       loaded++;
     } catch(e){
