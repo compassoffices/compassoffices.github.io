@@ -1083,6 +1083,19 @@ const COL_LAYOUT  = 2;   // Saved layout JSON URL (optional, leave blank if none
 // Header row — set to true if row 1 of your sheet is a header (Location / PDF / JSON)
 const HAS_HEADER  = true;
 
+// Google Drive API Key — required to download files from Google Drive
+// Without this, file loading will not work.
+//
+// HOW TO GET A FREE API KEY (5 minutes):
+//   1. Go to https://console.cloud.google.com and sign in
+//   2. Click "Select a project" → "New Project" → create it
+//   3. In the search bar, search "Google Drive API" → Enable it
+//   4. Go to "APIs & Services" → "Credentials" → "+ Create Credentials" → "API Key"
+//   5. Copy the key and paste it below (between the quotes)
+//   6. Optional: click "Restrict Key" → HTTP referrers → add your website domain
+//
+const DRIVE_API_KEY = 'AIzaSyB_L3zHTT-hBIVcM5CL5JV_Ai7insf-nRY';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // END CONFIGURATION — do not edit below unless you know what you're doing
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1126,7 +1139,7 @@ async function loadAllTabs(){
     const first = COUNTRIES.find(c => sheetData[c.code]?.length > 0);
     if(first) selectCountry(first.code);
     const total = Object.values(sheetData).flat().length;
-    setLocStatus(`✓ ${total} locations loaded across ${loaded} countries`);
+    setLocStatus(`✓ ${total} locations loaded · click a location to open it`);
   } else {
     setLocStatus('⚠ Could not load sheet data. Check the sheet is published to web.', true);
   }
@@ -1194,16 +1207,29 @@ function renderLocList(items){
 
 async function loadLocation(item, el){
   if(!item.pdfUrl){ alert('No file URL for this location.'); return; }
+
+  // Check API key is configured if this is a Drive link
+  const isDriveUrl = item.pdfUrl.includes('drive.google.com') || item.pdfUrl.includes('drive.usercontent.google.com');
+  if(!DRIVE_API_KEY && isDriveUrl){
+    showApiKeySetup();
+    return;
+  }
+
   el.classList.add('loading');
   setLocStatus('<span class="spin"></span> Downloading ' + item.name + '…');
   try{
-    // Step 1: fetch the PDF/image through CORS proxy
+    // Step 1: fetch the PDF/image via Drive API
     const fetchUrl = driveFetchUrl(item.pdfUrl);
     const resp = await fetch(fetchUrl);
-    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if(!resp.ok){
+      const body = await resp.text().catch(()=>'');
+      if(resp.status === 403) throw new Error(`403 — Check the file is shared as "Anyone with the link" and the API key is correct`);
+      if(resp.status === 404) throw new Error(`404 — File not found. Check the Drive link is correct`);
+      throw new Error(`HTTP ${resp.status}: ${body.slice(0,80)}`);
+    }
     const blob = await resp.blob();
 
-    // Step 2: determine file type — Drive returns octet-stream, check URL too
+    // Step 2: determine file type
     const isPDF = blob.type === 'application/pdf'
       || item.pdfUrl.toLowerCase().includes('.pdf')
       || blob.type === 'application/octet-stream';
@@ -1215,8 +1241,10 @@ async function loadLocation(item, el){
     if(item.jsonUrl && item.jsonUrl.trim()){
       try{
         const jUrl = driveFetchUrl(item.jsonUrl);
-        const jr = await fetch(jUrl);
-        if(jr.ok) pendingLayout = await jr.json();
+        if(jUrl){
+          const jr = await fetch(jUrl);
+          if(jr.ok) pendingLayout = await jr.json();
+        }
       } catch(e){ console.warn('Layout JSON load failed:', e); }
     }
 
@@ -1226,9 +1254,32 @@ async function loadLocation(item, el){
     handleFile(file);
   } catch(err){
     el.classList.remove('loading');
-    setLocStatus('⚠ Failed to load file: ' + err.message
-      + ' — ensure the Drive file is shared as "Anyone with the link"', true);
+    setLocStatus('⚠ ' + err.message, true);
   }
+}
+
+// Show a helpful setup panel when no API key is configured
+function showApiKeySetup(){
+  document.getElementById('loc-list-wrap').innerHTML = `
+    <div style="padding:1.25rem;display:flex;flex-direction:column;gap:12px">
+      <p style="font-weight:500;font-size:14px;color:#1a1a1a">⚙️ One-time setup required</p>
+      <p style="font-size:13px;color:#555;line-height:1.6">
+        A free Google Drive API key is needed to download files. It takes about 5 minutes to set up.
+      </p>
+      <ol style="font-size:13px;color:#444;line-height:2;padding-left:1.25rem">
+        <li>Go to <a href="https://console.cloud.google.com" target="_blank" style="color:#2563eb">console.cloud.google.com</a> and sign in</li>
+        <li>Create a new project (any name)</li>
+        <li>Search <strong>"Google Drive API"</strong> → Enable it</li>
+        <li>Go to <strong>APIs &amp; Services → Credentials → + Create Credentials → API Key</strong></li>
+        <li>Copy the key, then open this HTML file in a text editor</li>
+        <li>Find <code style="background:#f0f0ee;padding:1px 5px;border-radius:3px">const DRIVE_API_KEY = ''</code> and paste your key inside the quotes</li>
+        <li>Save and reload the page</li>
+      </ol>
+      <div style="background:#fffbeb;border:0.5px solid #fcd34d;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e">
+        💡 <strong>Tip:</strong> Restrict the API key to your website domain in Google Cloud Console for better security.
+      </div>
+      <button class="primary" onclick="location.reload()" style="align-self:flex-start">↺ Reload after adding key</button>
+    </div>`;
 }
 
 function setLocStatus(html, isError=false){
@@ -1238,7 +1289,8 @@ function setLocStatus(html, isError=false){
 }
 
 // ── Drive URL helpers ─────────────────────────────────────────────────────
-// Extracts the file ID from any Google Drive share link format
+
+// Extracts the Google Drive file ID from any share link format
 function driveFileId(url){
   if(!url) return null;
   for(const p of [/\/file\/d\/([a-zA-Z0-9_-]+)/, /id=([a-zA-Z0-9_-]+)/]){
@@ -1247,19 +1299,39 @@ function driveFileId(url){
   return null;
 }
 
-// Returns a fetch-able URL for a Google Drive file.
-// Uses corsproxy.io to bypass CORS restrictions on Drive downloads.
-// confirm=t skips the "large file" virus-scan warning page.
+// Returns a fetch-able, CORS-friendly URL for a file.
+// Handles Google Drive (needs API key), Dropbox, GitHub, and plain URLs.
 function driveFetchUrl(url){
   if(!url || !url.trim()) return null;
   url = url.trim();
-  // Non-Drive URL — use as-is
-  if(!url.includes('drive.google.com')) return url;
-  const id = driveFileId(url);
-  if(!id) return url;
-  const driveDownload = `https://drive.google.com/uc?export=download&confirm=t&id=${id}`;
-  // Route through CORS proxy so browser can fetch it
-  return `https://corsproxy.io/?${encodeURIComponent(driveDownload)}`;
+
+  // ── Dropbox ─────────────────────────────────────────────────────────────
+  // Change ?dl=0 → ?dl=1 to get a direct download with CORS headers
+  if(url.includes('dropbox.com')){
+    return url.replace('?dl=0','?dl=1').replace('www.dropbox.com','dl.dropboxusercontent.com');
+  }
+
+  // ── GitHub ───────────────────────────────────────────────────────────────
+  // Convert github.com file view URLs to raw.githubusercontent.com
+  if(url.includes('github.com') && !url.includes('raw.githubusercontent.com')){
+    return url
+      .replace('github.com','raw.githubusercontent.com')
+      .replace('/blob/','/')
+      .replace('/raw/','/');;
+  }
+
+  // ── Google Drive ─────────────────────────────────────────────────────────
+  // Requires a Drive API key in the config section above.
+  if(url.includes('drive.google.com') || url.includes('drive.usercontent.google.com')){
+    const id = driveFileId(url);
+    if(!id) return url;
+    if(!DRIVE_API_KEY) return null; // will trigger setup instructions
+    return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${DRIVE_API_KEY}`;
+  }
+
+  // ── Any other public URL ──────────────────────────────────────────────────
+  // Returned as-is — works for any host that sends CORS headers
+  return url;
 }
 
 function parseCSV(text){
