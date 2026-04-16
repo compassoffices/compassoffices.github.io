@@ -3,193 +3,349 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Floorplan Room Extractor</title>
+<title>Compass Offices — Floorplan Tool</title>
 <style>
+/* ── Reset & base ─────────────────────────────────────────────────────── */
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#f0f0ee;color:#1a1a1a;min-height:100vh;padding:1.25rem}
-h1{font-size:19px;font-weight:500;margin-bottom:2px}
-.sub{font-size:12px;color:#777;margin-bottom:1rem}
-.panel{background:#fff;border:0.5px solid #ddd;border-radius:12px;padding:1.1rem 1.25rem}
+:root{
+  --brand:#ff6600;
+  --brand-light:#ff8533;
+  --brand-pale:#fff4ed;
+  --brand-faint:#fff9f5;
+  --glass-bg:rgba(255,255,255,0.82);
+  --glass-border:rgba(255,102,0,0.13);
+  --glass-shadow:0 4px 24px rgba(255,102,0,0.08),0 1px 4px rgba(0,0,0,0.06);
+  --radius:12px;--radius-sm:8px;
+  --text:#1a1a1a;--text-2:#555;--text-3:#999;
+  --border:rgba(0,0,0,0.08);
+}
+html{height:100%}
+body{
+  font-family:system-ui,-apple-system,sans-serif;
+  background:linear-gradient(150deg,#fff8f4 0%,#fff3ea 60%,#fff8f4 100%);
+  color:var(--text);min-height:100vh;padding:1.25rem;
+  background-attachment:fixed;
+}
+
+/* ── Glass panel ──────────────────────────────────────────────────────── */
+.glass{
+  background:var(--glass-bg);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:0.5px solid var(--glass-border);
+  border-radius:var(--radius);
+  box-shadow:var(--glass-shadow);
+}
+.panel{background:rgba(255,255,255,0.9);border:0.5px solid var(--glass-border);border-radius:var(--radius);padding:1.1rem 1.25rem;box-shadow:var(--glass-shadow);}
 .col{display:flex;flex-direction:column;gap:1rem}
-.tip{font-size:12px;color:#555;background:#f5f5f3;padding:8px 12px;border-radius:6px;line-height:1.6}
-#drop-zone{border:1.5px dashed #bbb;border-radius:8px;padding:3rem 1rem;text-align:center;cursor:pointer;color:#666;font-size:15px;transition:all .15s}
-#drop-zone:hover,#drop-zone.over{border-color:#2563eb;background:#eff6ff}
+.tip{font-size:12px;color:var(--text-2);background:rgba(255,102,0,0.04);padding:8px 12px;border-radius:var(--radius-sm);line-height:1.6;border:0.5px solid rgba(255,102,0,0.08)}
+
+/* ── Typography ───────────────────────────────────────────────────────── */
+h1{font-size:18px;font-weight:600;letter-spacing:-.3px;margin-bottom:1px}
+.sub{font-size:12px;color:var(--text-3);margin-bottom:1rem}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+button{
+  padding:5px 13px;border-radius:var(--radius-sm);
+  border:0.5px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.9);
+  cursor:pointer;font-size:12px;font-family:inherit;
+  white-space:nowrap;color:var(--text);
+  transition:all .15s;
+}
+button:hover:not(:disabled){background:#fff;border-color:var(--brand);color:var(--brand);box-shadow:0 2px 8px rgba(255,102,0,0.12)}
+button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+button.primary:hover:not(:disabled){background:var(--brand-light);box-shadow:0 2px 12px rgba(255,102,0,0.3)}
+button.outline-brand{border-color:var(--brand);color:var(--brand);background:rgba(255,102,0,0.04)}
+button.outline-brand:hover:not(:disabled){background:var(--brand);color:#fff}
+button.green{background:#16a34a;color:#fff;border-color:#16a34a}
+button.green:hover:not(:disabled){background:#15803d}
+button.amber{background:var(--brand);color:#fff;border-color:var(--brand)}
+button.mode-btn{
+  display:flex;align-items:center;gap:6px;padding:6px 14px;
+  font-size:12px;font-weight:500;border-radius:20px;
+  border:1.5px solid var(--glass-border);
+  background:var(--glass-bg);backdrop-filter:blur(8px);
+  transition:all .2s;
+}
+button.mode-btn.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 2px 12px rgba(255,102,0,0.3)}
+button:disabled{opacity:.38;cursor:default}
+input[type=text]{
+  padding:7px 10px;border-radius:var(--radius-sm);
+  border:0.5px solid var(--glass-border);
+  background:rgba(255,255,255,0.85);
+  font-size:14px;font-family:inherit;width:100%;
+  transition:border-color .15s;
+}
+input[type=text]:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(255,102,0,0.1)}
+
+/* ── Steps ────────────────────────────────────────────────────────────── */
 .step{display:none}.step.active{display:block}
 #editor{display:flex;flex-direction:column;gap:8px}
-#topbar{background:#fff;border:0.5px solid #ddd;border-radius:12px;padding:.55rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ── Topbar ───────────────────────────────────────────────────────────── */
+#topbar{
+  padding:.55rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:50;
+}
+.topbar-logo{font-size:13px;font-weight:700;color:var(--brand);letter-spacing:-.2px}
+.topbar-sep{width:1px;height:20px;background:var(--glass-border);margin:0 2px}
+
+/* ── Mode pill toggle ─────────────────────────────────────────────────── */
+#mode-toggle-wrap{
+  display:flex;background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);
+  border:0.5px solid var(--glass-border);border-radius:20px;padding:3px;gap:2px;
+}
+
+/* ── Editor layout ────────────────────────────────────────────────────── */
 #editor-body{display:flex;gap:10px;flex-wrap:wrap}
-#canvas-wrap{position:relative;flex:1;min-width:200px;border:0.5px solid #ddd;border-radius:8px;overflow:hidden;background:#bbb;user-select:none}
+#canvas-wrap{position:relative;flex:1;min-width:200px;border-radius:var(--radius);overflow:hidden;background:#d4d4d4;user-select:none;box-shadow:var(--glass-shadow)}
 #canvas-wrap canvas{display:block;position:absolute;top:0;left:0;width:100%;height:auto}
 #canvas-wrap canvas:first-child{position:relative}
 #sel-canvas{cursor:crosshair}
-.ri{display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 9px;border-radius:6px;border:0.5px solid #e5e5e5;cursor:pointer;background:#fff}
-.ri.selected{background:#eff6ff;border-color:#93c5fd}
+#colour-overlay-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:1}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+#sidebar{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+#sidebar-rooms{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:6px}
+#room-list{flex:1;overflow-y:auto;max-height:320px;display:flex;flex-direction:column;gap:3px}
+
+/* ── Room items ───────────────────────────────────────────────────────── */
+.ri{display:flex;align-items:center;gap:7px;font-size:13px;padding:6px 9px;border-radius:var(--radius-sm);border:0.5px solid rgba(0,0,0,0.07);cursor:pointer;background:rgba(255,255,255,0.75);transition:all .12s}
+.ri.selected{background:var(--brand-pale);border-color:rgba(255,102,0,0.3);box-shadow:0 1px 6px rgba(255,102,0,0.1)}
 .ri:hover .rdel{color:#c0392b}
 .ri .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .ri .lbl{font-weight:500;flex:1}
-.ri .tag{font-size:10px;color:#888;background:#f0f0ee;padding:1px 5px;border-radius:4px}
-.ri .rdel,.ri .redit{font-size:11px;margin-left:2px}
-.ri .redit{color:#2563eb}
-.badge{font-size:11px;padding:2px 8px;border-radius:5px;background:#e6f1fb;color:#185FA5;white-space:nowrap}
-button{padding:5px 12px;border-radius:7px;border:0.5px solid #ccc;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap}
-button:hover:not(:disabled){background:#f5f5f3}
-button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
-button.primary:hover:not(:disabled){background:#1d4ed8}
-button.green{background:#16a34a;color:#fff;border-color:#16a34a}
-button.green:hover:not(:disabled){background:#15803d}
-button.amber{background:#d97706;color:#fff;border-color:#d97706}
-button:disabled{opacity:.4;cursor:default}
-input[type=text]{padding:7px 10px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;font-family:inherit;width:100%}
+.ri .tag{font-size:10px;color:var(--text-3);background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:4px}
+.ri .rdel,.ri .redit{font-size:11px;margin-left:1px}
+.ri .redit{color:var(--brand)}
+
+/* ── Colour mode room items ───────────────────────────────────────────── */
+.ri.clr-mode{cursor:pointer;padding:7px 10px}
+.ri.clr-mode:hover{background:var(--brand-pale);border-color:rgba(255,102,0,0.25);transform:translateX(2px)}
+.ri.clr-mode.active-clr{background:var(--brand-pale);border-color:var(--brand);box-shadow:0 0 0 2px rgba(255,102,0,0.15)}
+.colour-dot{width:18px;height:18px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 4px rgba(0,0,0,0.2)}
+.colour-dot.empty{border:1.5px dashed #ccc;background:transparent;box-shadow:none}
+
+/* ── Badges ───────────────────────────────────────────────────────────── */
+.badge{font-size:11px;padding:2px 9px;border-radius:10px;background:rgba(255,102,0,0.1);color:var(--brand);white-space:nowrap;font-weight:500}
+
+/* ── Upload ───────────────────────────────────────────────────────────── */
+#drop-zone{
+  border:1.5px dashed rgba(255,102,0,0.3);border-radius:var(--radius);
+  padding:2.5rem 1rem;text-align:center;cursor:pointer;
+  color:var(--text-2);font-size:14px;
+  transition:all .15s;background:rgba(255,102,0,0.02);
+}
+#drop-zone:hover,#drop-zone.over{border-color:var(--brand);background:var(--brand-pale);color:var(--brand)}
+
+/* ── Progress ─────────────────────────────────────────────────────────── */
 #proc{display:none;flex-direction:column;gap:8px}
-progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563eb}
-#popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:98}
+progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:var(--brand)}
+
+/* ── Popups ───────────────────────────────────────────────────────────── */
+#popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:98;backdrop-filter:blur(4px)}
 #popup-bg.open{display:block}
-#popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:0.5px solid #ccc;border-radius:12px;padding:1.25rem;z-index:99;min-width:280px;flex-direction:column;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+#popup{
+  display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:99;min-width:280px;flex-direction:column;gap:12px;
+}
 #popup.open{display:flex}
-#pv-canvas{border-radius:6px;border:0.5px solid #eee;background:#f8f8f8;display:block}
-/* pen editor */
-#edit-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:200;flex-direction:column;align-items:center;justify-content:center;gap:0}
+
+/* ── Pen editor ───────────────────────────────────────────────────────── */
+#edit-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
 #edit-bg.open{display:flex}
-#edit-modal{background:#1e1e1e;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 80px rgba(0,0,0,.7);max-width:96vw;max-height:96vh}
-#edit-header{background:#2c2c2c;padding:.6rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid #444;flex-shrink:0}
-#edit-canvas-wrap{overflow:auto;background:#141414;flex:1;position:relative;min-height:200px}
+#edit-modal{border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.7);max-width:96vw;max-height:96vh;background:#1a1a1a}
+#edit-header{background:rgba(255,102,0,0.12);backdrop-filter:blur(12px);padding:.6rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid rgba(255,102,0,0.2);flex-shrink:0}
+#edit-canvas-wrap{overflow:auto;background:#111;flex:1;position:relative;min-height:200px}
 #edit-canvas{display:block;cursor:crosshair;user-select:none}
 #edit-overlay{position:absolute;top:0;left:0;pointer-events:none}
-#edit-footer{background:#2c2c2c;border-top:1px solid #444;padding:.45rem 1rem;font-size:11px;color:#888;flex-shrink:0;line-height:1.7}
-#edit-footer kbd{background:#444;padding:1px 5px;border-radius:3px;color:#ddd;font-family:inherit}
+#edit-footer{background:rgba(255,102,0,0.08);border-top:1px solid rgba(255,102,0,0.15);padding:.45rem 1rem;font-size:11px;color:#aaa;flex-shrink:0;line-height:1.7}
+#edit-footer kbd{background:rgba(255,102,0,0.2);padding:1px 5px;border-radius:3px;color:#ffaa66;font-family:inherit}
 .eb{padding:5px 12px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap}
-.eb:hover:not(:disabled){filter:brightness(1.2)}
+.eb:hover:not(:disabled){filter:brightness(1.15)}
 .eb:disabled{opacity:.35;cursor:default}
 
-/* location picker */
-#loc-picker{background:#fff;border:0.5px solid #ddd;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06)}
-#loc-header{padding:1rem 1.25rem;border-bottom:0.5px solid #eee}
-#loc-header h2{font-size:15px;font-weight:500;margin-bottom:2px}
-#loc-header p{font-size:12px;color:#888}
-#country-tabs{display:flex;padding:.6rem 1rem;gap:6px;border-bottom:0.5px solid #f0f0f0;flex-wrap:wrap}
-.ctab{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:0.5px solid #e0e0e0;background:#fff;cursor:pointer;font-size:13px;font-weight:500;color:#555;transition:all .15s;white-space:nowrap}
-.ctab:hover{border-color:#93c5fd;background:#f0f7ff;color:#1d4ed8}
-.ctab.active{background:#2563eb;color:#fff;border-color:#2563eb}
-.ctab .cflag{font-size:16px}
-.ctab .ccount{font-size:10px;opacity:.7;background:rgba(255,255,255,.25);padding:1px 5px;border-radius:8px}
-#loc-search-wrap{padding:.65rem 1rem;border-bottom:0.5px solid #f0f0f0}
-#loc-search{width:100%;padding:7px 12px 7px 34px;border:0.5px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23999' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center;outline:none}
-#loc-search:focus{border-color:#93c5fd;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%232563eb' stroke-width='2' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center}
-#loc-list-wrap{max-height:260px;overflow-y:auto;padding:.5rem .75rem}
-.loc-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;transition:background .1s;border:0.5px solid transparent}
-.loc-item:hover{background:#f0f7ff;border-color:#bfdbfe}
+/* ── Colour picker panel ──────────────────────────────────────────────── */
+#colour-panel{display:flex;flex-direction:column;gap:8px}
+#colour-panel.hidden{display:none}
+.colour-presets{display:flex;gap:5px;flex-wrap:wrap}
+.cp-swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all .15s;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,0.15)}
+.cp-swatch:hover,.cp-swatch.active{border-color:#fff;transform:scale(1.15);box-shadow:0 2px 8px rgba(0,0,0,0.25)}
+.cp-swatch.active{box-shadow:0 0 0 2px var(--brand),0 2px 8px rgba(0,0,0,0.25)}
+
+/* ── Bottom action bar ────────────────────────────────────────────────── */
+#action-bar{display:flex;flex-direction:column;gap:6px}
+#colour-mode-info{
+  font-size:11px;color:var(--brand);
+  background:var(--brand-pale);border:0.5px solid rgba(255,102,0,0.2);
+  border-radius:var(--radius-sm);padding:6px 10px;
+  display:none;line-height:1.5;
+}
+#colour-mode-info.show{display:block}
+
+/* ── Location picker ──────────────────────────────────────────────────── */
+#loc-picker{border-radius:var(--radius);overflow:hidden}
+#loc-header{padding:1rem 1.25rem;border-bottom:0.5px solid var(--glass-border);background:rgba(255,102,0,0.04)}
+#loc-header h2{font-size:15px;font-weight:600;color:var(--brand);margin-bottom:2px}
+#loc-header p{font-size:12px;color:var(--text-3)}
+#country-tabs{display:flex;padding:.6rem 1rem;gap:6px;border-bottom:0.5px solid var(--glass-border);flex-wrap:wrap;background:rgba(255,255,255,0.5)}
+.ctab{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:0.5px solid rgba(0,0,0,0.1);background:rgba(255,255,255,0.7);cursor:pointer;font-size:13px;font-weight:500;color:var(--text-2);transition:all .15s;white-space:nowrap}
+.ctab:hover{border-color:var(--brand);background:var(--brand-pale);color:var(--brand)}
+.ctab.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(255,102,0,0.3)}
+.ctab .cflag{font-size:15px}
+.ctab .ccount{font-size:10px;opacity:.75;background:rgba(255,255,255,.25);padding:1px 5px;border-radius:8px}
+#loc-search-wrap{padding:.6rem 1rem;border-bottom:0.5px solid var(--glass-border);background:rgba(255,255,255,0.6)}
+#loc-search{width:100%;padding:7px 12px 7px 34px;border:0.5px solid var(--glass-border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:rgba(255,255,255,0.8);outline:none;transition:all .15s}
+#loc-search:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3px rgba(255,102,0,0.08)}
+#loc-list-wrap{max-height:240px;overflow-y:auto;padding:.5rem .75rem;background:rgba(255,255,255,0.5)}
+.loc-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:all .12s;border:0.5px solid transparent}
+.loc-item:hover{background:var(--brand-pale);border-color:rgba(255,102,0,0.2)}
 .loc-item.loading{opacity:.5;pointer-events:none}
-.loc-item.loaded{background:#f0fdf4;border-color:#86efac}
-.loc-item .li-icon{font-size:18px;flex-shrink:0}
-.loc-item .li-name{font-size:13px;font-weight:500;flex:1;color:#1a1a1a}
-.loc-item .li-badge{font-size:10px;background:#e6f1fb;color:#1d4ed8;padding:2px 7px;border-radius:10px}
-.loc-item .li-badge.has-layout{background:#f0fdf4;color:#15803d}
-.loc-item .li-arrow{font-size:12px;color:#2563eb;opacity:0}
+.loc-item.loaded{background:rgba(22,163,74,0.05);border-color:rgba(22,163,74,0.2)}
+.loc-item .li-name{font-size:13px;font-weight:500;flex:1}
+.loc-item .li-badge{font-size:10px;background:rgba(255,102,0,0.1);color:var(--brand);padding:2px 7px;border-radius:10px}
+.loc-item .li-badge.has-layout{background:rgba(22,163,74,0.08);color:#15803d}
+.loc-item .li-arrow{font-size:12px;color:var(--brand);opacity:0;transition:opacity .15s}
 .loc-item:hover .li-arrow{opacity:1}
-#loc-empty{text-align:center;padding:2rem 1rem;color:#aaa;font-size:13px;display:none}
-#loc-loading{text-align:center;padding:2rem 1rem;color:#888;font-size:13px}
-#loc-status{padding:.5rem 1.25rem;font-size:11px;color:#888;border-top:0.5px solid #f0f0f0;min-height:28px;display:flex;align-items:center;gap:8px}
-#loc-status .spin{width:12px;height:12px;border:2px solid #ddd;border-top-color:#2563eb;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+#loc-empty{text-align:center;padding:2rem 1rem;color:var(--text-3);font-size:13px;display:none}
+#loc-loading{text-align:center;padding:2rem 1rem;color:var(--text-3);font-size:13px}
+#loc-status{padding:.5rem 1.25rem;font-size:11px;color:var(--text-3);border-top:0.5px solid var(--glass-border);min-height:28px;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.4)}
+#loc-status .spin,#proc-spin{width:12px;height:12px;border:2px solid rgba(255,102,0,0.2);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Colour mode canvas cursor ────────────────────────────────────────── */
+#sel-canvas.colour-cursor{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M20 11L11 2 2 11l9 9 9-9z' fill='%23ff6600' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,102,0,0.2);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,102,0,0.4)}
 </style>
 </head>
 <body>
-<h1>Floorplan Room Extractor</h1>
-<p class="sub">PDF auto-detects rooms · Box select + resize · Pen tool with curves · Export as JPG</p>
 
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem">
+  <div>
+    <h1 style="color:var(--brand)">Compass Offices</h1>
+    <p class="sub" style="margin:0">Floorplan Room Extractor & Colour Tool</p>
+  </div>
+</div>
+
+<!-- ── UPLOAD STEP ────────────────────────────────────────────────────── -->
 <div id="step-upload" class="step active col" style="gap:10px">
-
-  <!-- location picker -->
-  <div id="loc-picker">
+  <div id="loc-picker" class="glass">
     <div id="loc-header">
-      <h2>Compass Offices — Floorplan Selector</h2>
-      <p>Select a country and location to load the floorplan</p>
+      <h2>Select a location</h2>
+      <p>Choose a country tab then click a location to load its floorplan</p>
     </div>
-    <div id="country-tabs">
-      <div id="ctabs-loading" style="font-size:12px;color:#aaa;padding:4px 0">Loading locations…</div>
-    </div>
+    <div id="country-tabs"><div id="ctabs-loading" style="font-size:12px;color:var(--text-3);padding:4px 0">Loading…</div></div>
     <div id="loc-search-wrap" style="display:none">
-      <input id="loc-search" type="text" placeholder="Search locations…" oninput="filterLocations(this.value)">
+      <input id="loc-search" type="text" placeholder="🔍  Search locations…" oninput="filterLocations(this.value)">
     </div>
     <div id="loc-list-wrap">
-      <div id="loc-loading">
-        <div style="display:inline-block;width:20px;height:20px;border:2px solid #ddd;border-top-color:#2563eb;border-radius:50%;animation:spin .7s linear infinite;margin-bottom:8px"></div>
-        <div>Loading sheet data…</div>
-      </div>
+      <div id="loc-loading"><div style="display:inline-block;width:18px;height:18px;border:2px solid rgba(255,102,0,0.2);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:8px"></div><div>Loading locations…</div></div>
       <div id="loc-list" style="display:none"></div>
-      <div id="loc-empty">No locations match your search</div>
+      <div id="loc-empty">No locations match</div>
     </div>
     <div id="loc-status"></div>
   </div>
-
-  <!-- local file upload -->
-  <div class="panel col">
-    <div style="font-size:12px;color:#aaa;text-align:center;margin-bottom:4px">Or load a local file</div>
+  <div class="glass col" style="padding:1rem 1.25rem">
+    <div style="font-size:12px;color:var(--text-3);text-align:center">Or load a local file</div>
     <div id="drop-zone" onclick="document.getElementById('fi').click()">
       <div style="font-size:28px;margin-bottom:6px">📂</div>
       Click or drag a floorplan here
-      <div style="font-size:12px;color:#999;margin-top:4px">PDF · JPG · PNG</div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px">PDF · JPG · PNG</div>
     </div>
     <input type="file" id="fi" accept="image/*,.pdf" style="display:none" onchange="handleFile(this.files[0])">
-    <div id="proc"><p id="proc-msg" style="font-size:13px;color:#555">Loading…</p><progress id="prog" value="0" max="100"></progress></div>
+    <div id="proc"><div style="display:flex;align-items:center;gap:8px"><div class="proc-spin" id="proc-spin"></div><p id="proc-msg" style="font-size:13px;color:var(--text-2)">Loading…</p></div><progress id="prog" value="0" max="100"></progress></div>
   </div>
 </div>
 
+<!-- ── EDITOR STEP ────────────────────────────────────────────────────── -->
 <div id="step-editor" class="step">
-  <div id="editor">
-    <div id="topbar">
-      <span style="font-weight:500;font-size:14px">Room editor</span>
-      <span id="badge-total" class="badge">0 rooms</span>
-      <span id="status" style="font-size:12px;color:#666;flex:1"></span>
-      <button id="btn-pen" class="amber" onclick="openPenEditor()" style="display:none">✏ Refine with pen</button>
-      <div id="page-nav" style="display:none;align-items:center;gap:6px">
-        <button onclick="changePage(-1)" id="pbtn-prev">← Prev</button>
-        <span id="page-lbl" style="font-size:12px;color:#555">1/1</span>
-        <button onclick="changePage(1)" id="pbtn-next">Next →</button>
-      </div>
-      <button onclick="saveLayout()" title="Save all room selections as JSON">💾 Save edit layout</button>
-      <button onclick="document.getElementById('load-li').click()" title="Load a previously saved layout">📂 Load edit layout</button>
-      <input type="file" id="load-li" accept=".json" style="display:none" onchange="loadLayout(this)">
-      <button onclick="resetApp()">↺ New file</button>
+<div id="editor">
+
+  <!-- Topbar -->
+  <div id="topbar" class="glass">
+    <span class="topbar-logo">Compass Offices</span>
+    <div class="topbar-sep"></div>
+    <span id="badge-total" class="badge">0 rooms</span>
+    <span id="status" style="font-size:12px;color:var(--text-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+
+    <!-- Mode toggle -->
+    <div id="mode-toggle-wrap">
+      <button class="mode-btn active" id="btn-edit-mode" onclick="setMode('edit')">✏ Edit</button>
+      <button class="mode-btn" id="btn-colour-mode" onclick="setMode('colour')">🎨 Colour</button>
     </div>
-    <div id="editor-body">
-      <div id="canvas-wrap">
-        <canvas id="main-canvas"></canvas>
-        <canvas id="rooms-canvas"></canvas>
-        <canvas id="sel-canvas"></canvas>
+
+    <button id="btn-pen" class="amber" onclick="openPenEditor()" style="display:none">✏ Refine</button>
+    <div id="page-nav" style="display:none;align-items:center;gap:6px">
+      <button onclick="changePage(-1)" id="pbtn-prev">← Prev</button>
+      <span id="page-lbl" style="font-size:12px;color:var(--text-2)">1/1</span>
+      <button onclick="changePage(1)" id="pbtn-next">Next →</button>
+    </div>
+    <button onclick="saveLayout()" title="Save layout JSON">💾</button>
+    <button onclick="document.getElementById('load-li').click()" title="Load layout JSON">📂</button>
+    <input type="file" id="load-li" accept=".json" style="display:none" onchange="loadLayout(this)">
+    <button onclick="resetApp()" title="New file">↺</button>
+  </div>
+
+  <!-- Body -->
+  <div id="editor-body">
+    <!-- Canvas stack -->
+    <div id="canvas-wrap">
+      <canvas id="main-canvas"></canvas>
+      <canvas id="rooms-canvas"></canvas>
+      <canvas id="colour-overlay-canvas"></canvas>
+      <canvas id="sel-canvas"></canvas>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <!-- Rooms list panel -->
+      <div class="panel" id="sidebar-rooms" style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px;padding:.9rem 1rem">
+        <p style="font-size:13px;font-weight:600;color:var(--text)">Rooms</p>
+        <div class="tip" id="sidebar-tip" style="font-size:11px">Click to select · drag to move · handles to resize · ✏ Refine for pen tool</div>
+        <div id="room-list"></div>
       </div>
-      <div id="sidebar" style="width:215px;flex-shrink:0;display:flex;flex-direction:column;gap:8px">
-        <div class="panel" style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px">
-          <p style="font-size:13px;font-weight:500">Rooms</p>
-          <div class="tip" style="font-size:11px">Auto-detected on PDF load. <strong>Click</strong> to select → drag to move, handles to resize. Select then <strong>✏ Refine</strong> for precise pen cutting.</div>
-          <div id="room-list" style="flex:1;overflow-y:auto;max-height:340px;display:flex;flex-direction:column;gap:3px"></div>
-        </div>
-        <!-- sticky bottom panel -->
-        <div style="background:#fff;border:0.5px solid #ddd;border-radius:12px;padding:.75rem 1rem;display:flex;flex-direction:column;gap:8px">
-          <div id="color-picker-row" style="display:none;flex-direction:column;gap:6px;padding-bottom:8px;border-bottom:0.5px solid #eee">
-            <p style="font-size:11px;font-weight:500;color:#555">Room fill colour</p>
-            <div style="display:flex;gap:5px;flex-wrap:wrap" id="color-swatches"></div>
-            <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-              <input type="color" id="custom-color" value="#2563eb" style="width:26px;height:26px;border:none;background:none;cursor:pointer;padding:0" oninput="applyRoomColor(this.value)">
-              <span style="font-size:11px;color:#888">Custom colour</span>
-              <button onclick="clearRoomColor()" style="margin-left:auto;font-size:11px;padding:2px 8px">✕ Clear</button>
-            </div>
+
+      <!-- Bottom action panel -->
+      <div class="panel" id="action-bar">
+        <!-- Colour picker (always visible) -->
+        <div id="colour-panel">
+          <p style="font-size:11px;font-weight:600;color:var(--text-2)">Room fill colour</p>
+          <div class="colour-presets" id="color-swatches"></div>
+          <div style="display:flex;align-items:center;gap:7px;margin-top:2px">
+            <input type="color" id="custom-color" value="#ff6600" style="width:26px;height:26px;border:none;background:none;cursor:pointer;padding:0" oninput="applyRoomColor(this.value)">
+            <span style="font-size:11px;color:var(--text-3)">Custom</span>
+            <button onclick="clearRoomColor()" style="margin-left:auto;font-size:11px;padding:2px 8px">✕ Clear</button>
           </div>
+        </div>
+
+        <!-- Colour mode hint -->
+        <div id="colour-mode-info">
+          🎨 Click any room on the floorplan to fill it with the selected colour
+        </div>
+
+        <div style="border-top:0.5px solid var(--glass-border);padding-top:8px;display:flex;flex-direction:column;gap:5px">
           <button class="primary" onclick="downloadAll()" id="dl-btn">⬇ Download rooms ZIP (JPG)</button>
           <button onclick="downloadFloorplan()" id="fp-btn" style="background:#0f766e;color:#fff;border-color:#0f766e">🗺 Download full floorplan (JPG)</button>
-          <p id="dl-status" style="font-size:11px;color:#666;text-align:center;min-height:14px"></p>
+          <p id="dl-status" style="font-size:11px;color:var(--text-3);text-align:center;min-height:14px"></p>
         </div>
       </div>
     </div>
-    <div class="tip"><strong>Tip:</strong> Click a room to select it, then <strong>✏ Refine with pen</strong> to trace the exact outline. In pen editor: <strong>click</strong> = corner point · <strong>click + drag</strong> = curve point (like Photoshop). Press <kbd>Delete</kbd> to remove selected room.</div>
   </div>
+
+  <div class="tip"><strong>Tip:</strong> Switch to 🎨 Colour mode to quickly paint rooms by clicking on them. Switch back to ✏ Edit mode to adjust boxes or refine shapes. All colours are preserved in both modes.</div>
+</div>
 </div>
 
-<!-- new room popup -->
+<!-- Popups -->
 <div id="popup-bg" onclick="cancelNewRoom()"></div>
-<div id="popup">
+<div id="popup" class="glass" style="padding:1.25rem">
   <p style="font-size:14px;font-weight:500">Label this room</p>
-  <canvas id="pv-canvas" width="220" height="130" style="width:220px;height:130px"></canvas>
+  <canvas id="pv-canvas" width="220" height="130" style="width:220px;height:130px;border-radius:8px;border:0.5px solid var(--glass-border);background:#f8f8f8;display:block"></canvas>
   <input type="text" id="pinput" placeholder="e.g. 01  or  Reception"/>
   <div style="display:flex;gap:8px">
     <button class="primary" onclick="confirmNewRoom()" style="flex:1">Add room</button>
@@ -197,19 +353,18 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
   </div>
 </div>
 
-<!-- pen editor modal -->
 <div id="edit-bg">
   <div id="edit-modal">
     <div id="edit-header">
-      <span style="font-size:12px;color:#aaa;flex-shrink:0">Room label:</span>
-      <input id="edit-room-name" type="text" value="" style="background:#3a3a3a;border:0.5px solid #555;border-radius:6px;color:#fff;font-size:13px;font-weight:500;padding:3px 8px;width:90px;font-family:inherit" title="Rename this room" />
-      <span id="edit-pts" style="color:#888;font-size:12px">0 pts</span>
+      <span style="font-size:12px;color:rgba(255,170,100,0.8);flex-shrink:0">Room label:</span>
+      <input id="edit-room-name" type="text" value="" style="background:rgba(255,102,0,0.15);border:0.5px solid rgba(255,102,0,0.3);border-radius:6px;color:#fff;font-size:13px;font-weight:500;padding:3px 8px;width:90px;font-family:inherit" />
+      <span id="edit-pts" style="color:rgba(255,255,255,0.4);font-size:12px">0 pts</span>
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-        <span style="font-size:11px;color:#777;padding:0 4px" id="edit-hint">Click=corner · Drag=curve · Drag point=move</span>
-        <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="undoPenPoint()">⌫ Undo <span style="opacity:.6">(Z)</span></button>
-        <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="clearPen()">✕ Clear</button>
+        <span style="font-size:11px;color:rgba(255,255,255,0.35);padding:0 4px">Click=corner · Drag=curve · Drag point=move</span>
+        <button class="eb" style="background:rgba(255,255,255,0.1);color:#ddd;border:0.5px solid rgba(255,255,255,0.15)" onclick="undoPenPoint()">⌫ Undo</button>
+        <button class="eb" style="background:rgba(255,255,255,0.1);color:#ddd;border:0.5px solid rgba(255,255,255,0.15)" onclick="clearPen()">✕ Clear</button>
         <button class="eb green" id="pen-apply-btn" onclick="applyPen()" disabled>✓ Apply mask</button>
-        <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="closeEditModal()">Cancel</button>
+        <button class="eb" style="background:rgba(255,255,255,0.1);color:#ddd;border:0.5px solid rgba(255,255,255,0.15)" onclick="closeEditModal()">Cancel</button>
       </div>
     </div>
     <div id="edit-canvas-wrap">
@@ -217,9 +372,9 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
       <canvas id="edit-overlay"></canvas>
     </div>
     <div id="edit-footer">
-      <strong style="color:#bbb">Corner point:</strong> click a wall &nbsp;|&nbsp;
-      <strong style="color:#16a34a">Curve point:</strong> click + drag to set curve direction &nbsp;|&nbsp;
-      Click <span style="color:#16a34a">first point ✓</span> or press <kbd>Enter</kbd> to close &nbsp;|&nbsp;
+      <strong style="color:rgba(255,170,100,0.9)">Corner:</strong> click &nbsp;|&nbsp;
+      <strong style="color:#16a34a">Curve:</strong> click + drag &nbsp;|&nbsp;
+      Click <span style="color:#16a34a">first point ✓</span> or <kbd>Enter</kbd> to close &nbsp;|&nbsp;
       <kbd>Z</kbd> undo &nbsp;|&nbsp; <kbd>Esc</kbd> cancel
     </div>
   </div>
@@ -227,8 +382,9 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
 
 <script type="module">
 import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.min.mjs';
-pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.worker.min.mjs';
-window._pdfjs=pdfjsLib;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.worker.min.mjs';
+window._pdfjs = pdfjsLib;
+window._pdfjsReady = true;
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
@@ -845,18 +1001,24 @@ function gotoEditor(){
 
 
 // ── room fill colour ───────────────────────────────────────────────────────
-const PRESET_COLORS = [
-  '#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6'
-];
+const PRESET_COLORS = ['#ff6600','#ef4444','#f97316','#eab308','#22c55e','#3b82f6'];
 
 function buildSwatches(){
   const wrap = document.getElementById('color-swatches');
+  if(!wrap) return;
   wrap.innerHTML = '';
+  const current = document.getElementById('custom-color')?.value || '';
   for(const c of PRESET_COLORS){
-    const btn = document.createElement('button');
-    btn.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:${c};cursor:pointer;box-shadow:0 0 0 1px #ccc;padding:0;flex-shrink:0`;
+    const btn = document.createElement('div');
+    btn.className = 'cp-swatch' + (c===current?' active':'');
+    btn.style.background = c;
     btn.title = c;
-    btn.onclick = () => applyRoomColor(c);
+    btn.onclick = () => {
+      document.getElementById('custom-color').value = c;
+      document.querySelectorAll('.cp-swatch').forEach(s=>s.classList.remove('active'));
+      btn.classList.add('active');
+      applyRoomColor(c);
+    };
     wrap.appendChild(btn);
   }
 }
@@ -1351,11 +1513,188 @@ function parseCSV(text){
   return rows;
 }
 
+// ── Colour mode ──────────────────────────────────────────────────────────
+let appMode = 'edit'; // 'edit' | 'colour'
+let colourPickerRoom = null; // room being coloured in colour mode
+
+// Extra canvas for colour mode overlay
+const colourOverlayCanvas = document.getElementById('colour-overlay-canvas');
+const coc = colourOverlayCanvas.getContext('2d');
+
+function setMode(m){
+  appMode = m;
+  document.getElementById('btn-edit-mode').classList.toggle('active', m==='edit');
+  document.getElementById('btn-colour-mode').classList.toggle('active', m==='colour');
+
+  const selCanvas = document.getElementById('sel-canvas');
+  const tip = document.getElementById('sidebar-tip');
+  const modeInfo = document.getElementById('colour-mode-info');
+  const penBtn = document.getElementById('btn-pen');
+
+  if(m === 'colour'){
+    selCanvas.style.cursor = 'crosshair';
+    selCanvas.classList.add('colour-cursor');
+    selCanvas.onmousedown = onColourCanvasClick;
+    selCanvas.onmousemove = null;
+    selCanvas.onmouseup = null;
+    selCanvas.onmouseleave = null;
+    tip.textContent = 'Colour mode: pick a colour below, then click any room to fill it.';
+    modeInfo.classList.add('show');
+    penBtn.style.display = 'none';
+    selectedRoom = null;
+    redrawRooms();
+    renderList();
+    renderColourModeList();
+  } else {
+    selCanvas.classList.remove('colour-cursor');
+    selCanvas.onmousedown = onDown;
+    selCanvas.onmousemove = onMove;
+    selCanvas.onmouseup = onUp;
+    selCanvas.onmouseleave = onUp;
+    tip.textContent = 'Click to select · drag to move · handles to resize · ✏ Refine for pen tool';
+    modeInfo.classList.remove('show');
+    updatePenBtn();
+    redrawRooms();
+    renderList();
+  }
+  coc.clearRect(0,0,colourOverlayCanvas.width,colourOverlayCanvas.height);
+}
+
+// Build a room-ID map canvas for hit testing (each room painted with unique grey)
+function buildHitCanvas(){
+  const hitCanvas = document.createElement('canvas');
+  hitCanvas.width = origW; hitCanvas.height = origH;
+  const hc = hitCanvas.getContext('2d');
+  const idMap = {}; // grey value → room label
+  let idx = 1;
+  for(const [lbl, room] of Object.entries(rooms)){
+    const grey = idx;
+    idMap[grey] = lbl;
+    hc.fillStyle = `rgb(${grey},0,0)`;
+    if(room.polygon && room.polygon.length >= 3){
+      hc.beginPath();
+      hc.moveTo(room.polygon[0].x, room.polygon[0].y);
+      for(let i=0;i<room.polygon.length;i++){
+        const A=room.polygon[i], B=room.polygon[(i+1)%room.polygon.length];
+        if(A.hOut){hc.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}
+        else if(B.hIn){hc.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}
+        else{hc.lineTo(B.x,B.y);}
+      }
+      hc.closePath();
+      hc.fill();
+    } else {
+      const r = room.rect;
+      hc.fillRect(r.x1, r.y1, r.x2-r.x1, r.y2-r.y1);
+    }
+    idx++;
+  }
+  return {hitCanvas, hc, idMap};
+}
+
+function onColourCanvasClick(e){
+  if(appMode !== 'colour') return;
+  const rect = selCanvas.getBoundingClientRect();
+  const cx = Math.round((e.clientX - rect.left) * origW / rect.width);
+  const cy = Math.round((e.clientY - rect.top) * origH / rect.height);
+
+  const {hitCanvas, hc, idMap} = buildHitCanvas();
+  const px = hc.getImageData(cx, cy, 1, 1).data;
+  const roomLabel = idMap[px[0]]; // red channel = room index
+
+  if(!roomLabel){ return; } // clicked outside all rooms
+
+  // Apply current colour
+  const col = document.getElementById('custom-color').value;
+  rooms[roomLabel].fillColor = col;
+  if(pdfDoc) pageRooms[currentPage] = rooms;
+
+  // Highlight briefly
+  colourPickerRoom = roomLabel;
+  redrawRooms();
+  renderColourModeList();
+  flashRoom(roomLabel, col);
+}
+
+function flashRoom(lbl, col){
+  if(!rooms[lbl]) return;
+  const room = rooms[lbl];
+  const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
+  coc.clearRect(0,0,origW,origH);
+  coc.save();
+  if(room.polygon && room.polygon.length >= 3){
+    coc.beginPath();
+    coc.moveTo(room.polygon[0].x, room.polygon[0].y);
+    for(let i=0;i<room.polygon.length;i++){
+      const A=room.polygon[i],B=room.polygon[(i+1)%room.polygon.length];
+      if(A.hOut){coc.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}
+      else if(B.hIn){coc.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}
+      else{coc.lineTo(B.x,B.y);}
+    }
+    coc.closePath();
+  } else {
+    const rr = room.rect;
+    coc.beginPath(); coc.rect(rr.x1,rr.y1,rr.x2-rr.x1,rr.y2-rr.y1);
+  }
+  coc.fillStyle = `rgba(${r},${g},${b},0.45)`;
+  coc.fill();
+  coc.strokeStyle = `rgba(${r},${g},${b},0.9)`;
+  coc.lineWidth = 3;
+  coc.stroke();
+  coc.restore();
+  setTimeout(()=>{ coc.clearRect(0,0,origW,origH); }, 600);
+}
+
+function renderColourModeList(){
+  // Only affects display when in colour mode
+  if(appMode !== 'colour') return;
+  const list = document.getElementById('room-list');
+  list.innerHTML = '';
+  const keys = Object.keys(rooms).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  if(!keys.length){ list.innerHTML='<p style="font-size:12px;color:var(--text-3);padding:4px 0">No rooms</p>'; return; }
+  for(const k of keys){
+    const rm = rooms[k];
+    const div = document.createElement('div');
+    div.className = 'ri clr-mode';
+    if(k === colourPickerRoom) div.classList.add('active-clr');
+    const hasFill = !!rm.fillColor;
+    div.innerHTML = `<span class="${hasFill?'colour-dot':'colour-dot empty'}" style="${hasFill?'background:'+rm.fillColor:''}"></span><span class="lbl">${rm.label}</span><span style="font-size:10px;color:var(--text-3)">${rm.type}</span>`;
+    div.onclick = () => {
+      colourPickerRoom = k;
+      const col = document.getElementById('custom-color').value;
+      rooms[k].fillColor = col;
+      if(pdfDoc) pageRooms[currentPage] = rooms;
+      redrawRooms(); renderColourModeList(); flashRoom(k, col);
+    };
+    list.appendChild(div);
+  }
+}
+
+// Override initCanvas to also size colourOverlayCanvas
+const _origInitCanvas = initCanvas;
+window.initCanvas = function(img){
+  _origInitCanvas(img);
+  colourOverlayCanvas.width = origW;
+  colourOverlayCanvas.height = origH;
+  colourOverlayCanvas.style.width = '100%';
+  colourOverlayCanvas.style.height = 'auto';
+};
+
+// Override gotoEditor to set mode-specific state
+const _origGotoEditor = gotoEditor;
+window.gotoEditor = function(){
+  _origGotoEditor();
+  // reset to edit mode on new file load
+  setMode('edit');
+};
+
+// Swatches are built by buildSwatches() in the main script above
+
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');const f=e.dataTransfer.files[0];if(f)handleFile(f);});
+</script>
 </script>
 </body>
 </html>
