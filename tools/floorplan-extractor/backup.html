@@ -1558,6 +1558,15 @@ function resetApp(){
 // CONFIGURATION — Edit this section to update sheet source or add countries
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ─────────────────────────────────────────────────────────────────────────
+// IMPORTANT — If locations fail to load ("Failed to fetch"):
+//   1. Open your Google Sheet
+//   2. Go to File → Share → Publish to web
+//   3. Set "Entire Document" and format "Comma-separated values (.csv)"
+//   4. Click Publish, confirm
+//   5. Each tab must be published — republish if you added new tabs
+//   The sheet URL should contain "/pub" not "/edit"
+// ─────────────────────────────────────────────────────────────────────────
 // The published Google Sheet ID (from File → Share → Publish to web)
 // To update: replace the string below with your new published sheet ID
 // Your sheet URL looks like: https://docs.google.com/spreadsheets/d/e/PUBID/pubhtml
@@ -1608,7 +1617,14 @@ let activeCountry = null;
 let pendingLayout = null;
 
 // Auto-load on page ready
-document.addEventListener('DOMContentLoaded', () => { loadAllTabs(); });
+// Load sheet data — call directly since script is at end of body
+// DOMContentLoaded may have already fired; use both approaches
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', loadAllTabs);
+} else {
+  // DOM already ready — call directly but defer to next tick so UI renders first
+  setTimeout(loadAllTabs, 50);
+}
 
 async function loadAllTabs(){
   setLocStatus('<span class="spin"></span> Loading sheet data…');
@@ -1618,9 +1634,24 @@ async function loadAllTabs(){
     try{
       // Fetch this tab's CSV using its GID (more reliable than sheet name)
       const url = `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?gid=${c.gid}&single=true&output=csv`;
-      const resp = await fetch(url);
-      if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const text = await resp.text();
+      // Fetch CSV — try fetch first, fall back to XHR
+      let text;
+      try{
+        const resp = await fetch(url, {mode:'cors', credentials:'omit'});
+        if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        text = await resp.text();
+      } catch(fetchErr){
+        // Fallback: XHR (handles some CORS edge cases differently)
+        text = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', url, true);
+          xhr.onload = () => xhr.status < 400 ? resolve(xhr.responseText) : reject(new Error(`HTTP ${xhr.status}`));
+          xhr.onerror = () => reject(new Error('Network error — check sheet is published publicly'));
+          xhr.timeout = 10000;
+          xhr.ontimeout = () => reject(new Error('Timeout'));
+          xhr.send();
+        });
+      }
       const rows = parseCSV(text);
       // Skip header row if configured
       const dataRows = HAS_HEADER ? rows.slice(1) : rows;
@@ -1633,7 +1664,7 @@ async function loadAllTabs(){
         }));
       loaded++;
     } catch(e){
-      errors.push(c.code);
+      errors.push(`${c.code}(${e.message||e})`);
       sheetData[c.code] = [];
     }
   }));
@@ -1645,7 +1676,7 @@ async function loadAllTabs(){
     const total = Object.values(sheetData).flat().length;
     setLocStatus(`${total} locations loaded · click a location to open it`);
   } else {
-    setLocStatus('Error: Could not load sheet data. Check the sheet is published to web.', true);
+    setLocStatus(`Could not load sheet data (${errors.join(', ')}). Ensure the sheet is published: File → Share → Publish to web → Entire Document → CSV.`, true);
   }
 }
 
