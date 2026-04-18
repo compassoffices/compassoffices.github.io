@@ -306,6 +306,14 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:var(--
         oninput="levelNum=this.value.trim();redrawColourOverlay();renderColourModeList()">
       <span id="level-preview" style="font-size:11px;font-weight:700;color:var(--brand);min-width:28px">–</span>
     </div>
+    <!-- Room label toggle (colour mode) -->
+    <div id="label-toggle-wrap" style="display:none;align-items:center;gap:5px">
+      <button id="btn-label-toggle"
+        onclick="showRoomLabels=!showRoomLabels;this.style.background=showRoomLabels?'var(--brand)':'rgba(255,255,255,0.9)';this.style.color=showRoomLabels?'#fff':'var(--text-2)';redrawColourOverlay()"
+        style="font-size:11px;padding:3px 10px;border-radius:6px;background:var(--brand);color:#fff;border:0.5px solid rgba(255,102,0,0.4)">
+        Labels: ON
+      </button>
+    </div>
     <!-- Logo badge size number input -->
     <div id="logo-badge-wrap" style="display:none;align-items:center;gap:5px">
       <span style="font-size:11px;color:var(--text-3)">Logo margin</span>
@@ -1491,7 +1499,7 @@ function saveLayout(){
     totalPages,
     imageSize: { width: origW, height: origH },
     pages: allRooms,
-    colourMode: { levelNum, legendItems, legendPos, legendScale },
+    colourMode: { levelNum, legendItems, legendPos, legendScale, showRoomLabels },
     logoBadgeScale
   };
 
@@ -1553,6 +1561,7 @@ function loadLayout(input){
         if(data.colourMode.legendItems) legendItems = data.colourMode.legendItems;
         if(data.colourMode.legendPos) legendPos = data.colourMode.legendPos;
         if(data.colourMode.legendScale) legendScale = data.colourMode.legendScale;
+        if(typeof data.colourMode.showRoomLabels==='boolean') showRoomLabels=data.colourMode.showRoomLabels;
         const li = document.getElementById('level-input');
         if(li) li.value = levelNum;
         if(typeof data.logoBadgeScale==='number') logoBadgeScale = data.logoBadgeScale;
@@ -1585,6 +1594,7 @@ function resetApp(){
   gstyle('btn-pen','display','none');
   gstyle('color-picker-row','display','none');
   gstyle('logo-badge-wrap','display','none');
+  gstyle('label-toggle-wrap','display','none');
   setProc(false);
 }
 
@@ -1925,6 +1935,7 @@ function parseCSV(text){
 // ── Colour mode ──────────────────────────────────────────────────────────
 let appMode = 'edit';
 let levelNum = '';
+let showRoomLabels = true;
 let colourPickerRoom = null;
 let legendItems = [];
 let legendPos = null;     // {x,y} canvas coords
@@ -1965,6 +1976,7 @@ function setMode(m){
     modeInfo?.classList.add('show');
     if(legendEditor) legendEditor.style.display='flex';
     if(levelWrap) levelWrap.style.display='flex';
+    if(labelToggleWrap) labelToggleWrap.style.display='flex';
     if(legendScaleWrap) legendScaleWrap.style.display='flex';
     gstyle('btn-pen','display','none');
     selectedRoom = null;
@@ -1984,6 +1996,7 @@ function setMode(m){
     modeInfo?.classList.remove('show');
     if(legendEditor) legendEditor.style.display='none';
     if(levelWrap) levelWrap.style.display='none';
+    if(labelToggleWrap) labelToggleWrap.style.display='none';
     if(legendScaleWrap) legendScaleWrap.style.display='none';
     coc.clearRect(0,0,colourOverlayCanvas.width,colourOverlayCanvas.height);
     closeRoomColourPopup();
@@ -2185,8 +2198,8 @@ function redrawColourOverlay(){
   const lp=document.getElementById('level-preview');
   if(lp) lp.textContent = levelNum ? `${levelNum}01` : '–';
 
-  // Room number labels with white semi-transparent background box
-  for(const [lbl,room] of Object.entries(rooms)){
+  // Room number labels (only when enabled)
+  if(showRoomLabels) for(const [lbl,room] of Object.entries(rooms)){
     if(!room.fillColor)continue;
     const roomLabel=levelNum?`${levelNum}${lbl}`:lbl;
     let cx,cy;
@@ -2315,8 +2328,8 @@ window.downloadFloorplan = async function(){
     else{ctx.beginPath();ctx.rect(room.rect.x1,room.rect.y1,room.rect.x2-room.rect.x1,room.rect.y2-room.rect.y1);}
     ctx.fillStyle=`rgba(${r},${g},${b},0.30)`;ctx.fill();ctx.restore();
   }
-  // Room labels with white semi-transparent background box
-  for(const [lbl,room] of Object.entries(rooms)){
+  // Room labels (only when enabled)
+  if(showRoomLabels) for(const [lbl,room] of Object.entries(rooms)){
     if(!room.fillColor)continue;
     const roomLabel=levelNum?`${levelNum}${lbl}`:lbl;
     let cx,cy;
