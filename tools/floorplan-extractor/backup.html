@@ -3,133 +3,393 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Floorplan Room Extractor</title>
+<title>Compass Offices — Floorplan Tool</title>
 <style>
+/* ── Reset & base ─────────────────────────────────────────────────────── */
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#f0f0ee;color:#1a1a1a;min-height:100vh;padding:1.25rem}
-h1{font-size:19px;font-weight:500;margin-bottom:2px}
-.sub{font-size:12px;color:#777;margin-bottom:1rem}
-.panel{background:#fff;border:0.5px solid #ddd;border-radius:12px;padding:1.1rem 1.25rem}
+:root{
+  --brand:#ff6600;
+  --brand-light:#ff8533;
+  --brand-pale:#fff4ed;
+  --brand-faint:#fff9f5;
+  --glass-bg:rgba(255,255,255,0.82);
+  --glass-border:rgba(255,102,0,0.13);
+  --glass-shadow:0 4px 24px rgba(255,102,0,0.08),0 1px 4px rgba(0,0,0,0.06);
+  --radius:12px;--radius-sm:8px;
+  --text:#1a1a1a;--text-2:#555;--text-3:#999;
+  --border:rgba(0,0,0,0.08);
+}
+html{height:100%}
+body{
+  font-family:system-ui,-apple-system,sans-serif;
+  background:linear-gradient(150deg,#fff8f4 0%,#fff3ea 60%,#fff8f4 100%);
+  color:var(--text);min-height:100vh;padding:1.25rem;
+  background-attachment:fixed;
+}
+
+/* ── Glass panel ──────────────────────────────────────────────────────── */
+.glass{
+  background:var(--glass-bg);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:0.5px solid var(--glass-border);
+  border-radius:var(--radius);
+  box-shadow:var(--glass-shadow);
+}
+.panel{background:rgba(255,255,255,0.9);border:0.5px solid var(--glass-border);border-radius:var(--radius);padding:1.1rem 1.25rem;box-shadow:var(--glass-shadow);}
 .col{display:flex;flex-direction:column;gap:1rem}
-.tip{font-size:12px;color:#555;background:#f5f5f3;padding:8px 12px;border-radius:6px;line-height:1.6}
-#drop-zone{border:1.5px dashed #bbb;border-radius:8px;padding:3rem 1rem;text-align:center;cursor:pointer;color:#666;font-size:15px;transition:all .15s}
-#drop-zone:hover,#drop-zone.over{border-color:#2563eb;background:#eff6ff}
+.tip{font-size:12px;color:var(--text-2);background:rgba(255,102,0,0.04);padding:8px 12px;border-radius:var(--radius-sm);line-height:1.6;border:0.5px solid rgba(255,102,0,0.08)}
+
+/* ── Typography ───────────────────────────────────────────────────────── */
+h1{font-size:18px;font-weight:600;letter-spacing:-.3px;margin-bottom:1px}
+.sub{font-size:12px;color:var(--text-3);margin-bottom:1rem}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+button{
+  padding:5px 13px;border-radius:var(--radius-sm);
+  border:0.5px solid rgba(0,0,0,0.12);
+  background:rgba(255,255,255,0.9);
+  cursor:pointer;font-size:12px;font-family:inherit;
+  white-space:nowrap;color:var(--text);
+  transition:all .15s;
+}
+button:hover:not(:disabled){background:#fff;border-color:var(--brand);color:var(--brand);box-shadow:0 2px 8px rgba(255,102,0,0.12)}
+button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+button.primary:hover:not(:disabled){background:var(--brand-light);box-shadow:0 2px 12px rgba(255,102,0,0.3)}
+button.outline-brand{border-color:var(--brand);color:var(--brand);background:rgba(255,102,0,0.04)}
+button.outline-brand:hover:not(:disabled){background:var(--brand);color:#fff}
+button.green{background:#16a34a;color:#fff;border-color:#16a34a}
+button.green:hover:not(:disabled){background:#15803d}
+button.amber{background:var(--brand);color:#fff;border-color:var(--brand)}
+button.mode-btn{
+  display:flex;align-items:center;gap:6px;padding:6px 14px;
+  font-size:12px;font-weight:500;border-radius:20px;
+  border:1.5px solid var(--glass-border);
+  background:var(--glass-bg);backdrop-filter:blur(8px);
+  transition:all .2s;
+}
+button.mode-btn.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 2px 12px rgba(255,102,0,0.3)}
+button:disabled{opacity:.38;cursor:default}
+input[type=text]{
+  padding:7px 10px;border-radius:var(--radius-sm);
+  border:0.5px solid var(--glass-border);
+  background:rgba(255,255,255,0.85);
+  font-size:14px;font-family:inherit;width:100%;
+  transition:border-color .15s;
+}
+input[type=text]:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(255,102,0,0.1)}
+
+/* ── Steps ────────────────────────────────────────────────────────────── */
 .step{display:none}.step.active{display:block}
 #editor{display:flex;flex-direction:column;gap:8px}
-#topbar{background:#fff;border:0.5px solid #ddd;border-radius:12px;padding:.55rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ── Topbar ───────────────────────────────────────────────────────────── */
+#topbar{
+  padding:.55rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:50;
+}
+.topbar-logo{font-size:13px;font-weight:700;color:var(--brand);letter-spacing:-.2px}
+.topbar-sep{width:1px;height:20px;background:var(--glass-border);margin:0 2px}
+
+/* ── Mode pill toggle ─────────────────────────────────────────────────── */
+#mode-toggle-wrap{
+  display:flex;background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);
+  border:0.5px solid var(--glass-border);border-radius:20px;padding:3px;gap:2px;
+}
+
+/* ── Editor layout ────────────────────────────────────────────────────── */
 #editor-body{display:flex;gap:10px;flex-wrap:wrap}
-#canvas-wrap{position:relative;flex:1;min-width:200px;border:0.5px solid #ddd;border-radius:8px;overflow:hidden;background:#bbb;user-select:none}
+#canvas-wrap{position:relative;flex:1;min-width:200px;border-radius:var(--radius);overflow:hidden;background:#d4d4d4;user-select:none;box-shadow:var(--glass-shadow)}
 #canvas-wrap canvas{display:block;position:absolute;top:0;left:0;width:100%;height:auto}
 #canvas-wrap canvas:first-child{position:relative}
 #sel-canvas{cursor:crosshair}
-#sidebar{width:215px;flex-shrink:0;display:flex;flex-direction:column;gap:8px}
-#room-list{flex:1;overflow-y:auto;max-height:400px;display:flex;flex-direction:column;gap:3px}
-.ri{display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 9px;border-radius:6px;border:0.5px solid #e5e5e5;cursor:pointer;background:#fff}
-.ri.selected{background:#eff6ff;border-color:#93c5fd}
+#colour-overlay-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:1}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+#sidebar{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+#sidebar-rooms{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:6px}
+#room-list{flex:1;overflow-y:auto;max-height:320px;display:flex;flex-direction:column;gap:3px}
+
+/* ── Room items ───────────────────────────────────────────────────────── */
+.ri{display:flex;align-items:center;gap:7px;font-size:13px;padding:6px 9px;border-radius:var(--radius-sm);border:0.5px solid rgba(0,0,0,0.07);cursor:pointer;background:rgba(255,255,255,0.75);transition:all .12s}
+.ri.selected{background:var(--brand-pale);border-color:rgba(255,102,0,0.3);box-shadow:0 1px 6px rgba(255,102,0,0.1)}
 .ri:hover .rdel{color:#c0392b}
 .ri .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .ri .lbl{font-weight:500;flex:1}
-.ri .tag{font-size:10px;color:#888;background:#f0f0ee;padding:1px 5px;border-radius:4px}
-.ri .rdel,.ri .redit{font-size:11px;margin-left:2px}
-.ri .redit{color:#2563eb}
-.badge{font-size:11px;padding:2px 8px;border-radius:5px;background:#e6f1fb;color:#185FA5;white-space:nowrap}
-button{padding:5px 12px;border-radius:7px;border:0.5px solid #ccc;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap}
-button:hover:not(:disabled){background:#f5f5f3}
-button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
-button.primary:hover:not(:disabled){background:#1d4ed8}
-button.green{background:#16a34a;color:#fff;border-color:#16a34a}
-button.green:hover:not(:disabled){background:#15803d}
-button.amber{background:#d97706;color:#fff;border-color:#d97706}
-button:disabled{opacity:.4;cursor:default}
-input[type=text]{padding:7px 10px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;font-family:inherit;width:100%}
+.ri .tag{font-size:10px;color:var(--text-3);background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:4px}
+.ri .rdel,.ri .redit{font-size:11px;margin-left:1px}
+.ri .redit{color:var(--brand)}
+
+/* ── Colour mode room items ───────────────────────────────────────────── */
+.ri.clr-mode{cursor:pointer;padding:7px 10px}
+.ri.clr-mode:hover{background:var(--brand-pale);border-color:rgba(255,102,0,0.25);transform:translateX(2px)}
+.ri.clr-mode.active-clr{background:var(--brand-pale);border-color:var(--brand);box-shadow:0 0 0 2px rgba(255,102,0,0.15)}
+.colour-dot{width:18px;height:18px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 4px rgba(0,0,0,0.2)}
+.colour-dot.empty{border:1.5px dashed #ccc;background:transparent;box-shadow:none}
+
+/* ── Badges ───────────────────────────────────────────────────────────── */
+.badge{font-size:11px;padding:2px 9px;border-radius:10px;background:rgba(255,102,0,0.1);color:var(--brand);white-space:nowrap;font-weight:500}
+
+/* ── Upload ───────────────────────────────────────────────────────────── */
+#drop-zone{
+  border:1.5px dashed rgba(255,102,0,0.3);border-radius:var(--radius);
+  padding:2.5rem 1rem;text-align:center;cursor:pointer;
+  color:var(--text-2);font-size:14px;
+  transition:all .15s;background:rgba(255,102,0,0.02);
+}
+#drop-zone:hover,#drop-zone.over{border-color:var(--brand);background:var(--brand-pale);color:var(--brand)}
+
+/* ── Progress ─────────────────────────────────────────────────────────── */
 #proc{display:none;flex-direction:column;gap:8px}
-progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563eb}
-#popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:98}
+progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:var(--brand)}
+
+/* ── Popups ───────────────────────────────────────────────────────────── */
+#popup-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:98;backdrop-filter:blur(4px)}
 #popup-bg.open{display:block}
-#popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:0.5px solid #ccc;border-radius:12px;padding:1.25rem;z-index:99;min-width:280px;flex-direction:column;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+#popup{
+  display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:99;min-width:280px;flex-direction:column;gap:12px;
+}
 #popup.open{display:flex}
-#pv-canvas{border-radius:6px;border:0.5px solid #eee;background:#f8f8f8;display:block}
-/* pen editor */
-#edit-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:200;flex-direction:column;align-items:center;justify-content:center;gap:0}
+
+/* ── Pen editor ───────────────────────────────────────────────────────── */
+#edit-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
 #edit-bg.open{display:flex}
-#edit-modal{background:#1e1e1e;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 80px rgba(0,0,0,.7);max-width:96vw;max-height:96vh}
-#edit-header{background:#2c2c2c;padding:.6rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid #444;flex-shrink:0}
-#edit-canvas-wrap{overflow:auto;background:#141414;flex:1;position:relative;min-height:200px}
+#edit-modal{border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.7);max-width:96vw;max-height:96vh;background:#1a1a1a}
+#edit-header{background:rgba(255,102,0,0.12);backdrop-filter:blur(12px);padding:.6rem 1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-bottom:1px solid rgba(255,102,0,0.2);flex-shrink:0}
+#edit-canvas-wrap{overflow:auto;background:#111;flex:1;position:relative;min-height:200px}
 #edit-canvas{display:block;cursor:crosshair;user-select:none}
 #edit-overlay{position:absolute;top:0;left:0;pointer-events:none}
-#edit-footer{background:#2c2c2c;border-top:1px solid #444;padding:.45rem 1rem;font-size:11px;color:#888;flex-shrink:0;line-height:1.7}
-#edit-footer kbd{background:#444;padding:1px 5px;border-radius:3px;color:#ddd;font-family:inherit}
+#edit-footer{background:rgba(255,102,0,0.08);border-top:1px solid rgba(255,102,0,0.15);padding:.45rem 1rem;font-size:11px;color:#aaa;flex-shrink:0;line-height:1.7}
+#edit-footer kbd{background:rgba(255,102,0,0.2);padding:1px 5px;border-radius:3px;color:#ffaa66;font-family:inherit}
 .eb{padding:5px 12px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap}
-.eb:hover:not(:disabled){filter:brightness(1.2)}
+.eb:hover:not(:disabled){filter:brightness(1.15)}
 .eb:disabled{opacity:.35;cursor:default}
+
+/* ── Colour picker panel ──────────────────────────────────────────────── */
+#colour-panel{display:flex;flex-direction:column;gap:8px}
+#colour-panel.hidden{display:none}
+.colour-presets{display:flex;gap:5px;flex-wrap:wrap}
+.cp-swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all .15s;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,0.15)}
+.cp-swatch:hover,.cp-swatch.active{border-color:#fff;transform:scale(1.15);box-shadow:0 2px 8px rgba(0,0,0,0.25)}
+.cp-swatch.active{box-shadow:0 0 0 2px var(--brand),0 2px 8px rgba(0,0,0,0.25)}
+
+/* ── Bottom action bar ────────────────────────────────────────────────── */
+#action-bar{display:flex;flex-direction:column;gap:6px}
+#colour-mode-info{
+  font-size:11px;color:var(--brand);
+  background:var(--brand-pale);border:0.5px solid rgba(255,102,0,0.2);
+  border-radius:var(--radius-sm);padding:6px 10px;
+  display:none;line-height:1.5;
+}
+#colour-mode-info.show{display:block}
+
+/* ── Location picker ──────────────────────────────────────────────────── */
+#loc-picker{border-radius:var(--radius);overflow:hidden}
+#loc-header{padding:1rem 1.25rem;border-bottom:0.5px solid var(--glass-border);background:rgba(255,102,0,0.04)}
+#loc-header h2{font-size:15px;font-weight:600;color:var(--brand);margin-bottom:2px}
+#loc-header p{font-size:12px;color:var(--text-3)}
+#country-tabs{display:flex;padding:.6rem 1rem;gap:6px;border-bottom:0.5px solid var(--glass-border);flex-wrap:wrap;background:rgba(255,255,255,0.5)}
+.ctab{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:0.5px solid rgba(0,0,0,0.1);background:rgba(255,255,255,0.7);cursor:pointer;font-size:13px;font-weight:500;color:var(--text-2);transition:all .15s;white-space:nowrap}
+.ctab:hover{border-color:var(--brand);background:var(--brand-pale);color:var(--brand)}
+.ctab.active{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(255,102,0,0.3)}
+.ctab .cflag{font-size:15px}
+.ctab .ccount{font-size:10px;opacity:.75;background:rgba(255,255,255,.25);padding:1px 5px;border-radius:8px}
+#loc-search-wrap{padding:.6rem 1rem;border-bottom:0.5px solid var(--glass-border);background:rgba(255,255,255,0.6)}
+#loc-search{width:100%;padding:7px 12px 7px 34px;border:0.5px solid var(--glass-border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:rgba(255,255,255,0.8);outline:none;transition:all .15s}
+#loc-search:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3px rgba(255,102,0,0.08)}
+#loc-list-wrap{max-height:240px;overflow-y:auto;padding:.5rem .75rem;background:rgba(255,255,255,0.5)}
+.loc-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:all .12s;border:0.5px solid transparent}
+.loc-item:hover{background:var(--brand-pale);border-color:rgba(255,102,0,0.2)}
+.loc-item.loading{opacity:.5;pointer-events:none}
+.loc-item.loaded{background:rgba(22,163,74,0.05);border-color:rgba(22,163,74,0.2)}
+.loc-item .li-name{font-size:13px;font-weight:500;flex:1}
+.loc-item .li-badge{font-size:10px;background:rgba(255,102,0,0.1);color:var(--brand);padding:2px 7px;border-radius:10px}
+.loc-item .li-badge.has-layout{background:rgba(22,163,74,0.08);color:#15803d}
+.loc-item .li-arrow{font-size:12px;color:var(--brand);opacity:0;transition:opacity .15s}
+.loc-item:hover .li-arrow{opacity:1}
+#loc-empty{text-align:center;padding:2rem 1rem;color:var(--text-3);font-size:13px;display:none}
+#loc-loading{text-align:center;padding:2rem 1rem;color:var(--text-3);font-size:13px}
+#loc-status{padding:.5rem 1.25rem;font-size:11px;color:var(--text-3);border-top:0.5px solid var(--glass-border);min-height:28px;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.4)}
+#loc-status .spin,#proc-spin{width:12px;height:12px;border:2px solid rgba(255,102,0,0.2);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Colour mode canvas cursor ────────────────────────────────────────── */
+#sel-canvas.colour-cursor{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M20 11L11 2 2 11l9 9 9-9z' fill='%23ff6600' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,102,0,0.2);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,102,0,0.4)}
+
+/* Room colour popup */
+#room-colour-popup{
+  position:fixed;z-index:300;background:var(--glass-bg);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:0.5px solid var(--glass-border);border-radius:12px;
+  padding:10px;box-shadow:0 8px 32px rgba(0,0,0,0.2);
+  display:none;flex-direction:column;gap:8px;min-width:180px;
+}
+#room-colour-popup.show{display:flex}
+#room-colour-popup .pop-title{font-size:12px;font-weight:600;color:var(--text)}
+#room-colour-popup .pop-swatches{display:flex;gap:5px;flex-wrap:wrap}
+#room-colour-popup .pop-swatch{
+  width:26px;height:26px;border-radius:50%;cursor:pointer;
+  border:2.5px solid transparent;transition:all .12s;
+  box-shadow:0 1px 4px rgba(0,0,0,0.15);
+}
+#room-colour-popup .pop-swatch:hover{transform:scale(1.15);border-color:#fff}
+#room-colour-popup .pop-swatch.sel{border-color:#fff;box-shadow:0 0 0 2px var(--brand)}
 </style>
 </head>
 <body>
-<h1>Floorplan Room Extractor</h1>
-<p class="sub">PDF auto-detects rooms · Box select + resize · Pen tool with curves · Export as JPG</p>
 
-<div id="step-upload" class="step active panel col">
-  <div id="drop-zone" onclick="document.getElementById('fi').click()">
-    <div style="font-size:32px;margin-bottom:8px">📐</div>
-    Click or drag your floorplan here
-    <div style="font-size:12px;color:#999;margin-top:6px">PDF (rooms auto-detected) · JPG · PNG</div>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem">
+  <div>
+    <h1 style="color:var(--brand)">Compass Offices</h1>
+    <p class="sub" style="margin:0">Floorplan Room Extractor & Colour Tool</p>
   </div>
-  <input type="file" id="fi" accept="image/*,.pdf" style="display:none" onchange="handleFile(this.files[0])">
-  <div id="proc"><p id="proc-msg" style="font-size:13px;color:#555">Loading…</p><progress id="prog" value="0" max="100"></progress></div>
 </div>
 
-<div id="step-editor" class="step">
-  <div id="editor">
-    <div id="topbar">
-      <span style="font-weight:500;font-size:14px">Room editor</span>
-      <span id="badge-total" class="badge">0 rooms</span>
-      <span id="status" style="font-size:12px;color:#666;flex:1"></span>
-      <button id="btn-pen" class="amber" onclick="openPenEditor()" style="display:none">✏ Refine with pen</button>
-      <div id="page-nav" style="display:none;align-items:center;gap:6px">
-        <button onclick="changePage(-1)" id="pbtn-prev">← Prev</button>
-        <span id="page-lbl" style="font-size:12px;color:#555">1/1</span>
-        <button onclick="changePage(1)" id="pbtn-next">Next →</button>
-      </div>
-      <button onclick="saveLayout()" title="Save all room selections as JSON">💾 Save edit layout</button>
-      <button onclick="document.getElementById('load-li').click()" title="Load a previously saved layout">📂 Load edit layout</button>
-      <input type="file" id="load-li" accept=".json" style="display:none" onchange="loadLayout(this)">
-      <button onclick="resetApp()">↺ New file</button>
+<!-- ── UPLOAD STEP ────────────────────────────────────────────────────── -->
+<div id="step-upload" class="step active col" style="gap:10px">
+  <div id="loc-picker" class="glass">
+    <div id="loc-header">
+      <h2>Select a location</h2>
+      <p>Choose a country tab then click a location to load its floorplan</p>
     </div>
-    <div id="editor-body">
-      <div id="canvas-wrap">
-        <canvas id="main-canvas"></canvas>
-        <canvas id="rooms-canvas"></canvas>
-        <canvas id="sel-canvas"></canvas>
-      </div>
-      <div id="sidebar" class="panel">
-        <p style="font-size:13px;font-weight:500">Rooms</p>
-        <div class="tip" style="font-size:11px">Auto-detected on PDF load. <strong>Click</strong> to select → drag to move, handles to resize. Select then <strong>✏ Refine</strong> for precise pen cutting.</div>
+    <div id="country-tabs"><div id="ctabs-loading" style="font-size:12px;color:var(--text-3);padding:4px 0">Loading…</div></div>
+    <div id="loc-search-wrap" style="display:none">
+      <input id="loc-search" type="text" placeholder="Search locations…" oninput="filterLocations(this.value)">
+    </div>
+    <div id="loc-list-wrap">
+      <div id="loc-loading"><div style="display:inline-block;width:18px;height:18px;border:2px solid rgba(255,102,0,0.2);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:8px"></div><div>Loading locations…</div></div>
+      <div id="loc-list" style="display:none"></div>
+      <div id="loc-empty">No locations match</div>
+    </div>
+    <div id="loc-status"></div>
+  </div>
+  <div class="glass col" style="padding:1rem 1.25rem">
+    <div style="font-size:12px;color:var(--text-3);text-align:center">Or load a local file</div>
+    <div id="drop-zone" onclick="document.getElementById('fi').click()">
+      <div style="margin-bottom:10px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35"><path d="M3 21L21 3M21 3v9M21 3h-9M3 21h9M3 21v-9"/></svg></div>
+      Click or drag a floorplan here
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px">PDF · JPG · PNG</div>
+    </div>
+    <input type="file" id="fi" accept="image/*,.pdf" style="display:none" onchange="handleFile(this.files[0])">
+    <div id="proc"><div style="display:flex;align-items:center;gap:8px"><div class="proc-spin" id="proc-spin"></div><p id="proc-msg" style="font-size:13px;color:var(--text-2)">Loading…</p></div><progress id="prog" value="0" max="100"></progress></div>
+  </div>
+</div>
+
+<!-- ── EDITOR STEP ────────────────────────────────────────────────────── -->
+<div id="step-editor" class="step">
+<div id="editor">
+
+  <!-- Topbar -->
+  <div id="topbar" class="glass">
+    <span class="topbar-logo">Compass Offices</span>
+    <div class="topbar-sep"></div>
+    <span id="badge-total" class="badge">0 rooms</span>
+    <span id="status" style="font-size:12px;color:var(--text-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+
+    <!-- Mode toggle -->
+    <div id="mode-toggle-wrap">
+      <button class="mode-btn active" id="btn-edit-mode" onclick="setMode('edit')"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</span></button>
+      <button class="mode-btn" id="btn-colour-mode" onclick="setMode('colour')"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Colour</span></button>
+    </div>
+
+    <!-- Level input (shown in colour mode) -->
+    <div id="level-wrap" style="display:none;align-items:center;gap:5px">
+      <span style="font-size:11px;color:var(--text-3);white-space:nowrap">Level</span>
+      <input type="text" id="level-input" placeholder="e.g. 10" value=""
+        style="width:52px;padding:3px 7px;font-size:12px;font-weight:600;border-radius:6px;border:1px solid rgba(255,102,0,0.3);background:rgba(255,255,255,0.9);text-align:center"
+        oninput="levelNum=this.value.trim();redrawColourOverlay();renderColourModeList()">
+      <span id="level-preview" style="font-size:11px;font-weight:700;color:var(--brand);min-width:28px">–</span>
+    </div>
+    <!-- Legend scale (shown in colour mode) -->
+    <div id="legend-scale-wrap" style="display:none;align-items:center;gap:5px">
+      <span style="font-size:11px;color:var(--text-3)">Legend</span>
+      <input type="range" min="80" max="300" value="180" id="legend-scale-slider"
+        style="width:70px;accent-color:var(--brand)"
+        oninput="legendScale=+this.value;redrawColourOverlay()">
+    </div>
+    <button id="btn-pen" class="amber" onclick="openPenEditor()" style="display:none"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Refine</span></button>
+    <div id="page-nav" style="display:none;align-items:center;gap:6px">
+      <button onclick="changePage(-1)" id="pbtn-prev"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Prev</span></button>
+      <span id="page-lbl" style="font-size:12px;color:var(--text-2)">1/1</span>
+      <button onclick="changePage(1)" id="pbtn-next"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg> Next</span></button>
+    </div>
+    <button onclick="saveLayout()" title="Save layout JSON"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save</span></button>
+    <button onclick="document.getElementById('load-li').click()" title="Load layout JSON"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Load layout</span></button>
+    <input type="file" id="load-li" accept=".json" style="display:none" onchange="loadLayout(this)">
+    <button onclick="resetApp()" title="New file"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> New</span></button>
+  </div>
+
+  <!-- Body -->
+  <div id="editor-body">
+    <!-- Canvas stack -->
+    <div id="canvas-wrap">
+      <canvas id="main-canvas"></canvas>
+      <canvas id="rooms-canvas"></canvas>
+      <canvas id="colour-overlay-canvas"></canvas>
+      <canvas id="sel-canvas"></canvas>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <!-- Rooms list panel -->
+      <div class="panel" id="sidebar-rooms" style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px;padding:.9rem 1rem">
+        <p style="font-size:13px;font-weight:600;color:var(--text)">Rooms</p>
+        <div class="tip" id="sidebar-tip" style="font-size:11px">Click to select · drag to move · handles to resize · ✏ Refine for pen tool</div>
         <div id="room-list"></div>
-        <div id="color-picker-row" style="display:none;flex-direction:column;gap:6px;padding:8px 0;border-top:0.5px solid #eee">
-          <p style="font-size:11px;font-weight:500;color:#555">Room fill colour</p>
-          <div style="display:flex;gap:5px;flex-wrap:wrap" id="color-swatches"></div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-            <input type="color" id="custom-color" value="#2563eb" style="width:28px;height:28px;border:none;background:none;cursor:pointer;padding:0" oninput="applyRoomColor(this.value)">
-            <span style="font-size:11px;color:#888">Custom colour</span>
-            <button onclick="clearRoomColor()" style="margin-left:auto;font-size:11px;padding:2px 8px">✕ Clear</button>
+      </div>
+
+      <!-- Bottom action panel -->
+      <div class="panel" id="action-bar">
+        <!-- Colour picker (always visible) -->
+        <div id="colour-panel">
+          <p style="font-size:11px;font-weight:600;color:var(--text-2)">Room fill colour</p>
+          <div class="colour-presets" id="color-swatches"></div>
+          <div style="display:flex;align-items:center;gap:7px;margin-top:2px">
+            <input type="color" id="custom-color" value="#ff6600" style="width:26px;height:26px;border:none;background:none;cursor:pointer;padding:0" oninput="applyRoomColor(this.value)">
+            <span style="font-size:11px;color:var(--text-3)">Custom</span>
+            <button onclick="clearRoomColor()" style="margin-left:auto;font-size:11px;padding:2px 8px"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Clear</span></button>
           </div>
         </div>
-        <div style="margin-top:auto;border-top:0.5px solid #eee;padding-top:8px;display:flex;flex-direction:column;gap:6px">
-          <button class="primary" onclick="downloadAll()" id="dl-btn">⬇ Download rooms ZIP (JPG)</button>
-          <button onclick="downloadFloorplan()" id="fp-btn" style="background:#0f766e;color:#fff;border-color:#0f766e">🗺 Download full floorplan (PNG)</button>
-          <p id="dl-status" style="font-size:11px;color:#666;text-align:center;min-height:16px"></p>
+
+        <!-- Colour mode hint -->
+        <div id="colour-mode-info">
+          Click any room on the floorplan to fill it. Click again to change or clear.
+        </div>
+
+        <!-- Legend box editor (colour mode only) -->
+        <div id="legend-editor" style="display:none;flex-direction:column;gap:6px;border-top:0.5px solid var(--glass-border);padding-top:8px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px;font-weight:600;color:var(--text-2)">Legend</span>
+            <span style="font-size:10px;color:var(--text-3)">(drag on map)</span>
+            <button onclick="addLegendItem()" style="margin-left:auto;font-size:10px;padding:2px 8px;color:var(--brand);border-color:rgba(255,102,0,0.3)"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add</span></button>
+          </div>
+          <div id="legend-items-list" style="display:flex;flex-direction:column;gap:3px;max-height:180px;overflow-y:auto"></div>
+        </div>
+
+        <div style="border-top:0.5px solid var(--glass-border);padding-top:8px;display:flex;flex-direction:column;gap:5px">
+          <button class="primary" onclick="downloadAll()" id="dl-btn"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download rooms (JPG)</span></button>
+          <button onclick="downloadFloorplan()" id="fp-btn" style="background:#0f766e;color:#fff;border-color:#0f766e"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg> Full floorplan (JPG)</span></button>
+          <p id="dl-status" style="font-size:11px;color:var(--text-3);text-align:center;min-height:14px"></p>
         </div>
       </div>
     </div>
-    <div class="tip"><strong>Tip:</strong> Click a room to select it, then <strong>✏ Refine with pen</strong> to trace the exact outline. In pen editor: <strong>click</strong> = corner point · <strong>click + drag</strong> = curve point (like Photoshop). Press <kbd>Delete</kbd> to remove selected room.</div>
   </div>
+
+  <div class="tip"><strong>Tip:</strong> Switch to <strong>Colour</strong> mode to quickly paint rooms by clicking on them. Switch back to ✏ Edit mode to adjust boxes or refine shapes. All colours are preserved in both modes.</div>
+</div>
 </div>
 
-<!-- new room popup -->
+<!-- Popups -->
 <div id="popup-bg" onclick="cancelNewRoom()"></div>
-<div id="popup">
+<div id="popup" class="glass" style="padding:1.25rem">
   <p style="font-size:14px;font-weight:500">Label this room</p>
-  <canvas id="pv-canvas" width="220" height="130" style="width:220px;height:130px"></canvas>
+  <canvas id="pv-canvas" width="220" height="130" style="width:220px;height:130px;border-radius:8px;border:0.5px solid var(--glass-border);background:#f8f8f8;display:block"></canvas>
   <input type="text" id="pinput" placeholder="e.g. 01  or  Reception"/>
   <div style="display:flex;gap:8px">
     <button class="primary" onclick="confirmNewRoom()" style="flex:1">Add room</button>
@@ -137,19 +397,30 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
   </div>
 </div>
 
-<!-- pen editor modal -->
+<!-- Room colour popup (colour mode) -->
+<div id="room-colour-popup">
+  <div class="pop-title" id="rcp-title">Room 01</div>
+  <div class="pop-swatches" id="rcp-swatches"></div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input type="color" id="rcp-custom" style="width:24px;height:24px;border:none;cursor:pointer;padding:0;background:none">
+    <span style="font-size:11px;color:var(--text-3)">Custom</span>
+    <button onclick="clearRoomColourPopup()" style="margin-left:auto;font-size:10px;padding:2px 7px;color:#888"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Clear</span></button>
+    <button onclick="closeRoomColourPopup()" style="font-size:10px;padding:2px 7px">Done</button>
+  </div>
+</div>
+
 <div id="edit-bg">
   <div id="edit-modal">
     <div id="edit-header">
-      <span style="font-size:12px;color:#aaa;flex-shrink:0">Room label:</span>
-      <input id="edit-room-name" type="text" value="" style="background:#3a3a3a;border:0.5px solid #555;border-radius:6px;color:#fff;font-size:13px;font-weight:500;padding:3px 8px;width:90px;font-family:inherit" title="Rename this room" />
-      <span id="edit-pts" style="color:#888;font-size:12px">0 pts</span>
+      <span style="font-size:12px;color:rgba(255,170,100,0.8);flex-shrink:0">Room label:</span>
+      <input id="edit-room-name" type="text" value="" style="background:rgba(255,102,0,0.15);border:0.5px solid rgba(255,102,0,0.3);border-radius:6px;color:#fff;font-size:13px;font-weight:500;padding:3px 8px;width:90px;font-family:inherit" />
+      <span id="edit-pts" style="color:rgba(255,255,255,0.4);font-size:12px">0 pts</span>
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-        <span style="font-size:11px;color:#777;padding:0 4px" id="edit-hint">Click=corner · Drag=curve · Drag point=move</span>
-        <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="undoPenPoint()">⌫ Undo <span style="opacity:.6">(Z)</span></button>
-        <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="clearPen()">✕ Clear</button>
-        <button class="eb green" id="pen-apply-btn" onclick="applyPen()" disabled>✓ Apply mask</button>
-        <button class="eb" style="background:#3a3a3a;color:#ddd" onclick="closeEditModal()">Cancel</button>
+        <span style="font-size:11px;color:rgba(255,255,255,0.35);padding:0 4px">Click=corner · Drag=curve · Drag point=move</span>
+        <button class="eb" style="background:rgba(255,255,255,0.1);color:#ddd;border:0.5px solid rgba(255,255,255,0.15)" onclick="undoPenPoint()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg> Undo</span></button>
+        <button class="eb" style="background:rgba(255,255,255,0.1);color:#ddd;border:0.5px solid rgba(255,255,255,0.15)" onclick="clearPen()"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Clear</span></button>
+        <button class="eb green" id="pen-apply-btn" onclick="applyPen()" disabled><span style="display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Apply mask</span></button>
+        <button class="eb" style="background:rgba(255,255,255,0.1);color:#ddd;border:0.5px solid rgba(255,255,255,0.15)" onclick="closeEditModal()">Cancel</button>
       </div>
     </div>
     <div id="edit-canvas-wrap">
@@ -157,9 +428,9 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
       <canvas id="edit-overlay"></canvas>
     </div>
     <div id="edit-footer">
-      <strong style="color:#bbb">Corner point:</strong> click a wall &nbsp;|&nbsp;
-      <strong style="color:#16a34a">Curve point:</strong> click + drag to set curve direction &nbsp;|&nbsp;
-      Click <span style="color:#16a34a">first point ✓</span> or press <kbd>Enter</kbd> to close &nbsp;|&nbsp;
+      <strong style="color:rgba(255,170,100,0.9)">Corner:</strong> click &nbsp;|&nbsp;
+      <strong style="color:#16a34a">Curve:</strong> click + drag &nbsp;|&nbsp;
+      Click <span style="color:#16a34a">first point ✓</span> or <kbd>Enter</kbd> to close &nbsp;|&nbsp;
       <kbd>Z</kbd> undo &nbsp;|&nbsp; <kbd>Esc</kbd> cancel
     </div>
   </div>
@@ -167,8 +438,9 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:#2563e
 
 <script type="module">
 import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.min.mjs';
-pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.worker.min.mjs';
-window._pdfjs=pdfjsLib;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.worker.min.mjs';
+window._pdfjs = pdfjsLib;
+window._pdfjsReady = true;
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
@@ -218,15 +490,29 @@ async function loadPDF(f){
   await renderPDFPage(1,true);
 }
 async function renderPDFPage(pageNum,autoDetect=false){
-  setProc(true,`Rendering page ${pageNum}/${totalPages}…`,50);
-  const page=await pdfDoc.getPage(pageNum);const vp=page.getViewport({scale:3.5});
-  const tmp=document.createElement('canvas');tmp.width=vp.width;tmp.height=vp.height;
-  await page.render({canvasContext:tmp.getContext('2d'),viewport:vp}).promise;
-  const img=new Image();await new Promise(res=>{img.onload=res;img.src=tmp.toDataURL('image/png');});
-  rooms=pageRooms[pageNum]||{};selectedRoom=null;setProc(true,'Processing…',82);
-  initCanvas(img);
-  if(autoDetect&&!Object.keys(rooms).length){setProc(true,'Detecting rooms…',92);await autoDetect2(page,vp);}
-  setProc(false);gotoEditor();updatePageNav();
+  try{
+    setProc(true,`Rendering page ${pageNum}/${totalPages}…`,50);
+    const page=await pdfDoc.getPage(pageNum);
+    const vp=page.getViewport({scale:3.5});
+    const tmp=document.createElement('canvas');tmp.width=vp.width;tmp.height=vp.height;
+    await page.render({canvasContext:tmp.getContext('2d'),viewport:vp}).promise;
+    const img=new Image();
+    await new Promise(res=>{img.onload=res;img.src=tmp.toDataURL('image/png');});
+    rooms=pageRooms[pageNum]||{};selectedRoom=null;
+    setProc(true,'Processing…',82);
+    initCanvas(img);
+    if(autoDetect&&!Object.keys(rooms).length){
+      setProc(true,'Detecting rooms…',92);
+      await autoDetect2(page,vp);
+    }
+    setProc(false);
+    gotoEditor();
+    updatePageNav();
+  } catch(err){
+    console.error('renderPDFPage error:',err);
+    setProc(false);
+    alert('Error loading PDF page: '+err.message);
+  }
 }
 
 // ── auto-detect ────────────────────────────────────────────────────────────
@@ -256,6 +542,9 @@ function initCanvas(img){
   for(const cv of[mainCanvas,roomsCanvas,selCanvas]){cv.width=origW;cv.height=origH;cv.style.width='100%';cv.style.height='auto';}
   mc.drawImage(img,0,0);buildWallMap();
   selCanvas.onmousedown=onDown;selCanvas.onmousemove=onMove;selCanvas.onmouseup=onUp;selCanvas.onmouseleave=onUp;
+  selCanvas.ontouchstart=e=>{e.preventDefault();onDown(t2m(e));};
+  selCanvas.ontouchmove=e=>{e.preventDefault();onMove(t2m(e));};
+  selCanvas.ontouchend=e=>{e.preventDefault();onUp({});};
   startAnim();
 }
 function buildWallMap(){
@@ -279,6 +568,7 @@ function snapToWall(ox,oy,radius=22){
   return best||[ox,oy];
 }
 
+function t2m(e){return{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY};}
 // ── box interaction ────────────────────────────────────────────────────────
 function coords(e){const r=selCanvas.getBoundingClientRect();return[Math.round(Math.max(0,Math.min(origW-1,(e.clientX-r.left)*origW/r.width))),Math.round(Math.max(0,Math.min(origH-1,(e.clientY-r.top)*origH/r.height)))];}
 function hRadius(){return Math.max(14,8*origW/selCanvas.getBoundingClientRect().width);}
@@ -374,7 +664,7 @@ function openPenEditor(){
   editCanvas.onmousedown=onPenDown;
   editCanvas.onmousemove=onPenMove;
   editCanvas.onmouseup=onPenUp;
-  editCanvas.onmouseleave=()=>{penSnap=null;penDragCurr=null;};
+  editCanvas.onmouseleave=()=>{penSnap=null;penDragCurr=null;penDragPtIdx=-1;penIsDragging=false;penDragStart=null;};
   startPenAnim();updatePenUI();
 }
 function closeEditModal(){
@@ -576,7 +866,7 @@ function redrawPen(){
     for(const pt of penPts){const[px,py]=o2e(pt.x,pt.y);if(Math.hypot(sx-px,sy-py)<14){nearPt=true;break;}}
     editCanvas.style.cursor=nearPt?'grab':'crosshair';
   }
-  if(penSnap&&!penIsDragging){
+  if(penSnap&&!penIsDragging&&penDragPtIdx<0){
     const[sx,sy]=penSnap;
     eo.beginPath();eo.moveTo(sx-7,sy);eo.lineTo(sx+7,sy);eo.moveTo(sx,sy-7);eo.lineTo(sx,sy+7);
     eo.strokeStyle='rgba(22,163,74,0.85)';eo.lineWidth=1.5;eo.stroke();
@@ -599,6 +889,30 @@ document.addEventListener('keydown',e=>{
 
 // ── draw rooms ─────────────────────────────────────────────────────────────
 function redrawRooms(){
+  // In colour mode: only draw fill overlays, no boxes/handles
+  if(appMode === 'colour'){
+    rc.clearRect(0,0,origW,origH);
+    for(const [lbl,room] of Object.entries(rooms)){
+      if(!room.fillColor) continue;
+      const fr=parseInt(room.fillColor.slice(1,3),16),fg=parseInt(room.fillColor.slice(3,5),16),fb=parseInt(room.fillColor.slice(5,7),16);
+      rc.save();
+      if(room.polygon&&room.polygon.length>=3){
+        rc.beginPath();rc.moveTo(room.polygon[0].x,room.polygon[0].y);
+        for(let i=0;i<room.polygon.length;i++){
+          const A=room.polygon[i],B=room.polygon[(i+1)%room.polygon.length];
+          if(A.hOut){rc.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}
+          else if(B.hIn){rc.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}
+          else{rc.lineTo(B.x,B.y);}
+        }
+        rc.closePath();
+      } else {
+        rc.beginPath();rc.rect(room.rect.x1,room.rect.y1,room.rect.x2-room.rect.x1,room.rect.y2-room.rect.y1);
+      }
+      rc.fillStyle=`rgba(${fr},${fg},${fb},0.30)`;rc.fill();
+      rc.restore();
+    }
+    return;
+  }
   rc.clearRect(0,0,origW,origH);
   const entries=Object.entries(rooms);
   const order=[...entries.filter(([l])=>l!==selectedRoom),...entries.filter(([l])=>l===selectedRoom)];
@@ -610,7 +924,6 @@ function redrawRooms(){
     if(room.polygon&&room.polygon.length>=3){
       // draw polygon/bezier overlay
       const r2=parseInt(col.slice(1,3),16),g2=parseInt(col.slice(3,5),16),b2=parseInt(col.slice(5,7),16);
-      const savedO2E=o2e;
       // inline draw using actual coords (no editScale, just 1:1 on rooms canvas)
       rc.save();
       rc.beginPath();
@@ -678,7 +991,7 @@ function renderList(){
     const colorSwatch = rm.fillColor
   ? `<span title="Fill: ${rm.fillColor}" style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${rm.fillColor};border:1.5px solid rgba(0,0,0,0.15);flex-shrink:0;margin-left:1px"></span>`
   : `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px dashed #ccc;flex-shrink:0;margin-left:1px" title="No fill colour"></span>`;
-d.innerHTML=`<span class="dot" style="background:${gc(rm.colorIdx)}"></span><span class="lbl">${rm.label}</span><span class="tag">${rm.type}</span>${colorSwatch}<span class="redit" title="Refine with pen">✏</span><span class="rdel" title="Remove">✕</span>`;
+d.innerHTML=`<span class="dot" style="background:${gc(rm.colorIdx)}"></span><span class="lbl">${rm.label}</span><span class="tag">${rm.type}</span>${colorSwatch}<span class="redit" title="Refine">&#9999;</span><span class="rdel" title="Remove">&times;</span>`;
     d.querySelector('.rdel').onclick=ev=>{ev.stopPropagation();delete rooms[k];if(k===selectedRoom)selectedRoom=null;if(pdfDoc)pageRooms[currentPage]=rooms;redrawRooms();renderList();updateBadge();updatePenBtn();};
     d.querySelector('.redit').onclick=ev=>{ev.stopPropagation();selectedRoom=k;redrawRooms();renderList();updatePenBtn();openPenEditor();};
     d.onclick=()=>{selectedRoom=(selectedRoom===k)?null:k;redrawRooms();renderList();updatePenBtn();showColorPicker();};
@@ -690,7 +1003,7 @@ function updatePenBtn(){document.getElementById('btn-pen').style.display=selecte
 function setStatus(m){document.getElementById('status').textContent=m;}
 
 // ── page nav ───────────────────────────────────────────────────────────────
-async function changePage(dir){if(!pdfDoc)return;pageRooms[currentPage]=rooms;selectedRoom=null;const np=currentPage+dir;if(np<1||np>totalPages)return;currentPage=np;setProc(true,`Loading page ${np}…`,40);await renderPDFPage(np,true);}
+async function changePage(dir){if(!pdfDoc)return;pageRooms[currentPage]=rooms;selectedRoom=null;document.getElementById('color-picker-row').style.display='none';const np=currentPage+dir;if(np<1||np>totalPages)return;currentPage=np;setProc(true,`Loading page ${np}…`,40);await renderPDFPage(np,true);}
 function updatePageNav(){document.getElementById('page-lbl').textContent=`${currentPage}/${totalPages}`;document.getElementById('pbtn-prev').disabled=currentPage<=1;document.getElementById('pbtn-next').disabled=currentPage>=totalPages;}
 
 // ── export as JPG ──────────────────────────────────────────────────────────
@@ -730,12 +1043,20 @@ async function downloadAll(){
     } else {
       ctx.drawImage(img,rx1,ry1,cw,ch,0,0,cw,ch);
     }
+    // paint fill colour overlay onto individual export
+    if(room.fillColor){
+      const fr=parseInt(room.fillColor.slice(1,3),16),fg=parseInt(room.fillColor.slice(3,5),16),fb=parseInt(room.fillColor.slice(5,7),16);
+      ctx.save();
+      if(room.polygon&&room.polygon.length>=3){drawPolyPath(ctx,room.polygon,rx1,ry1);}
+      else{ctx.beginPath();ctx.rect(0,0,cw,ch);}
+      ctx.fillStyle=`rgba(${fr},${fg},${fb},0.30)`;ctx.fill();ctx.restore();
+    }
     const blob=await new Promise(res=>tmp.toBlob(res,'image/jpeg',0.93));
     zip.file(pg?`p${pg}_room_${room.label}.jpg`:`room_${room.label}.jpg`,blob);await wait(0);
   }
   const content=await zip.generateAsync({type:'blob'});
   const a=document.createElement('a');a.href=URL.createObjectURL(content);a.download='rooms.zip';a.click();
-  btn.disabled=false;status.textContent=`✓ ${jobs.length} rooms exported as JPG`;
+  btn.disabled=false;status.textContent=`${jobs.length} rooms exported as JPG`;
 }
 
 // ── misc ───────────────────────────────────────────────────────────────────
@@ -744,22 +1065,66 @@ function gotoEditor(){
   document.getElementById('step-editor').classList.add('active');
   redrawRooms();renderList();updateBadge();updatePenBtn();
   setStatus('Click a room to select · drag handles to resize · ✏ Refine for precise pen editing');
+  // apply any pending layout from Google Sheets
+  if(pendingLayout){
+    try{
+      const data = pendingLayout; pendingLayout = null;
+      if(data.version && data.pages){
+        if(pdfDoc){
+          pageRooms={};
+          for(const[pg,rms]of Object.entries(data.pages)){
+            const pgNum=parseInt(pg); pageRooms[pgNum]={};
+            for(const rm of rms) pageRooms[pgNum][rm.label]=rm;
+          }
+          rooms=pageRooms[currentPage]||{};
+        } else {
+          rooms={};
+          const firstPage=Object.values(data.pages)[0]||[];
+          for(const rm of firstPage) rooms[rm.label]=rm;
+        }
+        const allIdxs=Object.values(rooms).map(r=>r.colorIdx||0);
+        colorCounter=allIdxs.length?Math.max(...allIdxs)+1:0;
+        selectedRoom=null;
+        redrawRooms();renderList();updateBadge();updatePenBtn();
+        setStatus(`Layout restored from sheet — ${Object.keys(rooms).length} rooms`);
+        setTimeout(()=>setStatus(''),3000);
+      }
+    } catch(e){ console.warn('pendingLayout apply failed',e); }
+  }
+  // Init colour mode UI
+  if(typeof buildSwatches==='function') buildSwatches();
+  if(typeof renderLegendItemsList==='function') renderLegendItemsList();
 }
 
 
 // ── room fill colour ───────────────────────────────────────────────────────
+// Colour mode legend colours (matches Apr/May/Jun/Jul/Pre-sold/NDD palette)
 const PRESET_COLORS = [
-  '#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6'
+  {color:'#4ade80', label:'Apr-2026'},
+  {color:'#facc15', label:'May-2026'},
+  {color:'#60a5fa', label:'Jun-2026'},
+  {color:'#fb923c', label:'Jul-2026'},
+  {color:'#f87171', label:'Pre sold'},
+  {color:'#a8956a', label:'NDD not due'},
 ];
 
 function buildSwatches(){
   const wrap = document.getElementById('color-swatches');
+  if(!wrap) return;
   wrap.innerHTML = '';
-  for(const c of PRESET_COLORS){
-    const btn = document.createElement('button');
-    btn.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:${c};cursor:pointer;box-shadow:0 0 0 1px #ccc;padding:0;flex-shrink:0`;
-    btn.title = c;
-    btn.onclick = () => applyRoomColor(c);
+  const current = document.getElementById('custom-color')?.value || '';
+  for(const p of PRESET_COLORS){
+    const c = p.color || p;
+    const btn = document.createElement('div');
+    btn.className = 'cp-swatch' + (c===current?' active':'');
+    btn.style.background = c;
+    btn.title = p.label||c;
+    btn.onclick = () => {
+      document.getElementById('custom-color').value = c;
+      document.querySelectorAll('.cp-swatch').forEach(s=>s.classList.remove('active'));
+      btn.classList.add('active');
+      applyRoomColor(c);
+    };
     wrap.appendChild(btn);
   }
 }
@@ -768,14 +1133,15 @@ function applyRoomColor(hex){
   if(!selectedRoom || !rooms[selectedRoom]) return;
   rooms[selectedRoom].fillColor = hex;
   if(pdfDoc) pageRooms[currentPage] = rooms;
-  redrawRooms();
+  redrawRooms(); renderList();
 }
 
 function clearRoomColor(){
   if(!selectedRoom || !rooms[selectedRoom]) return;
   delete rooms[selectedRoom].fillColor;
+  document.getElementById('custom-color').value = '#2563eb';
   if(pdfDoc) pageRooms[currentPage] = rooms;
-  redrawRooms();
+  redrawRooms(); renderList();
 }
 
 function showColorPicker(){
@@ -784,7 +1150,7 @@ function showColorPicker(){
   row.style.display='flex';
   buildSwatches();
   const rm = rooms[selectedRoom];
-  if(rm && rm.fillColor) document.getElementById('custom-color').value = rm.fillColor;
+  document.getElementById('custom-color').value = (rm && rm.fillColor) ? rm.fillColor : '#2563eb';
 }
 
 // ── download full floorplan ────────────────────────────────────────────────
@@ -845,13 +1211,13 @@ async function downloadFloorplan(){
   }
 
   // Export as high-res PNG
-  const blob = await new Promise(res => out.toBlob(res, 'image/png'));
+  const blob = await new Promise(res => out.toBlob(res, 'image/jpeg', 0.93));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'floorplan-coloured.png';
+  a.download = 'floorplan-coloured.jpg';
   a.click();
   btn.disabled = false;
-  status.textContent = `✓ Full floorplan exported (${w}×${h}px)`;
+  status.textContent = `Floorplan exported (${w}×${h}px)`;
   setTimeout(() => status.textContent = '', 4000);
 }
 
@@ -872,7 +1238,8 @@ function saveLayout(){
     isPDF: !!pdfDoc,
     totalPages,
     imageSize: { width: origW, height: origH },
-    pages: allRooms
+    pages: allRooms,
+    colourMode: { levelNum, legendItems, legendPos, legendScale }
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
@@ -880,7 +1247,7 @@ function saveLayout(){
   a.href = URL.createObjectURL(blob);
   a.download = 'floorplan-layout.json';
   a.click();
-  setStatus(`✓ Layout saved — ${totalRooms} rooms`);
+  setStatus(`Layout saved — ${totalRooms} rooms`);
   setTimeout(()=>setStatus(''), 3000);
 }
 
@@ -915,18 +1282,34 @@ function loadLayout(input){
           for(const rm of rms) pageRooms[pgNum][rm.label] = rm;
         }
         rooms = pageRooms[currentPage] || {};
+        const allIdxs = Object.values(pageRooms).flatMap(pr=>Object.values(pr).map(r=>r.colorIdx||0));
+        colorCounter = allIdxs.length ? Math.max(...allIdxs) + 1 : 0;
       } else {
         rooms = {};
         const firstPage = Object.values(data.pages)[0] || [];
         for(const rm of firstPage) rooms[rm.label] = rm;
         // restore colorCounter
-        colorCounter = Math.max(...Object.values(rooms).map(r=>r.colorIdx||0)) + 1;
+        const idxs = Object.values(rooms).map(r=>r.colorIdx||0);
+        colorCounter = idxs.length ? Math.max(...idxs) + 1 : 0;
       }
 
       selectedRoom = null;
+      // Restore colour mode state if present
+      if(data.colourMode){
+        if(data.colourMode.levelNum !== undefined) levelNum = data.colourMode.levelNum;
+        if(data.colourMode.legendItems) legendItems = data.colourMode.legendItems;
+        if(data.colourMode.legendPos) legendPos = data.colourMode.legendPos;
+        if(data.colourMode.legendScale) legendScale = data.colourMode.legendScale;
+        const li = document.getElementById('level-input');
+        if(li) li.value = levelNum;
+        const ls = document.getElementById('legend-scale-slider');
+        if(ls) ls.value = legendScale;
+        renderLegendItemsList();
+        if(appMode==='colour') redrawColourOverlay();
+      }
       redrawRooms(); renderList(); updateBadge(); updatePenBtn();
       const total = Object.values(rooms).length;
-      setStatus(`✓ Layout loaded — ${total} rooms restored`);
+      setStatus(`Layout loaded — ${total} rooms restored`);
       setTimeout(()=>setStatus(''), 3000);
     } catch(err){
       alert('Failed to parse layout file: ' + err.message);
@@ -942,13 +1325,731 @@ function resetApp(){
   document.getElementById('step-editor').classList.remove('active');
   document.getElementById('step-upload').classList.add('active');
   document.getElementById('page-nav').style.display='none';
-  document.getElementById('btn-pen').style.display='none';setProc(false);
+  document.getElementById('btn-pen').style.display='none';
+  document.getElementById('color-picker-row').style.display='none';
+  setProc(false);
 }
+
+
+// ── Location picker (Google Sheets) ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION — Edit this section to update sheet source or add countries
+// ═══════════════════════════════════════════════════════════════════════════
+
+// The published Google Sheet ID (from File → Share → Publish to web)
+// To update: replace the string below with your new published sheet ID
+// Your sheet URL looks like: https://docs.google.com/spreadsheets/d/e/PUBID/pubhtml
+const SHEET_PUB_ID = '2PACX-1vSvcrpAkLzgXwtlCQvysASc983Caks7zFUu_8lygudCH9r4nOrNrYcWhhEj2CASc5Du1GWQyy7WqxZJ';
+
+// Country tabs — each entry is one sheet tab in your Google Sheet
+// To add a country:  add a new line following the same format
+// To remove:         delete the line
+// To reorder:        move lines up/down
+// gid: find this in the tab's URL when you click it (?gid=XXXXXXX)
+const COUNTRIES = [
+  { code:'HK', flag:'🇭🇰', name:'Hong Kong',  gid: 0          },
+  { code:'JP', flag:'🇯🇵', name:'Japan',       gid: 950099932  },
+  { code:'AU', flag:'🇦🇺', name:'Australia',   gid: 408509551  },
+  { code:'VN', flag:'🇻🇳', name:'Vietnam',     gid: 234333070  },
+  { code:'SG', flag:'🇸🇬', name:'Singapore',   gid: 1294236502 },
+  { code:'PH', flag:'🇵🇭', name:'Philippines', gid: 618007799  },
+];
+
+// Column mapping — which column in your sheet contains what
+// 0 = column A, 1 = column B, 2 = column C
+// Change these if you rearrange your sheet columns
+const COL_NAME    = 0;   // Location name
+const COL_PDF     = 1;   // PDF / image file URL (Google Drive share link)
+const COL_LAYOUT  = 2;   // Saved layout JSON URL (optional, leave blank if none)
+
+// Header row — set to true if row 1 of your sheet is a header (Location / PDF / JSON)
+const HAS_HEADER  = true;
+
+// Google Drive API Key — required to download files from Google Drive
+// Without this, file loading will not work.
+//
+// HOW TO GET A FREE API KEY (5 minutes):
+//   1. Go to https://console.cloud.google.com and sign in
+//   2. Click "Select a project" → "New Project" → create it
+//   3. In the search bar, search "Google Drive API" → Enable it
+//   4. Go to "APIs & Services" → "Credentials" → "+ Create Credentials" → "API Key"
+//   5. Copy the key and paste it below (between the quotes)
+//   6. Optional: click "Restrict Key" → HTTP referrers → add your website domain
+//
+const DRIVE_API_KEY = 'AIzaSyB_L3zHTT-hBIVcM5CL5JV_Ai7insf-nRY';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// END CONFIGURATION — do not edit below unless you know what you're doing
+// ═══════════════════════════════════════════════════════════════════════════
+let sheetData = {};       // {HK:[{name,pdfUrl,jsonUrl},...], ...}
+let activeCountry = null;
+let pendingLayout = null;
+
+// Auto-load on page ready
+document.addEventListener('DOMContentLoaded', () => { loadAllTabs(); });
+
+async function loadAllTabs(){
+  setLocStatus('<span class="spin"></span> Loading sheet data…');
+  let loaded = 0;
+  const errors = [];
+  await Promise.all(COUNTRIES.map(async c => {
+    try{
+      // Fetch this tab's CSV using its GID (more reliable than sheet name)
+      const url = `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_ID}/pub?gid=${c.gid}&single=true&output=csv`;
+      const resp = await fetch(url);
+      if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      const rows = parseCSV(text);
+      // Skip header row if configured
+      const dataRows = HAS_HEADER ? rows.slice(1) : rows;
+      sheetData[c.code] = dataRows
+        .filter(r => r[COL_NAME] && r[COL_NAME].trim())
+        .map(r => ({
+          name:    (r[COL_NAME]   ||'').replace(/^"|"$/g,'').trim(),
+          pdfUrl:  (r[COL_PDF]    ||'').replace(/^"|"$/g,'').trim(),
+          jsonUrl: (r[COL_LAYOUT] ||'').replace(/^"|"$/g,'').trim(),
+        }));
+      loaded++;
+    } catch(e){
+      errors.push(c.code);
+      sheetData[c.code] = [];
+    }
+  }));
+  buildCountryTabs();
+  if(loaded > 0){
+    // auto-select first country that has data
+    const first = COUNTRIES.find(c => sheetData[c.code]?.length > 0);
+    if(first) selectCountry(first.code);
+    const total = Object.values(sheetData).flat().length;
+    setLocStatus(`${total} locations loaded · click a location to open it`);
+  } else {
+    setLocStatus('Error: Could not load sheet data. Check the sheet is published to web.', true);
+  }
+}
+
+function buildCountryTabs(){
+  const wrap = document.getElementById('country-tabs');
+  wrap.innerHTML = '';
+  for(const c of COUNTRIES){
+    const count = sheetData[c.code]?.length || 0;
+    const btn = document.createElement('div');
+    btn.className = 'ctab';
+    btn.id = `ctab-${c.code}`;
+    btn.innerHTML = `<span class="cflag">${c.flag}</span>${c.code}<span class="ccount">${count}</span>`;
+    btn.onclick = () => selectCountry(c.code);
+    if(count === 0) btn.style.opacity = '0.4';
+    wrap.appendChild(btn);
+  }
+}
+
+function selectCountry(code){
+  activeCountry = code;
+  document.querySelectorAll('.ctab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById(`ctab-${code}`);
+  if(tab) tab.classList.add('active');
+  document.getElementById('loc-search-wrap').style.display = '';
+  document.getElementById('loc-search').value = '';
+  filterLocations('');
+}
+
+function filterLocations(query){
+  const items = sheetData[activeCountry] || [];
+  const q = query.toLowerCase().trim();
+  const filtered = q ? items.filter(i => i.name.toLowerCase().includes(q)) : items;
+  renderLocList(filtered);
+}
+
+function renderLocList(items){
+  const listEl = document.getElementById('loc-list');
+  const loadingEl = document.getElementById('loc-loading');
+  const emptyEl = document.getElementById('loc-empty');
+  loadingEl.style.display = 'none';
+  listEl.style.display = '';
+  listEl.innerHTML = '';
+  if(!items.length){
+    emptyEl.style.display = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  for(const item of items){
+    const div = document.createElement('div');
+    div.className = 'loc-item';
+    const hasLayout = !!item.jsonUrl;
+    const hasPDF = !!item.pdfUrl;
+    div.innerHTML = `
+      <span class="li-icon" style="display:inline-flex;align-items:center;opacity:0.4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="1"/><path d="M9 22V12h6v10"/><path d="M9 6h1m4 0h1M9 10h1m4 0h1"/></svg></span>
+      <span class="li-name">${item.name}</span>
+      ${hasPDF ? `<span class="li-badge">${item.pdfUrl.includes('drive.google.com')||item.pdfUrl.includes('.pdf')?'PDF':'File'}</span>` : ''}
+      ${hasLayout ? '<span class="li-badge has-layout">+ layout</span>' : ''}
+      <span class="li-arrow">→</span>`;
+    div.onclick = () => loadLocation(item, div);
+    listEl.appendChild(div);
+  }
+}
+
+async function loadLocation(item, el){
+  if(!item.pdfUrl){ alert('No file URL for this location.'); return; }
+
+  // Check API key is configured if this is a Drive link
+  const isDriveUrl = item.pdfUrl.includes('drive.google.com') || item.pdfUrl.includes('drive.usercontent.google.com');
+  if(!DRIVE_API_KEY && isDriveUrl){
+    showApiKeySetup();
+    return;
+  }
+
+  el.classList.add('loading');
+  setLocStatus('<span class="spin"></span> Downloading ' + item.name + '…');
+  try{
+    // Step 1: fetch the PDF/image via Drive API
+    const fetchUrl = driveFetchUrl(item.pdfUrl);
+    const resp = await fetch(fetchUrl);
+    if(!resp.ok){
+      const body = await resp.text().catch(()=>'');
+      if(resp.status === 403) throw new Error(`403 — Check the file is shared as "Anyone with the link" and the API key is correct`);
+      if(resp.status === 404) throw new Error(`404 — File not found. Check the Drive link is correct`);
+      throw new Error(`HTTP ${resp.status}: ${body.slice(0,80)}`);
+    }
+    const blob = await resp.blob();
+
+    // Step 2: determine file type
+    const isPDF = blob.type === 'application/pdf'
+      || item.pdfUrl.toLowerCase().includes('.pdf')
+      || blob.type === 'application/octet-stream';
+    const mimeType = isPDF ? 'application/pdf' : blob.type;
+    const ext = isPDF ? '.pdf' : (blob.type.includes('png') ? '.png' : '.jpg');
+    const file = new File([blob], item.name + ext, {type: mimeType});
+
+    // Step 3: fetch JSON layout if available
+    if(item.jsonUrl && item.jsonUrl.trim()){
+      try{
+        const jUrl = driveFetchUrl(item.jsonUrl);
+        if(jUrl){
+          const jr = await fetch(jUrl);
+          if(jr.ok) pendingLayout = await jr.json();
+        }
+      } catch(e){ console.warn('Layout JSON load failed:', e); }
+    }
+
+    el.classList.remove('loading');
+    el.classList.add('loaded');
+    setLocStatus('Loaded: ' + item.name);
+    handleFile(file);
+  } catch(err){
+    el.classList.remove('loading');
+    setLocStatus('Error: ' + err.message, true);
+  }
+}
+
+// Show a helpful setup panel when no API key is configured
+function showApiKeySetup(){
+  document.getElementById('loc-list-wrap').innerHTML = `
+    <div style="padding:1.25rem;display:flex;flex-direction:column;gap:12px">
+      <p style="font-weight:500;font-size:14px;color:#1a1a1a"><span style="display:inline-flex;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> One-time setup required</p>
+      <p style="font-size:13px;color:#555;line-height:1.6">
+        A free Google Drive API key is needed to download files. It takes about 5 minutes to set up.
+      </p>
+      <ol style="font-size:13px;color:#444;line-height:2;padding-left:1.25rem">
+        <li>Go to <a href="https://console.cloud.google.com" target="_blank" style="color:#2563eb">console.cloud.google.com</a> and sign in</li>
+        <li>Create a new project (any name)</li>
+        <li>Search <strong>"Google Drive API"</strong> → Enable it</li>
+        <li>Go to <strong>APIs &amp; Services → Credentials → + Create Credentials → API Key</strong></li>
+        <li>Copy the key, then open this HTML file in a text editor</li>
+        <li>Find <code style="background:#f0f0ee;padding:1px 5px;border-radius:3px">const DRIVE_API_KEY = ''</code> and paste your key inside the quotes</li>
+        <li>Save and reload the page</li>
+      </ol>
+      <div style="background:#fffbeb;border:0.5px solid #fcd34d;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e">
+        <strong>Tip:</strong> Restrict the API key to your website domain in Google Cloud Console for better security.
+      </div>
+      <button class="primary" onclick="location.reload()" style="align-self:flex-start"><span style="display:inline-flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> Reload after adding key</span></button>
+    </div>`;
+}
+
+function setLocStatus(html, isError=false){
+  const el = document.getElementById('loc-status');
+  el.innerHTML = html;
+  el.style.color = isError ? '#c0392b' : '#666';
+}
+
+// ── Drive URL helpers ─────────────────────────────────────────────────────
+
+// Extracts the Google Drive file ID from any share link format
+function driveFileId(url){
+  if(!url) return null;
+  for(const p of [/\/file\/d\/([a-zA-Z0-9_-]+)/, /id=([a-zA-Z0-9_-]+)/]){
+    const m = url.match(p); if(m) return m[1];
+  }
+  return null;
+}
+
+// Returns a fetch-able, CORS-friendly URL for a file.
+// Handles Google Drive (needs API key), Dropbox, GitHub, and plain URLs.
+function driveFetchUrl(url){
+  if(!url || !url.trim()) return null;
+  url = url.trim();
+
+  // ── Dropbox ─────────────────────────────────────────────────────────────
+  // Change ?dl=0 → ?dl=1 to get a direct download with CORS headers
+  if(url.includes('dropbox.com')){
+    return url.replace('?dl=0','?dl=1').replace('www.dropbox.com','dl.dropboxusercontent.com');
+  }
+
+  // ── GitHub ───────────────────────────────────────────────────────────────
+  // Convert github.com file view URLs to raw.githubusercontent.com
+  if(url.includes('github.com') && !url.includes('raw.githubusercontent.com')){
+    return url
+      .replace('github.com','raw.githubusercontent.com')
+      .replace('/blob/','/')
+      .replace('/raw/','/');;
+  }
+
+  // ── Google Drive ─────────────────────────────────────────────────────────
+  // Requires a Drive API key in the config section above.
+  if(url.includes('drive.google.com') || url.includes('drive.usercontent.google.com')){
+    const id = driveFileId(url);
+    if(!id) return url;
+    if(!DRIVE_API_KEY) return null; // will trigger setup instructions
+    return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${DRIVE_API_KEY}`;
+  }
+
+  // ── Any other public URL ──────────────────────────────────────────────────
+  // Returned as-is — works for any host that sends CORS headers
+  return url;
+}
+
+function parseCSV(text){
+  const rows = [];
+  for(const line of text.split('\n')){
+    if(!line.trim()) continue;
+    const cols = []; let cur='', inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){inQ=!inQ;}
+      else if(ch===','&&!inQ){cols.push(cur.trim());cur='';}
+      else{cur+=ch;}
+    }
+    cols.push(cur.trim());
+    rows.push(cols);
+  }
+  return rows;
+}
+
+// ── Colour mode ──────────────────────────────────────────────────────────
+let appMode = 'edit';
+let levelNum = '';
+let colourPickerRoom = null;
+let legendItems = [];
+let legendPos = null;     // {x,y} canvas coords
+let legendScale = 180;    // width of legend box in canvas px
+let legendDragging = false;
+let legendDragOff = {x:0,y:0};
+let rcpRoom = null;       // room label currently in popup
+
+const colourOverlayCanvas = document.getElementById('colour-overlay-canvas');
+const coc = colourOverlayCanvas.getContext('2d');
+const LEGEND_ITEM_H_BASE = 38; // item height at scale 180
+const LEGEND_PAD_BASE = 12;
+
+function legendItemH(){ return Math.round(LEGEND_ITEM_H_BASE * legendScale/180); }
+function legendPad(){ return Math.round(LEGEND_PAD_BASE * legendScale/180); }
+function legendFontSize(){ return Math.max(10, Math.round(14 * legendScale/180)); }
+
+// ── Mode switch ───────────────────────────────────────────────────────────
+function setMode(m){
+  appMode = m;
+  document.getElementById('btn-edit-mode').classList.toggle('active', m==='edit');
+  document.getElementById('btn-colour-mode').classList.toggle('active', m==='colour');
+  const sc = document.getElementById('sel-canvas');
+  const modeInfo = document.getElementById('colour-mode-info');
+  const penBtn = document.getElementById('btn-pen');
+  const legendEditor = document.getElementById('legend-editor');
+  const levelWrap = document.getElementById('level-wrap');
+  const legendScaleWrap = document.getElementById('legend-scale-wrap');
+  const tip = document.getElementById('sidebar-tip');
+  if(m === 'colour'){
+    sc.classList.add('colour-cursor');
+    sc.onmousedown = onColourDown;
+    sc.onmousemove = onColourMove;
+    sc.onmouseup = onColourUp;
+    sc.onmouseleave = ()=>{legendDragging=false;};
+    tip.textContent = 'Click any room to fill it with colour. Drag the legend box to reposition.';
+    modeInfo.classList.add('show');
+    legendEditor.style.display = 'flex';
+    levelWrap.style.display = 'flex';
+    legendScaleWrap.style.display = 'flex';
+    penBtn.style.display = 'none';
+    selectedRoom = null;
+    if(!legendItems.length) initLegendFromPresets();
+    redrawRooms();
+    renderColourModeList();
+    renderLegendItemsList();
+    redrawColourOverlay();
+    closeRoomColourPopup();
+  } else {
+    sc.classList.remove('colour-cursor');
+    sc.onmousedown = onDown;
+    sc.onmousemove = onMove;
+    sc.onmouseup = onUp;
+    sc.onmouseleave = onUp;
+    tip.textContent = 'Click to select · drag to move · handles to resize · ✏ Refine for pen tool';
+    modeInfo.classList.remove('show');
+    legendEditor.style.display = 'none';
+    levelWrap.style.display = 'none';
+    legendScaleWrap.style.display = 'none';
+    coc.clearRect(0,0,colourOverlayCanvas.width,colourOverlayCanvas.height);
+    closeRoomColourPopup();
+    updatePenBtn();
+    redrawRooms();
+    renderList();
+  }
+}
+
+// colour mode rendering is handled inside the original redrawRooms below
+
+// ── Legend helpers ────────────────────────────────────────────────────────
+function initLegendFromPresets(){
+  legendItems = PRESET_COLORS.map(p=>({color:p.color||p, text:p.label||''}));
+  legendPos = null;
+}
+
+function getLegendPos(){
+  if(!legendPos && origW && origH){
+    const bh = legendItems.length * legendItemH() + legendPad()*2;
+    return {x: origW - legendScale - 30, y: Math.max(20,(origH-bh)/2)};
+  }
+  return legendPos || {x:20, y:20};
+}
+
+function legendBBox(){
+  const pos = getLegendPos();
+  const h = legendItems.length * legendItemH() + legendPad()*2;
+  return {x:pos.x, y:pos.y, w:legendScale, h};
+}
+
+function hitLegend(cx,cy){
+  if(!legendItems.length) return false;
+  const bb = legendBBox();
+  return cx>=bb.x && cx<=bb.x+bb.w && cy>=bb.y && cy<=bb.y+bb.h;
+}
+
+function addLegendItem(){
+  const col = document.getElementById('custom-color')?.value || '#4ade80';
+  const label = prompt('Label for this colour (e.g. Aug-2026):', '') || '';
+  legendItems.push({color:col, text:label});
+  renderLegendItemsList();
+  redrawColourOverlay();
+}
+
+function removeLegendItem(idx){
+  legendItems.splice(idx,1);
+  renderLegendItemsList();
+  redrawColourOverlay();
+}
+
+function renderLegendItemsList(){
+  const list = document.getElementById('legend-items-list');
+  if(!list) return;
+  list.innerHTML = '';
+  legendItems.forEach((item,i)=>{
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:5px;padding:2px 0';
+    row.innerHTML=`
+      <div style="width:14px;height:14px;border-radius:50%;background:${item.color};flex-shrink:0;border:1.5px solid rgba(0,0,0,0.1)"></div>
+      <input type="text" value="${item.text}" placeholder="Label…"
+        style="flex:1;font-size:11px;padding:2px 5px;border-radius:4px;border:0.5px solid rgba(0,0,0,0.1);min-width:0"
+        oninput="legendItems[${i}].text=this.value;redrawColourOverlay()">
+      <input type="color" value="${item.color}" style="width:18px;height:18px;border:none;cursor:pointer;padding:0;background:none;flex-shrink:0"
+        oninput="legendItems[${i}].color=this.value;renderLegendItemsList();redrawColourOverlay()">
+      <button onclick="removeLegendItem(${i})" style="font-size:9px;padding:1px 4px;color:#aaa;border-color:#ddd;flex-shrink:0">✕</button>`;
+    list.appendChild(row);
+  });
+}
+
+// ── Canvas pointer — colour + legend drag ─────────────────────────────────
+function canvasPt(e){
+  const rect = selCanvas.getBoundingClientRect();
+  return [Math.round((e.clientX-rect.left)*origW/rect.width), Math.round((e.clientY-rect.top)*origH/rect.height)];
+}
+
+function buildHitCanvas(){
+  const hc2 = document.createElement('canvas');
+  hc2.width=origW; hc2.height=origH;
+  const ctx2=hc2.getContext('2d');
+  const idMap={};let idx=1;
+  for(const [lbl,room] of Object.entries(rooms)){
+    idMap[idx]=lbl;ctx2.fillStyle=`rgb(${idx},0,0)`;
+    if(room.polygon&&room.polygon.length>=3){
+      ctx2.beginPath();ctx2.moveTo(room.polygon[0].x,room.polygon[0].y);
+      for(let i=0;i<room.polygon.length;i++){const A=room.polygon[i],B=room.polygon[(i+1)%room.polygon.length];if(A.hOut){ctx2.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}else if(B.hIn){ctx2.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}else{ctx2.lineTo(B.x,B.y);}}
+      ctx2.closePath();
+    } else {const r=room.rect;ctx2.fillRect(r.x1,r.y1,r.x2-r.x1,r.y2-r.y1);}
+    idx++;
+  }
+  return{hc:ctx2,idMap};
+}
+
+function onColourDown(e){
+  const [cx,cy]=canvasPt(e);
+  if(hitLegend(cx,cy)){
+    const pos=getLegendPos();
+    legendDragging=true;
+    legendDragOff={x:cx-pos.x,y:cy-pos.y};
+    selCanvas.style.cursor='grabbing';
+    return;
+  }
+  const {hc,idMap}=buildHitCanvas();
+  const px=hc.getImageData(cx,cy,1,1).data;
+  const lbl=idMap[px[0]];
+  if(!lbl){closeRoomColourPopup();return;}
+  // Open popup at click position
+  openRoomColourPopup(lbl, e.clientX, e.clientY);
+}
+
+function onColourMove(e){
+  if(!legendDragging)return;
+  const [cx,cy]=canvasPt(e);
+  legendPos={x:Math.max(0,cx-legendDragOff.x),y:Math.max(0,cy-legendDragOff.y)};
+  redrawColourOverlay();
+}
+
+function onColourUp(){ if(legendDragging){legendDragging=false;selCanvas.style.cursor='crosshair';} }
+
+// ── Room colour popup ─────────────────────────────────────────────────────
+function openRoomColourPopup(lbl, clientX, clientY){
+  rcpRoom = lbl;
+  const popup = document.getElementById('room-colour-popup');
+  const room = rooms[lbl];
+  const roomLabel = levelNum ? `${levelNum}${lbl}` : lbl;
+  document.getElementById('rcp-title').textContent = `Room ${roomLabel}`;
+  // Build swatches
+  const sw = document.getElementById('rcp-swatches');
+  sw.innerHTML='';
+  const curCol = room?.fillColor||'';
+  PRESET_COLORS.forEach(p=>{
+    const c=p.color||p;
+    const d=document.createElement('div');
+    d.className='pop-swatch'+(c===curCol?' sel':'');
+    d.style.background=c;
+    d.title=p.label||c;
+    d.onclick=()=>applyColourToRoom(lbl,c);
+    sw.appendChild(d);
+  });
+  const cc=document.getElementById('rcp-custom');
+  if(cc){cc.value=curCol||'#ff6600';cc.oninput=()=>applyColourToRoom(lbl,cc.value);}
+  // Position popup near click, keep on screen
+  const pw=200,ph=120;
+  let px=clientX+12, py=clientY-30;
+  if(px+pw>window.innerWidth-10) px=clientX-pw-12;
+  if(py+ph>window.innerHeight-10) py=window.innerHeight-ph-10;
+  popup.style.left=px+'px'; popup.style.top=py+'px';
+  popup.classList.add('show');
+}
+
+function applyColourToRoom(lbl,col){
+  if(!rooms[lbl])return;
+  rooms[lbl].fillColor=col;
+  if(pdfDoc)pageRooms[currentPage]=rooms;
+  colourPickerRoom=lbl;
+  // Update popup swatch selections
+  document.querySelectorAll('#rcp-swatches .pop-swatch').forEach(s=>{
+    s.classList.toggle('sel', s.style.background===col||rgbToHex(s.style.background)===col);
+  });
+  redrawRooms();renderColourModeList();redrawColourOverlay();
+}
+
+function clearRoomColourPopup(){
+  if(!rcpRoom||!rooms[rcpRoom])return;
+  delete rooms[rcpRoom].fillColor;
+  if(pdfDoc)pageRooms[currentPage]=rooms;
+  redrawRooms();renderColourModeList();redrawColourOverlay();
+  closeRoomColourPopup();
+}
+
+function closeRoomColourPopup(){
+  document.getElementById('room-colour-popup')?.classList.remove('show');
+  rcpRoom=null;
+}
+
+function rgbToHex(rgb){
+  if(!rgb||rgb[0]==='#')return rgb;
+  const m=rgb.match(/\d+/g);
+  if(!m||m.length<3)return rgb;
+  return '#'+m.slice(0,3).map(n=>parseInt(n).toString(16).padStart(2,'0')).join('');
+}
+
+// Close popup on outside click
+document.addEventListener('mousedown', e=>{
+  const popup=document.getElementById('room-colour-popup');
+  if(popup&&popup.classList.contains('show')&&!popup.contains(e.target)){
+    const sc2=document.getElementById('sel-canvas');
+    if(e.target!==sc2)closeRoomColourPopup();
+  }
+});
+
+// ── Colour overlay draw ───────────────────────────────────────────────────
+function redrawColourOverlay(){
+  if(!origW)return;
+  coc.clearRect(0,0,colourOverlayCanvas.width,colourOverlayCanvas.height);
+  if(appMode!=='colour')return;
+
+  // Update level preview
+  const lp=document.getElementById('level-preview');
+  if(lp) lp.textContent = levelNum ? `${levelNum}01` : '–';
+
+  // Room number labels (bigger, only in coloured rooms)
+  for(const [lbl,room] of Object.entries(rooms)){
+    if(!room.fillColor)continue;
+    const roomLabel=levelNum?`${levelNum}${lbl}`:lbl;
+    let cx,cy;
+    if(room.polygon&&room.polygon.length>=3){
+      cx=room.polygon.reduce((s,p)=>s+p.x,0)/room.polygon.length;
+      cy=room.polygon.reduce((s,p)=>s+p.y,0)/room.polygon.length;
+    } else {cx=(room.rect.x1+room.rect.x2)/2;cy=(room.rect.y1+room.rect.y2)/2;}
+    const rw=room.rect.x2-room.rect.x1;
+    const fs=Math.max(20,Math.min(60,Math.round(rw*0.13)));
+    coc.font=`bold ${fs}px system-ui`;
+    coc.textAlign='center';coc.textBaseline='middle';
+    coc.fillStyle='rgba(0,0,0,0.28)';coc.fillText(roomLabel,cx+2,cy+2);
+    coc.fillStyle='#111';coc.fillText(roomLabel,cx,cy);
+  }
+
+  // Legend box
+  if(!legendItems.length)return;
+  const pos=getLegendPos();
+  const iH=legendItemH(),pad=legendPad(),fs=legendFontSize();
+  const bh=legendItems.length*iH+pad*2;
+
+  // Shadow + background
+  coc.save();
+  coc.shadowColor='rgba(0,0,0,0.22)';coc.shadowBlur=16;
+  coc.fillStyle='rgba(255,255,255,0.95)';
+  roundRectPath(coc,pos.x,pos.y,legendScale,bh,10);coc.fill();
+  coc.shadowBlur=0;
+  coc.strokeStyle='rgba(0,0,0,0.10)';coc.lineWidth=1;coc.stroke();
+  coc.restore();
+
+  legendItems.forEach((item,i)=>{
+    const iy=pos.y+pad+i*iH;
+    const gap=Math.round(iH*0.12);
+    coc.fillStyle=item.color;
+    roundRectPath(coc,pos.x+pad,iy+gap,legendScale-pad*2,iH-gap*2,6);
+    coc.fill();
+    coc.font=`bold ${fs}px system-ui`;
+    coc.textAlign='center';coc.textBaseline='middle';
+    coc.fillStyle='rgba(0,0,0,0.72)';
+    coc.fillText(item.text,pos.x+legendScale/2,iy+iH/2, legendScale-pad*2-4);
+  });
+}
+
+function roundRectPath(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+// ── Colour mode room list ─────────────────────────────────────────────────
+function renderColourModeList(){
+  if(appMode!=='colour')return;
+  const list=document.getElementById('room-list');
+  list.innerHTML='';
+  const keys=Object.keys(rooms).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  if(!keys.length){list.innerHTML='<p style="font-size:12px;color:var(--text-3);padding:4px 0">No rooms</p>';return;}
+  for(const k of keys){
+    const rm=rooms[k];
+    const roomLabel=levelNum?`${levelNum}${k}`:k;
+    const div=document.createElement('div');div.className='ri clr-mode';
+    if(k===colourPickerRoom)div.classList.add('active-clr');
+    div.innerHTML=`<span class="${rm.fillColor?'colour-dot':'colour-dot empty'}" style="${rm.fillColor?'background:'+rm.fillColor:''}"></span><span class="lbl">${roomLabel}</span><span style="font-size:10px;color:var(--text-3)">${rm.type}</span>`;
+    div.onclick=(e)=>{
+      const rect=document.getElementById('sel-canvas').getBoundingClientRect();
+      openRoomColourPopup(k, e.clientX, e.clientY);
+    };
+    list.appendChild(div);
+  }
+}
+
+// ── initCanvas override ───────────────────────────────────────────────────
+const _origInitCanvas = initCanvas;
+window.initCanvas = function(img){
+  _origInitCanvas(img);
+  colourOverlayCanvas.width=origW;colourOverlayCanvas.height=origH;
+  colourOverlayCanvas.style.width='100%';colourOverlayCanvas.style.height='auto';
+  if(appMode==='colour')redrawColourOverlay();
+};
+
+// ── gotoEditor override ───────────────────────────────────────────────────
+// gotoEditor patched directly in original below
+
+// ── saveLayout patch — embed colour state ─────────────────────────────────
+// (handled by saveLayout function patching legendItems into payload.colourMode)
+
+// ── downloadFloorplan override in colour mode ─────────────────────────────
+const _origDownloadFloorplan = downloadFloorplan;
+window.downloadFloorplan = async function(){
+  if(appMode!=='colour'){await _origDownloadFloorplan();return;}
+  const btn=document.getElementById('fp-btn');
+  const status=document.getElementById('dl-status');
+  btn.disabled=true;status.textContent='Rendering colour floorplan…';
+  let img=origImage,w=origW,h=origH;
+  if(pdfDoc){
+    pageRooms[currentPage]=rooms;
+    const page=await pdfDoc.getPage(currentPage);const vp=page.getViewport({scale:3.5});
+    const tmp=document.createElement('canvas');tmp.width=vp.width;tmp.height=vp.height;
+    await page.render({canvasContext:tmp.getContext('2d'),viewport:vp}).promise;
+    const pi=new Image();await new Promise(res=>{pi.onload=res;pi.src=tmp.toDataURL('image/png');});
+    img=pi;w=vp.width;h=vp.height;
+  }
+  const out=document.createElement('canvas');out.width=w;out.height=h;
+  const ctx=out.getContext('2d');ctx.drawImage(img,0,0);
+  // Fill colours
+  for(const room of Object.values(rooms)){
+    if(!room.fillColor)continue;
+    const r=parseInt(room.fillColor.slice(1,3),16),g=parseInt(room.fillColor.slice(3,5),16),b=parseInt(room.fillColor.slice(5,7),16);
+    ctx.save();
+    if(room.polygon&&room.polygon.length>=3){ctx.beginPath();ctx.moveTo(room.polygon[0].x,room.polygon[0].y);for(let i=0;i<room.polygon.length;i++){const A=room.polygon[i],B=room.polygon[(i+1)%room.polygon.length];if(A.hOut){ctx.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}else if(B.hIn){ctx.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}else{ctx.lineTo(B.x,B.y);}}ctx.closePath();}
+    else{ctx.beginPath();ctx.rect(room.rect.x1,room.rect.y1,room.rect.x2-room.rect.x1,room.rect.y2-room.rect.y1);}
+    ctx.fillStyle=`rgba(${r},${g},${b},0.30)`;ctx.fill();ctx.restore();
+  }
+  // Room labels
+  for(const [lbl,room] of Object.entries(rooms)){
+    if(!room.fillColor)continue;
+    const roomLabel=levelNum?`${levelNum}${lbl}`:lbl;
+    let cx,cy;
+    if(room.polygon&&room.polygon.length>=3){cx=room.polygon.reduce((s,p)=>s+p.x,0)/room.polygon.length;cy=room.polygon.reduce((s,p)=>s+p.y,0)/room.polygon.length;}
+    else{cx=(room.rect.x1+room.rect.x2)/2;cy=(room.rect.y1+room.rect.y2)/2;}
+    const rw2=room.rect.x2-room.rect.x1;
+    const fs=Math.max(22,Math.min(64,Math.round(rw2*0.13)));
+    ctx.font=`bold ${fs}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(0,0,0,0.22)';ctx.fillText(roomLabel,cx+2,cy+2);
+    ctx.fillStyle='#111';ctx.fillText(roomLabel,cx,cy);
+  }
+  // Legend
+  if(legendItems.length){
+    const pos=getLegendPos();const iH=legendItemH();const pad=legendPad();const fs=legendFontSize()+2;
+    const bh=legendItems.length*iH+pad*2;
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.22)';ctx.shadowBlur=18;
+    ctx.fillStyle='rgba(255,255,255,0.96)';roundRectPath(ctx,pos.x,pos.y,legendScale,bh,10);ctx.fill();
+    ctx.shadowBlur=0;ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=1.5;ctx.stroke();ctx.restore();
+    legendItems.forEach((item,i)=>{
+      const iy=pos.y+pad+i*iH,gap=Math.round(iH*0.12);
+      ctx.fillStyle=item.color;roundRectPath(ctx,pos.x+pad,iy+gap,legendScale-pad*2,iH-gap*2,6);ctx.fill();
+      ctx.font=`bold ${fs}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='rgba(0,0,0,0.72)';ctx.fillText(item.text,pos.x+legendScale/2,iy+iH/2,legendScale-pad*2-4);
+    });
+  }
+  const blob=await new Promise(res=>out.toBlob(res,'image/jpeg',0.93));
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='floorplan-colour-mode.jpg';a.click();
+  btn.disabled=false;status.textContent=`Exported (${w}×${h}px)`;
+  setTimeout(()=>status.textContent='',4000);
+};
+
+// Swatches are built by buildSwatches() in the main script above
+
+
+
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');const f=e.dataTransfer.files[0];if(f)handleFile(f);});
+</script>
 </script>
 </body>
 </html>
