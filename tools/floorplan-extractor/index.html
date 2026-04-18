@@ -306,6 +306,14 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:var(--
         oninput="levelNum=this.value.trim();redrawColourOverlay();renderColourModeList()">
       <span id="level-preview" style="font-size:11px;font-weight:700;color:var(--brand);min-width:28px">–</span>
     </div>
+    <!-- Room label toggle (colour mode) -->
+    <div id="label-toggle-wrap" style="display:none;align-items:center;gap:5px">
+      <button id="btn-label-toggle"
+        onclick="toggleRoomLabels()"
+        style="font-size:11px;padding:3px 10px;border-radius:6px;background:var(--brand);color:#fff;border:0.5px solid rgba(255,102,0,0.4)">
+        Labels: ON
+      </button>
+    </div>
     <!-- Logo badge size number input -->
     <div id="logo-badge-wrap" style="display:none;align-items:center;gap:5px">
       <span style="font-size:11px;color:var(--text-3)">Logo margin</span>
@@ -748,7 +756,7 @@ function onUp(){
 // ── label popup ────────────────────────────────────────────────────────────
 function showPopup(){
   if(!pendingRect)return;
-  const pv=document.getElementById('pv-canvas'),ctx=pv.getContext('2d');
+  const pv=gel('pv-canvas');if(!pv)return;const ctx=pv.getContext('2d');
   ctx.clearRect(0,0,pv.width,pv.height);ctx.fillStyle='#f8f8f8';ctx.fillRect(0,0,pv.width,pv.height);
   const rw=pendingRect.x2-pendingRect.x1,rh=pendingRect.y2-pendingRect.y1;
   const scale=Math.min((pv.width-4)/rw,(pv.height-4)/rh);const ox=(pv.width-rw*scale)/2,oy=(pv.height-rh*scale)/2;
@@ -756,11 +764,11 @@ function showPopup(){
   ctx.strokeStyle='#2563eb';ctx.lineWidth=1.5;ctx.strokeRect(ox,oy,rw*scale,rh*scale);
   const pinp=gel('pinput');if(pinp)pinp.value='';
   gel('popup')?.classList.add('open');gel('popup-bg')?.classList.add('open');
-  setTimeout(()=>document.getElementById('pinput').focus(),60);
+  setTimeout(()=>gel('pinput')?.focus(),60);
 }
 document.getElementById('pinput').addEventListener('keydown',e=>{if(e.key==='Enter')confirmNewRoom();});
 function confirmNewRoom(){
-  const lbl=document.getElementById('pinput').value.trim();if(!lbl||!pendingRect){cancelNewRoom();return;}
+  const pinEl=gel('pinput');const lbl=pinEl?pinEl.value.trim():'';if(!lbl||!pendingRect){cancelNewRoom();return;}
   rooms[lbl]={label:lbl,type:'box',rect:pendingRect,polygon:null,colorIdx:colorCounter++,rotation:0};
   if(pdfDoc)pageRooms[currentPage]=rooms;selectedRoom=lbl;pendingRect=null;
   gel('popup')?.classList.remove('open');gel('popup-bg')?.classList.remove('open');
@@ -924,7 +932,8 @@ function updatePenUI(){
 }
 function applyPen(){
   if(penPts.length<3){alert('Place at least 3 points to create a mask.');return;}
-  const newLabel = document.getElementById('edit-room-name').value.trim() || editLabel;
+  const ernEl = gel('edit-room-name');
+  const newLabel = ernEl ? ernEl.value.trim() || editLabel : editLabel;
   if(rooms[editLabel]){
     const room = rooms[editLabel];
     room.polygon=penPts.map(p=>({...p}));
@@ -1063,7 +1072,7 @@ function redrawPen(){
 
 // ── keyboard ───────────────────────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
-  const modal=document.getElementById('edit-bg').classList.contains('open');
+  const ebg=gel('edit-bg');const modal=ebg?ebg.classList.contains('open'):false;
   if(modal){
     if(e.key==='Enter'){applyPen();return;}
     if(e.key==='z'||e.key==='Z'){undoPenPoint();return;}
@@ -1189,7 +1198,7 @@ function startAnim(){if(raf)cancelAnimationFrame(raf);function loop(){dashOff=(d
 
 // ── sidebar ────────────────────────────────────────────────────────────────
 function renderList(){
-  const list=document.getElementById('room-list');list.innerHTML='';
+  const list=gel('room-list');if(!list)return;list.innerHTML='';
   const keys=Object.keys(rooms).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   if(!keys.length){list.innerHTML='<p style="font-size:12px;color:#aaa;padding:4px 0">No rooms yet</p>';return;}
   for(const k of keys){
@@ -1282,7 +1291,7 @@ async function downloadAll(){
   }
   const content=await zip.generateAsync({type:'blob'});
   const a=document.createElement('a');a.href=URL.createObjectURL(content);a.download='rooms.zip';a.click();
-  btn.disabled=false;status.textContent=`${jobs.length} rooms exported as JPG`;
+  if(btn)btn.disabled=false; if(status)status.textContent=`${jobs.length} rooms exported as JPG`;
 }
 
 // ── misc ───────────────────────────────────────────────────────────────────
@@ -1397,6 +1406,7 @@ function clearRoomColor(){
 function showColorPicker(){
   const row = gel('color-picker-row');
   if(!selectedRoom){if(row)row.style.display='none';return;}
+  if(!row) return;
   row.style.display='flex';
   buildSwatches();
   const rm = rooms[selectedRoom];
@@ -1405,10 +1415,10 @@ function showColorPicker(){
 
 // ── download full floorplan ────────────────────────────────────────────────
 async function downloadFloorplan(){
-  const btn = document.getElementById('fp-btn');
-  const status = document.getElementById('dl-status');
-  btn.disabled = true;
-  status.textContent = 'Rendering full floorplan…';
+  const btn = gel('fp-btn');
+  const status = gel('dl-status');
+  if(btn) btn.disabled = true;
+  if(status) status.textContent = 'Rendering full floorplan…';
 
   // Get the high-res base image for current page
   let img = origImage, w = origW, h = origH;
@@ -1468,8 +1478,8 @@ async function downloadFloorplan(){
   a.href = URL.createObjectURL(blob);
   a.download = 'floorplan-coloured.jpg';
   a.click();
-  btn.disabled = false;
-  status.textContent = `Floorplan exported (${w}×${h}px)`;
+  if(btn) btn.disabled = false;
+  if(status) status.textContent = `Floorplan exported (${w}×${h}px)`;
   setTimeout(() => status.textContent = '', 4000);
 }
 
@@ -1491,7 +1501,7 @@ function saveLayout(){
     totalPages,
     imageSize: { width: origW, height: origH },
     pages: allRooms,
-    colourMode: { levelNum, legendItems, legendPos, legendScale },
+    colourMode: { levelNum, legendItems, legendPos, legendScale, showRoomLabels },
     logoBadgeScale
   };
 
@@ -1553,6 +1563,8 @@ function loadLayout(input){
         if(data.colourMode.legendItems) legendItems = data.colourMode.legendItems;
         if(data.colourMode.legendPos) legendPos = data.colourMode.legendPos;
         if(data.colourMode.legendScale) legendScale = data.colourMode.legendScale;
+        if(typeof data.colourMode.showRoomLabels==='boolean') showRoomLabels=data.colourMode.showRoomLabels;
+        syncLabelToggleBtn();
         const li = document.getElementById('level-input');
         if(li) li.value = levelNum;
         if(typeof data.logoBadgeScale==='number') logoBadgeScale = data.logoBadgeScale;
@@ -1585,6 +1597,7 @@ function resetApp(){
   gstyle('btn-pen','display','none');
   gstyle('color-picker-row','display','none');
   gstyle('logo-badge-wrap','display','none');
+  gstyle('label-toggle-wrap','display','none');
   setProc(false);
 }
 
@@ -1717,7 +1730,8 @@ async function loadAllTabs(){
 }
 
 function buildCountryTabs(){
-  const wrap = document.getElementById('country-tabs');
+  const wrap = gel('country-tabs');
+  if(!wrap) return;
   wrap.innerHTML = '';
   for(const c of COUNTRIES){
     const count = sheetData[c.code]?.length || 0;
@@ -1737,7 +1751,7 @@ function selectCountry(code){
   const tab = document.getElementById(`ctab-${code}`);
   if(tab) tab.classList.add('active');
   gstyle('loc-search-wrap','display','');
-  document.getElementById('loc-search').value = '';
+  const lsEl=gel('loc-search');if(lsEl)lsEl.value='';
   filterLocations('');
 }
 
@@ -1749,17 +1763,16 @@ function filterLocations(query){
 }
 
 function renderLocList(items){
-  const listEl = document.getElementById('loc-list');
-  const loadingEl = document.getElementById('loc-loading');
-  const emptyEl = document.getElementById('loc-empty');
-  loadingEl.style.display = 'none';
-  listEl.style.display = '';
-  listEl.innerHTML = '';
+  const listEl = gel('loc-list');
+  const loadingEl = gel('loc-loading');
+  const emptyEl = gel('loc-empty');
+  if(loadingEl) loadingEl.style.display = 'none';
+  if(listEl){ listEl.style.display = ''; listEl.innerHTML = ''; }
   if(!items.length){
-    emptyEl.style.display = '';
+    if(emptyEl) emptyEl.style.display = '';
     return;
   }
-  emptyEl.style.display = 'none';
+  if(emptyEl) emptyEl.style.display = 'none';
   for(const item of items){
     const div = document.createElement('div');
     div.className = 'loc-item';
@@ -1831,7 +1844,8 @@ async function loadLocation(item, el){
 
 // Show a helpful setup panel when no API key is configured
 function showApiKeySetup(){
-  document.getElementById('loc-list-wrap').innerHTML = `
+  const llw=gel('loc-list-wrap');
+  if(llw) llw.innerHTML = `
     <div style="padding:1.25rem;display:flex;flex-direction:column;gap:12px">
       <p style="font-weight:500;font-size:14px;color:#1a1a1a"><span style="display:inline-flex;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> One-time setup required</p>
       <p style="font-size:13px;color:#555;line-height:1.6">
@@ -1854,7 +1868,8 @@ function showApiKeySetup(){
 }
 
 function setLocStatus(html, isError=false){
-  const el = document.getElementById('loc-status');
+  const el = gel('loc-status');
+  if(!el) return;
   el.innerHTML = html;
   el.style.color = isError ? '#c0392b' : '#666';
 }
@@ -1925,6 +1940,7 @@ function parseCSV(text){
 // ── Colour mode ──────────────────────────────────────────────────────────
 let appMode = 'edit';
 let levelNum = '';
+let showRoomLabels = true;
 let colourPickerRoom = null;
 let legendItems = [];
 let legendPos = null;     // {x,y} canvas coords
@@ -1933,8 +1949,15 @@ let legendDragging = false;
 let legendDragOff = {x:0,y:0};
 let rcpRoom = null;       // room label currently in popup
 
-const colourOverlayCanvas = document.getElementById('colour-overlay-canvas');
-const coc = colourOverlayCanvas.getContext('2d');
+let colourOverlayCanvas = null;
+let coc = null;
+function getCOC(){
+  if(!coc){
+    colourOverlayCanvas = gel('colour-overlay-canvas');
+    if(colourOverlayCanvas) coc = colourOverlayCanvas.getContext('2d');
+  }
+  return coc;
+}
 const LEGEND_ITEM_H_BASE = 38; // item height at scale 180
 const LEGEND_PAD_BASE = 12;
 
@@ -1943,6 +1966,28 @@ function legendPad(){ return Math.round(LEGEND_PAD_BASE * legendScale/180); }
 function legendFontSize(){ return Math.max(10, Math.round(14 * legendScale/180)); }
 
 // ── Mode switch ───────────────────────────────────────────────────────────
+
+function toggleRoomLabels(){
+  showRoomLabels = !showRoomLabels;
+  const btn = gel('btn-label-toggle');
+  if(btn){
+    btn.textContent = 'Labels: ' + (showRoomLabels ? 'ON' : 'OFF');
+    btn.style.background = showRoomLabels ? 'var(--brand)' : 'rgba(255,255,255,0.9)';
+    btn.style.color = showRoomLabels ? '#fff' : 'var(--text-2)';
+    btn.style.borderColor = showRoomLabels ? 'rgba(255,102,0,0.4)' : '#ccc';
+  }
+  redrawColourOverlay();
+}
+
+// Sync label toggle button visual state (call when entering colour mode or loading layout)
+function syncLabelToggleBtn(){
+  const btn = gel('btn-label-toggle');
+  if(!btn) return;
+  btn.textContent = 'Labels: ' + (showRoomLabels ? 'ON' : 'OFF');
+  btn.style.background = showRoomLabels ? 'var(--brand)' : 'rgba(255,255,255,0.9)';
+  btn.style.color = showRoomLabels ? '#fff' : 'var(--text-2)';
+  btn.style.borderColor = showRoomLabels ? 'rgba(255,102,0,0.4)' : '#ccc';
+}
 function setMode(m){
   if(!gel('btn-edit-mode')) return; // editor not mounted yet
   appMode = m;
@@ -1954,6 +1999,7 @@ function setMode(m){
   const legendEditor = gel('legend-editor');
   const levelWrap = gel('level-wrap');
   const legendScaleWrap = gel('legend-scale-wrap');
+  const labelToggleWrap = gel('label-toggle-wrap');
   const tip = gel('sidebar-tip');
   if(m === 'colour'){
     sc.classList.add('colour-cursor');
@@ -1965,6 +2011,7 @@ function setMode(m){
     modeInfo?.classList.add('show');
     if(legendEditor) legendEditor.style.display='flex';
     if(levelWrap) levelWrap.style.display='flex';
+    if(labelToggleWrap) labelToggleWrap.style.display='flex';
     if(legendScaleWrap) legendScaleWrap.style.display='flex';
     gstyle('btn-pen','display','none');
     selectedRoom = null;
@@ -1972,6 +2019,7 @@ function setMode(m){
     redrawRooms();
     renderColourModeList();
     renderLegendItemsList();
+    syncLabelToggleBtn();
     redrawColourOverlay();
     closeRoomColourPopup();
   } else {
@@ -1984,8 +2032,9 @@ function setMode(m){
     modeInfo?.classList.remove('show');
     if(legendEditor) legendEditor.style.display='none';
     if(levelWrap) levelWrap.style.display='none';
+    if(labelToggleWrap) labelToggleWrap.style.display='none';
     if(legendScaleWrap) legendScaleWrap.style.display='none';
-    coc.clearRect(0,0,colourOverlayCanvas.width,colourOverlayCanvas.height);
+    const _coc=getCOC();if(_coc&&colourOverlayCanvas)_coc.clearRect(0,0,colourOverlayCanvas.width,colourOverlayCanvas.height);
     closeRoomColourPopup();
     updatePenBtn();
     redrawRooms();
@@ -2111,7 +2160,8 @@ function openRoomColourPopup(lbl, clientX, clientY){
   const roomLabel = levelNum ? `${levelNum}${lbl}` : lbl;
   const rt=gel('rcp-title');if(rt)rt.textContent=`Room ${roomLabel}`;
   // Build swatches
-  const sw = document.getElementById('rcp-swatches');
+  const sw = gel('rcp-swatches');
+  if(!sw) return;
   sw.innerHTML='';
   const curCol = room?.fillColor||'';
   PRESET_COLORS.forEach(p=>{
@@ -2177,7 +2227,7 @@ document.addEventListener('mousedown', e=>{
 
 // ── Colour overlay draw ───────────────────────────────────────────────────
 function redrawColourOverlay(){
-  if(!origW||!colourOverlayCanvas)return;
+  getCOC();if(!origW||!colourOverlayCanvas||!coc)return;
   coc.clearRect(0,0,colourOverlayCanvas.width,colourOverlayCanvas.height);
   if(appMode!=='colour')return;
 
@@ -2185,8 +2235,8 @@ function redrawColourOverlay(){
   const lp=document.getElementById('level-preview');
   if(lp) lp.textContent = levelNum ? `${levelNum}01` : '–';
 
-  // Room number labels with white semi-transparent background box
-  for(const [lbl,room] of Object.entries(rooms)){
+  // Room number labels (only when enabled)
+  if(showRoomLabels) for(const [lbl,room] of Object.entries(rooms)){
     if(!room.fillColor)continue;
     const roomLabel=levelNum?`${levelNum}${lbl}`:lbl;
     let cx,cy;
@@ -2255,7 +2305,8 @@ function roundRectPath(ctx,x,y,w,h,r){
 // ── Colour mode room list ─────────────────────────────────────────────────
 function renderColourModeList(){
   if(appMode!=='colour')return;
-  const list=document.getElementById('room-list');
+  const list=gel('room-list');
+  if(!list) return;
   list.innerHTML='';
   const keys=Object.keys(rooms).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   if(!keys.length){list.innerHTML='<p style="font-size:12px;color:var(--text-3);padding:4px 0">No rooms</p>';return;}
@@ -2277,8 +2328,13 @@ function renderColourModeList(){
 const _origInitCanvas = initCanvas;
 window.initCanvas = function(img){
   _origInitCanvas(img);
-  colourOverlayCanvas.width=origW;colourOverlayCanvas.height=origH;
-  colourOverlayCanvas.style.width='100%';colourOverlayCanvas.style.height='auto';
+  colourOverlayCanvas=gel('colour-overlay-canvas');
+  coc=null; // reset so getCOC() re-acquires
+  getCOC();
+  if(colourOverlayCanvas){
+    colourOverlayCanvas.width=origW;colourOverlayCanvas.height=origH;
+    colourOverlayCanvas.style.width='100%';colourOverlayCanvas.style.height='auto';
+  }
   if(appMode==='colour')redrawColourOverlay();
 };
 
@@ -2292,9 +2348,9 @@ window.initCanvas = function(img){
 const _origDownloadFloorplan = downloadFloorplan;
 window.downloadFloorplan = async function(){
   if(appMode!=='colour'){await _origDownloadFloorplan();return;}
-  const btn=document.getElementById('fp-btn');
-  const status=document.getElementById('dl-status');
-  btn.disabled=true;status.textContent='Rendering colour floorplan…';
+  const btn=gel('fp-btn');
+  const status=gel('dl-status');
+  if(btn)btn.disabled=true;if(status)status.textContent='Rendering colour floorplan…';
   let img=origImage,w=origW,h=origH;
   if(pdfDoc){
     pageRooms[currentPage]=rooms;
@@ -2315,8 +2371,8 @@ window.downloadFloorplan = async function(){
     else{ctx.beginPath();ctx.rect(room.rect.x1,room.rect.y1,room.rect.x2-room.rect.x1,room.rect.y2-room.rect.y1);}
     ctx.fillStyle=`rgba(${r},${g},${b},0.30)`;ctx.fill();ctx.restore();
   }
-  // Room labels with white semi-transparent background box
-  for(const [lbl,room] of Object.entries(rooms)){
+  // Room labels (only when enabled)
+  if(showRoomLabels) for(const [lbl,room] of Object.entries(rooms)){
     if(!room.fillColor)continue;
     const roomLabel=levelNum?`${levelNum}${lbl}`:lbl;
     let cx,cy;
