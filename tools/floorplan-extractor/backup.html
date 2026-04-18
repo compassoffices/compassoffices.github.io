@@ -1285,6 +1285,7 @@ function gotoEditor(){
     try{
       const data = pendingLayout; pendingLayout = null;
       if(data.version && data.pages){
+        // Restore rooms (same as loadLayout)
         if(pdfDoc){
           pageRooms={};
           for(const[pg,rms]of Object.entries(data.pages)){
@@ -1292,13 +1293,35 @@ function gotoEditor(){
             for(const rm of rms) pageRooms[pgNum][rm.label]=rm;
           }
           rooms=pageRooms[currentPage]||{};
+          const allIdxsPDF=Object.values(pageRooms).flatMap(pr=>Object.values(pr).map(r=>r.colorIdx||0));
+          colorCounter=allIdxsPDF.length?Math.max(...allIdxsPDF)+1:0;
         } else {
           rooms={};
           const firstPage=Object.values(data.pages)[0]||[];
           for(const rm of firstPage) rooms[rm.label]=rm;
+          const idxs=Object.values(rooms).map(r=>r.colorIdx||0);
+          colorCounter=idxs.length?Math.max(...idxs)+1:0;
         }
-        const allIdxs=Object.values(rooms).map(r=>r.colorIdx||0);
-        colorCounter=allIdxs.length?Math.max(...allIdxs)+1:0;
+
+        // Restore colour mode state — level, legend, logo badge
+        if(data.colourMode){
+          if(data.colourMode.levelNum!==undefined) levelNum=data.colourMode.levelNum;
+          if(data.colourMode.legendItems) legendItems=data.colourMode.legendItems;
+          if(data.colourMode.legendPos) legendPos=data.colourMode.legendPos;
+          if(data.colourMode.legendScale) legendScale=data.colourMode.legendScale;
+          const li=document.getElementById('level-input');
+          if(li) li.value=levelNum;
+          const ls=document.getElementById('legend-scale-slider');
+          if(ls) ls.value=legendScale;
+          renderLegendItemsList();
+          if(appMode==='colour') redrawColourOverlay();
+        }
+        // Restore logo badge scale
+        if(typeof data.logoBadgeScale==='number') logoBadgeScale=data.logoBadgeScale;
+        const lbs=document.getElementById('logo-badge-slider');
+        if(lbs) lbs.value=logoBadgeScale;
+        redrawLogoCanvas();
+
         selectedRoom=null;
         redrawRooms();renderList();updateBadge();updatePenBtn();
         setStatus(`Layout restored from sheet — ${Object.keys(rooms).length} rooms`);
