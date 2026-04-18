@@ -332,6 +332,7 @@ progress{width:100%;height:4px;border-radius:3px;border:none;accent-color:var(--
       <canvas id="main-canvas"></canvas>
       <canvas id="rooms-canvas"></canvas>
       <canvas id="colour-overlay-canvas"></canvas>
+      <canvas id="logo-canvas" style="position:absolute;top:0;left:0;width:100%;height:auto;pointer-events:none"></canvas>
       <canvas id="sel-canvas"></canvas>
     </div>
 
@@ -455,7 +456,7 @@ COMPASS_LOGO_IMG.src = COMPASS_LOGO_URL;
 // Draws a white rounded badge in the TOP-LEFT corner with the Compass logo.
 async function drawCompassLogo(ctx, canvasW, canvasH){
   const PAD    = Math.round(canvasW * 0.012);
-  const BADGEW = Math.round(canvasW * 0.22);
+  const BADGEW = Math.round(canvasW * 0.14);
   const BADGEH = Math.round(BADGEW * 0.30);    // aspect ~3.9:1 matches SVG viewBox
   const RADIUS = Math.round(BADGEH * 0.18);
   const bx = PAD;
@@ -471,8 +472,7 @@ async function drawCompassLogo(ctx, canvasW, canvasH){
 
   // White rounded badge with shadow
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.18)';
-  ctx.shadowBlur  = Math.round(canvasW * 0.005);
+  // no shadow — pure white
   ctx.fillStyle   = '#ffffff';
   ctx.beginPath();
   ctx.moveTo(bx + RADIUS, by);
@@ -486,19 +486,20 @@ async function drawCompassLogo(ctx, canvasW, canvasH){
   ctx.arcTo(bx,           by,          bx + RADIUS,  by,                   RADIUS);
   ctx.closePath();
   ctx.fill();
-  ctx.shadowBlur = 0;
   ctx.restore();
 
-  // Logo inside badge
+  // Logo inside badge — maintain aspect ratio (contain/fit)
   if(img){
-    const INNER_PAD = Math.round(BADGEH * 0.12);
-    ctx.drawImage(
-      img,
-      bx + INNER_PAD,
-      by + INNER_PAD,
-      BADGEW - INNER_PAD * 2,
-      BADGEH - INNER_PAD * 2
-    );
+    const INNER_PAD = Math.round(BADGEH * 0.18);
+    const availW = BADGEW - INNER_PAD * 2;
+    const availH = BADGEH - INNER_PAD * 2;
+    const logoAspect = img.naturalWidth / img.naturalHeight; // 500/128.37 ≈ 3.895
+    let drawW = availW;
+    let drawH = drawW / logoAspect;
+    if(drawH > availH){ drawH = availH; drawW = drawH * logoAspect; }
+    const drawX = bx + INNER_PAD + (availW - drawW) / 2;
+    const drawY = by + INNER_PAD + (availH - drawH) / 2;
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
   }
 }
 
@@ -599,6 +600,14 @@ function initCanvas(img){
   origImage=img;origW=img.width;origH=img.height;
   for(const cv of[mainCanvas,roomsCanvas,selCanvas]){cv.width=origW;cv.height=origH;cv.style.width='100%';cv.style.height='auto';}
   mc.drawImage(img,0,0);buildWallMap();
+  // Draw logo overlay on canvas
+  const logoCV = document.getElementById('logo-canvas');
+  if(logoCV){
+    logoCV.width=origW; logoCV.height=origH;
+    logoCV.style.width='100%'; logoCV.style.height='auto';
+    const lctx = logoCV.getContext('2d');
+    drawCompassLogo(lctx, origW, origH); // async, fine for display
+  }
   selCanvas.onmousedown=onDown;selCanvas.onmousemove=onMove;selCanvas.onmouseup=onUp;selCanvas.onmouseleave=onUp;
   selCanvas.ontouchstart=e=>{e.preventDefault();onDown(t2m(e));};
   selCanvas.ontouchmove=e=>{e.preventDefault();onMove(t2m(e));};
