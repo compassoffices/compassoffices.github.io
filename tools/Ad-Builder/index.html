@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compass Offices — Meta Ad Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --orange:#FF6600;--dark:#282828;--white:#FFFFFF;--lgrey:#EFEFEF;
+  --ui:#141414;--panel:#1e1e1e;--panel2:#242424;--border:#2e2e2e;
+  --txt:#d8d8d8;--muted:#666;
+}
+body{font-family:'Inter',sans-serif;background:var(--ui);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── HEADER ── */
+.hdr{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10}
+.hdr-l{display:flex;align-items:center;gap:10px}
+.hdr-l h1{font-size:13px;font-weight:700;letter-spacing:.07em;color:#fff}
+.hdr-l span{font-size:11px;color:var(--muted)}
+.hdr-r{display:flex;gap:8px;align-items:center}
+select.ui-sel{background:#2a2a2a;border:1px solid var(--border);color:var(--txt);padding:7px 10px;border-radius:6px;font-size:12px;font-family:Inter,sans-serif;outline:none;cursor:pointer}
+.btn-export{background:var(--orange);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;letter-spacing:.03em;transition:opacity .2s}
+.btn-export:hover{opacity:.88}
+
+/* ── MAIN ── */
+.main{display:flex;flex:1;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sb{width:270px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;padding:14px 14px 30px;display:flex;flex-direction:column;gap:14px}
+.sb::-webkit-scrollbar{width:3px}
+.sb::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.sep{height:1px;background:var(--border)}
+
+/* Format buttons */
+.fmt-row{display:flex;gap:5px}
+.fmt-btn{flex:1;background:#232323;border:1.5px solid var(--border);color:var(--txt);padding:7px 3px;border-radius:7px;cursor:pointer;font-size:10px;text-align:center;font-family:Inter,sans-serif;transition:all .15s;line-height:1.4}
+.fmt-btn:hover{border-color:var(--orange)}
+.fmt-btn.on{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+.fmt-icon{display:block;font-size:18px;margin-bottom:3px}
+
+/* Layout grid */
+.lay-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.lay-btn{background:#232323;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;padding:7px;text-align:center;font-size:10px;color:var(--muted);font-family:Inter,sans-serif;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:5px}
+.lay-btn:hover{border-color:var(--orange);color:var(--txt)}
+.lay-btn.on{border-color:var(--orange);background:rgba(255,102,0,.08);color:var(--orange)}
+.lay-thumb{width:42px;height:42px;background:#2a2a2a;border-radius:4px;position:relative;overflow:hidden;flex-shrink:0}
+
+/* Inputs */
+.ig{display:flex;flex-direction:column;gap:4px}
+.ilbl{font-size:11px;color:var(--muted)}
+input[type=text],textarea{background:#232323;border:1.5px solid var(--border);color:var(--txt);padding:7px 9px;border-radius:7px;font-size:12px;font-family:Inter,sans-serif;width:100%;outline:none;transition:border-color .15s;resize:none;line-height:1.4}
+input[type=text]:focus,textarea:focus{border-color:var(--orange)}
+textarea{min-height:52px}
+
+/* Upload */
+.upbtn{background:#232323;border:1.5px dashed #444;color:var(--muted);padding:14px;border-radius:8px;cursor:pointer;text-align:center;font-size:12px;font-family:Inter,sans-serif;transition:all .15s;width:100%}
+.upbtn:hover{border-color:var(--orange);color:var(--txt)}
+.img-thumb{width:100%;height:72px;object-fit:cover;border-radius:7px;border:1.5px solid var(--border);display:none}
+.rm-btn{display:none;width:100%;background:#2a1a1a;border:1px solid #5a2a2a;color:#ff7070;padding:5px;border-radius:6px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif;margin-top:2px}
+
+/* Sliders */
+.sl-row{display:flex;align-items:center;gap:8px;margin-top:2px}
+input[type=range]{flex:1;accent-color:var(--orange);cursor:pointer}
+.sl-v{font-size:11px;color:var(--muted);min-width:28px;text-align:right}
+
+/* Color dots */
+.cdots{display:flex;gap:6px;flex-wrap:wrap}
+.cdot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0}
+.cdot.on{border-color:#fff}
+
+/* Toggle */
+.tog-row{display:flex;align-items:center;justify-content:space-between;font-size:12px}
+.tog{position:relative;width:34px;height:19px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0}
+.tslider{position:absolute;cursor:pointer;inset:0;background:#3a3a3a;border-radius:19px;transition:.25s}
+.tslider:before{content:'';position:absolute;width:13px;height:13px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.25s}
+.tog input:checked+.tslider{background:var(--orange)}
+.tog input:checked+.tslider:before{transform:translateX(15px)}
+
+/* ── PREVIEW AREA ── */
+.pv-area{flex:1;display:flex;align-items:center;justify-content:center;background:#0d0d0d;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:24px 24px;overflow:hidden;padding:24px}
+.pv-wrap{position:relative}
+.pv-scale{transform-origin:top left}
+
+/* ── AD CANVAS ── */
+#adCanvas{width:1080px;position:relative;overflow:hidden;font-family:'Noto Sans JP',sans-serif}
+
+/* ── EXPORT OVERLAY ── */
+.exp-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:14px}
+.exp-ov.show{display:flex}
+.spinner{width:34px;height:34px;border:3px solid rgba(255,102,0,.25);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.exp-ov p{color:#ddd;font-size:14px}
+
+/* Disable backdrop-filter on export */
+#adCanvas.exporting *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+</style>
+</head>
+<body>
+
+<div class="exp-ov" id="expOv">
+  <div class="spinner"></div>
+  <p>Generating image...</p>
+</div>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-l">
+    <svg width="26" height="26" viewBox="0 0 128 128"><circle cx="64" cy="64" r="64" fill="#FF6600"/><polygon points="65,29 80,84 98,84 65,29 32,84 50,84" fill="white"/></svg>
+    <h1>META AD BUILDER</h1>
+    <span>Compass Offices</span>
+  </div>
+  <div class="hdr-r">
+    <select class="ui-sel" id="expFmt">
+      <option value="jpg">Export JPG (recommended)</option>
+      <option value="png">Export PNG</option>
+    </select>
+    <button class="btn-export" onclick="doExport()">↓ Export Ad</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sb">
+
+    <!-- FORMAT -->
+    <div>
+      <div class="sec-lbl">Ad Format</div>
+      <div class="fmt-row">
+        <button class="fmt-btn on" onclick="setFmt('1:1',this)"><span class="fmt-icon">⬛</span>1:1<br><small style="opacity:.65">1080×1080</small></button>
+        <button class="fmt-btn" onclick="setFmt('4:5',this)"><span class="fmt-icon">🖼</span>4:5<br><small style="opacity:.65">1080×1350</small></button>
+        <button class="fmt-btn" onclick="setFmt('9:16',this)"><span class="fmt-icon">📱</span>9:16<br><small style="opacity:.65">1080×1920</small></button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- LAYOUT -->
+    <div>
+      <div class="sec-lbl">Layout Template</div>
+      <div class="lay-grid">
+        <button class="lay-btn on" onclick="setLayout(1,this)">
+          <div class="lay-thumb">
+            <div style="position:absolute;inset:0;background:linear-gradient(to top,#111 0%,transparent 55%)"></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:36%;background:rgba(30,30,30,.85)"></div>
+            <div style="position:absolute;top:7px;left:7px;width:16px;height:3px;background:#FF6600;border-radius:1px"></div>
+          </div>
+          Horizon
+        </button>
+        <button class="lay-btn" onclick="setLayout(2,this)">
+          <div class="lay-thumb">
+            <div style="position:absolute;inset:0;background:linear-gradient(135deg,#2a2a2a,#111)"></div>
+            <div style="position:absolute;top:22%;left:10%;right:10%;bottom:18%;background:rgba(30,30,30,.9);border-radius:3px"></div>
+            <div style="position:absolute;top:27%;left:50%;transform:translateX(-50%);width:14px;height:2px;background:#FF6600;border-radius:1px"></div>
+          </div>
+          Summit
+        </button>
+        <button class="lay-btn" onclick="setLayout(3,this)">
+          <div class="lay-thumb">
+            <div style="position:absolute;inset:0;background:linear-gradient(135deg,#2a2a2a,#111)"></div>
+            <div style="position:absolute;left:0;top:0;bottom:0;width:52%;background:rgba(30,30,30,.9)"></div>
+            <div style="position:absolute;bottom:7px;left:6px;width:14px;height:2px;background:#FF6600;border-radius:1px"></div>
+          </div>
+          Edge
+        </button>
+        <button class="lay-btn" onclick="setLayout(4,this)">
+          <div class="lay-thumb">
+            <div style="position:absolute;inset:0;background:linear-gradient(135deg,#2a2a2a,#111)"></div>
+            <div style="position:absolute;top:7px;left:0;right:0;height:30%;display:flex;align-items:center;justify-content:center"><div style="width:24px;height:3px;background:#fff;border-radius:1px"></div></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:26%;background:rgba(255,102,0,.85)"></div>
+          </div>
+          Bold
+        </button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- IMAGE -->
+    <div>
+      <div class="sec-lbl">Background Image</div>
+      <input type="file" id="imgIn" accept="image/*" style="display:none" onchange="loadImg(event)">
+      <div class="upbtn" id="upBtn" onclick="document.getElementById('imgIn').click()">
+        <div style="font-size:22px;margin-bottom:4px">📸</div>
+        Click to upload image<br>
+        <small style="opacity:.55">JPG · PNG · WEBP</small>
+      </div>
+      <img class="img-thumb" id="imgThumb">
+      <button class="rm-btn" id="rmBtn" onclick="removeImg()">✕ Remove image</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- TEXT -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div class="sec-lbl">Text Content</div>
+      <div class="ig">
+        <div class="ilbl">Tag / Badge</div>
+        <input type="text" id="t-tag" value="Premium Flexible Workspace" oninput="upTxt('tag',this.value)">
+      </div>
+      <div class="ig">
+        <div class="ilbl">Headline (use ↵ for line break)</div>
+        <textarea id="t-hl" oninput="upTxt('hl',this.value)">Your Office,
+Your Terms</textarea>
+      </div>
+      <div class="ig">
+        <div class="ilbl">Subheadline</div>
+        <input type="text" id="t-sub" value="Modern workspaces across Australia" oninput="upTxt('sub',this.value)">
+      </div>
+      <div class="ig">
+        <div class="ilbl">Body Text</div>
+        <input type="text" id="t-body" value="No lock-in · Utilities included · 24/7 access" oninput="upTxt('body',this.value)">
+      </div>
+      <div class="ig">
+        <div class="ilbl">Location</div>
+        <input type="text" id="t-loc" value="Melbourne · Sydney · Brisbane · Perth" oninput="upTxt('loc',this.value)">
+      </div>
+      <div class="ig">
+        <div class="ilbl">CTA Button</div>
+        <input type="text" id="t-cta" value="Enquire Now →" oninput="upTxt('cta',this.value)">
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- GLASS -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="sec-lbl">Glass Effect</div>
+      <div class="ig">
+        <div class="ilbl">Panel Opacity</div>
+        <div class="sl-row">
+          <input type="range" id="sl-op" min="10" max="95" value="72" oninput="upGlass()">
+          <span class="sl-v" id="vOp">72%</span>
+        </div>
+      </div>
+      <div class="ig">
+        <div class="ilbl">Blur Intensity</div>
+        <div class="sl-row">
+          <input type="range" id="sl-bl" min="0" max="30" value="16" oninput="upGlass()">
+          <span class="sl-v" id="vBl">16px</span>
+        </div>
+      </div>
+      <div class="ilbl" style="margin-top:2px">Panel Color</div>
+      <div class="fmt-row">
+        <button class="fmt-btn on" id="gc-dark" onclick="setGC('dark',this)" style="font-size:11px;padding:6px 3px">Dark</button>
+        <button class="fmt-btn" id="gc-light" onclick="setGC('light',this)" style="font-size:11px;padding:6px 3px">Light</button>
+        <button class="fmt-btn" id="gc-orange" onclick="setGC('orange',this)" style="font-size:11px;padding:6px 3px">Orange</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- OPTIONS -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div class="sec-lbl">Options</div>
+      <div class="tog-row"><span>Show Logo</span><label class="tog"><input type="checkbox" id="o-logo" checked onchange="upOpts()"><span class="tslider"></span></label></div>
+      <div class="tog-row"><span>Show Tag Badge</span><label class="tog"><input type="checkbox" id="o-tag" checked onchange="upOpts()"><span class="tslider"></span></label></div>
+      <div class="tog-row"><span>Show CTA Button</span><label class="tog"><input type="checkbox" id="o-cta" checked onchange="upOpts()"><span class="tslider"></span></label></div>
+      <div class="tog-row"><span>Dark Overlay</span><label class="tog"><input type="checkbox" id="o-grad" checked onchange="upOpts()"><span class="tslider"></span></label></div>
+
+      <div class="ilbl" style="margin-top:2px">Accent Color</div>
+      <div class="cdots">
+        <div class="cdot on" style="background:#FF6600" title="Compass Orange" onclick="setAcc('#FF6600',this)"></div>
+        <div class="cdot" style="background:#282828;border:1px solid #555" title="Dark" onclick="setAcc('#282828',this)"></div>
+        <div class="cdot" style="background:#fff;border:1px solid #555" title="White" onclick="setAcc('#FFFFFF',this)"></div>
+        <div class="cdot" style="background:#1a73e8" title="Blue" onclick="setAcc('#1a73e8',this)"></div>
+        <div class="cdot" style="background:#16a34a" title="Green" onclick="setAcc('#16a34a',this)"></div>
+        <div class="cdot" style="background:#dc2626" title="Red" onclick="setAcc('#dc2626',this)"></div>
+      </div>
+
+      <div class="ilbl" style="margin-top:2px">Headline Size</div>
+      <div class="sl-row">
+        <input type="range" id="sl-hs" min="50" max="130" value="100" oninput="upHSize()">
+        <span class="sl-v" id="vHs">100%</span>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- PREVIEW AREA -->
+  <div class="pv-area" id="pvArea">
+    <div class="pv-wrap" id="pvWrap">
+      <div class="pv-scale" id="pvScale">
+        <div id="adCanvas"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+const S = {
+  fmt:'1:1', layout:1, bgImg:null,
+  glOp:72, glBl:16, glCol:'dark',
+  acc:'#FF6600', hlScale:100,
+  logo:true, tag:true, cta:true, grad:true,
+  txt:{tag:'Premium Flexible Workspace',hl:'Your Office,\nYour Terms',sub:'Modern workspaces across Australia',body:'No lock-in · Utilities included · 24/7 access',loc:'Melbourne · Sydney · Brisbane · Perth',cta:'Enquire Now →'}
+};
+
+const FMT={
+  '1:1':{w:1080,h:1080},
+  '4:5':{w:1080,h:1350},
+  '9:16':{w:1080,h:1920}
+};
+
+// ─────────────────────────────────────────
+// LOGO SVG  (white text + orange icon)
+// ─────────────────────────────────────────
+const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 128.37"><defs><style>.a{fill:#FF6600}.b{fill:#fff}</style></defs><path class="a" d="M128.36,64.19c0,35.45-28.73,64.18-64.18,64.18S0,99.64,0,64.19,28.73,0,64.18,0s64.18,28.73,64.18,64.19"/><polygon class="b" points="65.28 61.73 79.04 86.42 96.55 86.42 65.28 30.37 32.87 86.42 51 86.42 65.28 61.73"/><path fill="white" d="M187.92,52.84c4.58,0,8.74-.91,12.35-2.72l.36-.18v-7.36l-.94.48c-3.36,1.71-7.08,2.58-11.05,2.58-4.62,0-8.48-1.38-11.47-4.11-2.97-2.71-4.48-6.14-4.48-10.2.03-4.06,1.54-7.44,4.5-10.05,2.97-2.63,6.84-3.96,11.5-3.96,3.98,0,7.69.71,11.04,2.1l.89.37v-7.46l-.4-.16c-3.36-1.36-7.5-2.05-12.3-2.05-6.8,0-12.46,1.96-16.82,5.84-4.38,3.9-6.61,9.07-6.61,15.37s2.23,11.56,6.63,15.54c4.38,3.96,10.03,5.97,16.8,5.97"/><path fill="white" d="M232.06,10.12c-6.6,0-12.07,2-16.27,5.93-4.2,3.95-6.33,9.02-6.33,15.08s2.12,11.5,6.33,15.57c4.19,4.07,9.66,6.13,16.27,6.13s12.08-2.06,16.27-6.13c4.2-4.08,6.33-9.32,6.33-15.57s-2.14-11.14-6.34-15.08c-4.19-3.93-9.66-5.93-16.26-5.93M246.52,31.19c0,4.14-1.35,7.62-4.01,10.36-2.67,2.73-6.16,4.11-10.39,4.11s-7.73-1.38-10.39-4.11c-2.67-2.73-4.01-6.21-4.01-10.36s1.36-7.27,4.03-9.9c2.68-2.63,6.17-3.97,10.37-3.97s7.69,1.34,10.37,3.97,4.04,5.96,4.04,9.9"/><path fill="white" d="M291.45,42.11l-14.16-31.29h-11.21v41.32h7.83v-30.61l.93,2.11,12.95,28.5h7.23l12.68-28.47.84-1.83.15-.35v30.65h7.94V10.83h-11.32l-13.86,31.29Z"/><path fill="white" d="M350.77,10.83h-19.19v41.32h8.14v-11.16h11.05c4.99,0,9.01-1.39,11.94-4.13,2.94-2.75,4.43-6.45,4.43-10.98s-1.49-8.22-4.43-10.96c-2.93-2.72-6.94-4.1-11.93-4.1M359.35,25.88c0,2.5-.83,4.47-2.52,6.03-1.69,1.55-3.99,2.33-6.83,2.33h-10.28v-16.67h10.28c2.91,0,5.22.77,6.88,2.29,1.66,1.52,2.47,3.49,2.47,6.03"/><path fill="white" d="M388.03,10.82l-18.62,41.32h8.69l3.46-8.01h22.59l3.46,8.01h9.1l-18.62-41.32h-10.06ZM401.12,37.04h-16.54l8.25-19.24,8.29,19.24Z"/><path fill="white" d="M443.35,27.6l-3.66-.7c-3.46-.65-5.82-1.39-6.99-2.22-1.08-.76-1.61-1.69-1.61-2.85,0-1.48.94-2.57,2.88-3.3,2.11-.8,4.69-1.21,7.66-1.21,4.29,0,8.43.76,12.29,2.26l.88.34v-7.41l-.43-.15c-4.34-1.48-8.63-2.24-12.73-2.24-5.31,0-9.76,1.01-13.23,2.99-3.59,2.05-5.4,5.15-5.4,9.22,0,2.87,1.09,5.41,3.23,7.58,2.11,2.14,5.62,3.64,10.39,4.46l3.97.7c3.08.55,5.27,1.27,6.49,2.16,1.14.83,1.69,1.86,1.69,3.16,0,1.58-.91,2.81-2.78,3.75-2,1-4.62,1.51-7.81,1.51-5.3,0-10.13-1.17-14.38-3.47l-.95-.52v7.69l.36.18c4.53,2.2,9.72,3.32,15.43,3.32,5.19,0,9.56-1.15,12.99-3.41,3.51-2.32,5.29-5.63,5.29-9.84,0-3.04-1.09-5.61-3.25-7.63-2.11-1.97-5.58-3.45-10.32-4.37"/><path fill="white" d="M496.75,31.96c-2.11-1.98-5.58-3.45-10.32-4.37l-3.66-.7c-3.47-.65-5.82-1.39-6.99-2.22-1.08-.76-1.61-1.7-1.61-2.85,0-1.48.94-2.56,2.88-3.3,2.12-.8,4.7-1.21,7.66-1.21,4.3,0,8.43.76,12.29,2.26l.88.34v-7.41l-.43-.15c-4.34-1.48-8.63-2.24-12.74-2.24-5.31,0-9.76,1-13.23,2.99-3.58,2.05-5.4,5.15-5.4,9.22,0,2.87,1.08,5.41,3.22,7.58,2.12,2.14,5.62,3.64,10.4,4.46l3.97.7c3.08.55,5.26,1.28,6.49,2.16,1.14.83,1.69,1.86,1.69,3.16,0,1.58-.91,2.81-2.79,3.75-2,1-4.62,1.51-7.8,1.51-5.3,0-10.14-1.17-14.38-3.47l-.95-.52v7.7l.36.18c4.53,2.2,9.72,3.31,15.43,3.31,5.19,0,9.56-1.14,12.98-3.41,3.51-2.32,5.29-5.63,5.29-9.85,0-3.04-1.09-5.6-3.25-7.62"/><path fill="white" d="M187.15,75.53c-6.6,0-12.07,2-16.27,5.93-4.2,3.95-6.33,9.02-6.33,15.08s2.12,11.5,6.33,15.57c4.19,4.07,9.67,6.13,16.27,6.13s12.08-2.06,16.27-6.13c4.2-4.08,6.33-9.32,6.33-15.57s-2.14-11.14-6.34-15.08c-4.19-3.93-9.66-5.93-16.26-5.93M201.6,96.59c0,4.14-1.35,7.62-4.01,10.36-2.67,2.73-6.16,4.11-10.39,4.11s-7.73-1.38-10.39-4.11c-2.67-2.73-4.01-6.21-4.01-10.36s1.36-7.27,4.03-9.9c2.68-2.63,6.17-3.97,10.37-3.97s7.69,1.34,10.37,3.97c2.68,2.63,4.04,5.96,4.04,9.9"/><polygon fill="white" points="221.16 117.54 229.3 117.54 229.3 103.54 250.89 103.54 250.89 96.59 229.3 96.59 229.3 83.37 252.96 83.37 252.96 76.23 221.16 76.23 221.16 117.54"/><polygon fill="white" points="264.34 117.54 272.49 117.54 272.49 103.54 294.08 103.54 294.08 96.59 272.49 96.59 272.49 83.37 296.14 83.37 296.14 76.23 264.34 76.23 264.34 117.54"/><rect fill="white" x="308.12" y="76.23" width="8.15" height="41.32"/><path fill="white" d="M350.46,75.52c-6.8,0-12.46,1.96-16.82,5.84-4.38,3.9-6.61,9.07-6.61,15.37s2.23,11.56,6.63,15.54c4.38,3.96,10.03,5.97,16.8,5.97,4.58,0,8.74-.91,12.35-2.72l.36-.18v-7.36l-.94.48c-3.36,1.71-7.08,2.58-11.05,2.58-4.62,0-8.48-1.38-11.47-4.11-2.97-2.71-4.48-6.14-4.48-10.2.03-4.06,1.54-7.44,4.5-10.05,2.97-2.63,6.84-3.97,11.5-3.97,3.98,0,7.69.71,11.04,2.1l.89.37v-7.46l-.4-.16c-3.36-1.35-7.5-2.05-12.3-2.05"/><polygon fill="white" points="384.94 100.03 408.39 100.03 408.39 93.34 384.94 93.34 384.94 83.12 409.42 83.12 409.42 76.23 376.79 76.23 376.79 117.54 409.93 117.54 409.93 110.65 384.94 110.65 384.94 100.03"/><path fill="white" d="M443.35,93l-3.66-.7c-3.46-.65-5.82-1.39-6.99-2.22-1.08-.76-1.61-1.69-1.61-2.85,0-1.48.94-2.57,2.88-3.3,2.11-.8,4.69-1.21,7.66-1.21,4.29,0,8.43.76,12.29,2.26l.88.34v-7.41l-.43-.15c-4.34-1.48-8.63-2.24-12.73-2.24-5.31,0-9.76,1.01-13.23,2.99-3.59,2.05-5.4,5.15-5.4,9.22,0,2.87,1.09,5.41,3.23,7.58,2.11,2.14,5.62,3.64,10.39,4.46l3.97.7c3.08.55,5.27,1.28,6.49,2.16,1.14.83,1.69,1.86,1.69,3.16,0,1.58-.91,2.81-2.78,3.75-2,1-4.62,1.51-7.81,1.51-5.29,0-10.13-1.17-14.38-3.47l-.95-.52v7.69l.36.18c4.53,2.2,9.72,3.32,15.43,3.32,5.19,0,9.56-1.15,12.98-3.41,3.51-2.32,5.29-5.63,5.29-9.84,0-3.04-1.09-5.61-3.25-7.63-2.11-1.98-5.58-3.45-10.32-4.37"/></svg>`;
+
+function logoImg(h){
+  const b64=btoa(unescape(encodeURIComponent(LOGO_SVG)));
+  return `<img src="data:image/svg+xml;base64,${b64}" style="height:${h}px;width:auto" alt="Compass Offices">`;
+}
+
+// ─────────────────────────────────────────
+// GLASS STYLE
+// ─────────────────────────────────────────
+function glass(override){
+  const o=S.glOp/100, b=S.glBl, c=override||S.glCol;
+  let bg,bd;
+  if(c==='dark'){bg=`rgba(22,22,22,${o})`;bd='rgba(255,255,255,.07)'}
+  else if(c==='light'){bg=`rgba(235,235,235,${o})`;bd='rgba(255,255,255,.35)'}
+  else{bg=`rgba(220,85,0,${o})`;bd='rgba(255,255,255,.15)'}
+  return `background:${bg};backdrop-filter:blur(${b}px);-webkit-backdrop-filter:blur(${b}px);border:1px solid ${bd};`;
+}
+
+function tcl(gc){return gc==='light'?'#1a1a1a':'#ffffff'}
+function tsc(gc){return gc==='light'?'rgba(30,30,30,.8)':'rgba(255,255,255,.82)'}
+function tbc(gc){return gc==='light'?'rgba(30,30,30,.6)':'rgba(255,255,255,.6)'}
+
+// ─────────────────────────────────────────
+// BG DIV
+// ─────────────────────────────────────────
+function bgDiv(){
+  if(S.bgImg) return `<div style="position:absolute;inset:0;background:url('${S.bgImg}') center/cover no-repeat"></div>`;
+  return `<div style="position:absolute;inset:0;background:linear-gradient(135deg,#181818 0%,#2c2c2c 50%,#141414 100%)"></div>`;
+}
+
+function gradDiv(){
+  return S.grad?`<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.35) 50%,rgba(0,0,0,.08) 100%)"></div>`:'';
+}
+
+// ─────────────────────────────────────────
+// LAYOUT 1 — HORIZON
+// Full image · bottom glass panel
+// ─────────────────────────────────────────
+function L1(){
+  const h=FMT[S.fmt].h, a=S.acc, hs=S.hlScale/100;
+  const ph=Math.round(h*.04), px=Math.round(h*.052);
+  const tc=tcl(S.glCol),sc=tsc(S.glCol),bc=tbc(S.glCol);
+  return `
+${bgDiv()}
+${gradDiv()}
+${S.tag?`<div style="position:absolute;top:${Math.round(h*.05)}px;left:${px}px">
+  <div style="display:inline-block;background:${a};color:#fff;font-size:${Math.round(h*.021)}px;font-weight:700;padding:${Math.round(h*.007)}px ${Math.round(h*.016)}px;border-radius:4px;letter-spacing:.04em">${S.txt.tag}</div>
+</div>`:''}
+<div style="position:absolute;bottom:0;left:0;right:0;padding:${ph}px ${px}px;${glass()}">
+  <div style="width:${Math.round(h*.05)}px;height:${Math.round(h*.0038)}px;background:${a};border-radius:2px;margin-bottom:${Math.round(h*.013)}px"></div>
+  <div style="font-size:${Math.round(h*.068*hs)}px;font-weight:900;color:${tc};line-height:1.05;letter-spacing:-.025em;white-space:pre-line;margin-bottom:${Math.round(h*.01)}px;text-shadow:0 2px 12px rgba(0,0,0,.4)">${S.txt.hl}</div>
+  <div style="font-size:${Math.round(h*.025)}px;font-weight:400;color:${sc};margin-bottom:${Math.round(h*.007)}px">${S.txt.sub}</div>
+  <div style="font-size:${Math.round(h*.019)}px;font-weight:300;color:${bc};margin-bottom:${Math.round(h*.015)}px">${S.txt.body}</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:${Math.round(h*.012)}px;flex-wrap:wrap">
+      ${S.cta?`<div style="background:${a};color:#fff;font-size:${Math.round(h*.022)}px;font-weight:700;padding:${Math.round(h*.011)}px ${Math.round(h*.03)}px;border-radius:5px;letter-spacing:.03em">${S.txt.cta}</div>`:''}
+      <div style="font-size:${Math.round(h*.017)}px;color:${bc}">📍 ${S.txt.loc}</div>
+    </div>
+    ${S.logo?logoImg(Math.round(h*.06)):''}
+  </div>
+</div>`;
+}
+
+// ─────────────────────────────────────────
+// LAYOUT 2 — SUMMIT
+// Full image · center glass card
+// ─────────────────────────────────────────
+function L2(){
+  const h=FMT[S.fmt].h, a=S.acc, hs=S.hlScale/100;
+  const cp=Math.round(h*.046);
+  const tc=tcl(S.glCol),sc=tsc(S.glCol),bc=tbc(S.glCol);
+  return `
+${bgDiv()}
+${S.grad?`<div style="position:absolute;inset:0;background:rgba(0,0,0,.28)"></div>`:''}
+${S.logo?`<div style="position:absolute;top:${Math.round(h*.042)}px;left:50%;transform:translateX(-50%)">${logoImg(Math.round(h*.058))}</div>`:''}
+<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:84%;padding:${cp}px;border-radius:${Math.round(h*.017)}px;${glass()}">
+  ${S.tag?`<div style="display:inline-block;background:${a};color:#fff;font-size:${Math.round(h*.019)}px;font-weight:700;padding:${Math.round(h*.006)}px ${Math.round(h*.013)}px;border-radius:4px;margin-bottom:${Math.round(h*.018)}px;letter-spacing:.04em">${S.txt.tag}</div>`:''}
+  <div style="font-size:${Math.round(h*.071*hs)}px;font-weight:900;color:${tc};line-height:1.04;letter-spacing:-.025em;white-space:pre-line;margin-bottom:${Math.round(h*.015)}px;text-shadow:0 2px 10px rgba(0,0,0,.35)">${S.txt.hl}</div>
+  <div style="width:${Math.round(h*.042)}px;height:${Math.round(h*.0038)}px;background:${a};border-radius:2px;margin-bottom:${Math.round(h*.014)}px"></div>
+  <div style="font-size:${Math.round(h*.024)}px;color:${sc};margin-bottom:${Math.round(h*.008)}px">${S.txt.sub}</div>
+  <div style="font-size:${Math.round(h*.018)}px;color:${bc};margin-bottom:${Math.round(h*.02)}px">${S.txt.body}</div>
+  ${S.cta?`<div style="display:inline-block;background:${a};color:#fff;font-size:${Math.round(h*.022)}px;font-weight:700;padding:${Math.round(h*.012)}px ${Math.round(h*.033)}px;border-radius:5px">${S.txt.cta}</div>`:''}
+</div>
+<div style="position:absolute;bottom:${Math.round(h*.038)}px;left:0;right:0;text-align:center;font-size:${Math.round(h*.017)}px;color:rgba(255,255,255,.7)">📍 ${S.txt.loc}</div>`;
+}
+
+// ─────────────────────────────────────────
+// LAYOUT 3 — EDGE
+// Left glass panel · image on right
+// ─────────────────────────────────────────
+function L3(){
+  const h=FMT[S.fmt].h, a=S.acc, hs=S.hlScale/100;
+  const sp=Math.round(h*.046);
+  const tc=tcl(S.glCol),sc=tsc(S.glCol),bc=tbc(S.glCol);
+  return `
+${bgDiv()}
+${S.grad?`<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,.75) 0%,rgba(0,0,0,.15) 65%,transparent 100%)"></div>`:''}
+<div style="position:absolute;left:0;top:0;bottom:0;width:53%;padding:${sp}px;display:flex;flex-direction:column;${glass()}">
+  ${S.logo?`<div style="margin-bottom:auto;padding-bottom:${Math.round(h*.02)}px">${logoImg(Math.round(h*.056))}</div>`:`<div style="margin-bottom:auto"></div>`}
+  <div style="display:flex;flex-direction:column;gap:${Math.round(h*.011)}px">
+    ${S.tag?`<div style="display:inline-block;width:fit-content;background:${a};color:#fff;font-size:${Math.round(h*.019)}px;font-weight:700;padding:${Math.round(h*.006)}px ${Math.round(h*.013)}px;border-radius:4px;letter-spacing:.04em">${S.txt.tag}</div>`:''}
+    <div style="width:${Math.round(h*.038)}px;height:${Math.round(h*.0038)}px;background:${a};border-radius:2px"></div>
+    <div style="font-size:${Math.round(h*.062*hs)}px;font-weight:900;color:${tc};line-height:1.04;letter-spacing:-.025em;white-space:pre-line;text-shadow:0 2px 10px rgba(0,0,0,.4)">${S.txt.hl}</div>
+    <div style="font-size:${Math.round(h*.022)}px;color:${sc}">${S.txt.sub}</div>
+    <div style="font-size:${Math.round(h*.018)}px;color:${bc}">${S.txt.body}</div>
+    <div style="font-size:${Math.round(h*.016)}px;color:${bc}">📍 ${S.txt.loc}</div>
+    ${S.cta?`<div style="margin-top:${Math.round(h*.008)}px;display:inline-block;width:fit-content;background:${a};color:#fff;font-size:${Math.round(h*.021)}px;font-weight:700;padding:${Math.round(h*.011)}px ${Math.round(h*.026)}px;border-radius:5px">${S.txt.cta}</div>`:''}
+  </div>
+</div>`;
+}
+
+// ─────────────────────────────────────────
+// LAYOUT 4 — BOLD
+// Center headline · orange glass footer
+// ─────────────────────────────────────────
+function L4(){
+  const h=FMT[S.fmt].h, a=S.acc, hs=S.hlScale/100;
+  const px=Math.round(h*.052);
+  return `
+${bgDiv()}
+${S.grad?`<div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.55) 0%,rgba(0,0,0,.1) 35%,rgba(0,0,0,.65) 100%)"></div>`:''}
+<div style="position:absolute;top:0;left:0;right:0;padding:${Math.round(h*.044)}px ${px}px;display:flex;align-items:flex-start;justify-content:space-between">
+  ${S.logo?logoImg(Math.round(h*.058)):'<div></div>'}
+  ${S.tag?`<div style="background:${a};color:#fff;font-size:${Math.round(h*.019)}px;font-weight:700;padding:${Math.round(h*.006)}px ${Math.round(h*.015)}px;border-radius:4px;letter-spacing:.04em">${S.txt.tag}</div>`:''}
+</div>
+<div style="position:absolute;top:50%;left:${px}px;right:${px}px;transform:translateY(-55%)">
+  <div style="width:${Math.round(h*.052)}px;height:${Math.round(h*.005)}px;background:${a};border-radius:2px;margin-bottom:${Math.round(h*.02)}px"></div>
+  <div style="font-size:${Math.round(h*.082*hs)}px;font-weight:900;color:#fff;line-height:1.0;letter-spacing:-.03em;white-space:pre-line;text-shadow:0 4px 24px rgba(0,0,0,.6)">${S.txt.hl}</div>
+  <div style="margin-top:${Math.round(h*.018)}px;font-size:${Math.round(h*.025)}px;color:rgba(255,255,255,.88)">${S.txt.sub}</div>
+</div>
+<div style="position:absolute;bottom:0;left:0;right:0;padding:${Math.round(h*.03)}px ${px}px;${glass('orange')}display:flex;align-items:center;justify-content:space-between;gap:16px">
+  <div>
+    <div style="font-size:${Math.round(h*.018)}px;color:rgba(255,255,255,.92)">${S.txt.body}</div>
+    <div style="font-size:${Math.round(h*.016)}px;color:rgba(255,255,255,.72);margin-top:3px">📍 ${S.txt.loc}</div>
+  </div>
+  ${S.cta?`<div style="background:#fff;color:${a};font-size:${Math.round(h*.021)}px;font-weight:800;padding:${Math.round(h*.012)}px ${Math.round(h*.028)}px;border-radius:5px;white-space:nowrap;flex-shrink:0">${S.txt.cta}</div>`:''}
+</div>`;
+}
+
+// ─────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────
+function render(){
+  const cv=document.getElementById('adCanvas');
+  const h=FMT[S.fmt].h;
+  cv.style.width='1080px';
+  cv.style.height=h+'px';
+  let html='';
+  if(S.layout===1) html=L1();
+  else if(S.layout===2) html=L2();
+  else if(S.layout===3) html=L3();
+  else html=L4();
+  cv.innerHTML=html;
+  scale();
+}
+
+function scale(){
+  const pa=document.getElementById('pvArea');
+  const h=FMT[S.fmt].h;
+  const aw=pa.clientWidth-48, ah=pa.clientHeight-48;
+  const s=Math.min(aw/1080,ah/h,1);
+  const sc=document.getElementById('pvScale');
+  sc.style.transform=`scale(${s})`;
+  sc.style.transformOrigin='top left';
+  const w=document.getElementById('pvWrap');
+  w.style.width=Math.round(1080*s)+'px';
+  w.style.height=Math.round(h*s)+'px';
+}
+
+// ─────────────────────────────────────────
+// CONTROLS
+// ─────────────────────────────────────────
+function setFmt(f,b){
+  S.fmt=f;
+  document.querySelectorAll('.fmt-row .fmt-btn').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  render();
+}
+function setLayout(n,b){
+  S.layout=n;
+  document.querySelectorAll('.lay-btn').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  render();
+}
+function upTxt(k,v){S.txt[k]=v;render()}
+function loadImg(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    S.bgImg=ev.target.result;
+    const th=document.getElementById('imgThumb');
+    th.src=ev.target.result;th.style.display='block';
+    document.getElementById('rmBtn').style.display='block';
+    document.getElementById('upBtn').style.display='none';
+    render();
+  };
+  r.readAsDataURL(f);
+}
+function removeImg(){
+  S.bgImg=null;
+  document.getElementById('imgThumb').style.display='none';
+  document.getElementById('rmBtn').style.display='none';
+  document.getElementById('upBtn').style.display='block';
+  document.getElementById('imgIn').value='';
+  render();
+}
+function upGlass(){
+  S.glOp=+document.getElementById('sl-op').value;
+  S.glBl=+document.getElementById('sl-bl').value;
+  document.getElementById('vOp').textContent=S.glOp+'%';
+  document.getElementById('vBl').textContent=S.glBl+'px';
+  render();
+}
+function setGC(c,b){
+  S.glCol=c;
+  document.querySelectorAll('[id^="gc-"]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  render();
+}
+function upOpts(){
+  S.logo=document.getElementById('o-logo').checked;
+  S.tag=document.getElementById('o-tag').checked;
+  S.cta=document.getElementById('o-cta').checked;
+  S.grad=document.getElementById('o-grad').checked;
+  render();
+}
+function setAcc(c,d){
+  S.acc=c;
+  document.querySelectorAll('.cdot').forEach(x=>x.classList.remove('on'));
+  d.classList.add('on');
+  render();
+}
+function upHSize(){
+  S.hlScale=+document.getElementById('sl-hs').value;
+  document.getElementById('vHs').textContent=S.hlScale+'%';
+  render();
+}
+
+// ─────────────────────────────────────────
+// EXPORT
+// ─────────────────────────────────────────
+async function doExport(){
+  const ov=document.getElementById('expOv');
+  ov.classList.add('show');
+  const cv=document.getElementById('adCanvas');
+  cv.classList.add('exporting');
+  await new Promise(r=>setTimeout(r,80));
+  try{
+    const fmt=FMT[S.fmt];
+    const result=await html2canvas(cv,{
+      width:1080,height:fmt.h,scale:1,
+      useCORS:true,allowTaint:true,
+      backgroundColor:S.bgImg?null:'#1a1a1a',
+      logging:false,imageTimeout:8000
+    });
+    const mime=document.getElementById('expFmt').value==='png'?'image/png':'image/jpeg';
+    const ext=mime==='image/png'?'png':'jpg';
+    const url=result.toDataURL(mime,0.95);
+    const a=document.createElement('a');
+    a.download=`compass-ad-${S.fmt.replace(':',x=>'-')}-${Date.now()}.${ext}`;
+    a.href=url;a.click();
+  }catch(err){
+    console.error(err);
+    alert('Export failed. Please try again or check your browser permissions.');
+  }
+  cv.classList.remove('exporting');
+  ov.classList.remove('show');
+}
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+window.addEventListener('DOMContentLoaded',()=>{render()});
+window.addEventListener('resize',scale);
+const ro=new ResizeObserver(scale);
+ro.observe(document.getElementById('pvArea'));
+</script>
+</body>
+</html>
