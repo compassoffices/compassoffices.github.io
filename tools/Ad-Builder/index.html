@@ -52,7 +52,8 @@ input[type=color]{background:#1e1e1e;border:1.5px solid var(--bd);color:var(--tx
 .lay-btn.on{border-color:var(--or);background:rgba(255,102,0,.07);color:var(--or)}
 .lay-thumb{width:36px;height:36px;background:#252525;border-radius:3px;overflow:hidden;flex-shrink:0}
 .upbtn{background:#1e1e1e;border:1.5px dashed #3a3a3a;color:var(--mt2);padding:10px;border-radius:8px;cursor:pointer;text-align:center;font-size:11px;font-family:Inter,sans-serif;transition:all .15s;width:100%}
-.upbtn:hover{border-color:var(--or);color:var(--tx)}
+.upbtn:hover,.upbtn.dragover{border-color:var(--or);color:var(--tx);background:rgba(255,102,0,.06)}
+.pv-area.dragover #adCanvas{outline:3px dashed rgba(255,102,0,.6);outline-offset:-3px;}
 .img-thumb{width:100%;height:58px;object-fit:cover;border-radius:6px;border:1.5px solid var(--bd);display:none}
 .rm-btn{display:none;width:100%;background:#1e1212;border:1px solid #4a1e1e;color:#ff7070;padding:5px;border-radius:6px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif;margin-top:3px}
 .sl-row{display:flex;align-items:center;gap:8px}
@@ -173,7 +174,7 @@ Your Terms</textarea></div>
     <div class="sep"></div>
     <div class="ig"><div class="ilbl" style="font-size:10px;color:#3a3a3a;background:#161616;border:1px dashed #2a2a2a;border-radius:5px;padding:6px;text-align:center;line-height:1.6">Drag on preview to pan · Scroll to zoom</div></div>
     <div class="ig"><div class="ilbl">Zoom</div>
-      <div class="sl-row"><input type="range" id="sl-iz" min="10" max="300" value="100" oninput="uIZ(this.value)"><span class="sl-v" id="v-iz">100%</span></div></div>
+      <div class="sl-row"><input type="range" id="sl-iz" min="1" max="300" value="100" oninput="uIZ(this.value)"><span class="sl-v" id="v-iz">100%</span></div></div>
     <div class="ig"><div class="ilbl">Horizontal</div>
       <div class="sl-row"><input type="range" id="sl-ix" min="-700" max="700" value="0" oninput="uIP()"><span class="sl-v" id="v-ix">0</span></div></div>
     <div class="ig"><div class="ilbl">Vertical</div>
@@ -361,7 +362,9 @@ function bgD(n=1){
   const oy=n===1?S.imgOffY:S.imgOffY2;
   const zm=n===1?S.imgZoom:S.imgZoom2;
   if(!img)return`<div style="position:absolute;inset:0;background:linear-gradient(140deg,#1a1a1a,#2c2c2c 50%,#111)"></div>`;
-  return`<div style="position:absolute;inset:0;overflow:hidden"><img src="${img}" style="position:absolute;left:50%;top:50%;min-width:${100*zm}%;min-height:${100*zm}%;max-width:none;width:auto;height:auto;transform:translate(calc(-50% + ${ox}px),calc(-50% + ${oy}px));pointer-events:none;user-select:none" draggable="false"></div>`;
+  // Use translate then scale — scale() shrinks/grows around the element's own center,
+  // translate() shifts it in screen-space so offset feels 1:1 regardless of zoom level.
+  return`<div style="position:absolute;inset:0;overflow:hidden"><img src="${img}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translate(${ox}px,${oy}px) scale(${zm});transform-origin:center;pointer-events:none;user-select:none" draggable="false"></div>`;
 }
 function grd(dir='to top',stops='rgba(0,0,0,.88) 0%,rgba(0,0,0,.3) 50%,rgba(0,0,0,.04) 100%'){
   return S.grad?`<div style="position:absolute;inset:0;background:linear-gradient(${dir},${stops})"></div>`:'';
@@ -632,24 +635,20 @@ document.addEventListener('mouseup',()=>{drag.on=false;CV().classList.remove('dr
 CV().addEventListener('wheel',e=>{
   const img=S.activeImg===1?S.bgImg:S.bgImg2;if(!img)return;
   e.preventDefault();
-  const d=e.deltaY>0?-0.03:0.03;
-  if(S.activeImg===1)S.imgZoom=Math.max(.1,Math.min(3,S.imgZoom+d));
-  else S.imgZoom2=Math.max(.1,Math.min(3,S.imgZoom2+d));
+  const d=e.deltaY>0?-0.04:0.04;
+  if(S.activeImg===1)S.imgZoom=Math.max(.01,Math.min(3,S.imgZoom+d));
+  else S.imgZoom2=Math.max(.01,Math.min(3,S.imgZoom2+d));
   clampOff();syncIS();qRender();showH(false);checkFit();
 },{passive:false});
 function clampOff(){
-  const h=FMT[S.fmt].h;
-  function cl(n,z,d){const m=d*(Math.max(z,.5)-.4);return Math.max(-m,Math.min(m,n));}
-  if(S.activeImg===1){S.imgOffX=cl(S.imgOffX,S.imgZoom,540);S.imgOffY=cl(S.imgOffY,S.imgZoom,h/2);}
-  else{S.imgOffX2=cl(S.imgOffX2,S.imgZoom2,540);S.imgOffY2=cl(S.imgOffY2,S.imgZoom2,h/2);}
+  // No hard clamp — let user freely pan anywhere, especially when zoomed out
 }
 function qRender(){
   CV().querySelectorAll('div[style*="overflow:hidden"] img').forEach((el,i)=>{
     const n=S.layout===9?i+1:1;
     if(n!==S.activeImg&&S.layout===9)return;
     const zm=n===1?S.imgZoom:S.imgZoom2,ox=n===1?S.imgOffX:S.imgOffX2,oy=n===1?S.imgOffY:S.imgOffY2;
-    el.style.minWidth=`${100*zm}%`;el.style.minHeight=`${100*zm}%`;
-    el.style.transform=`translate(calc(-50% + ${ox}px),calc(-50% + ${oy}px))`;
+    el.style.transform=`translate(${ox}px,${oy}px) scale(${zm})`;
   });
 }
 
@@ -751,33 +750,95 @@ function syncUI(){
 async function doExport(){
   const ov=document.getElementById('expov');ov.classList.add('show');
   await new Promise(r=>setTimeout(r,60));
-  EX=true;render();// re-render with solid glass (no backdrop-filter)
-  await new Promise(r=>setTimeout(r,150));// settle fonts/images
-  const cv=document.getElementById('adCanvas');
-  const fmt=FMT[S.fmt];
+
+  EX=true; // solid glass, no backdrop-filter
+  const fmt=FMT[S.fmt], h=fmt.h;
+
+  // Render into a fresh off-screen container at exact 1080×h — no CSS scaling involved
+  const wrap=document.createElement('div');
+  wrap.style.cssText=`position:fixed;left:-9999px;top:0;width:1080px;height:${h}px;overflow:hidden;font-family:'Noto Sans JP',sans-serif;`;
+  wrap.innerHTML=L(S.layout);
+  document.body.appendChild(wrap);
+
+  // Give images/fonts a moment to paint
+  await new Promise(r=>setTimeout(r,250));
+
   try{
-    const canvas=await html2canvas(cv,{
-      width:1080,height:fmt.h,scale:1,useCORS:true,allowTaint:true,
-      backgroundColor:S.bgImg?null:'#1a1a1a',logging:false,imageTimeout:15000,
+    const canvas=await html2canvas(wrap,{
+      width:1080, height:h,
+      scale:1,
+      useCORS:true, allowTaint:true,
+      backgroundColor:'#1a1a1a',
+      logging:false,
+      imageTimeout:15000,
       onclone:doc=>{
+        // strip any stray backdrop-filter in the clone
         doc.querySelectorAll('[style]').forEach(el=>{
-          el.style.backdropFilter='none';el.style.webkitBackdropFilter='none';
+          el.style.backdropFilter='none';
+          el.style.webkitBackdropFilter='none';
         });
       }
     });
-    EX=false;render();
+    document.body.removeChild(wrap);
+    EX=false;
+
     const isJ=document.getElementById('ef').value==='jpg';
     const url=canvas.toDataURL(isJ?'image/jpeg':'image/png',0.96);
     const a=document.createElement('a');
     a.download=`compass_${S.fmt.replace(':','x')}_L${S.layout}_${new Date().toISOString().slice(0,10)}.${isJ?'jpg':'png'}`;
-    a.href=url;a.click();toast('Exported successfully');
-  }catch(err){EX=false;render();console.error(err);toast('Export failed — use Chrome','err');}
+    a.href=url; a.click();
+    toast('Exported successfully');
+  }catch(err){
+    if(document.body.contains(wrap)) document.body.removeChild(wrap);
+    EX=false;
+    console.error(err);
+    toast('Export failed — use Chrome','err');
+  }
   ov.classList.remove('show');
 }
 
 // ════════ TOAST ════════
 let tT=null;
 function toast(msg,t='ok'){const el=document.getElementById('toast');el.textContent=msg;el.style.borderColor=t==='err'?'#5a1818':'#2a2a2a';el.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>el.classList.remove('show'),2800);}
+
+// ════════ DRAG & DROP IMAGE ONTO CANVAS OR UPLOAD AREA ════════
+function handleDroppedFile(file){
+  if(!file||!file.type.startsWith('image/'))return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const d=ev.target.result;
+    if(S.activeImg===1){S.bgImg=d;S.imgOffX=0;S.imgOffY=0;S.imgZoom=1;}
+    else{S.bgImg2=d;S.imgOffX2=0;S.imgOffY2=0;S.imgZoom2=1;}
+    document.getElementById('imgThumb').src=d;
+    document.getElementById('imgThumb').style.display='block';
+    document.getElementById('rmBtn').style.display='block';
+    document.getElementById('upBtn').style.display='none';
+    syncIS();render();
+    // switch to image tab for feedback
+    sTab('image',document.querySelector('.sb-tab:nth-child(3)'));
+    toast('Image dropped ✓');
+  };r.readAsDataURL(file);
+}
+
+// Drop on canvas / preview area
+const pvArea=document.getElementById('pvArea');
+pvArea.addEventListener('dragenter',e=>{e.preventDefault();pvArea.classList.add('dragover');});
+pvArea.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';});
+pvArea.addEventListener('dragleave',e=>{if(!pvArea.contains(e.relatedTarget))pvArea.classList.remove('dragover');});
+pvArea.addEventListener('drop',e=>{
+  e.preventDefault();pvArea.classList.remove('dragover');
+  const file=e.dataTransfer.files[0];handleDroppedFile(file);
+});
+
+// Drop on the sidebar upload button area
+const upBtn=document.getElementById('upBtn');
+upBtn.addEventListener('dragenter',e=>{e.preventDefault();upBtn.classList.add('dragover');});
+upBtn.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';});
+upBtn.addEventListener('dragleave',()=>upBtn.classList.remove('dragover'));
+upBtn.addEventListener('drop',e=>{
+  e.preventDefault();upBtn.classList.remove('dragover');
+  const file=e.dataTransfer.files[0];handleDroppedFile(file);
+});
 
 // ════════ INIT ════════
 window.addEventListener('DOMContentLoaded',()=>{buildGrid();render();});
