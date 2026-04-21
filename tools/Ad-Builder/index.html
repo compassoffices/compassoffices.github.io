@@ -321,9 +321,31 @@ let CSF=1;
 const LAYS=[{id:1,n:'Horizon'},{id:2,n:'Summit'},{id:3,n:'Edge'},{id:4,n:'Bold'},{id:5,n:'Split'},{id:6,n:'Tokyo'},{id:7,n:'Arch'},{id:8,n:'Mag.'},{id:9,n:'Duo',duo:true}];
 
 // ════════ HELPERS ════════
+let LOGO_PNG=null; // pre-rasterized PNG for export (html2canvas can't always handle SVG)
+
+// Pre-convert the SVG logo to a PNG data URL at target height
+function prerasterizeLogo(logoH){
+  return new Promise(resolve=>{
+    const ratio=500/128.37;
+    const w=Math.round(logoH*ratio);
+    const img=new Image();
+    const b64=btoa(unescape(encodeURIComponent(LOGO_W)));
+    img.onload=()=>{
+      const c=document.createElement('canvas');
+      c.width=w*2;c.height=logoH*2; // 2× for crispness
+      c.getContext('2d').drawImage(img,0,0,w*2,logoH*2);
+      LOGO_PNG=c.toDataURL('image/png');
+      resolve();
+    };
+    img.onerror=()=>{LOGO_PNG=null;resolve();};
+    img.src='data:image/svg+xml;base64,'+b64;
+  });
+}
+
 function logoImg(h){
-  const b=btoa(unescape(encodeURIComponent(LOGO_W)));
-  return `<img src="data:image/svg+xml;base64,${b}" style="height:${h}px;width:auto;display:block;flex-shrink:0" alt="logo">`;
+  // During export use pre-rasterized PNG — SVG can mis-render in html2canvas
+  const src=(EX&&LOGO_PNG)?LOGO_PNG:`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(LOGO_W)))}`;
+  return `<img src="${src}" style="height:${h}px;width:auto;display:block;flex-shrink:0" alt="logo">`;
 }
 // Minimalist pin icon (inline SVG, no emoji)
 function pin(sz,col){return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="${col||'currentColor'}" style="flex-shrink:0;margin-top:1px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;}
@@ -749,48 +771,74 @@ function syncUI(){
 // ════════ EXPORT ════════
 async function doExport(){
   const ov=document.getElementById('expov');ov.classList.add('show');
-  await new Promise(r=>setTimeout(r,60));
+  await new Promise(r=>setTimeout(r,80));
 
-  EX=true; // solid glass, no backdrop-filter
-  const fmt=FMT[S.fmt], h=fmt.h;
+  EX=true;
+  const fmt=FMT[S.fmt],h=fmt.h;
 
-  // Render into a fresh off-screen container at exact 1080×h — no CSS scaling involved
-  const wrap=document.createElement('div');
-  wrap.style.cssText=`position:fixed;left:-9999px;top:0;width:1080px;height:${h}px;overflow:hidden;font-family:'Noto Sans JP',sans-serif;`;
-  wrap.innerHTML=L(S.layout);
-  document.body.appendChild(wrap);
+  // Step 1: pre-rasterize the SVG logo to PNG — html2canvas mis-renders SVGs
+  await prerasterizeLogo(Math.round(h*0.046)*2);
 
-  // Give images/fonts a moment to paint
-  await new Promise(r=>setTimeout(r,250));
+  // Step 2: render with solid glass + PNG logo
+  render();
+  await new Promise(r=>setTimeout(r,100));
+
+  // Step 3: temporarily pin adCanvas at viewport 0,0 at its TRUE 1080×h size
+  // (z-index 998 = behind the export overlay at 999, so user sees nothing)
+  const pvScale=document.getElementById('pvScale');
+  const pvWrap=document.getElementById('pvWrap');
+  const savedTx=pvScale.style.transform;
+  const savedPos=pvScale.style.position;
+  const savedTop=pvScale.style.top;
+  const savedLeft=pvScale.style.left;
+  const savedZ=pvScale.style.zIndex;
+  const savedWW=pvWrap.style.width;
+  const savedWH=pvWrap.style.height;
+
+  pvScale.style.cssText+=';transform:none!important;position:fixed!important;top:0!important;left:0!important;z-index:998!important';
+  pvWrap.style.width='1080px';
+  pvWrap.style.height=h+'px';
+
+  await new Promise(r=>setTimeout(r,120)); // let layout fully settle
+
+  const cv=document.getElementById('adCanvas');
+
+  function restore(){
+    pvScale.style.transform=savedTx;
+    pvScale.style.position=savedPos;
+    pvScale.style.top=savedTop;
+    pvScale.style.left=savedLeft;
+    pvScale.style.zIndex=savedZ;
+    pvWrap.style.width=savedWW;
+    pvWrap.style.height=savedWH;
+    LOGO_PNG=null;EX=false;render();
+  }
 
   try{
-    const canvas=await html2canvas(wrap,{
-      width:1080, height:h,
-      scale:1,
-      useCORS:true, allowTaint:true,
+    const canvas=await html2canvas(cv,{
+      width:1080,height:h,
+      scale:2, // 2× = 2160px wide for high-res
+      useCORS:true,allowTaint:true,
       backgroundColor:'#1a1a1a',
-      logging:false,
-      imageTimeout:15000,
+      logging:false,imageTimeout:15000,
       onclone:doc=>{
-        // strip any stray backdrop-filter in the clone
         doc.querySelectorAll('[style]').forEach(el=>{
           el.style.backdropFilter='none';
           el.style.webkitBackdropFilter='none';
         });
       }
     });
-    document.body.removeChild(wrap);
-    EX=false;
+
+    restore();
 
     const isJ=document.getElementById('ef').value==='jpg';
     const url=canvas.toDataURL(isJ?'image/jpeg':'image/png',0.96);
     const a=document.createElement('a');
     a.download=`compass_${S.fmt.replace(':','x')}_L${S.layout}_${new Date().toISOString().slice(0,10)}.${isJ?'jpg':'png'}`;
-    a.href=url; a.click();
-    toast('Exported successfully');
+    a.href=url;a.click();
+    toast('Exported at 2× resolution');
   }catch(err){
-    if(document.body.contains(wrap)) document.body.removeChild(wrap);
-    EX=false;
+    restore();
     console.error(err);
     toast('Export failed — use Chrome','err');
   }
