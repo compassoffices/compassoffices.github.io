@@ -322,6 +322,7 @@ const LAYS=[{id:1,n:'Horizon'},{id:2,n:'Summit'},{id:3,n:'Edge'},{id:4,n:'Bold'}
 
 // ════════ HELPERS ════════
 let LOGO_PNG=null; // pre-rasterized PNG for export (html2canvas can't always handle SVG)
+let BG_PNG1=null, BG_PNG2=null; // pre-cropped background images for export
 
 // Pre-convert the SVG logo to a PNG data URL at target height
 function prerasterizeLogo(logoH){
@@ -332,13 +333,45 @@ function prerasterizeLogo(logoH){
     const b64=btoa(unescape(encodeURIComponent(LOGO_W)));
     img.onload=()=>{
       const c=document.createElement('canvas');
-      c.width=w*2;c.height=logoH*2; // 2× for crispness
+      c.width=w*2;c.height=logoH*2;
       c.getContext('2d').drawImage(img,0,0,w*2,logoH*2);
       LOGO_PNG=c.toDataURL('image/png');
       resolve();
     };
     img.onerror=()=>{LOGO_PNG=null;resolve();};
     img.src='data:image/svg+xml;base64,'+b64;
+  });
+}
+
+// Pre-rasterize a background image applying cover crop + zoom + pan
+// Returns a data URL of the final cropped image at 2× resolution
+function rasterizeBg(imgSrc,w,h,ox,oy,zoom){
+  if(!imgSrc) return Promise.resolve(null);
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const SC=2; // export at 2×
+      const c=document.createElement('canvas');
+      c.width=w*SC; c.height=h*SC;
+      const ctx=c.getContext('2d');
+      ctx.fillStyle='#1a1a1a';
+      ctx.fillRect(0,0,c.width,c.height);
+      // Cover: fit image to fill w×h maintaining aspect ratio
+      const imgAR=img.naturalWidth/img.naturalHeight;
+      const contAR=w/h;
+      let dw,dh;
+      if(imgAR>contAR){dh=h;dw=dh*imgAR;}
+      else{dw=w;dh=dw/imgAR;}
+      // Apply zoom (scale around center)
+      dw*=zoom; dh*=zoom;
+      // Center + user pan offset
+      const dx=(w-dw)/2+ox;
+      const dy=(h-dh)/2+oy;
+      ctx.drawImage(img, dx*SC, dy*SC, dw*SC, dh*SC);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror=()=>resolve(null);
+    img.src=imgSrc;
   });
 }
 
@@ -383,9 +416,17 @@ function bgD(n=1){
   const ox=n===1?S.imgOffX:S.imgOffX2;
   const oy=n===1?S.imgOffY:S.imgOffY2;
   const zm=n===1?S.imgZoom:S.imgZoom2;
-  if(!img)return`<div style="position:absolute;inset:0;background:linear-gradient(140deg,#1a1a1a,#2c2c2c 50%,#111)"></div>`;
-  // Use translate then scale — scale() shrinks/grows around the element's own center,
-  // translate() shifts it in screen-space so offset feels 1:1 regardless of zoom level.
+
+  if(EX){
+    // Use pre-rasterized flat PNG — html2canvas can't handle object-fit or scale() transforms
+    const png=n===1?BG_PNG1:BG_PNG2;
+    if(!png) return`<div style="position:absolute;inset:0;background:#1a1a1a"></div>`;
+    // The PNG is already cropped/zoomed/panned at 2× resolution; render at 1× CSS size
+    const h=FMT[S.fmt].h;
+    return`<div style="position:absolute;inset:0;overflow:hidden;background:#1a1a1a"><img src="${png}" style="position:absolute;top:0;left:0;width:1080px;height:${h}px;display:block" draggable="false"></div>`;
+  }
+
+  if(!img) return`<div style="position:absolute;inset:0;background:linear-gradient(140deg,#1a1a1a,#2c2c2c 50%,#111)"></div>`;
   return`<div style="position:absolute;inset:0;overflow:hidden"><img src="${img}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translate(${ox}px,${oy}px) scale(${zm});transform-origin:center;pointer-events:none;user-select:none" draggable="false"></div>`;
 }
 function grd(dir='to top',stops='rgba(0,0,0,.88) 0%,rgba(0,0,0,.3) 50%,rgba(0,0,0,.04) 100%'){
@@ -774,17 +815,26 @@ async function doExport(){
   await new Promise(r=>setTimeout(r,80));
 
   EX=true;
-  const fmt=FMT[S.fmt],h=fmt.h;
+  const fmt=FMT[S.fmt],h=fmt.h,w=1080;
 
-  // Step 1: pre-rasterize the SVG logo to PNG — html2canvas mis-renders SVGs
-  await prerasterizeLogo(Math.round(h*0.046)*2);
+  // Step 1: Pre-rasterize everything that html2canvas struggles with:
+  //   a) SVG logo → PNG
+  //   b) Background image(s) → flat PNG with cover crop + zoom + pan baked in
+  await Promise.all([
+    prerasterizeLogo(Math.round(h*0.046)*2),
+    rasterizeBg(S.bgImg,w,h,S.imgOffX,S.imgOffY,S.imgZoom).then(p=>BG_PNG1=p),
+    rasterizeBg(S.bgImg2,w,h,S.imgOffX2,S.imgOffY2,S.imgZoom2).then(p=>BG_PNG2=p),
+  ]);
 
-  // Step 2: render with solid glass + PNG logo
+  // Step 2: Render with solid glass, PNG logo, and flat BG images
   render();
-  await new Promise(r=>setTimeout(r,100));
+  await new Promise(r=>setTimeout(r,80));
 
-  // Step 3: temporarily pin adCanvas at viewport 0,0 at its TRUE 1080×h size
-  // (z-index 998 = behind the export overlay at 999, so user sees nothing)
+  // Step 3: Wait for all fonts to be ready so text metrics are correct
+  try{ await document.fonts.ready; }catch(e){}
+  await new Promise(r=>setTimeout(r,80));
+
+  // Step 4: Pin adCanvas at viewport 0,0 at true 1080×h (behind the overlay at z:999)
   const pvScale=document.getElementById('pvScale');
   const pvWrap=document.getElementById('pvWrap');
   const savedTx=pvScale.style.transform;
@@ -795,11 +845,16 @@ async function doExport(){
   const savedWW=pvWrap.style.width;
   const savedWH=pvWrap.style.height;
 
-  pvScale.style.cssText+=';transform:none!important;position:fixed!important;top:0!important;left:0!important;z-index:998!important';
+  pvScale.style.transform='none';
+  pvScale.style.position='fixed';
+  pvScale.style.top='0';
+  pvScale.style.left='0';
+  pvScale.style.zIndex='998';
+  pvScale.style.width='1080px';
   pvWrap.style.width='1080px';
   pvWrap.style.height=h+'px';
 
-  await new Promise(r=>setTimeout(r,120)); // let layout fully settle
+  await new Promise(r=>setTimeout(r,100));
 
   const cv=document.getElementById('adCanvas');
 
@@ -809,18 +864,20 @@ async function doExport(){
     pvScale.style.top=savedTop;
     pvScale.style.left=savedLeft;
     pvScale.style.zIndex=savedZ;
+    pvScale.style.width='';
     pvWrap.style.width=savedWW;
     pvWrap.style.height=savedWH;
-    LOGO_PNG=null;EX=false;render();
+    BG_PNG1=null;BG_PNG2=null;LOGO_PNG=null;
+    EX=false;render();
   }
 
   try{
     const canvas=await html2canvas(cv,{
-      width:1080,height:h,
-      scale:2, // 2× = 2160px wide for high-res
-      useCORS:true,allowTaint:true,
+      width:w, height:h,
+      scale:2,
+      useCORS:true, allowTaint:true,
       backgroundColor:'#1a1a1a',
-      logging:false,imageTimeout:15000,
+      logging:false, imageTimeout:15000,
       onclone:doc=>{
         doc.querySelectorAll('[style]').forEach(el=>{
           el.style.backdropFilter='none';
@@ -828,9 +885,7 @@ async function doExport(){
         });
       }
     });
-
     restore();
-
     const isJ=document.getElementById('ef').value==='jpg';
     const url=canvas.toDataURL(isJ?'image/jpeg':'image/png',0.96);
     const a=document.createElement('a');
