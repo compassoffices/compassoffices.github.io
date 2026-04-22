@@ -106,7 +106,7 @@ input[type=range]{flex:1;accent-color:var(--or);cursor:pointer;height:4px}
 <div class="toast" id="toast"></div>
 <div class="hdr">
   <div class="hdr-l">
-
+    <svg width="22" height="22" viewBox="0 0 128 128"><circle cx="64" cy="64" r="64" fill="#FF6600"/><polygon points="65,26 81,84 99,84 65,26 31,84 50,84" fill="white"/></svg>
     <h1>Ad Builder</h1><em>Compass Offices · Meta · v3</em>
   </div>
   <div class="hdr-r">
@@ -227,6 +227,20 @@ Your Terms</textarea></div>
       </div>
     </div>
     <div class="sep"></div>
+    <div><div class="lbl">Gradient Style</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
+        <button class="chip on" id="gs-auto" onclick="sGradStyle('auto',this)" style="font-size:9.5px;padding:5px 2px">Auto</button>
+        <button class="chip" id="gs-dark" onclick="sGradStyle('dark',this)" style="font-size:9.5px;padding:5px 2px">Dark</button>
+        <button class="chip" id="gs-orange-wash" onclick="sGradStyle('orange-wash',this)" style="font-size:9.5px;padding:5px 2px">Wash</button>
+        <button class="chip" id="gs-duotone" onclick="sGradStyle('duotone',this)" style="font-size:9.5px;padding:5px 2px">Duo</button>
+        <button class="chip" id="gs-mesh" onclick="sGradStyle('mesh',this)" style="font-size:9.5px;padding:5px 2px">Mesh</button>
+        <button class="chip" id="gs-glow" onclick="sGradStyle('glow',this)" style="font-size:9.5px;padding:5px 2px">Glow</button>
+        <button class="chip" id="gs-vignette" onclick="sGradStyle('vignette',this)" style="font-size:9.5px;padding:5px 2px">Vignette</button>
+        <button class="chip" id="gs-premium" onclick="sGradStyle('premium',this)" style="font-size:9.5px;padding:5px 2px">Premium</button>
+      </div>
+      <div style="font-size:10px;color:#383838;margin-top:5px">Brand-color patterns over the image</div>
+    </div>
+    <div class="sep"></div>
     <div><div class="lbl">Toggles</div>
       <div style="display:flex;flex-direction:column;gap:7px">
         <div class="tog-row"><span>Logo</span><label class="tog"><input type="checkbox" id="o-logo" checked onchange="uOpts()"><span class="tsl"></span></label></div>
@@ -315,7 +329,7 @@ let S={
   glOp:72,glBl:18,glCol:'dark',
   acc:'#FF6600',
   ctaStyle:'solid',ctaColor:'#FF6600',
-  logo:true,logoDark:false,tag:true,cta:true,grad:true,shadow:false,shadowInt:60,
+  logo:true,logoDark:false,tag:true,cta:true,grad:true,gradStyle:'auto',shadow:false,shadowInt:60,
   disc:true,discMain:'50%',discSub:'OFF',discNote:'First 3 months',
   discSz:13,discX:78,discY:50,discColor:'#FF6600',
   boxes:[
@@ -378,6 +392,89 @@ function rasterizeBg(imgSrc,w,h,ox,oy,zoom){
   });
 }
 
+// ════════ BLUR IMAGE (for export glass backdrop) ════════
+// Takes a PNG data-url and returns a blurred+saturated JPEG data-url.
+// This runs once per export; the result is layered under glass panels so
+// the exported JPG keeps the real liquid-glass look.
+function blurPNG(src,w,h,blurPx){
+  if(!src) return Promise.resolve(null);
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const SC=2;
+      const c=document.createElement('canvas');
+      c.width=w*SC; c.height=h*SC;
+      const ctx=c.getContext('2d');
+      ctx.filter=`blur(${blurPx*SC}px) saturate(1.7)`;
+      ctx.drawImage(img,0,0,w*SC,h*SC);
+      resolve(c.toDataURL('image/jpeg',0.88));
+    };
+    img.onerror=()=>resolve(null);
+    img.src=src;
+  });
+}
+
+// ════════ APPLY GLASS BLURS (export-time) ════════
+// Walks every glass panel element in the canvas and rewrites its `background`
+// to layer [sheen, tint, blurred-bg] where the blurred bg is positioned so
+// it aligns perfectly with the underlying full-resolution background.
+// html2canvas can then capture the real glass effect into the JPG.
+function applyGlassBlurs(canvas){
+  const w=1080, h=FMT[S.fmt].h;
+  const canvasRect=canvas.getBoundingClientRect();
+  // Tint-color signatures used by glass() and dGlass()
+  const GLASS_RGX=/rgba\((?:14,14,14|232,232,232|200,65,0|8,8,8)\s*,\s*[\d.]+\s*\)/;
+
+  canvas.querySelectorAll('div').forEach(el=>{
+    const s=el.getAttribute('style')||'';
+    if(!GLASS_RGX.test(s)) return;
+
+    // Decide which blur source to use (Duo = half-height variants)
+    const isDuo=S.layout===9;
+    const rect=el.getBoundingClientRect();
+    const x=rect.left-canvasRect.left;
+    const y=rect.top-canvasRect.top;
+    if(rect.width<30||rect.height<30) return;
+
+    // For Duo layout, pick top/bottom blur based on vertical position of panel
+    let blurSrc=BG_BLUR1;
+    let bgH=h;
+    let bgY=y;
+    if(isDuo){
+      const mid=h*0.5;
+      if(y+rect.height/2>mid){
+        blurSrc=BG_BLUR2; bgH=h-Math.round(h*.5); bgY=y-Math.round(h*.5);
+      } else {
+        bgH=Math.round(h*.5);
+      }
+    }
+    if(!blurSrc) return;
+
+    const tintMatch=s.match(GLASS_RGX);
+    if(!tintMatch) return;
+    const tint=tintMatch[0];
+
+    // Keep existing sheen gradient; grab everything before the tint color
+    const sheenMatch=s.match(/linear-gradient\([^)]*(?:\([^)]*\)[^)]*)*\)/);
+    const sheen=sheenMatch?sheenMatch[0]:'';
+
+    // New background: sheen + solid tint overlay + blurred bg image
+    const newBg=(sheen?sheen+',':'')
+      +`linear-gradient(${tint},${tint}),url(${blurSrc})`;
+    const sizes=(sheen?'auto,':'')+`auto,${w}px ${bgH}px`;
+    const pos=(sheen?'0 0,':'')+`0 0,${-x}px ${-bgY}px`;
+    const rep=(sheen?'no-repeat,':'')+'no-repeat,no-repeat';
+
+    // Replace only the `background:...` segment (everything up to next `;`)
+    const newStyle=s.replace(/background:[^;]+/,
+      `background:${newBg};background-size:${sizes};background-position:${pos};background-repeat:${rep}`
+    );
+    el.setAttribute('style',newStyle);
+  });
+}
+
+let BG_BLUR1=null, BG_BLUR2=null;
+
 function logoImg(h){
   const svg=S.logoDark?LOGO_DK:LOGO_W;
   const src=(EX&&LOGO_PNG)?LOGO_PNG:`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
@@ -387,23 +484,52 @@ function logoImg(h){
 function pin(sz,col){return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="${col||'currentColor'}" style="flex-shrink:0;margin-top:1px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;}
 function arr(sz,col){return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="${col||'currentColor'}" style="flex-shrink:0"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>`;}
 
+// ════════ GLASS (Liquid Glass) ════════
+// Tint colors are fixed signatures so applyGlassBlurs() can find & rewrite them on export.
+// The shine gradient + inset highlights create the "liquid glass" look — both preview AND export.
 function glass(ov){
-  const c=ov||S.glCol;let bg,bd;
-  const o=EX?Math.min(.97,S.glOp/100+.2):S.glOp/100;
-  const b=EX?0:S.glBl;
-  if(c==='dark'){bg=`rgba(12,12,12,${o})`;bd='rgba(255,255,255,.06)'}
-  else if(c==='light'){bg=`rgba(230,230,230,${o})`;bd='rgba(255,255,255,.35)'}
-  else{bg=`rgba(185,58,0,${o})`;bd='rgba(255,255,255,.15)'}
-  if(EX) return `background:${bg};border:1px solid ${bd}`;
-  return `background:${bg};backdrop-filter:blur(${b}px);-webkit-backdrop-filter:blur(${b}px);border:1px solid ${bd}`;
+  const c=ov||S.glCol; let tint,bd,sheen,edgeTop,edgeBot;
+  const o=S.glOp/100;
+  if(c==='dark'){
+    tint=`rgba(14,14,14,${o.toFixed(3)})`;
+    bd='rgba(255,255,255,.12)';
+    sheen='linear-gradient(135deg,rgba(255,255,255,.14) 0%,rgba(255,255,255,.04) 28%,rgba(255,255,255,0) 55%)';
+    edgeTop='inset 0 1px 0 rgba(255,255,255,.18)';
+    edgeBot='inset 0 -1px 0 rgba(0,0,0,.28)';
+  } else if(c==='light'){
+    tint=`rgba(232,232,232,${o.toFixed(3)})`;
+    bd='rgba(255,255,255,.45)';
+    sheen='linear-gradient(135deg,rgba(255,255,255,.35) 0%,rgba(255,255,255,.08) 32%,rgba(255,255,255,0) 60%)';
+    edgeTop='inset 0 1px 0 rgba(255,255,255,.55)';
+    edgeBot='inset 0 -1px 0 rgba(0,0,0,.08)';
+  } else {
+    tint=`rgba(200,65,0,${o.toFixed(3)})`;
+    bd='rgba(255,255,255,.22)';
+    sheen='linear-gradient(135deg,rgba(255,255,255,.22) 0%,rgba(255,200,150,.06) 30%,rgba(255,255,255,0) 55%)';
+    edgeTop='inset 0 1px 0 rgba(255,255,255,.3)';
+    edgeBot='inset 0 -1px 0 rgba(0,0,0,.2)';
+  }
+  const shadow=`0 24px 60px rgba(0,0,0,.32),0 2px 4px rgba(0,0,0,.18)`;
+  const b=S.glBl;
+  // EX mode: still includes the sheen + borders; applyGlassBlurs() swaps in real blurred backdrop after render.
+  if(EX){
+    return `background:${sheen},${tint};border:1px solid ${bd};box-shadow:${edgeTop},${edgeBot},${shadow}`;
+  }
+  return `background:${sheen},${tint};backdrop-filter:blur(${b}px) saturate(1.7);-webkit-backdrop-filter:blur(${b}px) saturate(1.7);border:1px solid ${bd};box-shadow:${edgeTop},${edgeBot},${shadow}`;
 }
+
 function dGlass(){
-  if(EX) return `background:rgba(8,8,8,0.9);border:1.5px solid rgba(255,102,0,0.35)`;
-  return `background:rgba(8,8,8,0.55);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1.5px solid rgba(255,102,0,0.32)`;
+  const tint='rgba(8,8,8,0.58)';
+  const sheen='linear-gradient(135deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,.03) 40%,rgba(255,255,255,0) 60%)';
+  const inset='inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.35)';
+  const outer='0 12px 40px rgba(0,0,0,.65)';
+  const border='1.5px solid rgba(255,102,0,0.42)';
+  if(EX) return `background:${sheen},${tint};border:${border};box-shadow:${inset},${outer}`;
+  return `background:${sheen},${tint};backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:${border};box-shadow:${inset},${outer}`;
 }
 function tc(ov){const c=ov||S.glCol;return c==='light'?'#141414':'#ffffff'}
 function sc(ov){const c=ov||S.glCol;return c==='light'?'rgba(18,18,18,.82)':'rgba(255,255,255,.82)'}
-function bc(ov){const c=ov||S.glCol;return c==='light'?'rgba(18,18,18,.6)':'rgba(255,255,255,.6)'}
+function bc(ov){const c=ov||S.glCol;return c==='light'?'rgba(18,18,18,.6)':'rgba(255,255,255,.62)'}
 function sz(h,b,k){return Math.round(h*b*(S.fs[k]||100)/100)}
 function txsh(){
   if(!S.shadow)return'';
@@ -421,12 +547,10 @@ function bgD(n=1){
   const zm=n===1?S.imgZoom:S.imgZoom2;
 
   if(EX){
-    // For Duo layout, each half has its own correctly-sized PNG
     const isDuo=S.layout===9;
     const png=n===1?(isDuo?BG_PNG1D:BG_PNG1):(isDuo?BG_PNG2D:BG_PNG2);
     if(!png) return`<div style="position:absolute;inset:0;background:#1a1a1a"></div>`;
     const fh=FMT[S.fmt].h;
-    // Duo: image fills its half-container exactly; others fill full height
     const imgH=isDuo?Math.round(fh*.5):fh;
     return`<div style="position:absolute;inset:0;overflow:hidden;background:#1a1a1a"><img src="${png}" style="position:absolute;top:0;left:0;width:1080px;height:${imgH}px;display:block" draggable="false"></div>`;
   }
@@ -434,24 +558,41 @@ function bgD(n=1){
   if(!img) return`<div style="position:absolute;inset:0;background:linear-gradient(140deg,#1a1a1a,#2c2c2c 50%,#111)"></div>`;
   return`<div style="position:absolute;inset:0;overflow:hidden"><img src="${img}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translate(${ox}px,${oy}px) scale(${zm});transform-origin:center;pointer-events:none;user-select:none" draggable="false"></div>`;
 }
+
+// Gradient overlay — brand-color patterns
+const GRAD_PRESETS={
+  'dark':'linear-gradient(to top,rgba(0,0,0,.9) 0%,rgba(0,0,0,.28) 52%,rgba(0,0,0,.02) 100%)',
+  'orange-wash':'linear-gradient(135deg,rgba(255,102,0,.4) 0%,rgba(40,40,40,.25) 50%,rgba(0,0,0,.75) 100%)',
+  'duotone':'linear-gradient(180deg,rgba(255,102,0,.22) 0%,rgba(40,40,40,.4) 50%,rgba(20,20,20,.88) 100%)',
+  'mesh':'radial-gradient(ellipse at 22% 30%,rgba(255,102,0,.32) 0%,transparent 45%),radial-gradient(ellipse at 78% 70%,rgba(40,40,40,.55) 0%,transparent 55%),linear-gradient(to top,rgba(0,0,0,.55) 0%,transparent 70%)',
+  'vignette':'radial-gradient(ellipse 120% 100% at center,transparent 35%,rgba(0,0,0,.78) 100%)',
+  'glow':'radial-gradient(ellipse 80% 60% at 50% 100%,rgba(255,102,0,.35) 0%,transparent 60%),linear-gradient(to top,rgba(0,0,0,.5) 0%,transparent 60%)',
+  'premium':'linear-gradient(145deg,rgba(0,0,0,.1) 0%,rgba(40,40,40,.2) 40%,rgba(255,102,0,.25) 75%,rgba(0,0,0,.8) 100%)',
+};
 function grd(dir='to top',stops='rgba(0,0,0,.88) 0%,rgba(0,0,0,.3) 50%,rgba(0,0,0,.04) 100%'){
-  return S.grad?`<div style="position:absolute;inset:0;background:linear-gradient(${dir},${stops})"></div>`:'';
+  if(!S.grad)return'';
+  const style=S.gradStyle||'auto';
+  const g=style==='auto'?`linear-gradient(${dir},${stops})`:(GRAD_PRESETS[style]||GRAD_PRESETS['dark']);
+  return `<div style="position:absolute;inset:0;background:${g};pointer-events:none"></div>`;
 }
 function abar(h){return`<div style="width:${Math.round(h*.045)}px;height:${Math.round(h*.0035)}px;background:${S.acc};border-radius:2px;margin-bottom:${Math.round(h*.012)}px;flex-shrink:0"></div>`;}
 function tagD(h,ex=''){
   if(!S.tag)return'';
   return`<div style="display:inline-block;background:${S.acc};color:#fff;font-size:${sz(h,.018,'tag')}px;font-weight:700;padding:${Math.round(h*.006)}px ${Math.round(h*.013)}px;border-radius:4px;letter-spacing:.04em;${ex}">${S.txt.tag}</div>`;
 }
+// CTA — no auto arrow; user types whatever they want in the CTA text field
 function ctaD(h,ex=''){
   if(!S.cta)return'';
   const fs=sz(h,.02,'cta'),py=Math.round(h*.011),px=Math.round(h*.027);
   let st='';
-  if(S.ctaStyle==='solid') st=`background:${S.ctaColor};color:#fff;border:none`;
+  if(S.ctaStyle==='solid') st=`background:${S.ctaColor};color:#fff;border:none;box-shadow:0 6px 18px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)`;
   else if(S.ctaStyle==='glass'){
-    st=EX?`background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,.28)`:
-      `background:rgba(255,255,255,0.13);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;border:1px solid rgba(255,255,255,.24)`;
-  } else st=`background:transparent;color:#fff;border:2px solid ${S.ctaColor}`;
-  return`<div style="display:inline-flex;align-items:center;gap:${Math.round(fs*.35)}px;font-size:${fs}px;font-weight:700;padding:${py}px ${px}px;border-radius:5px;letter-spacing:.025em;${st};flex-shrink:0;${ex}">${S.txt.cta}${arr(Math.round(fs*1.05),'currentColor')}</div>`;
+    const sheen='linear-gradient(135deg,rgba(255,255,255,.3) 0%,rgba(255,255,255,.05) 40%,rgba(255,255,255,0) 60%)';
+    const tint='rgba(255,255,255,0.14)';
+    const common=`background:${sheen},${tint};color:#fff;border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 22px rgba(0,0,0,.28)`;
+    st=EX?common:`${common};backdrop-filter:blur(14px) saturate(1.6);-webkit-backdrop-filter:blur(14px) saturate(1.6)`;
+  } else st=`background:transparent;color:#fff;border:2px solid ${S.ctaColor};box-shadow:0 4px 14px rgba(0,0,0,.15)`;
+  return`<div style="display:inline-block;font-size:${fs}px;font-weight:700;padding:${py}px ${px}px;border-radius:6px;letter-spacing:.025em;${st};flex-shrink:0;${ex}">${S.txt.cta}</div>`;
 }
 function locD(h,col){
   const fs=sz(h,.016,'loc'),psz=Math.round(fs*.92);
@@ -546,7 +687,7 @@ ${discB(h)}
     <div style="font-size:${sz(h,.016,'body')}px;color:rgba(255,255,255,.9);white-space:pre-line">${S.txt.body}</div>
     ${locD(h,'rgba(255,255,255,.65)')}
   </div>
-  ${S.cta?`<div style="background:#fff;color:${S.acc};font-size:${sz(h,.018,'cta')}px;font-weight:800;padding:${Math.round(h*.011)}px ${Math.round(h*.026)}px;border-radius:5px;white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:4px">${S.txt.cta}${arr(Math.round(sz(h,.018,'cta')*1.05),S.acc)}</div>`:''}
+  ${S.cta?`<div style="background:#fff;color:${S.acc};font-size:${sz(h,.018,'cta')}px;font-weight:800;padding:${Math.round(h*.011)}px ${Math.round(h*.026)}px;border-radius:6px;white-space:nowrap;flex-shrink:0;box-shadow:0 6px 18px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.5)">${S.txt.cta}</div>`:''}
 </div>`;
 
   if(id===5){const sp=Math.round(h*.48);return`${bgD()}
@@ -795,6 +936,7 @@ function setAI(n){
 function uT(k,v){S.txt[k]=v;render();}
 function uGlass(){S.glOp=+document.getElementById('sl-op').value;S.glBl=+document.getElementById('sl-bl').value;document.getElementById('v-op').textContent=S.glOp+'%';document.getElementById('v-bl').textContent=S.glBl+'px';render();}
 function sGC(c,b){S.glCol=c;document.querySelectorAll('[id^="gc-"]').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();}
+function sGradStyle(s,b){S.gradStyle=s;document.querySelectorAll('[id^="gs-"]').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();}
 function uOpts(){S.logo=document.getElementById('o-logo').checked;S.logoDark=document.getElementById('o-logodark').checked;S.tag=document.getElementById('o-tag').checked;S.cta=document.getElementById('o-cta').checked;S.grad=document.getElementById('o-grad').checked;S.shadow=document.getElementById('o-shadow').checked;S.disc=document.getElementById('o-disc').checked;render();}
 function uBox(i,k,v){S.boxes[i][k]=v.replace(/\\n/g,'\n');render();}
 function uDXY(){S.discX=+document.getElementById('sl-dx').value;S.discY=+document.getElementById('sl-dy').value;document.getElementById('v-dx').textContent=Math.round(S.discX)+'%';document.getElementById('v-dy').textContent=Math.round(S.discY)+'%';render();}
@@ -854,6 +996,7 @@ function syncUI(){
   document.getElementById('sl-op').value=S.glOp;document.getElementById('v-op').textContent=S.glOp+'%';
   document.getElementById('sl-bl').value=S.glBl;document.getElementById('v-bl').textContent=S.glBl+'px';
   ['dark','light','orange'].forEach(c=>document.getElementById('gc-'+c).classList.toggle('on',c===S.glCol));
+  ['auto','dark','orange-wash','duotone','mesh','glow','vignette','premium'].forEach(g=>{const el=document.getElementById('gs-'+g);if(el)el.classList.toggle('on',g===(S.gradStyle||'auto'));});
   const accI={'#FF6600':0,'#282828':1,'#EFEFEF':2,'#FFFFFF':3};
   document.querySelectorAll('.bswatch').forEach((d,i)=>d.classList.toggle('on',i===accI[S.acc]));
   ['solid','glass','outline'].forEach(st=>document.getElementById('cs-'+st).classList.toggle('on',st===S.ctaStyle));
@@ -883,26 +1026,45 @@ async function doExport(){
 
   // Step 1: Pre-rasterize everything that html2canvas struggles with:
   //   a) SVG logo → PNG
-  //   b) Background image(s) → flat PNG with cover crop + zoom + pan baked in
+  //   b) Background image(s) → flat PNG (crop + zoom + pan baked in)
+  //   c) Blurred backdrops so glass panels can display real liquid glass in the JPG
   const duoTop=Math.round(h*.5), duoBot=h-Math.round(h*.5);
+  const blurAmt=Math.max(10,S.glBl);
   await Promise.all([
     prerasterizeLogo(Math.round(h*0.046)*2),
     rasterizeBg(S.bgImg,w,h,S.imgOffX,S.imgOffY,S.imgZoom).then(p=>BG_PNG1=p),
     rasterizeBg(S.bgImg2,w,h,S.imgOffX2,S.imgOffY2,S.imgZoom2).then(p=>BG_PNG2=p),
-    // Duo layout: each image fills exactly its half — rasterize at half-height
     rasterizeBg(S.bgImg,w,duoTop,S.imgOffX,S.imgOffY,S.imgZoom).then(p=>BG_PNG1D=p),
     rasterizeBg(S.bgImg2,w,duoBot,S.imgOffX2,S.imgOffY2,S.imgZoom2).then(p=>BG_PNG2D=p),
   ]);
+  // Now blur them — requires the non-blurred versions to exist first
+  await Promise.all([
+    S.layout===9
+      ? blurPNG(BG_PNG1D,w,duoTop,blurAmt).then(p=>BG_BLUR1=p)
+      : blurPNG(BG_PNG1,w,h,blurAmt).then(p=>BG_BLUR1=p),
+    S.layout===9
+      ? blurPNG(BG_PNG2D,w,duoBot,blurAmt).then(p=>BG_BLUR2=p)
+      : blurPNG(BG_PNG2,w,h,blurAmt).then(p=>BG_BLUR2=p),
+  ]);
+  // If no image uploaded, blur a flat dark canvas so glass still has a backdrop
+  if(!BG_BLUR1){
+    const c=document.createElement('canvas');c.width=w*2;c.height=h*2;
+    const ctx=c.getContext('2d');
+    const g=ctx.createLinearGradient(0,0,w*2,h*2);
+    g.addColorStop(0,'#1a1a1a');g.addColorStop(0.5,'#2c2c2c');g.addColorStop(1,'#111');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w*2,h*2);
+    BG_BLUR1=c.toDataURL('image/jpeg',0.9);
+  }
 
-  // Step 2: Render with solid glass, PNG logo, and flat BG images
+  // Step 2: Render with solid glass + PNG logo + flat BG images
   render();
   await new Promise(r=>setTimeout(r,80));
 
-  // Step 3: Wait for all fonts to be ready so text metrics are correct
+  // Step 3: Wait for fonts
   try{ await document.fonts.ready; }catch(e){}
   await new Promise(r=>setTimeout(r,80));
 
-  // Step 4: Pin adCanvas at viewport 0,0 at true 1080×h (behind the overlay at z:999)
+  // Step 4: Pin canvas at viewport 0,0 at true 1080×h
   const pvScale=document.getElementById('pvScale');
   const pvWrap=document.getElementById('pvWrap');
   const savedTx=pvScale.style.transform;
@@ -922,9 +1084,13 @@ async function doExport(){
   pvWrap.style.width='1080px';
   pvWrap.style.height=h+'px';
 
-  await new Promise(r=>setTimeout(r,100));
+  await new Promise(r=>setTimeout(r,120));
 
   const cv=document.getElementById('adCanvas');
+
+  // Step 5: Inject blurred backdrops into every glass panel so export keeps the look
+  applyGlassBlurs(cv);
+  await new Promise(r=>setTimeout(r,80));
 
   function restore(){
     pvScale.style.transform=savedTx;
@@ -935,7 +1101,7 @@ async function doExport(){
     pvScale.style.width='';
     pvWrap.style.width=savedWW;
     pvWrap.style.height=savedWH;
-    BG_PNG1=null;BG_PNG2=null;BG_PNG1D=null;BG_PNG2D=null;LOGO_PNG=null;
+    BG_PNG1=null;BG_PNG2=null;BG_PNG1D=null;BG_PNG2D=null;BG_BLUR1=null;BG_BLUR2=null;LOGO_PNG=null;
     EX=false;render();
   }
 
