@@ -415,60 +415,62 @@ function blurPNG(src,w,h,blurPx){
 }
 
 // ════════ APPLY GLASS BLURS (export-time) ════════
-// Walks every glass panel element in the canvas and rewrites its `background`
-// to layer [sheen, tint, blurred-bg] where the blurred bg is positioned so
-// it aligns perfectly with the underlying full-resolution background.
-// html2canvas can then capture the real glass effect into the JPG.
+// Instead of stuffing the blur into a multi-layer `background`, we inject real
+// child divs (blur → tint → sheen) into each glass panel. html2canvas handles
+// simple positioned divs reliably — multi-layer url+gradient backgrounds often fail
+// on small/rounded elements (like the discount badge circle).
 function applyGlassBlurs(canvas){
   const w=1080, h=FMT[S.fmt].h;
   const canvasRect=canvas.getBoundingClientRect();
-  // Tint-color signatures used by glass() and dGlass()
+  // Tint signatures that identify glass panels
   const GLASS_RGX=/rgba\((?:14,14,14|232,232,232|200,65,0|8,8,8)\s*,\s*[\d.]+\s*\)/;
 
   canvas.querySelectorAll('div').forEach(el=>{
     const s=el.getAttribute('style')||'';
-    if(!GLASS_RGX.test(s)) return;
+    const tintMatch=s.match(GLASS_RGX);
+    if(!tintMatch) return;
 
-    // Decide which blur source to use (Duo = half-height variants)
-    const isDuo=S.layout===9;
     const rect=el.getBoundingClientRect();
+    if(rect.width<30||rect.height<30) return;
     const x=rect.left-canvasRect.left;
     const y=rect.top-canvasRect.top;
-    if(rect.width<30||rect.height<30) return;
 
-    // For Duo layout, pick top/bottom blur based on vertical position of panel
-    let blurSrc=BG_BLUR1;
-    let bgH=h;
-    let bgY=y;
+    // Pick blur source (Duo = half-height variants)
+    const isDuo=S.layout===9;
+    let blurSrc=BG_BLUR1, bgH=h, bgY=y;
     if(isDuo){
       const mid=h*0.5;
-      if(y+rect.height/2>mid){
-        blurSrc=BG_BLUR2; bgH=h-Math.round(h*.5); bgY=y-Math.round(h*.5);
-      } else {
-        bgH=Math.round(h*.5);
-      }
+      if(y+rect.height/2>mid){ blurSrc=BG_BLUR2; bgH=h-Math.round(h*.5); bgY=y-Math.round(h*.5); }
+      else { bgH=Math.round(h*.5); }
     }
     if(!blurSrc) return;
 
-    const tintMatch=s.match(GLASS_RGX);
-    if(!tintMatch) return;
     const tint=tintMatch[0];
-
-    // Keep existing sheen gradient; grab everything before the tint color
     const sheenMatch=s.match(/linear-gradient\([^)]*(?:\([^)]*\)[^)]*)*\)/);
     const sheen=sheenMatch?sheenMatch[0]:'';
 
-    // New background: sheen + solid tint overlay + blurred bg image
-    const newBg=(sheen?sheen+',':'')
-      +`linear-gradient(${tint},${tint}),url(${blurSrc})`;
-    const sizes=(sheen?'auto,':'')+`auto,${w}px ${bgH}px`;
-    const pos=(sheen?'0 0,':'')+`0 0,${-x}px ${-bgY}px`;
-    const rep=(sheen?'no-repeat,':'')+'no-repeat,no-repeat';
+    // Bump existing children above our inserted layer divs (do this BEFORE insert)
+    Array.from(el.children).forEach(c=>{
+      if(!c.style) return;
+      const cp=c.style.position||'';
+      if(!cp||cp==='static') c.style.position='relative';
+      if(!c.style.zIndex) c.style.zIndex='5';
+    });
 
-    // Replace only the `background:...` segment (everything up to next `;`)
-    const newStyle=s.replace(/background:[^;]+/,
-      `background:${newBg};background-size:${sizes};background-position:${pos};background-repeat:${rep}`
-    );
+    // Build three stacked layer divs: [blur image] -> [tint] -> [sheen]
+    let layersHTML=
+      `<div style="position:absolute;inset:0;border-radius:inherit;overflow:hidden;z-index:0;pointer-events:none">`+
+        `<img src="${blurSrc}" style="position:absolute;top:${-bgY}px;left:${-x}px;width:${w}px;height:${bgH}px;display:block;max-width:none;max-height:none;user-select:none" draggable="false">`+
+      `</div>`+
+      `<div style="position:absolute;inset:0;border-radius:inherit;background:${tint};z-index:1;pointer-events:none"></div>`;
+    if(sheen){
+      layersHTML+=`<div style="position:absolute;inset:0;border-radius:inherit;background:${sheen};z-index:2;pointer-events:none"></div>`;
+    }
+    el.insertAdjacentHTML('afterbegin',layersHTML);
+
+    // Remove the `background` property from the parent itself (we've replaced it with layers).
+    // Keep everything else (border, box-shadow, flex, size, etc.)
+    const newStyle=s.replace(/(^|;)\s*background\s*:\s*[^;]+/g,'$1').replace(/;+/g,';').replace(/^;|;$/g,'');
     el.setAttribute('style',newStyle);
   });
 }
