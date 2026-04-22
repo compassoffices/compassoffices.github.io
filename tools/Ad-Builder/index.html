@@ -414,15 +414,45 @@ function blurPNG(src,w,h,blurPx){
   });
 }
 
-// ════════ APPLY GLASS BLURS (export-time) ════════
-// Instead of stuffing the blur into a multi-layer `background`, we inject real
-// child divs (blur → tint → sheen) into each glass panel. html2canvas handles
-// simple positioned divs reliably — multi-layer url+gradient backgrounds often fail
-// on small/rounded elements (like the discount badge circle).
+// ════════ COMPOSITE DUO (export-time) ════════
+// The Duo layout has two separate background images stacked top/bottom. For glass
+// panels that span the midline (e.g. the center card), we need a unified backdrop
+// so their blur layer shows the right content at every position. This draws the two
+// half-height rasterized images into one full-canvas image that can then be blurred.
+function compositeDuo(png1,png2,w,h){
+  return new Promise(resolve=>{
+    const SC=2, topH=Math.round(h*.5), botH=h-topH;
+    const c=document.createElement('canvas');
+    c.width=w*SC; c.height=h*SC;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,c.width,c.height);
+    let pending=0;
+    const done=()=>{ if(pending===0) resolve(c.toDataURL('image/jpeg',0.9)); };
+    if(png1){
+      pending++;
+      const i=new Image();
+      i.onload=()=>{ ctx.drawImage(i,0,0,w*SC,topH*SC); pending--; done(); };
+      i.onerror=()=>{ pending--; done(); };
+      i.src=png1;
+    }
+    if(png2){
+      pending++;
+      const i=new Image();
+      i.onload=()=>{ ctx.drawImage(i,0,topH*SC,w*SC,botH*SC); pending--; done(); };
+      i.onerror=()=>{ pending--; done(); };
+      i.src=png2;
+    }
+    if(pending===0) done();
+  });
+}
+
+
+// Inject child div layers (blur → tint → sheen) into every glass panel.
+// Uses ONE unified blur source (BG_BLUR1) for all layouts. For Duo, BG_BLUR1
+// is already the composited full-canvas image — so positioning math is uniform.
 function applyGlassBlurs(canvas){
   const w=1080, h=FMT[S.fmt].h;
   const canvasRect=canvas.getBoundingClientRect();
-  // Tint signatures that identify glass panels
   const GLASS_RGX=/rgba\((?:14,14,14|232,232,232|200,65,0|8,8,8)\s*,\s*[\d.]+\s*\)/;
 
   canvas.querySelectorAll('div').forEach(el=>{
@@ -435,21 +465,18 @@ function applyGlassBlurs(canvas){
     const x=rect.left-canvasRect.left;
     const y=rect.top-canvasRect.top;
 
-    // Pick blur source (Duo = half-height variants)
-    const isDuo=S.layout===9;
-    let blurSrc=BG_BLUR1, bgH=h, bgY=y;
-    if(isDuo){
-      const mid=h*0.5;
-      if(y+rect.height/2>mid){ blurSrc=BG_BLUR2; bgH=h-Math.round(h*.5); bgY=y-Math.round(h*.5); }
-      else { bgH=Math.round(h*.5); }
-    }
+    const blurSrc=BG_BLUR1;
     if(!blurSrc) return;
 
     const tint=tintMatch[0];
     const sheenMatch=s.match(/linear-gradient\([^)]*(?:\([^)]*\)[^)]*)*\)/);
     const sheen=sheenMatch?sheenMatch[0]:'';
 
-    // Bump existing children above our inserted layer divs (do this BEFORE insert)
+    // CRITICAL: if parent is position:static, absolute children escape to the
+    // nearest positioned ancestor — broke L10 (boxes had no position set).
+    const cs=window.getComputedStyle(el);
+    const needsRelative=cs.position==='static';
+
     Array.from(el.children).forEach(c=>{
       if(!c.style) return;
       const cp=c.style.position||'';
@@ -457,10 +484,9 @@ function applyGlassBlurs(canvas){
       if(!c.style.zIndex) c.style.zIndex='5';
     });
 
-    // Build three stacked layer divs: [blur image] -> [tint] -> [sheen]
     let layersHTML=
       `<div style="position:absolute;inset:0;border-radius:inherit;overflow:hidden;z-index:0;pointer-events:none">`+
-        `<img src="${blurSrc}" style="position:absolute;top:${-bgY}px;left:${-x}px;width:${w}px;height:${bgH}px;display:block;max-width:none;max-height:none;user-select:none" draggable="false">`+
+        `<img src="${blurSrc}" style="position:absolute;top:${-y}px;left:${-x}px;width:${w}px;height:${h}px;display:block;max-width:none;max-height:none;user-select:none" draggable="false">`+
       `</div>`+
       `<div style="position:absolute;inset:0;border-radius:inherit;background:${tint};z-index:1;pointer-events:none"></div>`;
     if(sheen){
@@ -468,9 +494,10 @@ function applyGlassBlurs(canvas){
     }
     el.insertAdjacentHTML('afterbegin',layersHTML);
 
-    // Remove the `background` property from the parent itself (we've replaced it with layers).
-    // Keep everything else (border, box-shadow, flex, size, etc.)
-    const newStyle=s.replace(/(^|;)\s*background\s*:\s*[^;]+/g,'$1').replace(/;+/g,';').replace(/^;|;$/g,'');
+    let newStyle=s.replace(/(^|;)\s*background\s*:\s*[^;]+/g,'$1').replace(/;+/g,';').replace(/^;|;$/g,'');
+    if(needsRelative){
+      newStyle=(newStyle?newStyle+';':'')+'position:relative';
+    }
     el.setAttribute('style',newStyle);
   });
 }
@@ -1039,15 +1066,19 @@ async function doExport(){
     rasterizeBg(S.bgImg,w,duoTop,S.imgOffX,S.imgOffY,S.imgZoom).then(p=>BG_PNG1D=p),
     rasterizeBg(S.bgImg2,w,duoBot,S.imgOffX2,S.imgOffY2,S.imgZoom2).then(p=>BG_PNG2D=p),
   ]);
-  // Now blur them — requires the non-blurred versions to exist first
-  await Promise.all([
-    S.layout===9
-      ? blurPNG(BG_PNG1D,w,duoTop,blurAmt).then(p=>BG_BLUR1=p)
-      : blurPNG(BG_PNG1,w,h,blurAmt).then(p=>BG_BLUR1=p),
-    S.layout===9
-      ? blurPNG(BG_PNG2D,w,duoBot,blurAmt).then(p=>BG_BLUR2=p)
-      : blurPNG(BG_PNG2,w,h,blurAmt).then(p=>BG_BLUR2=p),
-  ]);
+  // Now blur them — requires the non-blurred versions to exist first.
+  // For Duo layout, we composite the two half images into ONE full-canvas image
+  // then blur it — so glass panels that span the midline get correct content.
+  if(S.layout===9){
+    const composite=await compositeDuo(BG_PNG1D,BG_PNG2D,w,h);
+    BG_BLUR1=await blurPNG(composite,w,h,blurAmt);
+    BG_BLUR2=BG_BLUR1;
+  } else {
+    await Promise.all([
+      blurPNG(BG_PNG1,w,h,blurAmt).then(p=>BG_BLUR1=p),
+      blurPNG(BG_PNG2,w,h,blurAmt).then(p=>BG_BLUR2=p),
+    ]);
+  }
   // If no image uploaded, blur a flat dark canvas so glass still has a backdrop
   if(!BG_BLUR1){
     const c=document.createElement('canvas');c.width=w*2;c.height=h*2;
