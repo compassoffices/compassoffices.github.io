@@ -454,6 +454,11 @@ img.co-icon-img{display:block;}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span data-i18n="btn_save_card">Save Card</span>
     </button>
+    <button class="hbtn" id="queue-btn" onclick="addToQueue()" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd);position:relative;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      <span>+ Queue</span>
+      <span id="queue-count" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--o);color:#fff;font-size:9px;font-weight:800;border-radius:50%;width:16px;height:16px;line-height:16px;text-align:center;"></span>
+    </button>
     <button class="hbtn" id="pdf-btn" onclick="downloadPDF()" style="background:#c44000;border:none;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span id="pdf-btn-label">↓ PDF</span>
@@ -3216,6 +3221,117 @@ async function fetchSVGInline(src){
 
 // ── EXPORT FILENAME HELPER ────────────────────────────────
 // Prefers EN name regardless of current language, falls back to current
+// ══════════════════════════════════════════════════════════
+//  PDF QUEUE — combine multiple locations into one PDF
+// ══════════════════════════════════════════════════════════
+let PDF_QUEUE = []; // [{name, thumb, cv1DataUrl, cv2DataUrl}]
+
+function toggleQueuePanel(){
+  const panel=document.getElementById('queue-panel');
+  if(!panel) return;
+  const visible=panel.style.display==='flex';
+  panel.style.display=visible?'none':'flex';
+}
+
+function updateQueueBadge(){
+  const badge=document.getElementById('queue-count');
+  const btn=document.getElementById('queue-btn');
+  if(!badge||!btn) return;
+  const n=PDF_QUEUE.length;
+  badge.textContent=n;
+  badge.style.display=n>0?'block':'none';
+  btn.style.borderColor=n>0?'var(--o)':'var(--bd)';
+  btn.style.color=n>0?'var(--o)':'var(--mid)';
+}
+
+function renderQueueList(){
+  const list=document.getElementById('queue-list');
+  const empty=document.getElementById('queue-empty');
+  if(!list) return;
+  if(!PDF_QUEUE.length){
+    if(empty) empty.style.display='';
+    list.innerHTML='';
+    list.appendChild(empty||document.createElement('div'));
+    return;
+  }
+  if(empty) empty.style.display='none';
+  list.innerHTML=PDF_QUEUE.map((item,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border-radius:8px;border:1px solid var(--bd);">
+      <img src="${item.thumb}" style="width:72px;height:51px;object-fit:contain;border-radius:4px;background:#f0f0f0;flex-shrink:0;border:1px solid var(--bd);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:var(--drk);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</div>
+        <div style="font-size:10px;color:var(--xlt);">2 pages</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+        ${i>0?`<button onclick="queueMoveUp(${i})" style="width:20px;height:20px;border:1px solid var(--bd);border-radius:4px;background:var(--wh);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--xlt);font-size:10px;" title="Move up">↑</button>`:'<div style="width:20px;height:20px;"></div>'}
+        ${i<PDF_QUEUE.length-1?`<button onclick="queueMoveDown(${i})" style="width:20px;height:20px;border:1px solid var(--bd);border-radius:4px;background:var(--wh);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--xlt);font-size:10px;" title="Move down">↓</button>`:'<div style="width:20px;height:20px;"></div>'}
+      </div>
+      <button onclick="removeFromQueue(${i})" style="width:22px;height:22px;border:none;background:transparent;color:var(--xlt);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='var(--xlt)'">×</button>
+    </div>
+  `).join('');
+}
+
+function queueMoveUp(i){if(i<=0)return;[PDF_QUEUE[i-1],PDF_QUEUE[i]]=[PDF_QUEUE[i],PDF_QUEUE[i-1]];renderQueueList();}
+function queueMoveDown(i){if(i>=PDF_QUEUE.length-1)return;[PDF_QUEUE[i],PDF_QUEUE[i+1]]=[PDF_QUEUE[i+1],PDF_QUEUE[i]];renderQueueList();}
+function removeFromQueue(i){PDF_QUEUE.splice(i,1);renderQueueList();updateQueueBadge();}
+function clearQueue(){PDF_QUEUE=[];renderQueueList();updateQueueBadge();}
+
+async function addToQueue(){
+  const btn=document.getElementById('queue-btn');
+  const origHTML=btn?btn.innerHTML:'';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(0,0,0,.2);border-top-color:var(--o);border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Adding…</span>';btn.disabled=true;}
+  try{
+    const name=getExportName()||'Location';
+    gen._captureMode=true;gen();gen._captureMode=false;
+    const cv1=await slideToCanvas('slide');
+    const cv2=await slideToCanvas('slide2');
+    const thumb=cv1?cv1.toDataURL('image/jpeg',0.5):'';
+    const cv1Data=cv1?cv1.toDataURL('image/jpeg',0.92):'';
+    const cv2Data=cv2?cv2.toDataURL('image/jpeg',0.92):'';
+    PDF_QUEUE.push({name,thumb,cv1DataUrl:cv1Data,cv2DataUrl:cv2Data});
+    renderQueueList();
+    updateQueueBadge();
+    // Show panel
+    const panel=document.getElementById('queue-panel');
+    if(panel) panel.style.display='flex';
+    showStatus(`"${name}" added to queue (${PDF_QUEUE.length} item${PDF_QUEUE.length!==1?'s':''})`, 's-ok');
+  }catch(err){
+    console.error('Queue error:',err);
+    alert('Failed to add to queue: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
+  }
+}
+
+async function exportQueuePDF(){
+  if(!PDF_QUEUE.length){alert('Queue is empty — add some locations first.');return;}
+  const exportBtn=document.getElementById('queue-export-btn');
+  const origHTML=exportBtn?exportBtn.innerHTML:'';
+  if(exportBtn){exportBtn.innerHTML='Exporting…';exportBtn.disabled=true;}
+  try{
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    PDF_QUEUE.forEach((item,qi)=>{
+      if(item.cv1DataUrl){
+        if(qi>0) pdf.addPage();
+        pdf.addImage(item.cv1DataUrl,'JPEG',0,0,297,210);
+      }
+      if(item.cv2DataUrl){
+        pdf.addPage();
+        pdf.addImage(item.cv2DataUrl,'JPEG',0,0,297,210);
+      }
+    });
+    const filename=PDF_QUEUE.map(i=>i.name).join('-').slice(0,60)||'queue';
+    pdf.save(filename+'.pdf');
+    showStatus(`Exported ${PDF_QUEUE.length} location${PDF_QUEUE.length!==1?'s':''} (${PDF_QUEUE.length*2} pages) as PDF.`,'s-ok');
+  }catch(err){
+    console.error('Export queue error:',err);
+    alert('Export failed: '+err.message);
+  }finally{
+    if(exportBtn){exportBtn.innerHTML=origHTML;exportBtn.disabled=false;}
+  }
+}
+
 function getExportName(){
   const enName = LANG_DATA['en']?.fields?.['n-main'] || '';
   const curName = document.getElementById('n-main')?.value || '';
@@ -3687,6 +3803,21 @@ window.addEventListener('resize',()=>{
 <button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
 </button>
+
+<!-- ── PDF QUEUE PANEL ─────────────────────────────────────── -->
+<div id="queue-panel" style="display:none;position:fixed;right:16px;bottom:76px;width:320px;max-height:70vh;background:var(--wh);border:1.5px solid var(--bd);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:600;flex-direction:column;overflow:hidden;">
+  <div style="padding:12px 14px 10px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <span style="font-size:13px;font-weight:700;color:var(--drk);">PDF Queue</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button onclick="exportQueuePDF()" id="queue-export-btn" style="padding:4px 10px;background:var(--o);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;">Export All PDF</button>
+      <button onclick="clearQueue()" style="padding:4px 8px;background:transparent;color:var(--xlt);border:1px solid var(--bd);border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;">Clear</button>
+      <button onclick="toggleQueuePanel()" style="padding:4px 7px;background:transparent;color:var(--xlt);border:none;font-size:16px;cursor:pointer;line-height:1;">×</button>
+    </div>
+  </div>
+  <div id="queue-list" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;">
+    <div id="queue-empty" style="text-align:center;color:var(--xlt);font-size:12px;padding:20px 10px;">No items yet. Click + Queue to add the current location.</div>
+  </div>
+</div>
 
 </body>
 </html>
