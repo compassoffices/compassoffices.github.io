@@ -450,6 +450,15 @@ img.co-icon-img{display:block;}
     <button class="lbtn" onclick="setLang('ja')">日本語</button>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
+    <!-- Shown only when re-editing a queue item -->
+    <div id="queue-edit-bar" style="display:none;align-items:center;gap:6px;padding:4px 10px;background:#fff8f0;border:1.5px solid var(--o);border-radius:8px;">
+      <span style="font-size:11px;font-weight:600;color:var(--o);white-space:nowrap;" id="queue-edit-label">Editing queue item</span>
+      <button onclick="queueUpdateCurrent()" id="queue-update-btn" style="padding:4px 10px;background:var(--o);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Update &amp; Back
+      </button>
+      <button onclick="queueCancelEdit()" style="padding:4px 8px;background:transparent;color:var(--xlt);border:1px solid var(--bd);border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;">Cancel</button>
+    </div>
     <button class="hbtn" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd)" onclick="downloadCurrentJSON()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span data-i18n="btn_save_card">Save Card</span>
@@ -3266,15 +3275,88 @@ function buildStateSnapshot(){
 }
 
 function restoreStateSnapshot(state){
-  if(!state)return;
-  applyLocationData(state);
-  // Restore local (data URL) photos that weren't saved to URL fields
-  if(state.photos_data) state.photos_data.forEach((d,i)=>{if(d)S.photos[i]=d;});
-  if(state.floorplan_data){S.floorplan=state.floorplan_data;FP_PLANS[0]={url:state.floorplan_data,label:'Master'};}
-  // Switch to the lang that was active when added
-  if(state._lang&&state._lang!==LANG) setLang(state._lang);
-  else gen();
-  renderPhotoSlots();renderFloorplanCard();renderFpList();
+  if(!state) return;
+
+  // ── 1. Restore per-lang LANG_DATA directly (snapshot uses LANG_DATA format) ──
+  if(state.langs){
+    LANG_KEYS.forEach(lc=>{
+      const ld=state.langs[lc];
+      if(!ld) return;
+      LANG_DATA[lc]={
+        fields:     {...(ld.fields||{})},
+        richFields: {...(ld.richFields||{})},
+        customBody: ld.customBody||'',
+        transport:  (ld.transport||[]).map(t=>({id:_trId(),iconId:t.iconId||'tr_metro',text:t.text||''})),
+        rows:       JSON.parse(JSON.stringify(ld.rows||[])),
+        benefits:   (ld.benefits||[]).map(b=>({...b})),
+        amenities:  [...(ld.amenities||AMENITY_ICONS.map(()=>true))],
+        benPos:     ld.benPos||'auto',
+        customPos:  ld.customPos||'below',
+      };
+      BENEFITS_TITLE[lc]=ld.benefits_title||'';
+    });
+  }
+
+  // ── 2. Restore global layout/display state ─────────────────────────────────
+  if(state.benefits_pos)       setBenPos(state.benefits_pos);
+  if(state.custom_pos)         setCustomPos(state.custom_pos);
+  if(state.show_specs===false) { SHOW_SPECS=false; } else { SHOW_SPECS=true; }
+  if(state.hidden_specs)       { HIDDEN_SPECS.clear(); state.hidden_specs.forEach(id=>HIDDEN_SPECS.add(id)); }
+  if(state.logo_separator)     setSep(state.logo_separator);
+  if(state.icon_overrides)     { window.ICON_OVERRIDES={...state.icon_overrides}; }
+
+  // ── 3. Restore pricing columns ─────────────────────────────────────────────
+  if(state.pricing_cols) state.pricing_cols.forEach(sc=>{
+    const col=PRICING_COLS.find(c=>c.key===sc.key);
+    if(col){ col.on=sc.on; col.labels={...sc.labels}; }
+  });
+
+  // ── 4. Restore amenity icons ───────────────────────────────────────────────
+  if(state.amenities) AMENITY_ICONS.forEach((a,i)=>{ a.on=state.amenities[i]??true; });
+
+  // ── 5. Restore benefits on/off ─────────────────────────────────────────────
+  if(state.benefits_on) BENEFITS.forEach(b=>{ b.on=state.benefits_on.includes(b.id); });
+
+  // ── 6. Restore photos ─────────────────────────────────────────────────────
+  if(state.photos) state.photos.forEach((u,i)=>{
+    S.photos[i]=(u&&u!=='__local__')?u:null;
+  });
+  if(state.photos_data) state.photos_data.forEach((d,i)=>{ if(d) S.photos[i]=d; });
+
+  // ── 7. Restore partner logo ────────────────────────────────────────────────
+  S.partnerLogo=state.partner_logo_url||null;
+
+  // ── 8. Restore floorplan ───────────────────────────────────────────────────
+  if(state.fp_plans&&state.fp_plans.length){
+    FP_PLANS=state.fp_plans.map(p=>({url:p.url,label:p.label}));
+    FP_PAGE2_SAME=state.fp_page2_same!==false;
+    FP_PAGE1_IDX=state.fp_page1_idx!==undefined?state.fp_page1_idx:-2;
+    FP_PAGE2_IDX=state.fp_page2_idx!==undefined?state.fp_page2_idx:0;
+    FP_BASE_URL=state.fp_base_url||'';
+    S.floorplan=FP_PLANS[0]?.url||null;
+  } else if(state.floorplan_url){
+    S.floorplan=state.floorplan_url;
+    FP_PLANS=[{url:state.floorplan_url,label:'master'}];
+    FP_BASE_URL=state.floorplan_url.replace(/[^/]+\.jpg$/i,'');
+  }
+  if(state.floorplan_data){
+    S.floorplan=state.floorplan_data;
+    if(FP_PLANS.length) FP_PLANS[0].url=state.floorplan_data;
+    else FP_PLANS=[{url:state.floorplan_data,label:'Master'}];
+  }
+
+  // ── 9. Load current lang into DOM and re-render everything ─────────────────
+  const bTitleInp=document.getElementById('benefits-title-input');
+  if(bTitleInp) bTitleInp.value=BENEFITS_TITLE[LANG]||'';
+  loadLangData(LANG);
+  renderPhotoSlots();
+  renderLogoCard();
+  renderFpList();
+  setFpPage2Same(FP_PAGE2_SAME);
+  renderPricingColSettings();
+  renderRows();
+  renderAmenities();
+  gen();
 }
 
 function toggleQueuePanel(){
@@ -3340,15 +3422,66 @@ function restoreFromQueue(i){
 }
 
 // Load a queued item back into the editor for re-editing
+function setQueueEditBar(show, idx){
+  const bar=document.getElementById('queue-edit-bar');
+  const lbl=document.getElementById('queue-edit-label');
+  if(!bar) return;
+  bar.style.display=show?'flex':'none';
+  if(show&&idx>=0&&PDF_QUEUE[idx]){
+    if(lbl) lbl.textContent=`Editing: ${PDF_QUEUE[idx].name}`;
+  }
+}
+
 function queueEditItem(i){
   const item=PDF_QUEUE[i];if(!item||!item.state)return;
-  // Collapse the queue panel while editing
   const panel=document.getElementById('queue-panel');
   if(panel) panel.style.display='none';
   restoreStateSnapshot(item.state);
-  showStatus(`Editing "${item.name}" — make changes then click ↺ Update or + Queue again.`,'s-ok');
-  // Highlight which item is being edited
   PDF_QUEUE._editingIdx=i;
+  setQueueEditBar(true,i);
+  showStatus(`Editing "${item.name}" — make changes then click Update & Back.`,'s-ok');
+}
+
+async function queueUpdateCurrent(){
+  const i=PDF_QUEUE._editingIdx;
+  if(i===undefined||i===null||!PDF_QUEUE[i]) return;
+  const btn=document.getElementById('queue-update-btn');
+  const origHTML=btn?btn.innerHTML:'';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Updating…</span>';btn.disabled=true;}
+  try{
+    const item=PDF_QUEUE[i];
+    const name=getExportName()||item.name;
+    gen._captureMode=true;gen();gen._captureMode=false;
+    const cv1=await slideToCanvas('slide');
+    const cv2=await slideToCanvas('slide2');
+    PDF_QUEUE[i]={
+      ...item,
+      name,
+      thumb:cv1?cv1.toDataURL('image/jpeg',0.5):item.thumb,
+      cv1DataUrl:cv1?cv1.toDataURL('image/jpeg',0.92):item.cv1DataUrl,
+      cv2DataUrl:cv2?cv2.toDataURL('image/jpeg',0.92):item.cv2DataUrl,
+      state:buildStateSnapshot(),
+    };
+    PDF_QUEUE._editingIdx=null;
+    setQueueEditBar(false,-1);
+    renderQueueList();
+    // Reopen queue panel
+    const panel=document.getElementById('queue-panel');
+    if(panel) panel.style.display='flex';
+    showStatus(`"${name}" updated in queue.`,'s-ok');
+  }catch(err){
+    alert('Update failed: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
+  }
+}
+
+function queueCancelEdit(){
+  PDF_QUEUE._editingIdx=null;
+  setQueueEditBar(false,-1);
+  // Reopen the panel so user can see the queue
+  const panel=document.getElementById('queue-panel');
+  if(panel) panel.style.display='flex';
 }
 
 // Re-render and update an existing queue slot with current slide state
