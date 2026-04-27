@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
+:root{--fs:1.25;
   --orange:#ff6600;--orange-dk:#e05500;
   --black:#0f0f0f;--dkgrey:#252525;--midgrey:#888;--ltgrey:#f0f0f0;--white:#fff;
   --r:14px;--gap:10px;--sw:304px;--th:54px;
@@ -38,10 +38,10 @@ body{font-family:var(--nhg);background:#141414;display:flex;height:100vh;overflo
 #poster{position:relative;width:794px;height:1123px;background:#e8e8e8;padding:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap);flex-shrink:0;box-shadow:0 24px 80px rgba(0,0,0,.7)}
 
 /* TILES */
-.tile{border-radius:var(--r);overflow:hidden;cursor:pointer;position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:16px;transition:outline .12s;user-select:none}
+.tile{border-radius:var(--r);overflow:hidden;cursor:pointer;position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:16px;transition:outline .12s;user-select:none;container-type:inline-size;container-name:tile}
 .tile:hover{outline:2px solid rgba(255,102,0,.3)}
-.tile.active{outline:2px solid rgba(255,102,0,.5)}
-.tile.active .edit-badge{display:flex}
+.tile.active{outline:2.5px solid var(--orange);outline-offset:0px}
+.tile.active .edit-badge,.tile:hover .edit-badge{display:flex}
 .edit-badge{display:none;position:absolute;top:9px;right:9px;background:var(--orange);color:white;font-size:9px;font-weight:700;letter-spacing:.08em;padding:3px 9px;border-radius:100px;z-index:20}
 .tile-drag-handle{position:absolute;top:8px;left:8px;z-index:30;width:20px;height:20px;border-radius:5px;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;cursor:grab;opacity:0;transition:opacity .15s;color:rgba(255,255,255,.7)}
 .tile:hover .tile-drag-handle{opacity:1}
@@ -57,16 +57,16 @@ body.ss .edit-badge{display:none!important}
 /* IMAGE */
 .t-img{position:absolute;inset:0;width:100%;height:100%;background-size:cover;background-position:center;background-repeat:no-repeat;z-index:0}
 .t-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.8) 0%,rgba(0,0,0,.15) 55%,transparent 100%);z-index:1}
-.t-cnt{position:relative;z-index:2;width:100%}
+.t-cnt{position:relative;z-index:2;width:100%;min-height:0;overflow:hidden}
 
 /* TYPOGRAPHY */
-.t-iconbox{margin-bottom:10px;display:flex;line-height:1}
-.t-tag{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px;display:block}
-.t-title{font-weight:800;line-height:1.08}
-.t-title.xl{font-size:38px}.t-title.lg{font-size:24px}.t-title.md{font-size:18px}.t-title.sm{font-size:14px}
-.t-desc{font-size:11px;line-height:1.55;margin-top:5px;display:block;font-weight:400;white-space:pre-line}
-.t-stat{font-size:52px;font-weight:800;line-height:1;margin-bottom:2px;display:block}
-.t-unit{font-size:14px;font-weight:400;opacity:.6}
+.t-iconbox{margin-bottom:clamp(6px,2cqi,16px);display:flex;line-height:1;overflow:visible;flex-shrink:0}
+.t-tag{font-size:clamp(7px, calc(3.5cqi * var(--fs)), 14px);font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px;display:block}
+.t-title{font-weight:800;line-height:1.08;overflow-wrap:break-word;word-break:break-word}
+.t-title.xl{font-size:clamp(16px, calc(15cqi * var(--fs)), 72px)}.t-title.lg{font-size:clamp(13px, calc(10cqi * var(--fs)), 48px)}.t-title.md{font-size:clamp(11px, calc(7cqi * var(--fs)), 34px)}.t-title.sm{font-size:clamp(10px, calc(5.5cqi * var(--fs)), 26px)}
+.t-desc{font-size:clamp(8px, calc(4.5cqi * var(--fs)), 18px);line-height:1.55;margin-top:5px;display:block;font-weight:400;white-space:pre-line;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.t-stat{font-size:clamp(18px, calc(21cqi * var(--fs)), 90px);font-weight:800;line-height:1;margin-bottom:2px;display:block}
+.t-unit{font-size:clamp(8px, calc(5.5cqi * var(--fs)), 22px);font-weight:400;opacity:.6}
 .cw{color:#fff}.cb{color:var(--black)}.co{color:var(--orange)}.cg{color:var(--midgrey)}.cdw{color:rgba(255,255,255,.5)}.cdo{color:rgba(255,102,0,.9)}
 
 /* TEXT COLOUR OVERRIDES */
@@ -96,40 +96,41 @@ body.ss .edit-badge{display:none!important}
 .perk-cat{flex:1;border-radius:10px;overflow:hidden;position:relative;min-width:0;background:#d5d5d5;cursor:default}
 .perk-cat-bg{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat}
 .perk-cat-ov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.72) 0%,rgba(0,0,0,.08) 55%,transparent 100%)}
-.perk-cat-name{position:absolute;bottom:9px;left:10px;right:10px;color:white;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;z-index:1;line-height:1.3}
+.perk-cat-name{position:absolute;bottom:9px;left:10px;right:10px;color:white;font-size:clamp(7px, calc(3.5cqi * var(--fs)), 13px);font-weight:700;letter-spacing:.1em;text-transform:uppercase;z-index:1;line-height:1.3}
 .perk-cat-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:rgba(0,0,0,.25);font-size:8px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:#d0d0d0;border-radius:10px}
 
 /* CTA */
 .t-cta{align-items:center;justify-content:center;text-align:center;flex-direction:column}
-.cta-pill{background:white;color:var(--orange);font-weight:700;font-size:11px;padding:8px 20px;border-radius:100px;margin-top:10px;display:inline-block;letter-spacing:.03em}
+.cta-pill{background:white;color:var(--orange);font-weight:700;font-size:clamp(9px, calc(5cqi * var(--fs)), 18px);padding:clamp(6px,2cqi,12px) clamp(14px,6cqi,28px);border-radius:100px;margin-top:clamp(6px,2cqi,14px);display:inline-block;letter-spacing:.03em;white-space:nowrap;transition:all .15s}
 .cta-qr-wrap{display:none;margin:8px auto 4px}
 .cta-qr-wrap.on{display:block}
 .cta-qr-container{position:relative;display:inline-block;border-radius:10px;overflow:hidden;background:transparent}
 .cta-qr-img{display:block;border-radius:10px;background:transparent;image-rendering:pixelated}
-.t-cta.qr-mode .t-iconbox{display:flex;opacity:.9}
+.t-cta.qr-mode .t-iconbox{display:flex;opacity:.9;overflow:visible}
 
 /* AMENITY */
-.a-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
-.a-chip{display:flex;align-items:center;gap:4px;font-size:9px;font-weight:600;letter-spacing:.06em;padding:4px 8px;border-radius:7px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.5)}
+.a-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px;width:100%;overflow:hidden}
+.a-chip{display:flex;align-items:center;gap:clamp(4px,2cqi,10px);font-size:clamp(8px, calc(4.5cqi * var(--fs)), 16px);font-weight:600;letter-spacing:.04em;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.09);color:rgba(255,255,255,.75);white-space:nowrap;flex-shrink:0}
+.a-row .a-chip{width:100%;box-sizing:border-box;justify-content:flex-start}
 
 /* RESIZE OVERLAY */
 #resize-overlay{
-  pointer-events:none;z-index:400;display:none;position:relative;
-  margin:-2px;border:2.5px solid var(--orange);border-radius:var(--r);
+  pointer-events:none;z-index:9000;display:none;
+  position:fixed;        /* viewport-relative — always exact regardless of scroll */
+  border:2.5px solid var(--orange);border-radius:var(--r);
   box-shadow:0 0 0 1px rgba(255,102,0,.1),0 0 20px rgba(255,102,0,.25);
-  background:transparent;align-self:stretch;justify-self:stretch;
-  width:auto!important;height:auto!important;left:auto!important;top:auto!important;
+  background:transparent;
 }
 #resize-overlay.on{display:block}
 body.ss #resize-overlay{display:none!important}
 .ro-edge{position:absolute;pointer-events:all;display:flex;align-items:center;justify-content:center;z-index:10}
-.ro-right{right:0;top:15%;height:70%;width:18px;cursor:col-resize;transform:translateX(50%)}
+.ro-right{right:0;top:10%;height:80%;width:24px;cursor:col-resize;transform:translateX(50%)}
 .ro-right::before{content:'';width:5px;height:100%;border-radius:4px;background:var(--orange);box-shadow:0 0 0 1px rgba(0,0,0,.3),0 0 8px rgba(255,102,0,.8)}
-.ro-left{left:0;top:15%;height:70%;width:18px;cursor:col-resize;transform:translateX(-50%)}
+.ro-left{left:0;top:10%;height:80%;width:24px;cursor:col-resize;transform:translateX(-50%)}
 .ro-left::before{content:'';width:5px;height:100%;border-radius:4px;background:var(--orange);box-shadow:0 0 0 1px rgba(0,0,0,.3),0 0 8px rgba(255,102,0,.8)}
-.ro-bottom{bottom:0;left:15%;width:70%;height:18px;cursor:row-resize;transform:translateY(50%)}
+.ro-bottom{bottom:0;left:10%;width:80%;height:24px;cursor:row-resize;transform:translateY(50%)}
 .ro-bottom::before{content:'';height:5px;width:100%;border-radius:4px;background:var(--orange);box-shadow:0 0 0 1px rgba(0,0,0,.3),0 0 8px rgba(255,102,0,.8)}
-.ro-top{top:0;left:15%;width:70%;height:18px;cursor:row-resize;transform:translateY(-50%)}
+.ro-top{top:0;left:10%;width:80%;height:24px;cursor:row-resize;transform:translateY(-50%)}
 .ro-top::before{content:'';height:5px;width:100%;border-radius:4px;background:var(--orange);box-shadow:0 0 0 1px rgba(0,0,0,.3),0 0 8px rgba(255,102,0,.8)}
 .ro-edge:hover::before,.ro-edge.dragging::before{background:#fff;box-shadow:0 0 12px rgba(255,102,0,1)}
 .ro-label{position:absolute;top:-22px;left:0;font-size:9px;font-weight:700;color:var(--orange);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;pointer-events:none;background:rgba(0,0,0,.75);padding:2px 7px;border-radius:4px}
@@ -139,7 +140,7 @@ body.ss #resize-overlay{display:none!important}
 .sb-top{margin-top:var(--th);padding:12px 16px;border-bottom:1px solid #1a1a1a;flex-shrink:0}
 .sb-name{font-size:11px;font-weight:700;color:white;letter-spacing:.08em;text-transform:uppercase}
 .sb-hint{font-size:10px;color:#333;margin-top:2px}
-.sb-body{flex:1;overflow-y:auto;padding:12px 16px 28px}
+.sb-body{flex:1;overflow-y:auto;padding:16px 14px;overscroll-behavior:contain}
 .sb-body::-webkit-scrollbar{width:3px}
 .sb-body::-webkit-scrollbar-thumb{background:#252525;border-radius:2px}
 
@@ -156,10 +157,10 @@ body.ss #resize-overlay{display:none!important}
 
 /* ICON GRID */
 .icon-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
-.ig-btn{background:#111;border:1px solid #1e1e1e;border-radius:6px;padding:6px 3px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .14s;color:#444;overflow:hidden}
+.ig-btn{background:#111;border:1px solid #1e1e1e;border-radius:8px;padding:8px 4px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
 .ig-btn svg{max-width:100%;max-height:100%;width:auto;height:auto}
 .ig-btn:hover{background:#1e1e1e;color:#aaa}
-.ig-btn.on{border-color:var(--orange);background:rgba(255,102,0,.1);color:var(--orange)}
+.ig-btn.on{border-color:var(--orange);background:rgba(255,102,0,.12)}
 
 /* UPLOAD */
 .up-zone{border:2px dashed #252525;border-radius:8px;padding:12px;text-align:center;cursor:pointer;color:#333;font-size:11px;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:6px}
@@ -270,7 +271,7 @@ body.ss #resize-overlay{display:none!important}
 .layout-btn.on span{color:var(--orange)}
 
 .sdiv{height:1px;background:#141414;margin:12px 0}
-.btn-apply{width:100%;padding:8px;background:var(--orange);color:white;font-family:var(--nhg);font-weight:700;font-size:11px;letter-spacing:.05em;border:none;border-radius:7px;cursor:pointer;margin-top:8px;transition:all .18s}
+.btn-apply{width:100%;padding:11px;background:var(--orange);color:white;border:none;border-radius:9px;font-family:var(--nhg);font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin-top:8px;transition:opacity .15s}.btn-apply:hover{opacity:.85}.btn-apply:active{opacity:.7}
 .btn-apply:hover{background:var(--orange-dk)}
 .btn-apply:active{transform:scale(.98)}
 
@@ -302,6 +303,19 @@ body.ss #resize-overlay{display:none!important}
 
 /* CO ICON STATUS */
 #co-icon-status{font-size:9px;font-weight:600;letter-spacing:.05em;margin-top:4px;display:block}
+
+/* Container query: scale icons with tile size */
+@container tile (max-width: 180px) {
+  .t-title.xl { font-size: clamp(14px, calc(12cqi * var(--fs)), 40px); }
+}
+@container tile (min-width: 450px) {
+  .t-title.xl { font-size: clamp(20px, calc(18cqi * var(--fs)), 80px); }
+}
+
+.elem-rows { display:flex; flex-direction:column; gap:6px; }
+.elem-row  { display:flex; align-items:center; gap:6px; }
+.elem-lbl  { font-size:9px; font-weight:700; color:#444; letter-spacing:.06em;
+             text-transform:uppercase; min-width:38px; flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -319,20 +333,20 @@ body.ss #resize-overlay{display:none!important}
 </div>
 
 <div class="canvas-area">
-<div id="poster">
+<div id="poster" onclick="if(event.target===this||event.target.id==='poster')clearSel()">
 
-  <div class="tile t-header bg-black" data-tile="header" ondragover="dragOver(event,'header')" ondrop="drop(event,'header')" onclick="sel('header')">
+  <div class="tile t-header bg-black" data-tile="header" ondragover="dragOver(event,'header')" ondrop="drop(event,'header')" onclick="event.stopPropagation();sel('header')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'header')" ondragend="dragEnd('header')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'header')" ondragend="dragEnd('header')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div id="h-logo-svg" style="display:flex;align-items:center;height:30px;flex-shrink:0"></div>
     <div class="h-div" id="h-div"></div>
     <div class="h-badge" id="h-badge-text">WORKSPACES</div>
     <div class="h-tag" id="h-tag-text" style="font-size:11px">Flexible. Connected. Ready.</div>
   </div>
 
-  <div class="tile t-loc bg-orange" data-tile="loc" ondragover="dragOver(event,'loc')" ondrop="drop(event,'loc')" onclick="sel('loc')">
+  <div class="tile t-loc bg-orange" data-tile="loc" ondragover="dragOver(event,'loc')" ondrop="drop(event,'loc')" onclick="event.stopPropagation();sel('loc')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'loc')" ondragend="dragEnd('loc')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'loc')" ondragend="dragEnd('loc')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt">
       <div class="t-iconbox cw" id="loc-icon"></div>
       <span class="t-stat cw" id="loc-stat-el">12<span class="t-unit"> CBD</span></span>
@@ -341,9 +355,9 @@ body.ss #resize-overlay{display:none!important}
     </div>
   </div>
 
-  <div class="tile t-office bg-white" data-tile="office" ondragover="dragOver(event,'office')" ondrop="drop(event,'office')" onclick="sel('office')">
+  <div class="tile t-office bg-white" data-tile="office" ondragover="dragOver(event,'office')" ondrop="drop(event,'office')" onclick="event.stopPropagation();sel('office')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'office')" ondragend="dragEnd('office')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'office')" ondragend="dragEnd('office')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt">
       <div class="t-iconbox cb" id="office-icon"></div>
       <span class="t-tag cg" id="office-tag">WORKSPACE</span>
@@ -352,9 +366,9 @@ body.ss #resize-overlay{display:none!important}
     </div>
   </div>
 
-  <div class="tile t-teams bg-black" data-tile="teams" ondragover="dragOver(event,'teams')" ondrop="drop(event,'teams')" onclick="sel('teams')">
+  <div class="tile t-teams bg-black" data-tile="teams" ondragover="dragOver(event,'teams')" ondrop="drop(event,'teams')" onclick="event.stopPropagation();sel('teams')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'teams')" ondragend="dragEnd('teams')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'teams')" ondragend="dragEnd('teams')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt">
       <div class="t-iconbox cw" id="teams-icon"></div>
       <span class="t-tag cdo" id="teams-tag">HOSPITALITY</span>
@@ -363,9 +377,9 @@ body.ss #resize-overlay{display:none!important}
     </div>
   </div>
 
-  <div class="tile t-movein bg-grey" data-tile="movein" ondragover="dragOver(event,'movein')" ondrop="drop(event,'movein')" onclick="sel('movein')">
+  <div class="tile t-movein bg-grey" data-tile="movein" ondragover="dragOver(event,'movein')" ondrop="drop(event,'movein')" onclick="event.stopPropagation();sel('movein')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'movein')" ondragend="dragEnd('movein')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'movein')" ondragend="dragEnd('movein')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt">
       <div class="t-iconbox cb" id="movein-icon"></div>
       <span class="t-tag cg" id="movein-tag">READY FROM DAY ONE</span>
@@ -374,9 +388,9 @@ body.ss #resize-overlay{display:none!important}
     </div>
   </div>
 
-  <div class="tile t-perks bg-white" data-tile="perks" ondragover="dragOver(event,'perks')" ondrop="drop(event,'perks')" onclick="sel('perks')">
+  <div class="tile t-perks bg-white" data-tile="perks" ondragover="dragOver(event,'perks')" ondrop="drop(event,'perks')" onclick="event.stopPropagation();sel('perks')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'perks')" ondragend="dragEnd('perks')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'perks')" ondragend="dragEnd('perks')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt">
       <div class="perks-header">
         <span class="t-tag cg" id="perks-tag">MEMBER BENEFITS</span>
@@ -386,9 +400,9 @@ body.ss #resize-overlay{display:none!important}
     </div>
   </div>
 
-  <div class="tile t-events bg-grey" data-tile="events" ondragover="dragOver(event,'events')" ondrop="drop(event,'events')" onclick="sel('events')">
+  <div class="tile t-events bg-grey" data-tile="events" ondragover="dragOver(event,'events')" ondrop="drop(event,'events')" onclick="event.stopPropagation();sel('events')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'events')" ondragend="dragEnd('events')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'events')" ondragend="dragEnd('events')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt">
       <div class="t-iconbox cb" id="events-icon"></div>
       <span class="t-tag cg" id="events-tag">SPACES &amp; EVENTS</span>
@@ -397,9 +411,9 @@ body.ss #resize-overlay{display:none!important}
     </div>
   </div>
 
-  <div class="tile t-amenity bg-black" data-tile="amenity" ondragover="dragOver(event,'amenity')" ondrop="drop(event,'amenity')" onclick="sel('amenity')">
+  <div class="tile t-amenity bg-black" data-tile="amenity" ondragover="dragOver(event,'amenity')" ondrop="drop(event,'amenity')" onclick="event.stopPropagation();sel('amenity')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'amenity')" ondragend="dragEnd('amenity')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'amenity')" ondragend="dragEnd('amenity')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt">
       <div class="t-iconbox cw" id="amenity-icon"></div>
       <div class="t-title sm cw" id="amenity-title">Modern Amenities</div>
@@ -408,9 +422,9 @@ body.ss #resize-overlay{display:none!important}
     </div>
   </div>
 
-  <div class="tile t-cta bg-orange" data-tile="cta" ondragover="dragOver(event,'cta')" ondrop="drop(event,'cta')" onclick="sel('cta')">
+  <div class="tile t-cta bg-orange" data-tile="cta" ondragover="dragOver(event,'cta')" ondrop="drop(event,'cta')" onclick="event.stopPropagation();sel('cta')">
     <span class="edit-badge">Edit</span>
-    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'cta')" ondragend="dragEnd('cta')" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
+    <div class="tile-drag-handle" draggable="true" ondragstart="dragStart(event,'cta')" ondragend="dragEnd('cta')" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="6" r="1.5" fill="currentColor"/><circle cx="15" cy="6" r="1.5" fill="currentColor"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/><circle cx="9" cy="18" r="1.5" fill="currentColor"/><circle cx="15" cy="18" r="1.5" fill="currentColor"/></svg></div>
     <div class="t-cnt" style="text-align:center">
       <div class="t-iconbox cw" id="cta-icon" style="justify-content:center"></div>
       <div class="t-title sm cw" id="cta-title">Book a Tour</div>
@@ -426,15 +440,17 @@ body.ss #resize-overlay{display:none!important}
 
 </div>
 
-  <!-- RESIZE OVERLAY — inside poster, position:absolute, scroll-safe -->
-  <div id="resize-overlay">
-    <div class="ro-label" id="ro-label"></div>
-    <div class="ro-edge ro-right"  onmousedown="startEdgeDrag(event,'right')"></div>
-    <div class="ro-edge ro-bottom" onmousedown="startEdgeDrag(event,'bottom')"></div>
-    <div class="ro-edge ro-left"   onmousedown="startEdgeDrag(event,'left')"></div>
-    <div class="ro-edge ro-top"    onmousedown="startEdgeDrag(event,'top')"></div>
-  </div>
 
+
+</div>
+
+<!-- RESIZE OVERLAY — position:fixed, tracks tile via getBoundingClientRect -->
+<div id="resize-overlay">
+  <div class="ro-label" id="ro-label"></div>
+  <div class="ro-edge ro-right"  onmousedown="startEdgeDrag(event,'right')"></div>
+  <div class="ro-edge ro-bottom" onmousedown="startEdgeDrag(event,'bottom')"></div>
+  <div class="ro-edge ro-left"   onmousedown="startEdgeDrag(event,'left')"></div>
+  <div class="ro-edge ro-top"    onmousedown="startEdgeDrag(event,'top')"></div>
 </div>
 
 <div class="sidebar">
@@ -452,7 +468,7 @@ body.ss #resize-overlay{display:none!important}
   <div class="dl-sub">This may take a few seconds</div>
 </div>
 
-<div id="adj-modal">
+<div id="adj-modal" onclick="if(event.target===this)adjDone()">
   <div id="adj-title">Adjust Image Position &amp; Zoom</div>
   <div id="adj-box"><div id="adj-img"></div></div>
   <div class="adj-zoom-row">
@@ -788,22 +804,133 @@ function buildSidebar(id) {
       <div class="lv-btn ${lv==='icon'?'on':''}" onclick="setLogoVariant('icon',this)" style="background:#0f0f0f">${LOGOS.icon.replace('<svg ','<svg width="30" height="30" ')}</div>
     </div></div>`+sdiv()+bgp(S.header.bg,'header')+sdiv()+fld('Badge Text','h-badge',S.header.badge)+fld('Tagline','h-tagline',S.header.tagline)+`<div class="fg"><label class="fl">Tagline Size</label><div class="frow"><input class="fi" type="range" id="h-ts" min="9" max="22" value="${ts}" oninput="liveTaglineSize(this.value)" style="padding:10px 4px"><input class="fi" type="number" id="h-ts-num" min="9" max="22" value="${ts}" oninput="liveTaglineSize(this.value)" style="width:54px;flex:none"></div></div>`+apply('applyHeader()');
   } else if (id==='loc') {
-    h=ipick(S.loc.icon,'loc')+sdiv()+`<div class="fg"><label class="fl">Stat &amp; Unit</label><div class="frow"><input class="fi" id="f-stat" value="${esc(S.loc.stat)}" style="width:70px;flex:none"><input class="fi" id="f-unit" value="${esc(S.loc.unit)}" placeholder="unit"></div></div>`+fld('Title','f-title',S.loc.title)+fld('Description','f-desc',S.loc.desc,true)+sdiv()+bgp(S.loc.bg,'loc')+gradSection('loc')+iconColorPicker('loc')+tcol('loc')+imgup('loc',S.loc.img)+apply('applyLoc()');
+    h=ipick(S.loc.icon,'loc')+sdiv()+`<div class="fg"><label class="fl">Stat &amp; Unit</label><div class="frow"><input class="fi" id="f-stat" value="${esc(S.loc.stat)}" style="width:70px;flex:none"><input class="fi" id="f-unit" value="${esc(S.loc.unit)}" placeholder="unit"></div></div>`+fld('Title','f-title',S.loc.title)+fld('Description','f-desc',S.loc.desc,true)+sdiv()+bgp(S.loc.bg,'loc')+gradSection('loc')+iconColorPicker('loc')+tcol('loc')+imgup('loc',S.loc.img)+sdiv()+elemStylesSection('loc')+apply('applyLoc()');
   } else if (id==='perks') {
-    h=fld('Tag Label','f-tag',S.perks.tag)+fld('Title','f-title',S.perks.title)+sdiv()+`<div class="fg"><label class="fl">Benefit Categories</label>${renderPerkCatsSidebar()}<button class="btn-add" onclick="addCat()">+ Add Category</button></div>`+sdiv()+bgp(S.perks.bg,'perks')+gradSection('perks')+tcol('perks')+apply('applyPerks()');
+    h=fld('Tag Label','f-tag',S.perks.tag)+fld('Title','f-title',S.perks.title)+sdiv()+`<div class="fg"><label class="fl">Benefit Categories</label>${renderPerkCatsSidebar()}<button class="btn-add" onclick="addCat()">+ Add Category</button></div>`+sdiv()+bgp(S.perks.bg,'perks')+gradSection('perks')+tcol('perks')+sdiv()+elemStylesSection('perks')+apply('applyPerks()');
   } else if (id==='amenity') {
     const chipEditor=S.amenity.chips.map((k)=>{const apool=APOOL.find(p=>p[0]===k);const defLabel=apool?apool[1]:k.replace('co-','').replace(/-/g,' ');const curLabel=(S.amenity.chipLabels&&S.amenity.chipLabels[k])||defLabel;return`<div class="perk-row"><span style="color:#555;min-width:16px">${svg(k,14,2)}</span><input type="text" value="${esc(curLabel)}" placeholder="${defLabel}" oninput="setChipLabel('${k}',this.value)"><button class="perk-del" onclick="toggleAmenity('${k}',this.closest('.perk-row'))">&#215;</button></div>`;}).join('');
     const coAmenity=Object.keys(CO_ICONS).filter(k=>!S.amenity.chips.includes(k)).map(k=>`<div class="am-btn" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${k.replace('co-','').replace(/-/g,' ')}</span></div>`).join('');
-    h=ipick(S.amenity.icon,'amenity')+sdiv()+fld('Title','f-title',S.amenity.title)+fld('Description','f-desc',S.amenity.desc,true)+sdiv()+`<div class="fg"><label class="fl">Active Chips</label>${chipEditor}</div>`+`<div class="fg"><label class="fl">Add Chip</label><div class="am-picker">${APOOL.filter(([k])=>!S.amenity.chips.includes(k)).map(([k,lb])=>`<div class="am-btn" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${lb}</span></div>`).join('')}${coAmenity}</div></div>`+sdiv()+bgp(S.amenity.bg,'amenity')+gradSection('amenity')+iconColorPicker('amenity')+tcol('amenity')+imgup('amenity',S.amenity.img)+apply('applyAmenity()');
+    h=ipick(S.amenity.icon,'amenity')+sdiv()+fld('Title','f-title',S.amenity.title)+fld('Description','f-desc',S.amenity.desc,true)+sdiv()+`<div class="fg"><label class="fl">Active Chips</label>${chipEditor}</div>`+`<div class="fg"><label class="fl">Add Chip</label><div class="am-picker">${APOOL.filter(([k])=>!S.amenity.chips.includes(k)).map(([k,lb])=>`<div class="am-btn" onclick="toggleAmenity('${k}',this)">${svg(k,15,2)}<span>${lb}</span></div>`).join('')}${coAmenity}</div></div>`+sdiv()+bgp(S.amenity.bg,'amenity')+gradSection('amenity')+iconColorPicker('amenity')+tcol('amenity')+imgup('amenity',S.amenity.img)+sdiv()+elemStylesSection('amenity')+apply('applyAmenity()');
   } else if (id==='cta') {
     const qrOn=S.cta.showQR;
-    h=ipick(S.cta.icon,'cta')+sdiv()+fld('Title','f-title',S.cta.title)+fld('Button Text','f-btn',S.cta.btn)+sdiv()+bgp(S.cta.bg,'cta')+gradSection('cta')+iconColorPicker('cta')+tcol('cta')+imgup('cta',S.cta.img)+sdiv()+`<div class="fg"><div class="qr-toggle-row"><span class="qr-toggle-label">Show QR Code</span><label class="qr-toggle"><input type="checkbox" id="qr-toggle-cb" ${qrOn?'checked':''} onchange="toggleQR(this.checked)"><div class="qr-toggle-track"></div><div class="qr-toggle-thumb"></div></label></div></div>`+(qrOn?`<div class="fg"><label class="fl">QR Code URL</label><div class="frow"><input class="fi" id="f-qrurl" value="${esc(S.cta.qrUrl)}" placeholder="https://..."><button class="img-url-btn" onclick="applyQR()" style="white-space:nowrap">Generate</button></div><div class="fg" style="margin-top:8px"><label class="fl">QR Dot Colour</label><div class="qr-color-row">${['#111111','#ffffff','#ff6600','#888888'].map(col=>`<div class="qr-col-sw ${(S.cta.qrColor||'#111111')===col?'on':''}" style="background:${col};border-color:${col==='#ffffff'?'#444':'transparent'}" onclick="setQRColor('${col}')"></div>`).join('')}</div></div><div class="qr-loading" id="qr-loading" style="display:none">Generating QR...</div></div>`:'') +apply('applyCta()');
+    h=ipick(S.cta.icon,'cta')+sdiv()+fld('Title','f-title',S.cta.title)+fld('Button Text','f-btn',S.cta.btn)+sdiv()+bgp(S.cta.bg,'cta')+gradSection('cta')+iconColorPicker('cta')+tcol('cta')+imgup('cta',S.cta.img)+sdiv()+elemStylesSection('cta')+sdiv()+`<div class="fg"><div class="qr-toggle-row"><span class="qr-toggle-label">Show QR Code</span><label class="qr-toggle"><input type="checkbox" id="qr-toggle-cb" ${qrOn?'checked':''} onchange="toggleQR(this.checked)"><div class="qr-toggle-track"></div><div class="qr-toggle-thumb"></div></label></div></div>`+(qrOn?`<div class="fg"><label class="fl">QR Code URL</label><div class="frow"><input class="fi" id="f-qrurl" value="${esc(S.cta.qrUrl)}" placeholder="https://..."><button class="img-url-btn" onclick="applyQR()" style="white-space:nowrap">Generate</button></div><div class="fg" style="margin-top:8px"><label class="fl">QR Dot Colour</label><div class="qr-color-row">${['#111111','#ffffff','#ff6600','#888888'].map(col=>`<div class="qr-col-sw ${(S.cta.qrColor||'#111111')===col?'on':''}" style="background:${col};border-color:${col==='#ffffff'?'#444':'transparent'}" onclick="setQRColor('${col}')"></div>`).join('')}</div></div><div class="qr-loading" id="qr-loading" style="display:none">Generating QR...</div></div>`:'') +apply('applyCta()');
   } else {
     const s=S[id];
-    h=ipick(s.icon,id)+sdiv()+(s.tag!==undefined?fld('Tag Label','f-tag',s.tag):'')+fld('Title','f-title',s.title)+fld('Description','f-desc',s.desc,true)+sdiv()+bgp(s.bg,id)+gradSection(id)+iconColorPicker(id)+tcol(id)+imgup(id,s.img)+apply(`applyGeneric('${id}')`);
+    h=ipick(s.icon,id)+sdiv()+(s.tag!==undefined?fld('Tag Label','f-tag',s.tag):'')+fld('Title','f-title',s.title)+fld('Description','f-desc',s.desc,true)+sdiv()+bgp(s.bg,id)+gradSection(id)+iconColorPicker(id)+tcol(id)+imgup(id,s.img)+sdiv()+elemStylesSection(id)+apply(`applyGeneric('${id}')`);
   }
   sb.innerHTML=h;
 }
+/* ════════════════════════════════════════
+   PER-ELEMENT STYLING STATE + HELPERS
+════════════════════════════════════════ */
+function getES(tid) {
+  if (!S[tid]) return {};
+  if (!S[tid].es) S[tid].es = {tagSz:null,titleSz:null,descSz:null,iconSz:null,statSz:null,
+                                tagCol:null,titleCol:null,descCol:null,statCol:null,
+                                btnSz:null,btnBg:null,btnCol:null,catNameSz:null,catNameCol:null};
+  return S[tid].es;
+}
+function setElemSize(tid, el, val) {
+  const es = getES(tid);
+  es[el+'Sz'] = val ? parseFloat(val) : null;
+  applyElemStyles(tid);
+  if (el === 'icon') renderTileIcon(tid);
+}
+function setElemColor(tid, el, val) {
+  const es = getES(tid);
+  es[el+'Col'] = val || null;
+  applyElemStyles(tid);
+}
+function setElemProp(tid, prop, val) {
+  const es = getES(tid);
+  es[prop] = val || null;
+  applyElemStyles(tid);
+}
+function applyElemStyles(tid) {
+  const es = getES(tid);
+  const setS = (id, sz, col) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.fontSize = sz ? sz+'px' : '';
+    el.style.color    = col || '';
+  };
+  setS(tid+'-tag',   es.tagSz,   es.tagCol);
+  setS(tid+'-title', es.titleSz, es.titleCol);
+  setS(tid+'-desc',  es.descSz,  es.descCol);
+  if (tid === 'loc')  setS('loc-stat-el',  es.statSz,  es.statCol);
+  if (tid === 'perks' && (es.catNameSz || es.catNameCol)) {
+    document.querySelectorAll('.perk-cat-name').forEach(function(el) {
+      el.style.fontSize = es.catNameSz ? es.catNameSz+'px' : '';
+      el.style.color    = es.catNameCol || '';
+    });
+  }
+  if (tid === 'cta') {
+    // Button pill
+    const btn = document.getElementById('cta-btn-text');
+    if (btn) {
+      btn.style.fontSize        = es.btnSz  ? es.btnSz+'px'  : '';
+      btn.style.backgroundColor = es.btnBg  || '';
+      btn.style.color           = es.btnCol || '';
+    }
+  }
+}
+function applyAllElemStyles() {
+  ['loc','office','teams','movein','events','amenity','cta','perks'].forEach(function(tid){ applyElemStyles(tid); });
+}
+function resetElemStyles(tid) {
+  if (S[tid]) S[tid].es = {};
+  applyElemStyles(tid);
+  buildSidebar(tid);
+}
+function elemStylesSection(tid) {
+  const es = getES(tid);
+  const s = S[tid];
+  const hasStat = (tid === 'loc');
+  const hasTag  = s && s.tag !== undefined;
+
+  const mkRow = (label, key, defPx, noColor) => {
+    const curSz  = es[key+'Sz']  || defPx;
+    const curCol = es[key+'Col'] || '#ffffff';
+    const colorBtn = noColor ? '' :
+      '<input type="color" value="'+curCol+'" oninput="setElemColor(\''+tid+'\',\''+key+'\',this.value)" title="Colour" style="width:26px;height:26px;padding:1px;background:#111;border:1px solid #252525;border-radius:5px;cursor:pointer;flex-shrink:0">';
+    return '<div class="elem-row">'+
+      '<span class="elem-lbl">'+label+'</span>'+
+      '<input type="range" min="7" max="72" step="1" value="'+curSz+'" oninput="setElemSize(\''+tid+'\',\''+key+'\',this.value);getElementById(\''+tid+'-'+key+'-lbl\').textContent=Math.round(this.value)+\'px\'" style="flex:1;accent-color:var(--orange)">'+
+      '<span id="'+tid+'-'+key+'-lbl" style="font-size:9px;color:#555;min-width:26px;text-align:right">'+curSz+'px</span>'+
+      colorBtn+
+    '</div>';
+  };
+
+  const iconSz = es.iconSz || (ICON_SIZES[tid]||30);
+  const iconRow = '<div class="elem-row">'+
+    '<span class="elem-lbl">Icon</span>'+
+    '<input type="range" min="12" max="80" step="2" value="'+iconSz+'" oninput="setElemSize(\''+tid+'\',\'icon\',this.value);getElementById(\''+tid+'-icon-lbl\').textContent=Math.round(this.value)+\'px\'" style="flex:1;accent-color:var(--orange)">'+
+    '<span id="'+tid+'-icon-lbl" style="font-size:9px;color:#555;min-width:26px;text-align:right">'+iconSz+'px</span>'+
+  '</div>';
+
+  return '<div class="fg">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
+      '<label class="fl" style="margin:0;font-size:9px">ELEMENT SIZES &amp; COLOURS</label>'+
+      '<button onclick="resetElemStyles(\''+tid+'\')" style="font-size:8px;color:#555;background:none;border:none;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;font-family:var(--nhg);padding:0">Reset</button>'+
+    '</div>'+
+    '<div class="elem-rows">'+
+      iconRow+
+      (hasTag ? mkRow('Tag', 'tag', 9) : '')+
+      mkRow('Title', 'title', 18)+
+      mkRow('Desc', 'desc', 11)+
+      (hasStat ? mkRow('Stat', 'stat', 52) : '')+(tid==='perks' ? mkRow('Cat Name','catName',9) : '')+
+    (tid==='cta' ? ('<div style="margin-top:8px;padding-top:8px;border-top:1px solid #1e1e1e">'+
+      '<div class="elem-lbl" style="margin-bottom:5px">BUTTON</div>'+
+      mkRow('Btn Font','btn',11,true)+
+      '<div class="elem-row"><span class="elem-lbl">Btn BG</span>'+
+        '<input type="color" value="'+(es.btnBg||'#ffffff')+'" oninput="setElemProp(\'cta\',\'btnBg\',this.value)" style="flex:1;height:28px;padding:1px;background:#111;border:1px solid #252525;border-radius:5px;cursor:pointer">'+
+        '<input type="color" value="'+(es.btnCol||'#ff6600')+'" oninput="setElemProp(\'cta\',\'btnCol\',this.value)" title="Text colour" style="width:28px;height:28px;padding:1px;background:#111;border:1px solid #252525;border-radius:5px;cursor:pointer;flex-shrink:0">'+
+      '</div>'+
+    '</div>') : '')+
+    '</div>'+
+  '</div>';
+}
+
 function fld(label,id,val,multi=false){if(multi)return`<div class="fg"><label class="fl">${label}</label><textarea class="fi" rows="3" id="${id}">${val}</textarea></div>`;return`<div class="fg"><label class="fl">${label}</label><input class="fi" id="${id}" value="${esc(val)}"></div>`;}
 function sdiv(){return`<div class="sdiv"></div>`;}
 function apply(fn){return`<button class="btn-apply" onclick="${fn}">Apply Changes</button>`;}
@@ -827,7 +954,7 @@ function sel(id) {
   document.getElementById('sb-name').textContent = names[id] || id;
   document.getElementById('sb-hint').textContent = 'Edit tile · drag orange edges to resize';
   buildSidebar(id);
-  updateResizeOverlay(id);
+  requestAnimationFrame(function(){updateResizeOverlay(id);});
 }
 
 function clearSel() {
@@ -1074,7 +1201,7 @@ function renderPerks() {
       <div class="perk-cat-bg"></div>
       ${hasBg?'<div class="perk-cat-ov"></div>':''}
       ${empty}
-      <div class="perk-cat-name">${cat.name}</div>
+      <div class="perk-cat-name" style="${(()=>{const es=getES('perks');return es.catNameSz?'font-size:'+es.catNameSz+'px':''})()}">${cat.name}</div>
     </div>`;
   }).join('');
   requestAnimationFrame(() => {
@@ -1134,7 +1261,7 @@ function renderAmenityRow() {
   el.innerHTML = S.amenity.chips.map(k => {
     const defLabel = (APOOL.find(p=>p[0]===k)||[k,k])[1];
     const label = (S.amenity.chipLabels&&S.amenity.chipLabels[k]) || defLabel;
-    return `<div class="a-chip">${svg(k,11,2.25)} ${label}</div>`;
+    return `<div class="a-chip">${svg(k,26,2)} ${label}</div>`;
   }).join('');
 }
 
@@ -1201,7 +1328,20 @@ function setIcon(tid, key, el) {
 function renderTileIcon(tid) {
   const s = S[tid];
   const iconEl = document.getElementById(tid + '-icon');
-  if (iconEl) iconEl.innerHTML = svg(s.icon, ICON_SIZES[tid]||30, 1.75, s.iconColor||'currentColor');
+  if (!iconEl) return;
+  const es = getES(tid);
+  let iconSize;
+  if (es.iconSz) {
+    iconSize = es.iconSz; // manual override
+  } else {
+    // Auto-scale with tile width
+    const tile = document.querySelector('[data-tile="'+tid+'"]');
+    const tileW = tile ? tile.offsetWidth : 246;
+    const baseSize = ICON_SIZES[tid] || 30;
+    const scale = Math.max(0.55, Math.min(2.2, tileW / 246));
+    iconSize = Math.round(baseSize * scale);
+  }
+  iconEl.innerHTML = svg(s.icon, iconSize, 1.75, s.iconColor || 'currentColor');
 }
 function setIconColor(tid, color) {
   S[tid].iconColor = color;
@@ -1382,34 +1522,52 @@ function dragStart(e,tid){_dragSrc=tid;e.dataTransfer.effectAllowed='move';e.dat
 function dragOver(e,tid){e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect='move';if(tid!==_dragSrc){document.querySelectorAll('.tile').forEach(t=>t.classList.remove('drag-over'));document.querySelector('[data-tile="'+tid+'"]')?.classList.add('drag-over');}}
 function dragEnd(tid){document.querySelector('[data-tile="'+tid+'"]')?.classList.remove('dragging');document.querySelectorAll('.tile').forEach(t=>t.classList.remove('drag-over'));_dragSrc=null;}
 function drop(e,tid){e.preventDefault();e.stopPropagation();document.querySelectorAll('.tile').forEach(t=>{t.classList.remove('drag-over');t.classList.remove('dragging');});if(!_dragSrc||_dragSrc===tid){_dragSrc=null;return;}swapTileAreas(_dragSrc,tid);_dragSrc=null;}
-function swapTileAreas(tid1,tid2){const poster=document.getElementById('poster');const base=poster.style.gridTemplateAreas||LAYOUTS[curLayout].areas;const swapped=base.replace(new RegExp('\\b'+tid1+'\\b','g'),'__SWAP__').replace(new RegExp('\\b'+tid2+'\\b','g'),tid1).replace(/__SWAP__/g,tid2);poster.style.gridTemplateAreas=swapped;customAreas=swapped;if(_overlayTid){const ov=document.getElementById('resize-overlay');if(ov)ov.style.gridArea=_overlayTid;}}
+function swapTileAreas(tid1,tid2){const poster=document.getElementById('poster');const base=poster.style.gridTemplateAreas||LAYOUTS[curLayout].areas;const swapped=base.replace(new RegExp('\\b'+tid1+'\\b','g'),'__SWAP__').replace(new RegExp('\\b'+tid2+'\\b','g'),tid1).replace(/__SWAP__/g,tid2);poster.style.gridTemplateAreas=swapped;customAreas=swapped;if(_overlayTid)requestAnimationFrame(function(){updateResizeOverlay();});}
 
 /* LAYOUT */
-function renderLayoutPicker(){const thumbs=LAYOUTS.map((l,i)=>{const on=i===curLayout?'on':'';return`<div class="layout-btn ${on}" onclick="applyLayout(${i},true)">${layoutThumb(l.areas)}<span>${l.name}</span></div>`;}).join('');return`<span class="sb-section">Layout</span><div class="layout-controls"><div class="lc-btn" onclick="resetGridSizes()">⊞ Equal</div><div class="lc-btn" onclick="smartBalance()">⚡ Smart Balance</div></div><div style="font-size:9px;color:#333;margin-bottom:8px;letter-spacing:.04em">Select a tile — drag its orange edges to resize</div><div class="layout-grid">${thumbs}</div>`;}
+function renderLayoutPicker(){const thumbs=LAYOUTS.map((l,i)=>{const on=i===curLayout?'on':'';return`<div class="layout-btn ${on}" onclick="applyLayout(${i},true)">${layoutThumb(l.areas)}<span>${l.name}</span></div>`;}).join('');return`<span class="sb-section">Layout</span><div class="layout-controls"><div class="lc-btn" onclick="resetGridSizes()">⊞ Equal</div><div class="lc-btn" onclick="smartBalance()">⚡ Smart Balance</div></div><div class="fg" style="margin:6px 0 8px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><label class="fl" style="margin:0">Text Size</label><span id="fs-val" style="font-size:10px;font-weight:700;color:var(--orange)">125%</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:9px;color:#555;cursor:pointer;padding:1px 5px;border:1px solid #252525;border-radius:4px" onclick="setFontScale(1.0)">A</span><input type="range" id="fs-slider" min="80" max="160" value="125" step="5" oninput="setFontScale(this.value/100)" style="flex:1;accent-color:var(--orange)"><span style="font-size:13px;color:#555;cursor:pointer;padding:1px 5px;border:1px solid #252525;border-radius:4px" onclick="setFontScale(1.5)">A</span></div></div><div style="font-size:9px;color:#333;margin-bottom:8px;letter-spacing:.04em">Select a tile — drag its orange edges to resize</div><div class="layout-grid">${thumbs}</div>`;}
 function layoutThumb(areasStr,w=68,h=90){const rows=areasStr.match(/"([^"]+)"/g).map(r=>r.slice(1,-1).trim().split(' ').filter(Boolean));const nR=rows.length,nC=rows[0].length,headerH=12,contentH=(h-headerH)/(nR-1),cW=w/nC;const bounds={};rows.forEach((row,ri)=>{const y=ri===0?0:headerH+(ri-1)*contentH,cellH=ri===0?headerH:contentH;row.forEach((name,ci)=>{if(!bounds[name])bounds[name]={x1:ci*cW,y1:y,x2:(ci+1)*cW,y2:y+cellH};else{bounds[name].x1=Math.min(bounds[name].x1,ci*cW);bounds[name].y1=Math.min(bounds[name].y1,y);bounds[name].x2=Math.max(bounds[name].x2,(ci+1)*cW);bounds[name].y2=Math.max(bounds[name].y2,y+cellH);}});});const C={header:'#111',loc:'#f16522',office:'#d8d8d8',teams:'#252525',movein:'#e8e8e8',perks:'#f5f5f5',events:'#d0d0d0',amenity:'#1e1e1e',cta:'#f16522'};const g=1.5;const rects=Object.entries(bounds).map(([n,b])=>`<rect x="${(b.x1+g).toFixed(1)}" y="${(b.y1+g).toFixed(1)}" width="${(b.x2-b.x1-g*2).toFixed(1)}" height="${(b.y2-b.y1-g*2).toFixed(1)}" rx="2.5" fill="${C[n]||'#ccc'}"/>`).join('');return`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="${h}" rx="5" fill="#1c1c1c"/>${rects}</svg>`;}
-function applyLayout(idx,resetCustom){curLayout=idx;if(resetCustom){customAreas=null;colFrs=[1,1,1];rowFrs=[1,1,1,1];}const poster=document.getElementById('poster');poster.style.gridTemplateAreas=customAreas||LAYOUTS[idx].areas;TILE_IDS.forEach(id=>{const t=document.querySelector('[data-tile="'+id+'"]');if(t)t.style.gridArea=id;});document.querySelectorAll('.layout-btn').forEach((b,i)=>b.classList.toggle('on',i===idx));applyGridSizes();if(_overlayTid){const ov=document.getElementById('resize-overlay');if(ov)ov.style.gridArea=_overlayTid;}}
+function applyLayout(idx,resetCustom){curLayout=idx;if(resetCustom){customAreas=null;colFrs=[1,1,1];rowFrs=[1,1,1,1];}const poster=document.getElementById('poster');poster.style.gridTemplateAreas=customAreas||LAYOUTS[idx].areas;TILE_IDS.forEach(id=>{const t=document.querySelector('[data-tile="'+id+'"]');if(t)t.style.gridArea=id;});document.querySelectorAll('.layout-btn').forEach((b,i)=>b.classList.toggle('on',i===idx));applyGridSizes();if(_overlayTid)requestAnimationFrame(function(){updateResizeOverlay();});}
 
 /* GRID RESIZE */
-function applyGridSizes(){const poster=document.getElementById('poster');if(!poster)return;poster.style.gridTemplateColumns=colFrs.map(f=>f+'fr').join(' ');poster.style.gridTemplateRows=HEADER_H+'px '+rowFrs.map(f=>f+'fr').join(' ');requestAnimationFrame(updateResizeOverlay);}
+function applyGridSizes(){const poster=document.getElementById('poster');if(!poster)return;poster.style.gridTemplateColumns=colFrs.map(f=>f+'fr').join(' ');poster.style.gridTemplateRows=HEADER_H+'px '+rowFrs.map(f=>f+'fr').join(' ');requestAnimationFrame(updateResizeOverlay);requestAnimationFrame(rescaleAllIcons);}
+function rescaleAllIcons(){Object.keys(ICON_SIZES).forEach(function(tid){renderTileIcon(tid);});}
 function getTileGridInfo(tid){const poster=document.getElementById('poster');const areas=poster.style.gridTemplateAreas||(LAYOUTS[curLayout]&&LAYOUTS[curLayout].areas)||'';const rows=areas.match(/"([^"]+)"/g).map(r=>r.slice(1,-1).trim().split(/\s+/));let colStart=-1,colEnd=-1,rowStart=-1,rowEnd=-1;rows.forEach((row,ri)=>row.forEach((cell,ci)=>{if(cell===tid){if(colStart===-1||ci<colStart)colStart=ci;if(ci+1>colEnd)colEnd=ci+1;if(rowStart===-1||ri<rowStart)rowStart=ri;if(ri+1>rowEnd)rowEnd=ri+1;}}));return{colStart,colEnd,rowStart,rowEnd};}
 function updateResizeOverlay(tid){
   if(tid)_overlayTid=tid;
   if(!_overlayTid)return;
   const ov=document.getElementById('resize-overlay');
-  if(!ov)return;
-  // Clear any stale position styles, then let CSS Grid do the placement
-  ov.style.removeProperty('left');ov.style.removeProperty('top');
-  ov.style.removeProperty('width');ov.style.removeProperty('height');
-  ov.style.gridArea=_overlayTid;
+  const tile=document.querySelector('[data-tile="'+_overlayTid+'"]');
+  if(!ov||!tile)return;
+  // position:fixed uses viewport coords — getBoundingClientRect is always exact
+  const r=tile.getBoundingClientRect();
+  ov.style.left  =(r.left  -2)+'px';
+  ov.style.top   =(r.top   -2)+'px';
+  ov.style.width =(r.width +4)+'px';
+  ov.style.height=(r.height+4)+'px';
   ov.classList.add('on');const{colStart,colEnd,rowStart,rowEnd}=getTileGridInfo(_overlayTid);const nCols=colEnd-colStart,nRows=rowEnd-rowStart;const label=document.getElementById('ro-label');if(label)label.textContent=(nCols>1?nCols+' cols':'')+(nCols>1&&nRows>1?' · ':'')+(nRows>1?nRows+' rows':'');ov.querySelector('.ro-right').style.display=colEnd<3?'':'none';ov.querySelector('.ro-bottom').style.display=rowEnd<5?'':'none';ov.querySelector('.ro-left').style.display=colStart>0?'':'none';ov.querySelector('.ro-top').style.display=rowStart>1?'':'none';}
-function hideResizeOverlay(){_overlayTid=null;const ov=document.getElementById('resize-overlay');if(ov){ov.classList.remove('on');ov.style.gridArea='';}}
+function hideResizeOverlay(){_overlayTid=null;const ov=document.getElementById('resize-overlay');if(ov)ov.classList.remove('on');}
 function startEdgeDrag(e,edge){e.preventDefault();e.stopPropagation();if(!_overlayTid)return;const{colStart,colEnd,rowStart,rowEnd}=getTileGridInfo(_overlayTid);const poster=document.getElementById('poster'),cs=getComputedStyle(poster),gap=parseFloat(cs.gap||cs.columnGap)||POSTER_GAP;const colPx=cs.gridTemplateColumns.split(' ').map(parseFloat).filter(n=>!isNaN(n));const rowPx=cs.gridTemplateRows.split(' ').map(parseFloat).filter(n=>!isNaN(n));const rowContentPx=rowPx.slice(1);let type,idx,totalPx,invert=false;if(edge==='right'){type='col';idx=colEnd-1;totalPx=colPx.reduce((a,b)=>a+b,0)+gap*(colPx.length-1);document.body.style.cursor='col-resize';}if(edge==='left'){type='col';idx=colStart-1;totalPx=colPx.reduce((a,b)=>a+b,0)+gap*(colPx.length-1);document.body.style.cursor='col-resize';invert=true;}if(edge==='bottom'){type='row';idx=rowEnd-2;totalPx=rowContentPx.reduce((a,b)=>a+b,0)+gap*(rowContentPx.length-1);document.body.style.cursor='row-resize';}if(edge==='top'){type='row';idx=rowStart-2;totalPx=rowContentPx.reduce((a,b)=>a+b,0)+gap*(rowContentPx.length-1);document.body.style.cursor='row-resize';invert=true;}_edgeDrag={type,idx,invert,startPx:type==='col'?e.clientX:e.clientY,startFrs:type==='col'?[...colFrs]:[...rowFrs],totalPx,edgeEl:e.currentTarget};e.currentTarget.classList.add('dragging');document.body.style.userSelect='none';document.addEventListener('mousemove',onEdgeDrag);document.addEventListener('mouseup',endEdgeDrag);}
 function onEdgeDrag(e){if(!_edgeDrag)return;const{type,idx,invert,startPx,startFrs,totalPx}=_edgeDrag;let delta=((type==='col'?e.clientX:e.clientY)-startPx)*(invert?-1:1);const frs=type==='col'?colFrs:rowFrs,sumFrs=startFrs[idx]+startFrs[idx+1],fracDelta=delta/totalPx*frs.reduce((a,b)=>a+b,0);let newA=startFrs[idx]+fracDelta,newB=startFrs[idx+1]-fracDelta;if(newA<MIN_FR){newA=MIN_FR;newB=sumFrs-MIN_FR;}if(newB<MIN_FR){newB=MIN_FR;newA=sumFrs-MIN_FR;}const newFrs=[...startFrs];newFrs[idx]=+newA.toFixed(4);newFrs[idx+1]=+newB.toFixed(4);if(type==='col')colFrs=newFrs;else rowFrs=newFrs;applyGridSizes();}
 function endEdgeDrag(){if(!_edgeDrag)return;if(_edgeDrag.edgeEl)_edgeDrag.edgeEl.classList.remove('dragging');document.body.style.cursor='';document.body.style.userSelect='';document.removeEventListener('mousemove',onEdgeDrag);document.removeEventListener('mouseup',endEdgeDrag);_edgeDrag=null;requestAnimationFrame(updateResizeOverlay);}
 function resetGridSizes(){colFrs=[1,1,1];rowFrs=[1,1,1,1];applyGridSizes();}
+
+function setFontScale(v) {
+  v = Math.max(0.8, Math.min(1.6, parseFloat(v)));
+  document.documentElement.style.setProperty('--fs', v);
+  const slider = document.getElementById('fs-slider');
+  const label  = document.getElementById('fs-val');
+  if (slider) slider.value = Math.round(v * 100);
+  if (label)  label.textContent = Math.round(v * 100) + '%';
+}
 function smartBalance(){const poster=document.getElementById('poster');const areas=(poster.style.gridTemplateAreas||(LAYOUTS[curLayout]&&LAYOUTS[curLayout].areas)||'').replace(/"/g,'');const rows=areas.trim().split(/\s{2,}|\n/).filter(Boolean),contentRows=rows.slice(1),tileCounts={};contentRows.forEach(row=>row.trim().split(/\s+/).forEach(t=>{tileCounts[t]=(tileCounts[t]||0)+1;}));const newFrs=contentRows.map(row=>{const tiles=[...new Set(row.trim().split(/\s+/))],maxSpan=Math.max(...tiles.map(t=>tileCounts[t]||1));return maxSpan>2?1.4:maxSpan>1?1.1:0.8;});rowFrs=newFrs.length===4?newFrs:[1,1,1,1];colFrs=[1,1,1];applyGridSizes();}
 // Overlay updates on resize via applyGridSizes
-// Overlay uses grid-area — moves with tile automatically, no scroll sync needed
+// Overlay is position:fixed — update on canvas scroll to stay locked to tile
+(function(){
+  const ca=document.querySelector('.canvas-area');
+  if(ca)ca.addEventListener('scroll',function(){if(_overlayTid)updateResizeOverlay();},{passive:true});
+})();
+window.addEventListener('resize',function(){if(_overlayTid)updateResizeOverlay();});
 
 /* IMAGE ADJUSTER */
 /* adjCtx, adjDrag, adjLastPinchDist declared above */
@@ -1429,9 +1587,10 @@ function adjReset(){adjCtx.scale=1;adjCtx.posX=0.5;adjCtx.posY=0.5;adjApply();}
 function adjDone(){if(!adjCtx)return;const{tid,catIdx}=adjCtx,s=catIdx!==null?S.perks.categories[catIdx]:S[tid];s.imgScale=adjCtx.scale;s.imgX=adjCtx.posX;s.imgY=adjCtx.posY;if(catIdx!==null){const cats=document.querySelectorAll('.perk-cat'),catEl=cats[catIdx]?.querySelector('.perk-cat-bg');if(catEl){const box=catEl.parentElement,bs=calcBgStyle(box.offsetWidth,box.offsetHeight,s.imgNW,s.imgNH,s.imgScale,s.imgX,s.imgY);catEl.style.backgroundImage="url('"+s.img+"')";catEl.style.backgroundSize=bs.size;catEl.style.backgroundPosition=bs.pos;}}else refreshImgPos(tid);const box=document.getElementById('adj-box');box.removeEventListener('mousedown',adjMouseDown);box.removeEventListener('wheel',adjWheel);box.removeEventListener('touchstart',adjTouchStart);box.removeEventListener('touchmove',adjTouchMove);box.removeEventListener('touchend',adjTouchEnd);document.getElementById('adj-modal').classList.remove('on');adjCtx=null;}
 
 /* SAVE/LOAD */
-function saveJSON(){const snap=JSON.parse(JSON.stringify(S));const data={version:3,layout:curLayout,state:snap,customAreas,colFrs,rowFrs};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='compass-poster-layout.json';a.click();URL.revokeObjectURL(a.href);}
-function loadJSON(input){const f=input.files[0];if(!f)return;const reader=new FileReader();reader.onload=async e=>{try{const data=JSON.parse(e.target.result);if(!data.state)throw new Error('Invalid file');Object.keys(data.state).forEach(k=>{if(k in S)S[k]=JSON.parse(JSON.stringify(data.state[k]));});customAreas=data.customAreas||null;if(Array.isArray(data.colFrs)&&data.colFrs.length===3)colFrs=data.colFrs;if(Array.isArray(data.rowFrs)&&data.rowFrs.length===4)rowFrs=data.rowFrs;if(typeof data.layout==='number')applyLayout(data.layout);const measureImg=(src)=>new Promise(res=>{if(!src)return res({w:0,h:0});const img=new Image();img.onload=()=>res({w:img.naturalWidth,h:img.naturalHeight});img.onerror=()=>res({w:0,h:0});img.src=src;});for(const tid of['loc','office','teams','movein','events','amenity','cta']){if(S[tid]&&S[tid].img){const{w,h}=await measureImg(S[tid].img);S[tid].imgNW=w;S[tid].imgNH=h;}}for(let i=0;i<(S.perks.categories||[]).length;i++){const cat=S.perks.categories[i];if(cat.img){const{w,h}=await measureImg(cat.img);cat.imgNW=w;cat.imgNH=h;}}reRenderAll();clearSel();input.value='';}catch(err){alert('Could not load: '+err.message);}};reader.readAsText(f);}
-function reRenderAll(){renderHeaderLogo();setBgClass('header',S.header.bg);setText('h-badge-text',S.header.badge);const tTag=document.getElementById('h-tag-text');if(tTag){tTag.textContent=S.header.tagline;tTag.style.fontSize=(S.header.taglineSize||11)+'px';}if(customAreas)document.getElementById('poster').style.gridTemplateAreas=customAreas;const tileIds=['loc','office','teams','movein','events','amenity','cta'];tileIds.forEach(tid=>{const s=S[tid];if(!s)return;setBgClass(tid,s.bg);if(s.gradient&&s.gradient.enabled)applyGradient(tid);applyTextColor(tid,s.textColor||'auto');renderTileIcon(tid);if(s.tag!==undefined)setText(tid+'-tag',s.tag);if(s.title!==undefined)setText(tid+'-title',s.title);if(s.desc!==undefined)setDesc(tid+'-desc',s.desc);if(tid==='loc'){const el=document.getElementById('loc-stat-el');if(el)el.innerHTML=s.stat+'<span class="t-unit"> '+s.unit+'</span>';}if(tid==='cta'){setText('cta-btn-text',s.btn);if(s.showQR&&s.qrData){const w=document.getElementById('cta-qr-wrap');if(w)w.classList.add('on');const i=document.getElementById('cta-qr-img');if(i){i.src=s.qrData;i.style.width='120px';i.style.height='120px';}}}const el=document.querySelector('[data-tile="'+tid+'"]');el?.querySelector('.t-img')?.remove();el?.querySelector('.t-ov')?.remove();if(s.img)setImg(tid);});setText('perks-tag',S.perks.tag);setText('perks-title',S.perks.title);setBgClass('perks',S.perks.bg);applyTextColor('perks',S.perks.textColor||'auto');renderPerks();setText('amenity-title',S.amenity.title);setDesc('amenity-desc',S.amenity.desc);renderTileIcon('amenity');setBgClass('amenity',S.amenity.bg);renderAmenityRow();}
+function saveJSON(){const snap=JSON.parse(JSON.stringify(S));const fs=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs'))||1.25;const data={version:3,layout:curLayout,state:snap,customAreas,colFrs,rowFrs,fontScale:fs};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='compass-poster-layout.json';a.click();URL.revokeObjectURL(a.href);}
+function loadJSON(input){const f=input.files[0];if(!f)return;const reader=new FileReader();reader.onload=async e=>{try{const data=JSON.parse(e.target.result);if(!data.state)throw new Error('Invalid file');Object.keys(data.state).forEach(k=>{if(k in S)S[k]=JSON.parse(JSON.stringify(data.state[k]));});customAreas=data.customAreas||null;if(data.fontScale)setFontScale(data.fontScale);
+      setTimeout(applyAllElemStyles, 50);if(Array.isArray(data.colFrs)&&data.colFrs.length===3)colFrs=data.colFrs;if(Array.isArray(data.rowFrs)&&data.rowFrs.length===4)rowFrs=data.rowFrs;if(typeof data.layout==='number')applyLayout(data.layout);const measureImg=(src)=>new Promise(res=>{if(!src)return res({w:0,h:0});const img=new Image();img.onload=()=>res({w:img.naturalWidth,h:img.naturalHeight});img.onerror=()=>res({w:0,h:0});img.src=src;});for(const tid of['loc','office','teams','movein','events','amenity','cta']){if(S[tid]&&S[tid].img){const{w,h}=await measureImg(S[tid].img);S[tid].imgNW=w;S[tid].imgNH=h;}}for(let i=0;i<(S.perks.categories||[]).length;i++){const cat=S.perks.categories[i];if(cat.img){const{w,h}=await measureImg(cat.img);cat.imgNW=w;cat.imgNH=h;}}reRenderAll();clearSel();input.value='';}catch(err){alert('Could not load: '+err.message);}};reader.readAsText(f);}
+function reRenderAll(){applyAllElemStyles();renderHeaderLogo();setBgClass('header',S.header.bg);setText('h-badge-text',S.header.badge);const tTag=document.getElementById('h-tag-text');if(tTag){tTag.textContent=S.header.tagline;tTag.style.fontSize=(S.header.taglineSize||11)+'px';}if(customAreas)document.getElementById('poster').style.gridTemplateAreas=customAreas;const tileIds=['loc','office','teams','movein','events','amenity','cta'];tileIds.forEach(tid=>{const s=S[tid];if(!s)return;setBgClass(tid,s.bg);if(s.gradient&&s.gradient.enabled)applyGradient(tid);applyTextColor(tid,s.textColor||'auto');renderTileIcon(tid);if(s.tag!==undefined)setText(tid+'-tag',s.tag);if(s.title!==undefined)setText(tid+'-title',s.title);if(s.desc!==undefined)setDesc(tid+'-desc',s.desc);if(tid==='loc'){const el=document.getElementById('loc-stat-el');if(el)el.innerHTML=s.stat+'<span class="t-unit"> '+s.unit+'</span>';}if(tid==='cta'){setText('cta-btn-text',s.btn);if(s.showQR&&s.qrData){const w=document.getElementById('cta-qr-wrap');if(w)w.classList.add('on');const i=document.getElementById('cta-qr-img');if(i){i.src=s.qrData;i.style.width='120px';i.style.height='120px';}}}const el=document.querySelector('[data-tile="'+tid+'"]');el?.querySelector('.t-img')?.remove();el?.querySelector('.t-ov')?.remove();if(s.img)setImg(tid);});setText('perks-tag',S.perks.tag);setText('perks-title',S.perks.title);setBgClass('perks',S.perks.bg);applyTextColor('perks',S.perks.textColor||'auto');renderPerks();setText('amenity-title',S.amenity.title);setDesc('amenity-desc',S.amenity.desc);renderTileIcon('amenity');setBgClass('amenity',S.amenity.bg);renderAmenityRow();}
 function setBgClass(tid,key){const tile=document.querySelector('[data-tile="'+tid+'"]');if(!tile)return;['bg-white','bg-grey','bg-black','bg-orange','bg-darkgrey'].forEach(c=>tile.classList.remove(c));tile.classList.add('bg-'+key);tile.style.background=BG_COLOR_MAP[key]||'';}
 
 /* DOWNLOAD */
