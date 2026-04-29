@@ -77,6 +77,8 @@ select{appearance:none;
 .json-search-ico{display:none;}
 .json-dropdown{position:absolute;z-index:500;top:calc(100% + 4px);left:0;right:0;background:var(--wh);border:1px solid var(--bd);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;display:none;}
 .json-dropdown.open{display:block;}
+.lib-drop-zone{border:2px dashed var(--bd);border-radius:8px;transition:border-color .15s,background .15s;cursor:pointer;}
+.lib-drop-active,.lib-drop-zone:hover{border-color:var(--o);background:var(--olt);}
 .json-opt{padding:9px 12px;font-size:13px;color:var(--drk);cursor:pointer;border-bottom:1px solid var(--bd);transition:background .1s;display:flex;align-items:center;gap:8px;}
 .json-opt:last-child{border-bottom:none;}
 .json-opt:hover{background:var(--olt);color:var(--o);}
@@ -505,9 +507,9 @@ img.co-icon-img{display:block;}
           </button>
           <div class="json-dropdown" id="json-dropdown"></div>
         </div>
-        <label class="lib-file-btn" title="Upload JSON files" style="flex-shrink:0;padding:7px 10px;">
+        <label class="lib-drop-zone lib-file-btn" id="lib-drop-zone" title="Click or drag JSON files here" style="flex-shrink:0;padding:7px 10px;display:flex;align-items:center;gap:5px;">
           <input type="file" accept=".json,application/json" multiple style="display:none" onchange="loadJsonFiles(event)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span data-i18n="btn_add_files">Insert Card</span>
         </label>
       </div>
@@ -2130,6 +2132,7 @@ function showStatus(m,t){document.getElementById('fetch-status').innerHTML=`<div
 //  JSON LOCATION LIBRARY
 // ══════════════════════════════════════════════════════════
 const LIB_KEY='co_location_library';
+let _libGroupCollapsed={server:false,local:false}; // track collapsed groups
 function getLib(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||'[]');}catch{return[];}}
 function saveLib(lib){localStorage.setItem(LIB_KEY,JSON.stringify(lib));}
 function loadJsonFiles(e){
@@ -2144,6 +2147,8 @@ function _ingestFiles(files){
     reader.onload=ev=>{
       try{
         const data=JSON.parse(ev.target.result);if(!data.name)throw new Error('Missing name');
+        data._source='local';  // mark as locally inserted
+        data._filename=file.name;
         const n=typeof data.name==='object'?data.name.en:data.name;
         // Deduplicate on name + floor together — same building different floor = different entry
         const floor=data.floor||data.langs?.en?.floor||'';
@@ -2177,8 +2182,45 @@ async function reloadLibFromServer(){
   }catch(e){showStatus('Reload failed: '+e.message,'s-err');}
   finally{if(svg)svg.style.animation='';}
 }
-function clearJsonLib(){if(!confirm('Clear all saved locations from the library?'))return;localStorage.removeItem(LIB_KEY);_libCityFilter='';renderJsonDropdown([]);updateLibStatus();showStatus('Library cleared.','s-info');}
+function clearJsonLib(){
+  if(!confirm('Clear all saved locations from the library?'))return;
+  localStorage.removeItem(LIB_KEY);
+  _libCityFilter='';
+  renderJsonDropdown([]);
+  updateLibStatus();
+  showStatus('Library cleared. Reloading from server…','s-info');
+  // Auto-reload from server after clearing
+  setTimeout(()=>reloadLibFromServer(),300);
+}
 function filterJsonLib(q){const lib=getLib();renderJsonDropdown(lib,q);showJsonDropdown();}
+
+function removeLocalGroup(){
+  let lib=getLib();
+  lib=lib.filter(l=>l._source!=='local');
+  saveLib(lib);
+  renderJsonDropdown(lib,document.getElementById('json-search')?.value||'');
+  updateLibStatus();
+  showStatus('Inserted cards removed.','s-info');
+}
+
+// ── DRAG AND DROP for JSON files onto the library section ─────────────────
+function initLibDragDrop(){
+  const wrap=document.getElementById('lib-drop-zone');
+  if(!wrap) return;
+  ['dragenter','dragover'].forEach(ev=>wrap.addEventListener(ev,e=>{
+    e.preventDefault();e.stopPropagation();
+    wrap.classList.add('lib-drop-active');
+  }));
+  ['dragleave','dragend','drop'].forEach(ev=>wrap.addEventListener(ev,e=>{
+    wrap.classList.remove('lib-drop-active');
+  }));
+  wrap.addEventListener('drop',e=>{
+    e.preventDefault();e.stopPropagation();
+    const files=Array.from(e.dataTransfer.files).filter(f=>f.name.endsWith('.json'));
+    if(!files.length){showStatus('Drop JSON files here.','s-info');return;}
+    _ingestFiles(files);
+  });
+}
 function toggleSearchClear(val){
   const btn=document.getElementById('search-clear-btn');
   if(!btn)return;
@@ -2193,33 +2235,80 @@ function clearJsonSearch(){
 let _libCityFilter='';
 function renderJsonDropdown(lib,q=''){
   const dd=document.getElementById('json-dropdown');
-  const filtered=lib.filter(l=>{
+  if(!dd) return;
+
+  const filterItem=l=>{
     const name=(typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):l.name||'').toLowerCase();
     const city=(l.city||'').toLowerCase();
     const matchQ=!q||name.includes(q.toLowerCase())||city.includes(q.toLowerCase());
     const matchCity=!_libCityFilter||city===_libCityFilter.toLowerCase();
     return matchQ&&matchCity;
-  });
-  if(!filtered.length){dd.innerHTML=`<div class="json-opt" style="color:var(--xlt);cursor:default;font-size:12px;">${lib.length?'No matches':'No locations yet — upload JSON files'}</div>`;}
-  else{
-    dd.innerHTML=filtered.map(l=>{
-      const displayName=typeof l.name==='object'?(l.name[LANG]||l.name.en||Object.values(l.name)[0]):l.name;
-      const slug=(typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):(l.name||'location')).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-      // Extract floor: prefer JSON floor field, else parse from slug (name_FLOOR pattern)
-      const floorFromSlug=(slug.match(/_([^_]+)$/) || [])[1]||'';
-      const floorRaw=l.floor||l.langs?.en?.floor||floorFromSlug||'';
-      // Clean up: remove common suffixes for display
-      const floorDisplay=floorRaw.replace(/^(\d+)[Ff].*$/,'$1F').replace(/^([A-Z0-9-]+[Ff]).*$/,'$1')||floorRaw;
-      return`<div class="json-opt" onmousedown="loadFromLib(${lib.indexOf(l)})">
-        <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow:hidden;">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${displayName}</span>
-          ${floorDisplay?`<span style="flex-shrink:0;font-size:10px;font-weight:700;color:var(--o);background:var(--olt);border:1px solid var(--o);border-radius:4px;padding:1px 5px;line-height:1.4;">${floorDisplay}</span>`:''}
-          ${l.city?`<span class="json-city">${l.city}</span>`:''}
+  };
+
+  const buildCard=(l,realIdx)=>{
+    const displayName=typeof l.name==='object'?(l.name[LANG]||l.name.en||Object.values(l.name)[0]):l.name;
+    const slug=(typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):(l.name||'location')).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    const floorFromSlug=(slug.match(/_([^_]+)$/) || [])[1]||'';
+    const floorRaw=l.floor||l.langs?.en?.floor||floorFromSlug||'';
+    const floorDisplay=floorRaw.replace(/^(\d+)[Ff].*$/,'$1F').replace(/^([A-Z0-9-]+[Ff]).*$/,'$1')||floorRaw;
+    const isLocal=l._source==='local';
+    return`<div class="json-opt" onmousedown="loadFromLib(${realIdx})">
+      <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow:hidden;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:${isLocal?'var(--o)':'currentColor'}"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <div style="flex:1;min-width:0;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:5px;overflow:hidden;">
+            <span style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${displayName}</span>
+            ${floorDisplay?`<span style="flex-shrink:0;font-size:10px;font-weight:700;color:var(--o);background:var(--olt);border:1px solid var(--o);border-radius:4px;padding:1px 5px;line-height:1.4;">${floorDisplay}</span>`:''}
+            ${l.city?`<span class="json-city">${l.city}</span>`:''}
+          </div>
+          ${isLocal&&l._filename?`<div style="font-size:10px;color:var(--xlt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;">${l._filename}</div>`:''}
         </div>
-      </div>`;
-    }).join('');
+      </div>
+    </div>`;
+  };
+
+  const buildGroupHeader=(label,icon,count,key,color)=>{
+    const collapsed=_libGroupCollapsed[key];
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px 3px;background:var(--bg);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:2;">
+      <div style="display:flex;align-items:center;gap:5px;">
+        ${icon}
+        <span style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:${color};">${label}</span>
+        <span style="font-size:9.5px;color:var(--xlt);font-weight:500;">(${count})</span>
+      </div>
+      <button onmousedown="event.preventDefault();_libGroupCollapsed['${key}']=!_libGroupCollapsed['${key}'];renderJsonDropdown(getLib(),document.getElementById('json-search')?.value||'')"
+        style="border:none;background:transparent;cursor:pointer;color:var(--xlt);font-size:11px;padding:2px 5px;border-radius:3px;font-family:inherit;">${collapsed?'▶':'▼'}</button>
+    </div>`;
+  };
+
+  const serverItems=lib.map((l,i)=>({l,i})).filter(({l})=>l._source!=='local'&&filterItem(l));
+  const localItems=lib.map((l,i)=>({l,i})).filter(({l})=>l._source==='local'&&filterItem(l));
+
+  if(!serverItems.length&&!localItems.length){
+    dd.innerHTML=`<div class="json-opt" style="color:var(--xlt);cursor:default;font-size:12px;">${lib.length?'No matches':'No locations yet — upload JSON files or drag & drop them here'}</div>`;
+    renderCityChips(lib);return;
   }
+
+  let html='';
+
+  if(serverItems.length){
+    const icon=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+    html+=buildGroupHeader('Server Library',icon,serverItems.length,'server','var(--mid)');
+    if(!_libGroupCollapsed.server) html+=serverItems.map(({l,i})=>buildCard(l,i)).join('');
+  }
+
+  if(localItems.length){
+    const icon=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--o)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+    html+=buildGroupHeader('Inserted Cards',icon,localItems.length,'local','var(--o)');
+    if(!_libGroupCollapsed.local) html+=localItems.map(({l,i})=>buildCard(l,i)).join('');
+    html+=`<div style="padding:5px 10px 7px;border-top:1px solid var(--bd);background:var(--bg);">
+      <button onmousedown="event.preventDefault();removeLocalGroup()" style="width:100%;padding:4px;border:1px solid var(--bd);border-radius:5px;background:transparent;color:var(--xlt);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Remove inserted cards
+      </button>
+    </div>`;
+  }
+
+  dd.innerHTML=html;
   renderCityChips(lib);
 }
 function renderCityChips(lib){
@@ -3070,6 +3159,7 @@ function mobBackToEdit(){
   applyI18n();
   renderJsonDropdown(getLib());
   updateLibStatus();
+  initLibDragDrop();
 
   // Auto-load from json/ folder on server
   if(location.protocol!=='file:'){
