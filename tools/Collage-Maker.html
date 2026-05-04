@@ -232,7 +232,7 @@
 
   <!-- CANVAS AREA -->
   <div class="canvas-area" id="canvasArea">
-    <div class="canvas-hint" id="canvasHint">Drag to pan · Scroll to zoom · Right-click for options</div>
+    <div class="canvas-hint" id="canvasHint">Scroll to zoom · Drag to pan · Right-click for options</div>
     <div class="canvas-outer" id="canvasOuter">
       <div class="canvas-container" id="canvasContainer">
         <canvas id="collageCanvas" width="1080" height="1350"></canvas>
@@ -344,10 +344,8 @@ function fitCanvas() {
   viewScale    = Math.min(1, availW / canvas.width, availH / canvas.height);
   const outer  = document.getElementById('canvasOuter');
   outer.style.transform = `scale(${viewScale})`;
-  // Collapse phantom space from scale
   outer.style.width  = canvas.width  * viewScale + 'px';
   outer.style.height = canvas.height * viewScale + 'px';
-  // But the inner container stays at real px size
   document.getElementById('canvasContainer').style.width  = canvas.width  + 'px';
   document.getElementById('canvasContainer').style.height = canvas.height + 'px';
   document.getElementById('canvasOuter').style.transformOrigin = 'top left';
@@ -356,7 +354,6 @@ function fitCanvas() {
 
 window.addEventListener('resize', fitCanvas);
 
-// Manual zoom buttons adjust viewScale on top of fit
 function applyZoom(delta) {
   const area   = document.getElementById('canvasArea');
   const pad    = 40;
@@ -382,25 +379,21 @@ function clientToCanvas(cx, cy) {
 }
 
 // ═══════════════════════════════════════════════
-// CLAMP PAN (image must always cover its box)
+// CLAMP PAN — permissive when image is smaller than its region
 // ═══════════════════════════════════════════════
-// Helper: get the effective visible region (w,h) for a box in the 'two' layout
 function twoBoxRegion(boxIdx) {
   const deg   = layoutAdj.angle ?? 0;
   const split = layoutAdj.split ?? 0.5;
   const W = canvas.width, H = canvas.height;
   if (deg === 90) {
-    // Vertical cut — each side is split*W or (1-split)*W wide, full height
     return boxIdx === 0
       ? { w: split * W,         h: H }
       : { w: (1 - split) * W,   h: H };
   } else if (deg === 0) {
-    // Horizontal cut — full width, each side is split*H or (1-split)*H tall
     return boxIdx === 0
       ? { w: W, h: split * H }
       : { w: W, h: (1 - split) * H };
   } else {
-    // Diagonal 45° — use the smaller bounding box of the visible triangle
     return { w: W * 0.7, h: H * 0.7 };
   }
 }
@@ -411,7 +404,6 @@ function clampPan(box, panVal, axis) {
   const ih = box.image.naturalHeight || box.image.height;
   const imgAspect = iw / ih;
 
-  // For 'two' layout use the effective visible half-region for clamping
   let effW, effH;
   if (currentLayout === 'two') {
     const region = twoBoxRegion(box.index);
@@ -425,33 +417,30 @@ function clampPan(box, panVal, axis) {
   if (imgAspect > effAspect) { drawH = effH * box.zoom; drawW = drawH * imgAspect; }
   else                       { drawW = effW * box.zoom; drawH = drawW / imgAspect; }
 
+  // CHANGED: when image is smaller than the region (zoomed out), allow free movement
+  // up to the size of the region itself. When larger, keep cover constraint.
   if (axis === 'x') {
-    const maxPan = Math.max(0, (drawW - effW) / 2);
-    return Math.max(-maxPan, Math.min(maxPan, panVal));
+    if (drawW >= effW) {
+      const maxPan = (drawW - effW) / 2;
+      return Math.max(-maxPan, Math.min(maxPan, panVal));
+    } else {
+      const maxPan = effW;
+      return Math.max(-maxPan, Math.min(maxPan, panVal));
+    }
   } else {
-    const maxPan = Math.max(0, (drawH - effH) / 2);
-    return Math.max(-maxPan, Math.min(maxPan, panVal));
+    if (drawH >= effH) {
+      const maxPan = (drawH - effH) / 2;
+      return Math.max(-maxPan, Math.min(maxPan, panVal));
+    } else {
+      const maxPan = effH;
+      return Math.max(-maxPan, Math.min(maxPan, panVal));
+    }
   }
 }
 
-// Minimum zoom for a box — image must cover its effective visible region
+// CHANGED: allow zoom-out below cover-fit baseline (was return 1)
 function minZoomFor(box) {
-  if (!box.image) return 1;
-  const iw = box.image.naturalWidth  || box.image.width;
-  const ih = box.image.naturalHeight || box.image.height;
-  const imgAspect = iw / ih;
-  let effW, effH;
-  if (currentLayout === 'two') {
-    const region = twoBoxRegion(box.index);
-    effW = region.w; effH = region.h;
-  } else {
-    effW = box.width; effH = box.height;
-  }
-  const effAspect = effW / effH;
-  // At zoom=1 the cover scale is: max(effW/imgW_natural, effH/imgH_natural) but
-  // we track zoom relative to the cover-fit baseline, so zoom=1 already covers.
-  // minZoom=1 ensures the drawn size >= effW/effH in the constraining dimension.
-  return 1;
+  return 0.2;
 }
 
 // ═══════════════════════════════════════════════
@@ -482,9 +471,6 @@ class ImageBox {
   }
 
   _sync() {
-    // For 'two' layout hide the individual box overlays — interaction is handled
-    // directly on the canvas via pickTwoBox(). We still keep the elements in the
-    // DOM so the rest of the code doesn't break, but make them invisible/non-interactive.
     if (currentLayout === 'two') {
       this.element.style.cssText = 'display:none;position:absolute;';
       return;
@@ -560,7 +546,7 @@ class ImageBox {
     menu.className = 'ctx-menu';
     menu.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;background:#1e1e1e;border:1px solid #444;
       border-radius:8px;padding:10px;z-index:2000;display:flex;flex-direction:column;gap:8px;
-      box-shadow:0 8px 24px rgba(0,0,0,0.6);min-width:220px;`;
+      box-shadow:0 8px 24px rgba(0,0,0,0.6);min-width:240px;`;
 
     // Zoom row
     const zr = document.createElement('div');
@@ -577,6 +563,28 @@ class ImageBox {
       this._mkBtn('↺ Reset', () => { this.zoom=1;this.panX=0;this.panY=0;this.rotation=0;updateCanvas(); })
     );
     menu.appendChild(zr);
+
+    // Zoom slider — gives finer control over the new wider zoom range
+    const zsr = document.createElement('div');
+    zsr.style.cssText = 'display:flex;align-items:center;gap:6px;';
+    const zlbl = document.createElement('span');
+    zlbl.textContent = 'Zoom';
+    zlbl.style.cssText = 'font-size:0.7rem;color:#888;width:34px;flex-shrink:0;';
+    const zs = document.createElement('input');
+    zs.type='range'; zs.min=String(minZoomFor(this)); zs.max='5'; zs.step='0.01'; zs.value=String(this.zoom);
+    zs.style.cssText='flex:1;height:3px;background:#444;-webkit-appearance:none;border-radius:2px;cursor:pointer;accent-color:#ff6600;';
+    const zv = document.createElement('span');
+    zv.textContent = (this.zoom).toFixed(2) + '×';
+    zv.style.cssText = 'font-size:0.7rem;color:#aaa;width:38px;text-align:right;flex-shrink:0;';
+    zs.addEventListener('input', () => {
+      this.zoom = parseFloat(zs.value);
+      this.panX = clampPan(this, this.panX, 'x');
+      this.panY = clampPan(this, this.panY, 'y');
+      zv.textContent = this.zoom.toFixed(2) + '×';
+      updateCanvas();
+    });
+    zsr.append(zlbl, zs, zv);
+    menu.appendChild(zsr);
 
     // Rotation
     const rr = document.createElement('div');
@@ -621,7 +629,7 @@ function calcSlots() {
   const a=layoutAdj, w=canvas.width, h=canvas.height;
   switch(currentLayout) {
     case 'single': return [{x:0,y:0,w,h}];
-    case 'two':    return [{x:0,y:0,w,h},{x:0,y:0,w,h}]; // clipped at draw time
+    case 'two':    return [{x:0,y:0,w,h},{x:0,y:0,w,h}];
     case 'big-small': {
       const mw=(a.mainWidth||0.67)*w, sw=w-mw, ss=(a.smallSplit||0.5)*h;
       return [{x:0,y:0,w:mw,h},{x:mw,y:0,w:sw,h:ss},{x:mw,y:ss,w:sw,h:h-ss}];
@@ -643,27 +651,22 @@ function calcSlots() {
   }
 }
 
-// For the 'two' layout: determine which box (0 or 1) the canvas point belongs to
 function pickTwoBox(canvasX, canvasY) {
   const split = layoutAdj.split ?? 0.5;
   const deg   = layoutAdj.angle ?? 0;
   const W = canvas.width, H = canvas.height;
-  let side; // negative = box 0 side, positive = box 1 side
+  let side;
 
   if (deg === 90) {
-    // Vertical cut: left of split*W = box0, right = box1
     side = canvasX - split * W;
   } else if (deg === 0) {
-    // Horizontal cut: above split*H = box0, below = box1
     side = canvasY - split * H;
   } else {
-    // Diagonal 45°: pivot at (W/2, split*H), line direction (cos45,sin45)
     const px = W / 2, py = split * H;
     const rad = deg * Math.PI / 180;
     const nx = -Math.sin(rad), ny = Math.cos(rad);
     side = nx * (canvasX - px) + ny * (canvasY - py);
   }
-  // side < 0 → box 0, side >= 0 → box 1
   return side < 0 ? imageBoxes[0] : imageBoxes[1];
 }
 
@@ -753,7 +756,6 @@ function updateCanvas() {
     ctx.save();
 
     if (currentLayout==='two') {
-      // diagonal / horizontal / vertical clip
       const split=layoutAdj.split??0.5, deg=layoutAdj.angle??0;
       const W=canvas.width, H=canvas.height, far=Math.max(W,H)*4;
       let px,py,dx,dy,nx,ny;
@@ -903,7 +905,6 @@ function updateImageList() {
     list.appendChild(item);
   });
 
-  // Drag-reorder on the list element (event delegation)
   list.addEventListener('dragstart',e=>{
     const it=e.target.closest('.image-item'); if(!it)return;
     dragSrcIdx=parseInt(it.dataset.idx); e.dataTransfer.effectAllowed='move';
@@ -938,7 +939,6 @@ function applySize(w, h) {
   document.getElementById('heightSlider').value = h;
   document.getElementById('widthNum').value = w;
   document.getElementById('heightNum').value = h;
-  // Update active preset
   document.querySelectorAll('.preset-btn').forEach(b=>{
     b.classList.toggle('active', +b.dataset.w===w && +b.dataset.h===h);
   });
@@ -979,12 +979,10 @@ function preloadFromParams() {
 document.addEventListener('DOMContentLoaded', ()=>{
   initCanvas();
 
-  // URL input
   const urlInput=document.getElementById('urlInput');
   document.getElementById('addUrlBtn').onclick=()=>{ if(urlInput.value.trim()){handleUrls(urlInput.value);urlInput.value='';} };
   urlInput.onkeydown=e=>{ if(e.key==='Enter')document.getElementById('addUrlBtn').click(); };
 
-  // Upload zone
   const zone=document.getElementById('uploadZone'), fi=document.getElementById('fileInput');
   zone.onclick=()=>fi.click();
   zone.ondragover=e=>{ e.preventDefault(); zone.classList.add('dragover'); };
@@ -992,7 +990,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   zone.ondrop=e=>{ e.preventDefault(); zone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); };
   fi.onchange=e=>{ handleFiles(e.target.files); fi.value=''; };
 
-  // Layout buttons
   document.querySelectorAll('.layout-btn').forEach(btn=>{
     btn.onclick=()=>{
       document.querySelector('.layout-btn.active')?.classList.remove('active');
@@ -1003,12 +1000,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
     };
   });
 
-  // Preset size buttons
   document.querySelectorAll('.preset-btn').forEach(btn=>{
     btn.onclick=()=>applySize(+btn.dataset.w, +btn.dataset.h);
   });
 
-  // Custom size — sliders + number inputs, both synced
   const ws=document.getElementById('widthSlider'),  hs=document.getElementById('heightSlider');
   const wn=document.getElementById('widthNum'),      hn=document.getElementById('heightNum');
   const lock=document.getElementById('ratioLock');
@@ -1027,26 +1022,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
   ws.oninput = () => setW(+ws.value);
   hs.oninput = () => setH(+hs.value);
 
-  // Number inputs: update on Enter or blur
   wn.addEventListener('change', () => setW(+wn.value));
   wn.addEventListener('keydown', e => { if (e.key === 'Enter') { wn.blur(); setW(+wn.value); } });
   hn.addEventListener('change', () => setH(+hn.value));
   hn.addEventListener('keydown', e => { if (e.key === 'Enter') { hn.blur(); setH(+hn.value); } });
 
-  // Clear
   document.getElementById('clearBtn').onclick=()=>{
     uploadedImages=[]; imageBoxes.forEach(b=>{b.image=null;}); updateImageList(); updateCanvas();
   };
 
-  // Download
   document.getElementById('downloadBtn').onclick=download;
 
-  // Canvas zoom buttons
   document.getElementById('zoomIn').onclick =()=>applyZoom(+0.1);
   document.getElementById('zoomOut').onclick=()=>applyZoom(-0.1);
   document.getElementById('resetZoom').onclick=()=>fitCanvas();
 
-  // Canvas direct interaction for 'two' layout (both boxes are full-canvas overlaps)
+  // Canvas direct interaction for 'two' layout
   const canvasEl = document.getElementById('collageCanvas');
 
   canvasEl.addEventListener('mousedown', e => {
@@ -1055,7 +1046,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const p = clientToCanvas(e.clientX, e.clientY);
     const box = pickTwoBox(p.x, p.y);
     if (!box) return;
-    // Visual selection feedback via outline on canvas
     selectedBox = box;
     imageBoxes.forEach(b => b.element.classList.remove('selected'));
     if (box.image) {
@@ -1093,7 +1083,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if (box) { selectedBox = box; box._ctxMenu(e.clientX, e.clientY); }
   });
 
-  // Global mousemove
   document.addEventListener('mousemove',e=>{
     if(!selectedBox) return;
     const p=clientToCanvas(e.clientX,e.clientY);
@@ -1119,8 +1108,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if(selectedBox){ selectedBox.isPanning=false; selectedBox.element.style.cursor=selectedBox.image?'grab':'crosshair'; }
   });
 
-  // Dismiss canvas-hint after 4s
-  setTimeout(()=>{ const h=document.getElementById('canvasHint'); if(h) h.style.opacity='0'; h.style.transition='opacity .5s'; }, 4000);
+  setTimeout(()=>{ const h=document.getElementById('canvasHint'); if(h){h.style.opacity='0'; h.style.transition='opacity .5s';} }, 4000);
 
   preloadFromParams();
   buildAdjControls();
