@@ -1686,31 +1686,348 @@ function saveJSON(){const snap=JSON.parse(JSON.stringify(S));const fs=parseFloat
 function loadJSON(input){const f=input.files[0];if(!f)return;const reader=new FileReader();reader.onload=async e=>{try{const data=JSON.parse(e.target.result);if(!data.state)throw new Error('Invalid');Object.keys(data.state).forEach(k=>{if(k in S)S[k]=JSON.parse(JSON.stringify(data.state[k]));});customAreas=data.customAreas||null;if(Array.isArray(data.colFrs)&&data.colFrs.length===3)colFrs=data.colFrs;if(Array.isArray(data.rowFrs)&&data.rowFrs.length===4)rowFrs=data.rowFrs;if(data.fontScale)setFontScale(data.fontScale);if(Array.isArray(data.hiddenTiles))_hiddenTiles=new Set(data.hiddenTiles);setTimeout(applyAllElemStyles,50);setTimeout(_applyHiddenTiles,80);if(typeof data.layout==='number')applyLayout(data.layout);const mi=src=>new Promise(res=>{if(!src)return res({w:0,h:0});const img=new Image();img.onload=()=>res({w:img.naturalWidth,h:img.naturalHeight});img.onerror=()=>res({w:0,h:0});img.src=src;});for(const tid of['loc','office','teams','movein','events','amenity','cta']){if(S[tid]&&S[tid].img){const{w,h}=await mi(S[tid].img);S[tid].imgNW=w;S[tid].imgNH=h;}}for(let i=0;i<(S.perks.categories||[]).length;i++){const cat=S.perks.categories[i];if(cat.img){const{w,h}=await mi(cat.img);cat.imgNW=w;cat.imgNH=h;}}reRenderAll();clearSel();input.value='';}catch(err){console.error('loadJSON error:', err); alert('Could not load — ' + err.message);}};reader.readAsText(f);}
 function reRenderAll(){applyAllElemStyles();if(typeof rescaleAllIcons==='function')setTimeout(rescaleAllIcons,0);renderHeaderLogo();setBgClass('header',S.header.bg);setText('h-badge-text',S.header.badge);const tTag=document.getElementById('h-tag-text');if(tTag){tTag.textContent=S.header.tagline;tTag.style.fontSize=(S.header.taglineSize||11)+'px';}if(customAreas)document.getElementById('poster').style.gridTemplateAreas=customAreas;['loc','office','teams','movein','events','amenity','cta'].forEach(tid=>{const s=S[tid];if(!s)return;setBgClass(tid,s.bg);if(s.gradient&&s.gradient.enabled)applyGradient(tid);applyTextColor(tid,s.textColor||'auto');renderTileIcon(tid);if(s.tag!==undefined)setText(tid+'-tag',s.tag);if(s.title!==undefined)setText(tid+'-title',s.title);if(s.desc!==undefined)setDesc(tid+'-desc',s.desc);if(tid==='loc'){const el=document.getElementById('loc-stat-el');if(el)el.innerHTML=s.stat+'<span class="t-unit"> '+s.unit+'</span>';}if(tid==='cta'){setText('cta-btn-text',s.btn);if(s.showQR&&s.qrData){const w=document.getElementById('cta-qr-wrap');if(w)w.classList.add('on');const i=document.getElementById('cta-qr-img');if(i){i.src=s.qrData;i.style.width='120px';i.style.height='120px';}}}const el=document.querySelector('[data-tile="'+tid+'"]');el?.querySelector('.t-img')?.remove();el?.querySelector('.t-ov')?.remove();if(s.img)setImg(tid);});setText('perks-tag',S.perks.tag);setText('perks-title',S.perks.title);setBgClass('perks',S.perks.bg);applyTextColor('perks',S.perks.textColor||'auto');renderPerks();setText('amenity-title',S.amenity.title);setDesc('amenity-desc',S.amenity.desc);renderTileIcon('amenity');setBgClass('amenity',S.amenity.bg);renderAmenityRow();}
 function setBgClass(tid,key){const tile=document.querySelector('[data-tile="'+tid+'"]');if(!tile)return;['bg-white','bg-grey','bg-black','bg-orange','bg-darkgrey'].forEach(c=>tile.classList.remove(c));tile.classList.add('bg-'+key);tile.style.background=BG_COLOR_MAP[key]||'';}
-async function downloadPoster(){const ov=document.getElementById('dl-ov');ov.classList.add('on');document.querySelectorAll('.tile.active').forEach(t=>t.classList.remove('active'));hideResizeOverlay();document.body.classList.add('ss');await new Promise(r=>setTimeout(r,300));const poster=document.getElementById('poster'),SCALE=5,GAP=14;function cumOff(el,anc){let x=0,y=0,cur=el;while(cur&&cur!==anc){x+=cur.offsetLeft;y+=cur.offsetTop;cur=cur.offsetParent;}return{x,y};}
-const jobs=[];['loc','office','teams','movein','events','amenity','cta'].forEach(tid=>{const s=S[tid];if(!s||!s.img||_hiddenTiles.has(tid))return;const el=document.querySelector('[data-tile="'+tid+'"]');if(!el)return;const{x,y}=cumOff(el,poster);jobs.push({src:s.img,x,y,w:el.offsetWidth,h:el.offsetHeight,posX:s.imgX||0.5,posY:s.imgY||0.5,zoom:s.imgScale||1,nW:s.imgNW||0,nH:s.imgNH||0,radius:GAP});});const catEls=poster.querySelectorAll('.perk-cat');(S.perks.categories||[]).forEach((cat,i)=>{if(!cat.img||!catEls[i]||_hiddenTiles.has('perks'))return;const{x,y}=cumOff(catEls[i],poster);jobs.push({src:cat.img,x,y,w:catEls[i].offsetWidth,h:catEls[i].offsetHeight,posX:cat.imgX||0.5,posY:cat.imgY||0.5,zoom:cat.imgScale||1,nW:cat.imgNW||0,nH:cat.imgNH||0,radius:10});});
-async function pass1(){return html2canvas(poster,{scale:SCALE,useCORS:true,allowTaint:true,backgroundColor:null,logging:false,imageTimeout:0,width:poster.offsetWidth,height:poster.offsetHeight,onclone:(doc,el)=>{el.querySelectorAll('.edit-badge,.tile-drag-handle,#resize-overlay').forEach(e=>e.style.display='none');el.querySelectorAll('.tile').forEach(t=>{t.style.outline='none';t.style.cursor='default';});el.style.gridTemplateColumns=poster.style.gridTemplateColumns;el.style.gridTemplateRows=poster.style.gridTemplateRows;el.style.gridTemplateAreas=poster.style.gridTemplateAreas;el.querySelectorAll('[data-tile]').forEach(tile=>{const orig=poster.querySelector('[data-tile="'+tile.dataset.tile+'"]');if(orig&&orig.style.background)tile.style.background=orig.style.background;});el.querySelectorAll('[data-tile]').forEach(tile=>{if(tile.querySelector('.t-img')){tile.style.background='transparent';tile.style.backgroundColor='transparent';}});el.querySelectorAll('.perk-cat').forEach((cat,i)=>{const liveCat=poster.querySelectorAll('.perk-cat')[i];if(liveCat&&liveCat.querySelector('.perk-cat-bg')){cat.style.background='transparent';cat.style.backgroundColor='transparent';}});el.querySelectorAll('.t-img,.perk-cat-bg').forEach(bg=>{bg.style.backgroundImage='none';bg.style.display='none';});el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o=>o.style.display='none');const oQR=poster.querySelector('#cta-qr-img'),cQR=el.querySelector('#cta-qr-img');if(oQR&&cQR){cQR.src=oQR.src;cQR.style.background='transparent';}}});}
-function drawJob(ctx,job){return new Promise(resolve=>{const img=new Image();img.onload=()=>{const{x,y,w,h,posX,posY,zoom,nW,nH,radius}=job,cx=x*SCALE,cy=y*SCALE,cw=w*SCALE,ch=h*SCALE,cr=radius*SCALE;ctx.save();ctx.beginPath();ctx.moveTo(cx+cr,cy);ctx.arcTo(cx+cw,cy,cx+cw,cy+ch,cr);ctx.arcTo(cx+cw,cy+ch,cx,cy+ch,cr);ctx.arcTo(cx,cy+ch,cx,cy,cr);ctx.arcTo(cx,cy,cx+cw,cy,cr);ctx.closePath();ctx.clip();const iW=nW||img.naturalWidth,iH=nH||img.naturalHeight,minS=Math.max(cw/iW,ch/iH),s=minS*Math.max(1,zoom||1),rW=iW*s,rH=iH*s,oX=Math.max(0,rW-cw),oY=Math.max(0,rH-ch);ctx.drawImage(img,cx-oX*(posX||0.5),cy-oY*(posY||0.5),rW,rH);const grad=ctx.createLinearGradient(cx,cy+ch,cx,cy);grad.addColorStop(0,'rgba(0,0,0,0.78)');grad.addColorStop(0.55,'rgba(0,0,0,0.18)');grad.addColorStop(1,'rgba(0,0,0,0.00)');ctx.fillStyle=grad;ctx.fillRect(cx,cy,cw,ch);ctx.restore();resolve();};img.onerror=resolve;img.src=job.src;});}
-try{const canvasA=await pass1();const canvasB=document.createElement('canvas');canvasB.width=canvasA.width;canvasB.height=canvasA.height;const ctxB=canvasB.getContext('2d');ctxB.fillStyle='#e8e8e8';ctxB.fillRect(0,0,canvasB.width,canvasB.height);if(!_hiddenTiles.has('perks')&&(S.perks.categories||[]).some(cat=>!!cat.img)){const perkEl=poster.querySelector('[data-tile="perks"]');if(perkEl){const{x,y}=cumOff(perkEl,poster);const px=x*SCALE,py=y*SCALE,pw=perkEl.offsetWidth*SCALE,ph=perkEl.offsetHeight*SCALE,pr=GAP*SCALE;const bgColor=getComputedStyle(perkEl).backgroundColor||'#0f0f0f';ctxB.save();ctxB.beginPath();ctxB.moveTo(px+pr,py);ctxB.arcTo(px+pw,py,px+pw,py+ph,pr);ctxB.arcTo(px+pw,py+ph,px,py+ph,pr);ctxB.arcTo(px,py+ph,px,py,pr);ctxB.arcTo(px,py,px+pw,py,pr);ctxB.closePath();ctxB.fillStyle=bgColor;ctxB.fill();ctxB.restore();}}for(const job of jobs)await drawJob(ctxB,job);ctxB.drawImage(canvasA,0,0);const a=document.createElement('a');a.download='compass-offices-poster-A4.jpg';a.href=canvasB.toDataURL('image/jpeg',0.97);a.click();}catch(err){console.error('Download failed:',err);alert('Download failed.');}
-document.body.classList.remove('ss');ov.classList.remove('on');}
+/* ══════════════════════════════════════════════════════════
+   SHARED RENDER ENGINE — used by both JPG and PDF export
+   ══════════════════════════════════════════════════════════ */
+async function renderPosterCanvas() {
+  const poster = document.getElementById('poster');
+  const SCALE = 5, GAP = 14;
+  const pW = poster.offsetWidth, pH = poster.offsetHeight;
 
-/* ═══ FONT SCALE ═══ */
+  /* Cumulative offset from element to ancestor */
+  function cumOff(el, anc) {
+    let x = 0, y = 0, cur = el;
+    while (cur && cur !== anc) { x += cur.offsetLeft; y += cur.offsetTop; cur = cur.offsetParent; }
+    return {x, y};
+  }
+
+  /* Collect image jobs from VISIBLE tiles only */
+  const jobs = [];
+  const BG = BG_COLOR_MAP; // {white,grey,black,orange,darkgrey}
+
+  ['loc','office','teams','movein','events','amenity','cta'].forEach(tid => {
+    const s = S[tid];
+    if (!s || !s.img || _hiddenTiles.has(tid)) return;
+    const el = document.querySelector('[data-tile="'+tid+'"]');
+    if (!el) return;
+    const {x, y} = cumOff(el, poster);
+    jobs.push({src:s.img, x, y, w:el.offsetWidth, h:el.offsetHeight,
+               posX:s.imgX||0.5, posY:s.imgY||0.5, zoom:s.imgScale||1,
+               nW:s.imgNW||0, nH:s.imgNH||0, radius:GAP, hasDarkOv:true});
+  });
+  if (!_hiddenTiles.has('perks')) {
+    const catEls = poster.querySelectorAll('.perk-cat');
+    (S.perks.categories||[]).forEach((cat, i) => {
+      if (!cat.img || !catEls[i]) return;
+      const {x, y} = cumOff(catEls[i], poster);
+      jobs.push({src:cat.img, x, y, w:catEls[i].offsetWidth, h:catEls[i].offsetHeight,
+                 posX:cat.imgX||0.5, posY:cat.imgY||0.5, zoom:cat.imgScale||1,
+                 nW:cat.imgNW||0, nH:cat.imgNH||0, radius:10, hasDarkOv:true});
+    });
+  }
+
+  /* PASS 1 — html2canvas for text/icons/solid backgrounds (transparent where images go) */
+  const canvasA = await html2canvas(poster, {
+    scale: SCALE, useCORS: true, allowTaint: true,
+    backgroundColor: null, // transparent canvas
+    logging: false, imageTimeout: 15000,
+    width: pW, height: pH,
+    onclone: (doc, el) => {
+      // Hide editing chrome
+      el.querySelectorAll('.edit-badge,.tile-drag-handle,#resize-overlay')
+        .forEach(e => e.style.display='none');
+      el.querySelectorAll('.tile').forEach(t => {
+        t.style.outline='none'; t.style.cursor='default';
+      });
+
+      // Clone grid layout exactly as currently rendered
+      el.style.gridTemplateColumns = poster.style.gridTemplateColumns;
+      el.style.gridTemplateRows    = poster.style.gridTemplateRows;
+      el.style.gridTemplateAreas   = poster.style.gridTemplateAreas;
+
+      // FORCE inline background for EVERY tile (CSS vars may not resolve in clone)
+      el.querySelectorAll('[data-tile]').forEach(tile => {
+        const tid = tile.dataset.tile;
+        const s = S[tid];
+        if (!s) return;
+        const hasImg = !_hiddenTiles.has(tid) && s.img;
+
+        if (hasImg) {
+          // Image tile: transparent background so canvasB shows through
+          tile.style.cssText += ';background:transparent!important;background-color:transparent!important';
+        } else if (s.gradient && s.gradient.enabled) {
+          // Gradient
+          tile.style.background = 'linear-gradient('+s.gradient.angle+'deg,'+s.gradient.c1+','+s.gradient.c2+')';
+        } else {
+          // Solid colour — force from BG_COLOR_MAP so CSS vars aren't needed
+          tile.style.background = BG_COLOR_MAP[s.bg] || '#ffffff';
+        }
+      });
+
+      // Perk cats: transparent if they have images
+      el.querySelectorAll('.perk-cat').forEach((cat, i) => {
+        const liveCat = (S.perks.categories||[])[i];
+        if (liveCat && liveCat.img && !_hiddenTiles.has('perks')) {
+          cat.style.cssText += ';background:transparent!important;background-color:transparent!important';
+        }
+      });
+
+      // Hide .t-img and .perk-cat-bg (we draw images at native res in canvasB)
+      el.querySelectorAll('.t-img,.perk-cat-bg').forEach(bg => {
+        bg.style.backgroundImage = 'none';
+        bg.style.display = 'none';
+      });
+      // Keep .t-ov and .perk-cat-ov visible — they provide text contrast on dark tiles
+      // But on image tiles they'd show on transparent bg, so hide them too
+      el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o => o.style.display='none');
+
+      // Force header background
+      const hdr = el.querySelector('[data-tile="header"]');
+      if (hdr) hdr.style.background = BG_COLOR_MAP[S.header?.bg||'black'] || '#0f0f0f';
+
+      // Perks tile solid bg (for the tile itself, not the cats)
+      const perkTile = el.querySelector('[data-tile="perks"]');
+      if (perkTile) perkTile.style.background = BG_COLOR_MAP[S.perks?.bg||'black'] || '#0f0f0f';
+
+      // QR code
+      const oQR = poster.querySelector('#cta-qr-img');
+      const cQR = el.querySelector('#cta-qr-img');
+      if (oQR && cQR) { cQR.src = oQR.src; cQR.style.background='transparent'; }
+    }
+  });
+
+  /* PASS 2 — canvasB: grey paper + native-res images, then paste canvasA text on top */
+  const canvasB = document.createElement('canvas');
+  canvasB.width  = canvasA.width;
+  canvasB.height = canvasA.height;
+  const ctxB = canvasB.getContext('2d');
+
+  // Grey paper background
+  ctxB.fillStyle = '#e8e8e8';
+  ctxB.fillRect(0, 0, canvasB.width, canvasB.height);
+
+  // Perks tile solid background (drawn before perk-cat images so cats sit on top)
+  if (!_hiddenTiles.has('perks')) {
+    const perkEl = poster.querySelector('[data-tile="perks"]');
+    if (perkEl) {
+      const {x,y} = cumOff(perkEl, poster);
+      const px=x*SCALE, py=y*SCALE, pw=perkEl.offsetWidth*SCALE, ph=perkEl.offsetHeight*SCALE, pr=GAP*SCALE;
+      const bgKey = S.perks?.bg || 'black';
+      ctxB.save();
+      ctxB.beginPath();
+      ctxB.moveTo(px+pr,py); ctxB.arcTo(px+pw,py,px+pw,py+ph,pr);
+      ctxB.arcTo(px+pw,py+ph,px,py+ph,pr); ctxB.arcTo(px,py+ph,px,py,pr);
+      ctxB.arcTo(px,py,px+pw,py,pr); ctxB.closePath();
+      ctxB.fillStyle = BG_COLOR_MAP[bgKey] || '#0f0f0f';
+      ctxB.fill();
+      ctxB.restore();
+    }
+  }
+
+  // Draw each image at native resolution with rounded clip + gradient
+  function drawJob(ctx, job) {
+    return new Promise(resolve => {
+      if (!job.src) return resolve();
+      const img = new Image();
+      img.onload = () => {
+        const {x,y,w,h,posX,posY,zoom,nW,nH,radius} = job;
+        const cx=x*SCALE, cy=y*SCALE, cw=w*SCALE, ch=h*SCALE, cr=radius*SCALE;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(cx+cr,cy);
+        ctx.arcTo(cx+cw,cy,    cx+cw,cy+ch, cr);
+        ctx.arcTo(cx+cw,cy+ch, cx,   cy+ch, cr);
+        ctx.arcTo(cx,   cy+ch, cx,   cy,    cr);
+        ctx.arcTo(cx,   cy,    cx+cw,cy,    cr);
+        ctx.closePath();
+        ctx.clip();
+        const iW = nW||img.naturalWidth, iH = nH||img.naturalHeight;
+        const minS = Math.max(cw/iW, ch/iH);
+        const s = minS * Math.max(1, zoom||1);
+        const rW=iW*s, rH=iH*s;
+        const oX=Math.max(0,rW-cw), oY=Math.max(0,rH-ch);
+        ctx.drawImage(img, cx-oX*(posX||0.5), cy-oY*(posY||0.5), rW, rH);
+        if (job.hasDarkOv) {
+          const grad = ctx.createLinearGradient(cx,cy+ch,cx,cy);
+          grad.addColorStop(0,   'rgba(0,0,0,0.78)');
+          grad.addColorStop(0.5, 'rgba(0,0,0,0.20)');
+          grad.addColorStop(1,   'rgba(0,0,0,0.00)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(cx,cy,cw,ch);
+        }
+        ctx.restore();
+        resolve();
+      };
+      img.onerror = () => { console.warn('Image failed to load'); resolve(); };
+      img.src = job.src;
+    });
+  }
+
+  for (const job of jobs) await drawJob(ctxB, job);
+
+  // Composite: paste text/icon layer on top
+  ctxB.drawImage(canvasA, 0, 0);
+
+  return {canvas: canvasB, poster, pW, pH};
+}
+
+/* ══════════ DOWNLOAD JPG ══════════ */
+async function downloadPoster() {
+  const ov = document.getElementById('dl-ov');
+  ov.classList.add('on');
+  document.querySelectorAll('.tile.active').forEach(t=>t.classList.remove('active'));
+  hideResizeOverlay();
+  document.body.classList.add('ss');
+  await new Promise(r=>setTimeout(r,300));
+  try {
+    const {canvas} = await renderPosterCanvas();
+    const a = document.createElement('a');
+    a.download = 'compass-offices-poster-A4.jpg';
+    a.href = canvas.toDataURL('image/jpeg', 0.97);
+    a.click();
+  } catch(err) {
+    console.error('JPG download failed:', err);
+    alert('Download failed: '+err.message);
+  }
+  document.body.classList.remove('ss');
+  ov.classList.remove('on');
+}
+
+/* ══════════ DOWNLOAD PDF ══════════ */
+async function downloadPDF() {
+  const ov = document.getElementById('dl-ov');
+  ov.classList.add('on');
+  document.querySelectorAll('.tile.active').forEach(t=>t.classList.remove('active'));
+  hideResizeOverlay();
+  document.body.classList.add('ss');
+  await new Promise(r=>setTimeout(r,300));
+  try {
+    const {canvas, poster, pW, pH} = await renderPosterCanvas();
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.97);
+
+    if (!window.jspdf) throw new Error('jsPDF not loaded. Check internet connection.');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+    const A4W=210, A4H=297;
+
+    // Embed poster image full-page
+    pdf.addImage(jpegDataUrl, 'JPEG', 0, 0, A4W, A4H, undefined, 'FAST');
+
+    // Add clickable link over QR code if active
+    if (S.cta && S.cta.showQR && S.cta.qrUrl && !_hiddenTiles.has('cta')) {
+      const qrImg = document.getElementById('cta-qr-img');
+      if (qrImg && qrImg.src && qrImg.src.length > 10) {
+        const pRect = poster.getBoundingClientRect();
+        const qRect = qrImg.getBoundingClientRect();
+        const mmX = ((qRect.left - pRect.left) / pRect.width)  * A4W;
+        const mmY = ((qRect.top  - pRect.top)  / pRect.height) * A4H;
+        const mmW = (qRect.width  / pRect.width)  * A4W;
+        const mmH = (qRect.height / pRect.height) * A4H;
+        pdf.link(mmX, mmY, mmW, mmH, {url: S.cta.qrUrl});
+      }
+    }
+
+    pdf.save('compass-offices-poster-A4.pdf');
+  } catch(err) {
+    console.error('PDF download failed:', err);
+    alert('PDF failed: '+err.message);
+  }
+  document.body.classList.remove('ss');
+  ov.classList.remove('on');
+}
+
+
+/* ════════════════════
+   SMART TILE HIDING
+════════════════════ */
+function _applyHiddenTiles() {
+  const poster = document.getElementById('poster');
+  if (!poster) return;
+  const baseAreas = customAreas || LAYOUTS[curLayout].areas;
+  let areas = baseAreas;
+
+  _hiddenTiles.forEach(tid => {
+    const rows = areas.match(/"([^"]+)"/g).map(r => r.slice(1,-1).trim().split(/\s+/));
+    const cellCount = {};
+    rows.forEach(row => row.forEach(cell => { cellCount[cell] = (cellCount[cell]||0)+1; }));
+
+    const neighbours = new Set();
+    rows.forEach((row, ri) => {
+      row.forEach((cell, ci) => {
+        if (cell !== tid) return;
+        if (ci > 0            && row[ci-1] !== tid && !_hiddenTiles.has(row[ci-1])) neighbours.add(row[ci-1]);
+        if (ci < row.length-1  && row[ci+1] !== tid && !_hiddenTiles.has(row[ci+1])) neighbours.add(row[ci+1]);
+        if (ri > 0             && rows[ri-1][ci] !== tid && !_hiddenTiles.has(rows[ri-1][ci])) neighbours.add(rows[ri-1][ci]);
+        if (ri < rows.length-1 && rows[ri+1][ci] !== tid && !_hiddenTiles.has(rows[ri+1][ci])) neighbours.add(rows[ri+1][ci]);
+      });
+    });
+
+    let best = null, bestScore = -1;
+    neighbours.forEach(n => {
+      let shared = 0;
+      rows.forEach((row, ri) => {
+        row.forEach((cell, ci) => {
+          if (cell !== tid) return;
+          if (ci > 0            && row[ci-1] === n) shared++;
+          if (ci < row.length-1  && row[ci+1] === n) shared++;
+          if (ri > 0             && rows[ri-1][ci] === n) shared++;
+          if (ri < rows.length-1 && rows[ri+1][ci] === n) shared++;
+        });
+      });
+      const score = (cellCount[n]||0)*2 + shared*3;
+      if (score > bestScore) { bestScore = score; best = n; }
+    });
+
+    if (best) areas = areas.replace(new RegExp('\\b'+tid+'\\b','g'), best);
+  });
+
+  poster.style.gridTemplateAreas = areas;
+  document.querySelectorAll('[data-tile]').forEach(tile => {
+    const t = tile.dataset.tile;
+    tile.style.display = _hiddenTiles.has(t) ? 'none' : '';
+    if (!_hiddenTiles.has(t)) tile.style.gridArea = t;
+  });
+  if (_overlayTid && !_hiddenTiles.has(_overlayTid)) requestAnimationFrame(updateResizeOverlay);
+}
+
+function toggleTileVisibility(tid) {
+  if (_hiddenTiles.has(tid)) showTile(tid); else hideTile(tid);
+}
+function hideTile(tid) {
+  _hiddenTiles.add(tid);
+  _applyHiddenTiles();
+  if (_overlayTid === tid || document.querySelector('[data-tile="'+tid+'"]')?.classList.contains('active')) clearSel();
+}
+function showTile(tid)  { _hiddenTiles.delete(tid); _applyHiddenTiles(); }
+function resetHiddenTiles() {
+  _hiddenTiles.clear();
+  _applyHiddenTiles();
+  const poster = document.getElementById('poster');
+  if (poster) poster.style.gridTemplateAreas = customAreas || LAYOUTS[curLayout].areas;
+}
+
+/* ════════════════════
+   FONT SCALE
+════════════════════ */
 function setFontScale(v) {
   v = Math.max(0.8, Math.min(1.6, parseFloat(v)));
   document.documentElement.style.setProperty('--fs', v);
   const slider = document.getElementById('fs-slider');
   const label  = document.getElementById('fs-val');
-  if (slider) slider.value = Math.round(v * 100);
-  if (label)  label.textContent = Math.round(v * 100) + '%';
+  if (slider) slider.value = Math.round(v*100);
+  if (label)  label.textContent = Math.round(v*100)+'%';
 }
 
-/* ═══ ICON RESCALING ═══ */
+/* ════════════════════
+   ICON RESCALING
+════════════════════ */
 function rescaleAllIcons() {
-  Object.keys(ICON_SIZES).forEach(function(tid) { renderTileIcon(tid); });
+  Object.keys(ICON_SIZES).forEach(function(tid){ renderTileIcon(tid); });
 }
 
-/* ═══ IMAGE ADJUSTER ═══ */
-/* adjCtx/adjDrag/adjLastPinchDist declared earlier */
-
+/* ════════════════════
+   IMAGE ADJUSTER
+════════════════════ */
 function openAdj(tid, catIdx) {
   const s = catIdx !== null ? S.perks.categories[catIdx] : S[tid];
   if (!s || !s.img) return;
@@ -1724,57 +2041,53 @@ function openAdj(tid, catIdx) {
   adjCtx.boxW = boxW; adjCtx.boxH = boxH;
   adjCtx.nW = s.imgNW; adjCtx.nH = s.imgNH;
   const box = document.getElementById('adj-box');
-  box.style.width = boxW + 'px'; box.style.height = boxH + 'px';
+  box.style.width = boxW+'px'; box.style.height = boxH+'px';
   const img = document.getElementById('adj-img');
-  img.style.inset = '0'; img.style.width = '100%'; img.style.height = '100%';
-  img.style.backgroundImage = "url('" + s.img + "')";
+  img.style.inset='0'; img.style.width='100%'; img.style.height='100%';
+  img.style.backgroundImage = "url('"+s.img+"')";
   img.style.backgroundRepeat = 'no-repeat';
-  adjCtx.scale = s.imgScale || 1;
+  adjCtx.scale = s.imgScale||1;
   adjCtx.posX  = s.imgX !== undefined ? s.imgX : 0.5;
   adjCtx.posY  = s.imgY !== undefined ? s.imgY : 0.5;
   adjApply();
   document.getElementById('adj-modal').classList.add('on');
-  document.getElementById('adj-zoom-slider').value = Math.round(adjCtx.scale * 100);
-  document.getElementById('adj-zoom-pct').textContent = Math.round(adjCtx.scale * 100) + '%';
-  box.addEventListener('mousedown', adjMouseDown);
-  box.addEventListener('wheel',     adjWheel, {passive: false});
-  box.addEventListener('touchstart', adjTouchStart, {passive: false});
-  box.addEventListener('touchmove',  adjTouchMove,  {passive: false});
+  document.getElementById('adj-zoom-slider').value = Math.round(adjCtx.scale*100);
+  document.getElementById('adj-zoom-pct').textContent = Math.round(adjCtx.scale*100)+'%';
+  box.addEventListener('mousedown',  adjMouseDown);
+  box.addEventListener('wheel',      adjWheel, {passive:false});
+  box.addEventListener('touchstart', adjTouchStart, {passive:false});
+  box.addEventListener('touchmove',  adjTouchMove,  {passive:false});
   box.addEventListener('touchend',   adjTouchEnd);
 }
-
 function adjApply() {
   if (!adjCtx) return;
-  const {boxW, boxH, nW, nH} = adjCtx;
-  const bs = calcBgStyle(boxW, boxH, nW, nH, adjCtx.scale, adjCtx.posX, adjCtx.posY);
+  const {boxW,boxH,nW,nH} = adjCtx;
+  const bs = calcBgStyle(boxW,boxH,nW,nH,adjCtx.scale,adjCtx.posX,adjCtx.posY);
   const img = document.getElementById('adj-img');
   img.style.backgroundSize     = bs.size;
   img.style.backgroundPosition = bs.pos;
-  const pct = Math.round(adjCtx.scale * 100);
-  document.getElementById('adj-zoom-pct').textContent = pct + '%';
-  document.getElementById('adj-zoom-slider').value = Math.min(300, pct);
+  document.getElementById('adj-zoom-pct').textContent = Math.round(adjCtx.scale*100)+'%';
+  document.getElementById('adj-zoom-slider').value = Math.min(300, Math.round(adjCtx.scale*100));
 }
-
 function adjMouseDown(e) {
   e.preventDefault();
-  adjDrag = {startX: e.clientX, startY: e.clientY, startPX: adjCtx.posX, startPY: adjCtx.posY};
+  adjDrag = {startX:e.clientX, startY:e.clientY, startPX:adjCtx.posX, startPY:adjCtx.posY};
   document.getElementById('adj-box').classList.add('dragging');
   document.addEventListener('mousemove', adjMouseMove);
   document.addEventListener('mouseup',   adjMouseUp);
 }
 function adjMouseMove(e) { if (!adjDrag) return; adjMoveBy(e.clientX-adjDrag.startX, e.clientY-adjDrag.startY, adjDrag.startPX, adjDrag.startPY); }
-function adjMouseUp()    { adjDrag=null; document.getElementById('adj-box').classList.remove('dragging'); document.removeEventListener('mousemove', adjMouseMove); document.removeEventListener('mouseup', adjMouseUp); }
+function adjMouseUp()    { adjDrag=null; document.getElementById('adj-box').classList.remove('dragging'); document.removeEventListener('mousemove',adjMouseMove); document.removeEventListener('mouseup',adjMouseUp); }
 function adjTouchStart(e) { e.preventDefault(); if(e.touches.length===1){adjDrag={startX:e.touches[0].clientX,startY:e.touches[0].clientY,startPX:adjCtx.posX,startPY:adjCtx.posY};}else if(e.touches.length===2){adjLastPinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);adjDrag=null;} }
 function adjTouchMove(e)  { e.preventDefault(); if(e.touches.length===1&&adjDrag){adjMoveBy(e.touches[0].clientX-adjDrag.startX,e.touches[0].clientY-adjDrag.startY,adjDrag.startPX,adjDrag.startPY);}else if(e.touches.length===2&&adjLastPinchDist){const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);adjCtx.scale=Math.max(1,adjCtx.scale+(dist-adjLastPinchDist)/adjCtx.boxH*1.5);adjLastPinchDist=dist;adjClampPos();adjApply();} }
 function adjTouchEnd()    { adjDrag=null; adjLastPinchDist=null; }
-function adjMoveBy(dx, dy, startPX, startPY) {
+function adjMoveBy(dx,dy,startPX,startPY) {
   const {boxW,boxH,nW,nH} = adjCtx;
-  const minS = Math.max(boxW/Math.max(1,nW), boxH/Math.max(1,nH));
-  const s = minS * adjCtx.scale;
-  const overX = Math.max(0.001, nW*s - boxW);
-  const overY = Math.max(0.001, nH*s - boxH);
-  adjCtx.posX = Math.max(0, Math.min(1, startPX - dx/overX));
-  adjCtx.posY = Math.max(0, Math.min(1, startPY - dy/overY));
+  const minS=Math.max(boxW/Math.max(1,nW), boxH/Math.max(1,nH));
+  const s=minS*adjCtx.scale;
+  const overX=Math.max(0.001,nW*s-boxW), overY=Math.max(0.001,nH*s-boxH);
+  adjCtx.posX=Math.max(0,Math.min(1,startPX-dx/overX));
+  adjCtx.posY=Math.max(0,Math.min(1,startPY-dy/overY));
   adjApply();
 }
 function adjWheel(e) { e.preventDefault(); adjCtx.scale=Math.max(1,adjCtx.scale-e.deltaY/500); adjClampPos(); adjApply(); }
@@ -1783,167 +2096,56 @@ function adjClampPos() { adjCtx.posX=Math.max(0,Math.min(1,adjCtx.posX)); adjCtx
 function adjReset() { adjCtx.scale=1; adjCtx.posX=0.5; adjCtx.posY=0.5; adjApply(); }
 function adjDone() {
   if (!adjCtx) return;
-  const {tid, catIdx} = adjCtx;
+  const {tid,catIdx} = adjCtx;
   const s = catIdx !== null ? S.perks.categories[catIdx] : S[tid];
-  s.imgScale = adjCtx.scale; s.imgX = adjCtx.posX; s.imgY = adjCtx.posY;
+  s.imgScale=adjCtx.scale; s.imgX=adjCtx.posX; s.imgY=adjCtx.posY;
   if (catIdx !== null) {
-    const cats = document.querySelectorAll('.perk-cat');
-    const catEl = cats[catIdx]?.querySelector('.perk-cat-bg');
+    const cats=document.querySelectorAll('.perk-cat');
+    const catEl=cats[catIdx]?.querySelector('.perk-cat-bg');
     if (catEl) {
-      const box = catEl.parentElement;
-      const bs = calcBgStyle(box.offsetWidth, box.offsetHeight, s.imgNW, s.imgNH, s.imgScale, s.imgX, s.imgY);
-      catEl.style.backgroundImage = "url('"+s.img+"')";
-      catEl.style.backgroundSize = bs.size;
-      catEl.style.backgroundPosition = bs.pos;
+      const box=catEl.parentElement;
+      const bs=calcBgStyle(box.offsetWidth,box.offsetHeight,s.imgNW,s.imgNH,s.imgScale,s.imgX,s.imgY);
+      catEl.style.backgroundImage="url('"+s.img+"')";
+      catEl.style.backgroundSize=bs.size;
+      catEl.style.backgroundPosition=bs.pos;
     }
   } else { refreshImgPos(tid); }
-  const box = document.getElementById('adj-box');
-  box.removeEventListener('mousedown',adjMouseDown);
-  box.removeEventListener('wheel',adjWheel);
-  box.removeEventListener('touchstart',adjTouchStart);
-  box.removeEventListener('touchmove',adjTouchMove);
-  box.removeEventListener('touchend',adjTouchEnd);
+  const box=document.getElementById('adj-box');
+  ['mousedown','wheel','touchstart','touchmove','touchend'].forEach(ev => {
+    const fn = {mousedown:adjMouseDown,wheel:adjWheel,touchstart:adjTouchStart,touchmove:adjTouchMove,touchend:adjTouchEnd}[ev];
+    box.removeEventListener(ev, fn);
+  });
   document.getElementById('adj-modal').classList.remove('on');
-  adjCtx = null;
+  adjCtx=null;
 }
 
-/* ═══ CO ICON FILE FALLBACK ═══ */
+/* ════════════════════
+   CO ICON FILE FALLBACK
+════════════════════ */
 function loadCOIconsFromFile(input) {
-  const f = input.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = e => {
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{
     try {
-      const data = JSON.parse(e.target.result);
-      let count = 0;
-      const items = Array.isArray(data) ? data : (data&&Array.isArray(data.icons)) ? data.icons : [];
-      items.forEach((item,idx) => {
-        const name = (typeof item==='object'&&item) ? (item.name||item.id||'icon-'+idx) : 'icon-'+idx;
-        const raw  = (typeof item==='string') ? item : (item.svg||item.path||item.d||'');
-        const {paths,viewBox} = parseSVG(String(raw||''));
-        if (paths&&paths.length>5) {
-          const key = 'co-'+String(name).toLowerCase().replace(/\.svg$/i,'').replace(/[\s_/\\]+/g,'-').replace(/[^a-z0-9-]/g,'');
-          CO_ICONS[key]=paths; IL[key]=paths; IL_VIEWBOX[key]=viewBox; count++;
+      const data=JSON.parse(e.target.result);
+      let count=0;
+      const items=Array.isArray(data)?data:(data&&Array.isArray(data.icons))?data.icons:[];
+      items.forEach((item,idx)=>{
+        const name=(typeof item==='object'&&item)?(item.name||item.id||'icon-'+idx):'icon-'+idx;
+        const raw=(typeof item==='string')?item:(item.svg||item.path||item.d||'');
+        const{paths,viewBox}=parseSVG(String(raw||''));
+        if(paths&&paths.length>5){
+          const key='co-'+String(name).toLowerCase().replace(/\.svg$/i,'').replace(/[\s_/\\]+/g,'-').replace(/[^a-z0-9-]/g,'');
+          CO_ICONS[key]=paths;IL[key]=paths;IL_VIEWBOX[key]=viewBox;count++;
         }
       });
-      const el = document.getElementById('co-icon-status');
-      if (el) { el.textContent='✓ '+count+' icons from file'; el.style.color='#44cc88'; }
-      if (typeof cur!=='undefined'&&cur) setTimeout(()=>buildSidebar(cur),0);
+      const el=document.getElementById('co-icon-status');
+      if(el){el.textContent='✓ '+count+' icons from file';el.style.color='#44cc88';}
+      if(typeof cur!=='undefined'&&cur)setTimeout(()=>buildSidebar(cur),0);
       renderAmenityRow();
-    } catch(e2) { alert('Could not parse: '+e2.message); }
+    }catch(e2){alert('Could not parse: '+e2.message);}
   };
   r.readAsText(f);
-}
-
-async function downloadPDF() {
-  const ov = document.getElementById('dl-ov');
-  ov.classList.add('on');
-  document.querySelectorAll('.tile.active').forEach(t => t.classList.remove('active'));
-  hideResizeOverlay();
-  document.body.classList.add('ss');
-  await new Promise(r => setTimeout(r, 300));
-
-  const poster = document.getElementById('poster');
-
-  try {
-    // Step 1: Render the same JPEG we use for JPG export
-    const SCALE = 5, GAP = 14;
-    const pW = poster.offsetWidth, pH = poster.offsetHeight;
-
-    function cumOff(el,anc){let x=0,y=0,cur=el;while(cur&&cur!==anc){x+=cur.offsetLeft;y+=cur.offsetTop;cur=cur.offsetParent;}return{x,y};}
-
-    // Collect image jobs (same as JPG)
-    const jobs=[];
-    ['loc','office','teams','movein','events','amenity','cta'].forEach(tid=>{
-      const s=S[tid];if(!s||!s.img||_hiddenTiles.has(tid))return;
-      const el=document.querySelector('[data-tile="'+tid+'"]');if(!el)return;
-      const{x,y}=cumOff(el,poster);
-      jobs.push({src:s.img,x,y,w:el.offsetWidth,h:el.offsetHeight,posX:s.imgX||0.5,posY:s.imgY||0.5,zoom:s.imgScale||1,nW:s.imgNW||0,nH:s.imgNH||0,radius:GAP});
-    });
-    const catEls=poster.querySelectorAll('.perk-cat');
-    (S.perks.categories||[]).forEach((cat,i)=>{
-      if(!cat.img||!catEls[i]||_hiddenTiles.has('perks'))return;
-      const{x,y}=cumOff(catEls[i],poster);
-      jobs.push({src:cat.img,x,y,w:catEls[i].offsetWidth,h:catEls[i].offsetHeight,posX:cat.imgX||0.5,posY:cat.imgY||0.5,zoom:cat.imgScale||1,nW:cat.imgNW||0,nH:cat.imgNH||0,radius:10});
-    });
-
-    // Render pass1 (transparent canvas for text/icons)
-    const canvasA = await html2canvas(poster,{scale:SCALE,useCORS:true,allowTaint:true,backgroundColor:null,logging:false,imageTimeout:0,width:pW,height:pH,
-      onclone:(doc,el)=>{
-        el.querySelectorAll('.edit-badge,.tile-drag-handle,#resize-overlay').forEach(e=>e.style.display='none');
-        el.querySelectorAll('.tile').forEach(t=>{t.style.outline='none';t.style.cursor='default';});
-        el.style.gridTemplateColumns=poster.style.gridTemplateColumns;
-        el.style.gridTemplateRows=poster.style.gridTemplateRows;
-        el.style.gridTemplateAreas=poster.style.gridTemplateAreas;
-        el.querySelectorAll('[data-tile]').forEach(tile=>{const orig=poster.querySelector('[data-tile="'+tile.dataset.tile+'"]');if(orig&&orig.style.background)tile.style.background=orig.style.background;});
-        el.querySelectorAll('[data-tile]').forEach(tile=>{if(tile.querySelector('.t-img')){tile.style.background='transparent';tile.style.backgroundColor='transparent';}});
-        el.querySelectorAll('.perk-cat').forEach((cat,i)=>{const liveCat=poster.querySelectorAll('.perk-cat')[i];if(liveCat&&liveCat.querySelector('.perk-cat-bg')){cat.style.background='transparent';cat.style.backgroundColor='transparent';}});
-        el.querySelectorAll('.t-img,.perk-cat-bg').forEach(bg=>{bg.style.backgroundImage='none';bg.style.display='none';});
-        el.querySelectorAll('.t-ov,.perk-cat-ov').forEach(o=>o.style.display='none');
-        const oQR=poster.querySelector('#cta-qr-img'),cQR=el.querySelector('#cta-qr-img');
-        if(oQR&&cQR){cQR.src=oQR.src;cQR.style.background='transparent';}
-      }
-    });
-
-    const canvasB = document.createElement('canvas');
-    canvasB.width=canvasA.width; canvasB.height=canvasA.height;
-    const ctxB = canvasB.getContext('2d');
-    ctxB.fillStyle='#e8e8e8'; ctxB.fillRect(0,0,canvasB.width,canvasB.height);
-
-    // Perks bg
-    if(!_hiddenTiles.has('perks')&&(S.perks.categories||[]).some(cat=>!!cat.img)){
-      const perkEl=poster.querySelector('[data-tile="perks"]');
-      if(perkEl){const{x,y}=cumOff(perkEl,poster);const px=x*SCALE,py=y*SCALE,pw=perkEl.offsetWidth*SCALE,ph=perkEl.offsetHeight*SCALE,pr=GAP*SCALE;const bgColor=getComputedStyle(perkEl).backgroundColor||'#0f0f0f';ctxB.save();ctxB.beginPath();ctxB.moveTo(px+pr,py);ctxB.arcTo(px+pw,py,px+pw,py+ph,pr);ctxB.arcTo(px+pw,py+ph,px,py+ph,pr);ctxB.arcTo(px,py+ph,px,py,pr);ctxB.arcTo(px,py,px+pw,py,pr);ctxB.closePath();ctxB.fillStyle=bgColor;ctxB.fill();ctxB.restore();}
-    }
-
-    // Draw each image
-    function drawJob(ctx,job){return new Promise(resolve=>{const img=new Image();img.onload=()=>{const{x,y,w,h,posX,posY,zoom,nW,nH,radius}=job,cx=x*SCALE,cy=y*SCALE,cw=w*SCALE,ch=h*SCALE,cr=radius*SCALE;ctx.save();ctx.beginPath();ctx.moveTo(cx+cr,cy);ctx.arcTo(cx+cw,cy,cx+cw,cy+ch,cr);ctx.arcTo(cx+cw,cy+ch,cx,cy+ch,cr);ctx.arcTo(cx,cy+ch,cx,cy,cr);ctx.arcTo(cx,cy,cx+cw,cy,cr);ctx.closePath();ctx.clip();const iW=nW||img.naturalWidth,iH=nH||img.naturalHeight,minS=Math.max(cw/iW,ch/iH),s=minS*Math.max(1,zoom||1),rW=iW*s,rH=iH*s,oX=Math.max(0,rW-cw),oY=Math.max(0,rH-ch);ctx.drawImage(img,cx-oX*(posX||0.5),cy-oY*(posY||0.5),rW,rH);const grad=ctx.createLinearGradient(cx,cy+ch,cx,cy);grad.addColorStop(0,'rgba(0,0,0,0.78)');grad.addColorStop(0.55,'rgba(0,0,0,0.18)');grad.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=grad;ctx.fillRect(cx,cy,cw,ch);ctx.restore();resolve();};img.onerror=resolve;img.src=job.src;});}
-    for(const job of jobs) await drawJob(ctxB, job);
-    ctxB.drawImage(canvasA, 0, 0);
-
-    const jpegDataUrl = canvasB.toDataURL('image/jpeg', 0.97);
-
-    // Step 2: Create PDF — A4 size in mm: 210 × 297
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-    const A4W = 210, A4H = 297;
-
-    // Add the poster image covering full A4
-    pdf.addImage(jpegDataUrl, 'JPEG', 0, 0, A4W, A4H, undefined, 'FAST');
-
-    // Step 3: Add clickable link over the QR code if active
-    if (S.cta.showQR && S.cta.qrUrl && !_hiddenTiles.has('cta')) {
-      const ctaTile = document.querySelector('[data-tile="cta"]');
-      const qrImg   = document.getElementById('cta-qr-img');
-      if (ctaTile && qrImg && qrImg.src && qrImg.src.length > 10) {
-        // Get QR image position relative to poster
-        const posterRect = poster.getBoundingClientRect();
-        const qrRect     = qrImg.getBoundingClientRect();
-
-        // Convert from screen px → poster fraction → A4 mm
-        const fracLeft = (qrRect.left - posterRect.left) / posterRect.width;
-        const fracTop  = (qrRect.top  - posterRect.top)  / posterRect.height;
-        const fracW    = qrRect.width  / posterRect.width;
-        const fracH    = qrRect.height / posterRect.height;
-
-        const mmX = fracLeft * A4W;
-        const mmY = fracTop  * A4H;
-        const mmW = fracW    * A4W;
-        const mmH = fracH    * A4H;
-
-        // Add a transparent clickable link annotation
-        pdf.link(mmX, mmY, mmW, mmH, { url: S.cta.qrUrl });
-      }
-    }
-
-    pdf.save('compass-offices-poster-A4.pdf');
-
-  } catch(err) {
-    console.error('PDF failed:', err);
-    alert('PDF failed — see console. Try JPG instead.');
-  }
-
-  document.body.classList.remove('ss');
-  ov.classList.remove('on');
 }
 
 /* All functions loaded */
