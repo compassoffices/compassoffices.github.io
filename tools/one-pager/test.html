@@ -4195,12 +4195,58 @@ function renderAusLibSuggestions(centre){
 //  EMAIL TEMPLATE
 // ══════════════════════════════════════════════════════════
 
+// Returns array of location data objects — from queue if queued, else current slide
+function _emailGetLocations(){
+  if(PDF_QUEUE && PDF_QUEUE.length > 0){
+    return PDF_QUEUE.map(item=>{
+      const st = item.state || {};
+      const langs = st.langs || {};
+      const enData = langs['en'] || langs[Object.keys(langs)[0]] || {};
+      const fields = enData.fields || {};
+      const rows = enData.rows || [];
+      const benefits = (enData.benefits || []).filter(b=>b.on&&b.text);
+      const mRaw = fields['matterport'] || '';
+      return {
+        name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
+        locName: fields['n-main'] || item.name || 'Compass Offices',
+        floor:   fields['floor'] || '',
+        city:    fields['city'] || '',
+        addr:    fields['addr'] || '',
+        pageUrl: fields['purl'] || '',
+        tours:   mRaw.split(',').map(u=>u.trim()).filter(Boolean),
+        rows,
+        benefits,
+      };
+    });
+  }
+  // Fallback: current slide state
+  const mRaw = document.getElementById('matterport')?.value.trim() || '';
+  return [{
+    name:    [document.getElementById('n-main')?.value.trim()||'', document.getElementById('floor')?.value.trim()||''].filter(Boolean).join(' '),
+    locName: document.getElementById('n-main')?.value.trim() || 'Compass Offices',
+    floor:   document.getElementById('floor')?.value.trim() || '',
+    city:    document.getElementById('city')?.value.trim() || '',
+    addr:    document.getElementById('addr')?.value.trim() || '',
+    pageUrl: document.getElementById('purl')?.value.trim() || '',
+    tours:   mRaw.split(',').map(u=>u.trim()).filter(Boolean),
+    rows:    S.rows || [],
+    benefits:(LANG_DATA[LANG]?.benefits||BENEFITS||[]).filter(b=>b.on&&b.text),
+  }];
+}
+
 function openEmailModal(){
   const modal = document.getElementById('email-modal');
   if(!modal) return;
   modal.style.display = 'flex';
+  // Show queue status in modal subtitle
+  const subtitle = modal.querySelector('[data-email-subtitle]');
+  if(subtitle){
+    const qCount = PDF_QUEUE && PDF_QUEUE.length;
+    subtitle.textContent = qCount > 1
+      ? `Covering ${qCount} queued locations — edit fields then copy`
+      : 'Branded proposal email — copy HTML or open in mail client';
+  }
   updateEmailPreview();
-  // Close on backdrop click
   modal.addEventListener('click', function handler(e){
     if(e.target === modal){ closeEmailModal(); modal.removeEventListener('click', handler); }
   });
@@ -4221,223 +4267,188 @@ function updateEmailPreview(){
 }
 
 function buildEmailHTML(toName, fromName, company){
-  // Pull current state
-  const locName   = document.getElementById('n-main')?.value.trim()  || 'Compass Offices';
-  const floor     = document.getElementById('floor')?.value.trim()   || '';
-  const city      = document.getElementById('city')?.value.trim()    || '';
-  const addr      = document.getElementById('addr')?.value.trim()    || '';
-  const pageUrl   = document.getElementById('purl')?.value.trim()    || '';
-  const matterportRaw = document.getElementById('matterport')?.value.trim() || '';
-  const tours     = matterportRaw.split(',').map(u=>u.trim()).filter(Boolean);
-
-  // Pricing rows (active cols)
-  const hasPricing = S.rows && S.rows.length > 0;
-  const activeCols  = PRICING_COLS.filter(c=>c.on);
-  const pricingTableHTML = hasPricing ? `
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,sans-serif;margin:20px 0;font-size:13px;">
-      <thead>
-        <tr style="background:#FF6600;">
-          ${activeCols.map(col=>`<th style="padding:10px 12px;text-align:left;color:#fff;font-weight:700;white-space:nowrap;">${getPricingColLabel(col.key)}</th>`).join('')}
-        </tr>
-      </thead>
-      <tbody>
-        ${S.rows.map((r,ri)=>`
-        <tr style="background:${ri%2===0?'#fff':'#fff8f5'};">
-          ${activeCols.map(col=>{
-            // Strip HTML tags from values
-            const rawVal = (r[col.key]||'').replace(/<[^>]+>/g,'');
-            const isPrice = col.key==='mgmt'||col.key==='avail'||col.key==='rent';
-            return `<td style="padding:9px 12px;border-bottom:1px solid #f0e8e3;${isPrice?'color:#FF6600;font-weight:700;':''}">${rawVal}</td>`;
-          }).join('')}
-        </tr>`).join('')}
-      </tbody>
-    </table>` : '';
-
-  // Benefits list
-  const LANG_DATA_en = LANG_DATA['en'] || LANG_DATA[LANG] || {};
-  const benefits_list = (LANG_DATA_en.benefits || BENEFITS || [])
-    .filter(b=>b.on && b.text)
-    .map(b=>`<li style="margin:5px 0;padding-left:4px;">${b.text}</li>`)
-    .join('');
-
-  // Matterport tour buttons
-  const tourButtonsHTML = tours.length ? `
-    <div style="margin:24px 0 8px;">
-      <p style="margin:0 0 12px;font-weight:700;color:#333;font-size:14px;">🏢 Virtual Tour${tours.length>1?'s':''}</p>
-      ${tours.map((url,i)=>`
-        <a href="${url}" target="_blank" style="display:inline-block;margin:4px 6px 4px 0;padding:10px 22px;background:#FF6600;color:#fff;font-weight:700;font-family:Arial,sans-serif;font-size:13px;text-decoration:none;border-radius:6px;">
-          ${tours.length>1?`View Virtual Tour ${i+1}`:'View Virtual Tour'} →
-        </a>`).join('')}
-    </div>` : '';
-
-  // Page link button
-  const pageLinkHTML = pageUrl ? `
-    <div style="margin:16px 0;">
-      <a href="${pageUrl}" target="_blank" style="display:inline-block;padding:10px 22px;background:#fff;color:#FF6600;font-weight:700;font-family:Arial,sans-serif;font-size:13px;text-decoration:none;border-radius:6px;border:2px solid #FF6600;">
-        View Location Page →
-      </a>
-    </div>` : '';
-
-  const locationDisplay = [locName, floor, city].filter(Boolean).join(' · ');
+  const locations = _emailGetLocations();
+  const isMulti = locations.length > 1;
+  const firstLoc = locations[0] || {};
   const subject = company
     ? `Your Compass Offices Proposal – ${company}`
-    : `Your Compass Offices Proposal – ${locName}`;
+    : `Your Compass Offices Proposal – ${firstLoc.locName||'Compass Offices'}`;
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  // Build one section per location
+  const locationSections = locations.map((loc, li)=>{
+    const hasPricing = loc.rows && loc.rows.length > 0;
+    const activeCols = PRICING_COLS.filter(c=>c.on);
+
+    const pricingTableHTML = hasPricing ? `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,sans-serif;margin:16px 0;font-size:12.5px;">
+        <thead><tr style="background:#FF6600;">
+          ${activeCols.map(col=>`<th style="padding:9px 11px;text-align:left;color:#fff;font-weight:700;white-space:nowrap;">${getPricingColLabel(col.key)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${loc.rows.map((r,ri)=>`<tr style="background:${ri%2===0?'#fff':'#fff8f5'};">
+            ${activeCols.map(col=>{
+              const v=(r[col.key]||'').replace(/<[^>]+>/g,'');
+              const isPrice=col.key==='mgmt'||col.key==='avail'||col.key==='rent';
+              return `<td style="padding:8px 11px;border-bottom:1px solid #f0e8e3;${isPrice?'color:#FF6600;font-weight:700;':''}">${v}</td>`;
+            }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>` : '';
+
+    const tourButtonsHTML = loc.tours && loc.tours.length ? `
+      <div style="margin:18px 0 8px;">
+        <p style="margin:0 0 10px;font-weight:700;color:#333;font-size:13.5px;">🏢 Virtual Tour${loc.tours.length>1?'s':''}</p>
+        ${loc.tours.map((url,i)=>`<a href="${url}" target="_blank" style="display:inline-block;margin:3px 5px 3px 0;padding:9px 20px;background:#FF6600;color:#fff;font-weight:700;font-family:Arial,sans-serif;font-size:12.5px;text-decoration:none;border-radius:6px;">${loc.tours.length>1?`Tour ${i+1} →`:'View Virtual Tour →'}</a>`).join('')}
+      </div>` : '';
+
+    const pageLinkHTML = loc.pageUrl ? `
+      <div style="margin:12px 0;"><a href="${loc.pageUrl}" target="_blank" style="display:inline-block;padding:9px 20px;background:#fff;color:#FF6600;font-weight:700;font-family:Arial,sans-serif;font-size:12.5px;text-decoration:none;border-radius:6px;border:2px solid #FF6600;">View Location Page →</a></div>` : '';
+
+    const benefitsHTML = loc.benefits && loc.benefits.length
+      ? `<ul style="margin:0 0 20px;padding-left:20px;color:#444;font-size:13px;line-height:1.7;">${loc.benefits.map(b=>`<li style="margin:4px 0;">${b.text}</li>`).join('')}</ul>`
+      : `<ul style="margin:0 0 20px;padding-left:20px;color:#444;font-size:13px;line-height:1.7;">
+          <li style="margin:4px 0;">24/7 access to private offices and lounge areas</li>
+          <li style="margin:4px 0;">Fully furnished with high-speed Wi-Fi, unlimited tea, coffee &amp; filtered water</li>
+          <li style="margin:4px 0;">Office amenities — photocopying, printing, air conditioning &amp; daily cleaning</li>
+          <li style="margin:4px 0;">Professional business address, mail handling &amp; friendly centre team</li>
+          <li style="margin:4px 0;">Secure building with concierge, end-of-trip facilities &amp; utilities included</li>
+          <li style="margin:4px 0;">Monthly credits for meeting rooms and printing</li>
+        </ul>`;
+
+    // For multi-location, each gets its own mini-header
+    const sectionHeader = isMulti ? `
+      <div style="background:#fff3ec;border-left:4px solid #FF6600;padding:12px 16px;margin:${li>0?'32px':'-8px'} 0 16px;border-radius:0 8px 8px 0;">
+        <div style="font-size:15px;font-weight:800;color:#FF6600;">${loc.locName}${loc.floor?` <span style="font-size:12px;background:#FF6600;color:#fff;padding:1px 7px;border-radius:8px;vertical-align:middle;">${loc.floor}</span>`:''}</div>
+        ${loc.city||loc.addr?`<div style="font-size:11.5px;color:#888;margin-top:3px;">${[loc.addr,loc.city].filter(Boolean).join(' · ')}</div>`:''}
+      </div>` : '';
+
+    return sectionHeader + (isMulti ? '' : benefitsHTML) + (hasPricing ? `
+      <div style="font-weight:700;color:#FF6600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pricing</div>
+      ${pricingTableHTML}` : '') + tourButtonsHTML + pageLinkHTML;
+  }).join('');
+
+  const headerLoc = isMulti
+    ? `${locations.length} Locations`
+    : `${firstLoc.locName}${firstLoc.floor?` – ${firstLoc.floor}`:''}`;
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f4;padding:24px 0;">
-<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f4;padding:24px 0;"><tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);max-width:600px;width:100%;">
-
-  <!-- Header -->
-  <tr>
-    <td style="background:#FF6600;padding:28px 36px 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td>
-            <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/img/compass-logo-white.png"
-              alt="Compass Offices" height="32" style="display:block;height:32px;"
-              onerror="this.style.display='none'">
-            <div style="color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-top:6px;">Office Proposal</div>
-          </td>
-          ${city?`<td align="right"><span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 12px;border-radius:20px;white-space:nowrap;">${city.toUpperCase()}</span></td>`:''}
-        </tr>
-      </table>
-      <div style="color:#fff;font-size:22px;font-weight:800;margin-top:18px;line-height:1.2;">${locName}${floor?` <span style="font-size:14px;font-weight:600;background:rgba(255,255,255,0.25);padding:3px 10px;border-radius:12px;vertical-align:middle;">${floor}</span>`:''}</div>
-      ${addr?`<div style="color:rgba(255,255,255,0.8);font-size:12.5px;margin-top:6px;">${addr}</div>`:''}
-    </td>
-  </tr>
-
-  <!-- Body -->
-  <tr>
-    <td style="padding:32px 36px;">
-
-      <!-- Greeting -->
-      <p style="margin:0 0 18px;font-size:15px;color:#333;line-height:1.5;">Hello <strong>${toName}</strong>,</p>
-      <p style="margin:0 0 20px;font-size:14px;color:#555;line-height:1.6;">
-        Thank you for your interest in <strong>Compass Offices, ${locationDisplay}</strong>. I hope this email finds you well.
-      </p>
-      <p style="margin:0 0 20px;font-size:14px;color:#555;line-height:1.6;">
-        I am pleased to share the proposal${company?` for <strong>${company}</strong>`:''} and details of our centre for your review.
-        Compass Offices offers a range of benefits to meet your business needs, including:
-      </p>
-
-      <!-- Benefits -->
-      ${benefits_list ? `
-      <ul style="margin:0 0 24px;padding-left:20px;color:#444;font-size:13.5px;line-height:1.7;">
-        ${benefits_list}
-      </ul>` : `
-      <ul style="margin:0 0 24px;padding-left:20px;color:#444;font-size:13.5px;line-height:1.7;">
-        <li style="margin:5px 0;">24/7 access to private offices and lounge areas</li>
-        <li style="margin:5px 0;">Fully furnished with high-speed Wi-Fi, unlimited tea, coffee &amp; filtered water</li>
-        <li style="margin:5px 0;">Office amenities — photocopying, printing, air conditioning &amp; daily cleaning</li>
-        <li style="margin:5px 0;">Professional business address, mail handling &amp; friendly centre team</li>
-        <li style="margin:5px 0;">Secure building with concierge, end-of-trip facilities &amp; utilities included</li>
-        <li style="margin:5px 0;">Monthly credits for meeting rooms and printing</li>
-      </ul>`}
-
-      <!-- Pricing -->
-      ${hasPricing ? `
-      <div style="margin:24px 0 8px;font-weight:700;color:#FF6600;font-size:13px;text-transform:uppercase;letter-spacing:0.06em;">Pricing</div>
-      ${pricingTableHTML}` : ''}
-
-      <!-- Virtual Tours -->
-      ${tourButtonsHTML}
-
-      <!-- Page Link -->
-      ${pageLinkHTML}
-
-      <!-- Divider -->
-      <hr style="border:none;border-top:1px solid #f0f0f0;margin:28px 0;">
-
-      <!-- Sign-off -->
-      <p style="margin:0 0 12px;font-size:14px;color:#555;line-height:1.6;">
-        If you have any questions or would like to discuss pricing further, please do not hesitate to reach out directly.
-        I am available by mobile or email and would be happy to speak with you.
-      </p>
-      <p style="margin:0 0 20px;font-size:14px;color:#555;line-height:1.6;">I look forward to the opportunity to assist you further.</p>
-      <p style="margin:0;font-size:14px;color:#333;line-height:1.6;">
-        Best regards,<br>
-        <strong style="color:#FF6600;font-size:15px;">${fromName}</strong><br>
-        <span style="color:#888;font-size:12px;">Compass Offices</span>
-      </p>
-
-    </td>
-  </tr>
-
-  <!-- Footer -->
-  <tr>
-    <td style="background:#f8f8f8;padding:20px 36px;border-top:1px solid #eee;">
-      <p style="margin:0;font-size:11px;color:#aaa;text-align:center;line-height:1.6;">
-        © Compass Offices · <a href="https://www.compassoffices.com" style="color:#FF6600;text-decoration:none;">compassoffices.com</a>
-        ${pageUrl?`· <a href="${pageUrl}" style="color:#FF6600;text-decoration:none;">${locName}</a>`:''}
-      </p>
-    </td>
-  </tr>
-
-</table>
-</td></tr></table>
-</body></html>`;
+  <tr><td style="background:#FF6600;padding:28px 36px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td><img src="https://www.compassoffices.com/wp-content/themes/compass-offices/img/compass-logo-white.png" alt="Compass Offices" height="30" style="display:block;height:30px;" onerror="this.style.display='none'">
+      <div style="color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:6px;">Office Proposal</div></td>
+      ${firstLoc.city&&!isMulti?`<td align="right"><span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:20px;">${firstLoc.city.toUpperCase()}</span></td>`:''}
+    </tr></table>
+    <div style="color:#fff;font-size:22px;font-weight:800;margin-top:16px;line-height:1.2;">${headerLoc}</div>
+    ${!isMulti&&firstLoc.addr?`<div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:5px;">${firstLoc.addr}</div>`:''}
+    ${isMulti?`<div style="color:rgba(255,255,255,0.85);font-size:13px;margin-top:6px;">${locations.map(l=>l.locName+(l.floor?` ${l.floor}`:'')).join(' · ')}</div>`:''}
+  </td></tr>
+  <tr><td style="padding:28px 36px;">
+    <p style="margin:0 0 16px;font-size:15px;color:#333;">Hello <strong>${toName||'there'}</strong>,</p>
+    <p style="margin:0 0 18px;font-size:14px;color:#555;line-height:1.6;">Thank you for your interest in Compass Offices${firstLoc.city&&!isMulti?`, ${firstLoc.city}`:''}. I hope this email finds you well.</p>
+    <p style="margin:0 0 18px;font-size:14px;color:#555;line-height:1.6;">I am pleased to share ${isMulti?'the following proposals':('the proposal for <strong>'+(firstLoc.locName||'this location')+'</strong>')}${company?` for <strong>${company}</strong>`:''} for your review.</p>
+    ${!isMulti ? benefitsHTML : ''}
+    ${locationSections}
+    <hr style="border:none;border-top:1px solid #f0f0f0;margin:28px 0;">
+    <p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.6;">If you have any questions or would like to discuss pricing further, please do not hesitate to reach out directly. I am available by mobile or email and would be happy to speak with you.</p>
+    <p style="margin:0;font-size:14px;color:#333;line-height:1.6;">Best regards,<br><strong style="color:#FF6600;font-size:15px;">${fromName||'[Your Name]'}</strong><br><span style="color:#888;font-size:12px;">Compass Offices</span></p>
+  </td></tr>
+  <tr><td style="background:#f8f8f8;padding:18px 36px;border-top:1px solid #eee;">
+    <p style="margin:0;font-size:11px;color:#aaa;text-align:center;">© Compass Offices · <a href="https://www.compassoffices.com" style="color:#FF6600;text-decoration:none;">compassoffices.com</a></p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
 }
 
 function emailCopyHTML(btn){
+  // Use select() + execCommand — works everywhere without HTTPS requirement
   const toName   = document.getElementById('email-to-name')?.value.trim()   || 'there';
   const fromName = document.getElementById('email-from-name')?.value.trim() || '[Your Name]';
   const company  = document.getElementById('email-company')?.value.trim()   || '';
   const html = buildEmailHTML(toName, fromName, company);
-  navigator.clipboard.writeText(html).then(()=>{
-    if(btn){ const orig=btn.innerHTML; btn.innerHTML='✓ Copied!'; btn.style.background='#388e3c'; setTimeout(()=>{btn.innerHTML=orig;btn.style.background='#FF6600';},2500); }
-  }).catch(()=>{
-    // Fallback: select from textarea
-    const ta = document.createElement('textarea');
-    ta.value = html; ta.style.position='fixed'; ta.style.opacity='0';
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
-    if(btn){ const orig=btn.innerHTML; btn.innerHTML='✓ Copied!'; btn.style.background='#388e3c'; setTimeout(()=>{btn.innerHTML=orig;btn.style.background='#FF6600';},2500); }
-  });
+  const ta = document.createElement('textarea');
+  ta.value = html;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  const ok = document.execCommand('copy');
+  document.body.removeChild(ta);
+  if(btn){
+    const orig = btn.innerHTML;
+    btn.innerHTML = ok ? '✓ Copied!' : '✗ Try Cmd+C';
+    btn.style.background = ok ? '#388e3c' : '#c62828';
+    setTimeout(()=>{ btn.innerHTML=orig; btn.style.background='#FF6600'; }, 2500);
+  }
 }
 
 function emailOpenMailto(){
+  // Show plain text in a pre-selected textarea inside the modal — reliable for all email clients
   const toName   = document.getElementById('email-to-name')?.value.trim()   || '';
   const fromName = document.getElementById('email-from-name')?.value.trim() || '[Your Name]';
   const company  = document.getElementById('email-company')?.value.trim()   || '';
-  const locName  = document.getElementById('n-main')?.value.trim()          || 'Compass Offices';
-  const floor    = document.getElementById('floor')?.value.trim()           || '';
-  const city     = document.getElementById('city')?.value.trim()            || '';
-  const pageUrl  = document.getElementById('purl')?.value.trim()            || '';
-  const matterportRaw = document.getElementById('matterport')?.value.trim() || '';
-  const tours    = matterportRaw.split(',').map(u=>u.trim()).filter(Boolean);
+  const plain = buildEmailPlainText(toName, fromName, company);
 
-  const subject = encodeURIComponent(company
+  // Replace preview with selectable textarea
+  const preview = document.getElementById('email-preview');
+  if(!preview) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'background:#fff;border-radius:10px;overflow:hidden;';
+  wrapper.innerHTML = `
+    <div style="background:#f0f0f0;padding:10px 14px;font-size:12px;color:#666;font-weight:600;display:flex;align-items:center;justify-content:space-between;">
+      <span>Plain text — <strong>Select all &amp; copy</strong>, then paste into your email</span>
+      <button onclick="
+        const ta=this.closest('div').nextElementSibling;
+        ta.select();ta.setSelectionRange(0,ta.value.length);
+        document.execCommand('copy');
+        this.textContent='✓ Copied!';
+        setTimeout(()=>this.textContent='Copy all',2000);
+      " style="border:none;background:#FF6600;color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Copy all</button>
+    </div>
+    <textarea readonly style="width:100%;height:360px;border:none;outline:none;padding:14px;font-family:monospace;font-size:12px;line-height:1.6;resize:none;color:#333;box-sizing:border-box;">${plain.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>`;
+  preview.innerHTML = '';
+  preview.appendChild(wrapper);
+
+  // Auto-select the textarea
+  const ta = wrapper.querySelector('textarea');
+  setTimeout(()=>{ ta.focus(); ta.select(); ta.setSelectionRange(0,ta.value.length); }, 50);
+}
+
+function buildEmailPlainText(toName, fromName, company){
+  // Build locations list: queue items if any, else current slide
+  const locations = _emailGetLocations();
+  const subject = company
     ? `Your Compass Offices Proposal – ${company}`
-    : `Your Compass Offices Proposal – ${locName}`);
+    : `Your Compass Offices Proposal – ${(locations[0]?.name||'Compass Offices')}`;
 
-  const locationLine = [locName,floor,city].filter(Boolean).join(', ');
-
-  let body = `Hello ${toName||''},\n\n`;
-  body += `Thank you for your interest in Compass Offices, ${locationLine}. I hope this email finds you well.\n\n`;
+  let body = `Subject: ${subject}\n\n`;
+  body += `Hello ${toName||'[Client Name]'},\n\n`;
+  body += `Thank you for your interest in Compass Offices. I hope this email finds you well.\n\n`;
   body += `I am pleased to share the proposal${company?` for ${company}`:''} for your review.\n\n`;
-  if(S.rows&&S.rows.length){
-    body += `--- PRICING ---\n`;
-    const activeCols = PRICING_COLS.filter(c=>c.on);
-    S.rows.forEach(r=>{
-      const parts = activeCols.map(col=>{ const v=(r[col.key]||'').replace(/<[^>]+>/g,''); return v?`${getPricingColLabel(col.key)}: ${v}`:''; }).filter(Boolean);
-      body += parts.join(' | ') + '\n';
-    });
-    body += '\n';
-  }
-  if(tours.length){
-    body += `Virtual Tour${tours.length>1?'s':''}:\n`;
-    tours.forEach((u,i)=>{ body += (tours.length>1?`Tour ${i+1}: `:'')+u+'\n'; });
-    body += '\n';
-  }
-  if(pageUrl) body += `Location page: ${pageUrl}\n\n`;
-  body += `Please don't hesitate to reach out if you have any questions.\n\nBest regards,\n${fromName}\nCompass Offices`;
 
-  window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+  locations.forEach((loc, li)=>{
+    if(locations.length > 1) body += `\n${'═'.repeat(50)}\n${loc.name}\n${'═'.repeat(50)}\n`;
+
+    if(loc.rows && loc.rows.length){
+      const activeCols = PRICING_COLS.filter(c=>c.on);
+      body += `\nPRICING\n${'─'.repeat(40)}\n`;
+      loc.rows.forEach(r=>{
+        const parts = activeCols.map(col=>{ const v=(r[col.key]||'').replace(/<[^>]+>/g,''); return v?`${getPricingColLabel(col.key)}: ${v}`:''; }).filter(Boolean);
+        body += parts.join(' | ') + '\n';
+      });
+    }
+    if(loc.tours && loc.tours.length){
+      body += `\nVIRTUAL TOUR${loc.tours.length>1?'S':''}\n`;
+      loc.tours.forEach((u,i)=>{ body += (loc.tours.length>1?`Tour ${i+1}: `:'')+u+'\n'; });
+    }
+    if(loc.pageUrl) body += `\nLocation page: ${loc.pageUrl}\n`;
+  });
+
+  body += `\n${'─'.repeat(40)}\n`;
+  body += `Please don't hesitate to reach out if you have any questions.\n\nBest regards,\n${fromName||'[Your Name]'}\nCompass Offices`;
+  return body;
 }
 
 function getExportName(){
@@ -4981,7 +4992,7 @@ window.addEventListener('resize',()=>{
 <div id="email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:center;justify-content:center;padding:16px;">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;">
     <div style="padding:16px 20px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-      <div><div style="font-size:15px;font-weight:800;color:#1a1a1a;">✉ Email Template</div><div style="font-size:11px;color:#999;margin-top:1px;">Branded proposal email — copy HTML or open in mail client</div></div>
+      <div><div style="font-size:15px;font-weight:800;color:#1a1a1a;">✉ Email Template</div><div style="font-size:11px;color:#999;margin-top:1px;" data-email-subtitle>Branded proposal email — copy HTML or open in mail client</div></div>
       <button onclick="closeEmailModal()" style="border:none;background:#f5f5f5;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;color:#666;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>
     </div>
     <div style="padding:12px 20px;border-bottom:1px solid #eee;display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;background:#fafafa;">
@@ -4992,7 +5003,7 @@ window.addEventListener('resize',()=>{
     <div style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;"><div id="email-preview" style="max-width:600px;margin:0 auto;border-radius:10px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
     <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;">
       <button onclick="emailOpenMailto()" style="padding:9px 16px;border:1.5px solid #ddd;border-radius:8px;background:#fff;color:#555;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Open in Mail</button>
-      <button onclick="emailCopyHTML(this)" style="padding:9px 18px;border:none;border-radius:8px;background:#FF6600;color:#fff;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy HTML</button>
+      <button onclick="emailCopyHTML(this)" style="padding:9px 18px;border:none;border-radius:8px;background:#FF6600;color:#fff;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
     </div>
   </div>
 </div>
