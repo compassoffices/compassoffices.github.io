@@ -877,6 +877,9 @@ img.co-icon-img{display:block;}
           </button>
         </div>
 
+        <!-- Library card suggestions (shown when centre selected and matching cards exist) -->
+        <div id="aus-lib-suggest" style="display:none;padding:6px 10px;border-bottom:1px solid var(--bd);background:var(--bg);display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+
         <!-- Office list -->
         <div id="aus-office-list" style="max-height:260px;overflow-y:auto;"></div>
 
@@ -2511,8 +2514,19 @@ let LAST_LOCATION=null;
 function loadFromLib(idx){
   const lib=getLib();const p=lib[idx];if(!p)return;
   LAST_LOCATION=p;applyLocationData(p);
-  document.getElementById('json-search').value=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
-  hideJsonDropdown();showStatus(`"${typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
+  const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
+  document.getElementById('json-search').value=displayName;
+  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
+  // Auto-sync AUS Office Lookup if it's an AUS centre
+  const matchedCentre = ausCentreForCardName(displayName);
+  if(matchedCentre){
+    // Switch to AUS centre filter silently
+    AUS_CENTRE_FILTER = matchedCentre;
+    document.querySelectorAll('[id^="aus-c-"]').forEach(b=>b.classList.remove('on'));
+    const cMap={'':'aus-c-all','141 Walker Street':'aus-c-141','207 Kent Street':'aus-c-207','360 Collins Street':'aus-c-360','459 Collins Street':'aus-c-459','570 Bourke Street':'aus-c-570','9 Castlereagh':'aus-c-9c'};
+    document.getElementById(cMap[matchedCentre]||'aus-c-all')?.classList.add('on');
+    renderAusLookup();
+  }
 }
 function applyLocationData(p){
   const r=v=>{if(v&&typeof v==='object'&&!Array.isArray(v)){return v[LANG]||v.en||v['zh-hant']||v['zh-hans']||v.ja||'';}return v||'';};
@@ -3845,6 +3859,7 @@ function ausSetCentre(c){
   const id=map[c]||'aus-c-all';
   document.getElementById(id)?.classList.add('on');
   renderAusLookup();
+  renderAusLibSuggestions(c);
 }
 
 function ausSetViewFilter(v){ _ausViewFilter=v; renderAusLookup(); }
@@ -3891,6 +3906,7 @@ function renderAusLookup(){
   });
 
   document.getElementById('aus-count').textContent = `${entries.length} offices`;
+  renderAusLibSuggestions(AUS_CENTRE_FILTER);
 
   if(!entries.length){
     list.innerHTML='<div style="padding:16px;text-align:center;color:var(--xlt);font-size:12px;">No offices match filters</div>';
@@ -4074,6 +4090,55 @@ function ausParseAndApplyCSV(text){
 
 
 
+
+// ── AUS ↔ Library Sync ───────────────────────────────────────────────────────
+const AUS_CENTRE_NAMES = [
+  '141 Walker Street','207 Kent Street','360 Collins Street',
+  '459 Collins Street','570 Bourke Street','9 Castlereagh'
+];
+
+function ausCentreForCardName(cardName){
+  if(!cardName) return '';
+  const n = cardName.toLowerCase();
+  // Match if card name starts with at least the first 2 words of a centre
+  return AUS_CENTRE_NAMES.find(c => {
+    const prefix = c.toLowerCase().split(' ').slice(0,2).join(' ');
+    return n.startsWith(prefix);
+  }) || '';
+}
+
+function ausLibCardsForCentre(centre){
+  if(!centre) return [];
+  const lib = getLib();
+  const prefix = centre.toLowerCase().split(' ').slice(0,2).join(' ');
+  return lib.map((l,i)=>({l,i})).filter(({l})=>{
+    const n = (typeof l.name==='object'?(l.name.en||''):l.name||'').toLowerCase();
+    return n.startsWith(prefix);
+  });
+}
+
+function renderAusLibSuggestions(centre){
+  const bar = document.getElementById('aus-lib-suggest');
+  if(!bar) return;
+  const matches = ausLibCardsForCentre(centre);
+  if(!matches.length || !centre){
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = '';
+  bar.innerHTML = '<span style="font-size:9.5px;font-weight:700;color:var(--xlt);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;">Load card:</span>'
+    + matches.map(({l,i})=>{
+      const name = typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):l.name;
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+      const floorFromSlug = (slug.match(/_([^_]+)$/) || [])[1] || '';
+      const floorRaw = l.floor||l.langs?.en?.floor||floorFromSlug||'';
+      const floor = floorRaw.replace(/^(\d+)[Ff].*$/,'$1F')||floorRaw;
+      return `<button onmousedown="event.preventDefault();loadFromLib(${i})" style="display:flex;align-items:center;gap:4px;padding:2px 8px;border:1.5px solid var(--o);border-radius:20px;background:var(--olt);color:var(--o);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
+        ${name.split('|')[0].trim().split(' ').slice(0,2).join(' ')}
+        ${floor?`<span style="background:var(--o);color:#fff;border-radius:3px;padding:0 4px;font-size:9px;">${floor}</span>`:''}
+      </button>`;
+    }).join('');
+}
 function getExportName(){
   const enName = LANG_DATA['en']?.fields?.['n-main'] || '';
   const curName = document.getElementById('n-main')?.value || '';
