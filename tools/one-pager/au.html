@@ -3355,26 +3355,22 @@ function mobBackToEdit(){
   // Auto-fetch AUS sheet if URL is saved
   if(AUS_SHEET_URL) ausFetchSheet(AUS_SHEET_URL);
 
-  // Auto-load from json/ folder on server
+  // On every page load: clear server library cards and reload fresh from server.
+  // This ensures the latest JSON cards are always shown.
+  // Locally-inserted cards (_source:'local') are preserved.
   if(location.protocol!=='file:'){
     try{
-      const base=location.href.replace(/\/[^\/]*$/,'/');
-      const idxRes=await fetch(base+'json/index.json',{cache:'no-cache'});
-      if(idxRes.ok){
-        const index=await idxRes.json();
-        if(Array.isArray(index)&&index.length){
-          const lib=getLib();
-          const existing=new Set(lib.map(l=>typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):l.name));
-          const toLoad=index.filter(fn=>!lib.some(l=>{const n=typeof l.name==='object'?(l.name.en||Object.values(l.name)[0]):l.name;return fn.toLowerCase().includes(n.toLowerCase().replace(/\s+/g,'-'));}));
-          if(toLoad.length){
-            await Promise.all(toLoad.map(async fn=>{
-              try{const r=await fetch(base+'json/'+fn,{cache:'no-cache'});if(!r.ok)return;const data=await r.json();if(!data.name)return;const n=typeof data.name==='object'?(data.name.en||Object.values(data.name)[0]):data.name;if(!existing.has(n)){lib.push(data);existing.add(n);}}catch{}
-            }));
-            saveLib(lib);renderJsonDropdown(lib);updateLibStatus();
-          }
-        }
-      }
-    }catch{}
+      // Remove only server-sourced cards, keep locally inserted ones
+      const lib=getLib();
+      const localOnly=lib.filter(l=>l._source==='local');
+      saveLib(localOnly);
+      renderJsonDropdown(localOnly);
+      updateLibStatus();
+      // Now reload all from server fresh
+      await reloadLibFromServer();
+    } catch(e){
+      console.warn('Init library reload failed:', e);
+    }
   }
 
   // Add default transport lines with text
