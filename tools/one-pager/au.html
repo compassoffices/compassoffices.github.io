@@ -3859,15 +3859,31 @@ async function exportQueuePDF(){
 let _ausViewFilter = '';
 let _ausVTypeFilter = '';
 
-function ausSetCentre(c){
-  AUS_CENTRE_FILTER=c;
+function ausSetCentre(centre){
+  AUS_CENTRE_FILTER=centre;
   // Update chip UI
   document.querySelectorAll('[id^="aus-c-"]').forEach(b=>b.classList.remove('on'));
   const map={'':'aus-c-all','141 Walker Street':'aus-c-141','207 Kent Street':'aus-c-207','360 Collins Street':'aus-c-360','459 Collins Street':'aus-c-459','570 Bourke Street':'aus-c-570','9 Castlereagh':'aus-c-9c'};
-  const id=map[c]||'aus-c-all';
-  document.getElementById(id)?.classList.add('on');
-  renderAusLookup();
-  renderAusLibSuggestions(c);
+  document.getElementById(map[centre]||'aus-c-all')?.classList.add('on');
+
+  if(centre){
+    const matches=ausLibCardsForCentre(centre);
+    if(matches.length===1){
+      // Only one floor → auto-load immediately, no extra click needed
+      _ausLoadCard(matches[0].i);
+      // Still render the lookup filtered to this centre after load
+      setTimeout(()=>renderAusLookup(), 0);
+      return;
+    }
+    // Multiple floors → render lookup + show floor selector strip
+    renderAusLookup();
+    renderAusLibSuggestions(centre);
+  } else {
+    // All centres selected → clear suggestion bar
+    const bar=document.getElementById('aus-lib-suggest');
+    if(bar) bar.style.display='none';
+    renderAusLookup();
+  }
 }
 
 function ausSetViewFilter(v){ _ausViewFilter=v; renderAusLookup(); }
