@@ -3914,6 +3914,19 @@ function _ausLoadCard(idx){
   loadFromLib(idx);
   _ausLoadingCard=false;
 }
+
+function _ausLoadCardAndFilter(idx, floorNum){
+  // Load lib card AND filter AUS office list to that floor's offices
+  _ausLoadCard(idx);
+  if(floorNum){
+    const searchInp = document.getElementById('aus-search');
+    if(searchInp){
+      searchInp.value = floorNum;
+    }
+    // Defer so loadFromLib completes first
+    setTimeout(()=>renderAusLookup(), 0);
+  }
+}
 function renderAusLookup(){
   if(_ausLookupRendering) return;
   _ausLookupRendering=true;
@@ -4187,7 +4200,9 @@ function renderAusLibSuggestions(centre){
   bar.innerHTML='<span style="font-size:9.5px;font-weight:700;color:var(--o);white-space:nowrap;">Select floor:</span>'
     +matches.map(({l,i})=>{
       const floor=getFloor({l});
-      return `<button onmousedown="event.preventDefault();loadFromLib(${i})" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:var(--olt);color:var(--o);font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}</button>`;
+      // Extract numeric floor for office # filtering (e.g. "21F" → "21")
+      const floorNum=(floor.match(/^(\d+)[Ff]/)||[])[1]||'';
+      return `<button onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:var(--olt);color:var(--o);font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}</button>`;
     }).join('');
 }
 
@@ -4270,96 +4285,150 @@ function buildEmailHTML(toName, fromName, company){
   const locations = _emailGetLocations();
   const isMulti = locations.length > 1;
   const firstLoc = locations[0] || {};
-  const subject = company
-    ? `Your Compass Offices Proposal – ${company}`
-    : `Your Compass Offices Proposal – ${firstLoc.locName||'Compass Offices'}`;
 
-  // Build one section per location
+  const LOGO_URL = 'https://mcusercontent.com/129a8274b9209d36e9ea65b85/images/36e8b04d-71c6-03ee-2bee-d3346bb299d8.png';
+
+  // Build per-location sections
   const locationSections = locations.map((loc, li)=>{
     const hasPricing = loc.rows && loc.rows.length > 0;
-    const activeCols = PRICING_COLS.filter(c=>c.on);
+    const activeCols = PRICING_COLS.filter(col=>col.on);
 
-    const pricingTableHTML = hasPricing ? `
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,sans-serif;margin:16px 0;font-size:12.5px;">
-        <thead><tr style="background:#FF6600;">
-          ${activeCols.map(col=>`<th style="padding:9px 11px;text-align:left;color:#fff;font-weight:700;white-space:nowrap;">${getPricingColLabel(col.key)}</th>`).join('')}
-        </tr></thead>
-        <tbody>
-          ${loc.rows.map((r,ri)=>`<tr style="background:${ri%2===0?'#fff':'#fff8f5'};">
-            ${activeCols.map(col=>{
-              const v=(r[col.key]||'').replace(/<[^>]+>/g,'');
-              const isPrice=col.key==='mgmt'||col.key==='avail'||col.key==='rent';
-              return `<td style="padding:8px 11px;border-bottom:1px solid #f0e8e3;${isPrice?'color:#FF6600;font-weight:700;':''}">${v}</td>`;
-            }).join('')}
-          </tr>`).join('')}
-        </tbody>
-      </table>` : '';
+    const pricingHTML = hasPricing ? `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-size:13px;margin:16px 0;">
+  <thead><tr style="background:#FF6600;">
+    ${activeCols.map(col=>`<th style="padding:10px 14px;text-align:left;color:#ffffff;font-weight:700;font-family:Arial,sans-serif;white-space:nowrap;font-size:12px;">${getPricingColLabel(col.key)}</th>`).join('')}
+  </tr></thead>
+  <tbody>
+    ${loc.rows.map((r,ri)=>`<tr style="background:${ri%2===0?'#ffffff':'#fff9f5'};">
+      ${activeCols.map(col=>{
+        const v=(r[col.key]||'').replace(/<[^>]+>/g,'');
+        const isPrice=col.key==='mgmt'||col.key==='avail';
+        return `<td style="padding:9px 14px;border-bottom:1px solid #f2e8e3;font-family:Arial,sans-serif;font-size:13px;${isPrice?'color:#FF6600;font-weight:700;':''}">${v}</td>`;
+      }).join('')}
+    </tr>`).join('')}
+  </tbody>
+</table>` : '';
 
-    const tourButtonsHTML = loc.tours && loc.tours.length ? `
-      <div style="margin:18px 0 8px;">
-        <p style="margin:0 0 10px;font-weight:700;color:#333;font-size:13.5px;">🏢 Virtual Tour${loc.tours.length>1?'s':''}</p>
-        ${loc.tours.map((url,i)=>`<a href="${url}" target="_blank" style="display:inline-block;margin:3px 5px 3px 0;padding:9px 20px;background:#FF6600;color:#fff;font-weight:700;font-family:Arial,sans-serif;font-size:12.5px;text-decoration:none;border-radius:6px;">${loc.tours.length>1?`Tour ${i+1} →`:'View Virtual Tour →'}</a>`).join('')}
-      </div>` : '';
+    const toursHTML = loc.tours&&loc.tours.length ? `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 8px;">
+  <tr><td>
+    <p style="margin:0 0 12px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#333;">Virtual Tour${loc.tours.length>1?'s':''}</p>
+    ${loc.tours.map((url,i)=>`<a href="${url}" target="_blank" style="display:inline-block;margin:0 8px 8px 0;padding:10px 24px;background:#FF6600;color:#ffffff;font-family:Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;">${loc.tours.length>1?`Tour ${i+1} →`:'View Virtual Tour →'}</a>`).join('')}
+  </td></tr>
+</table>` : '';
 
-    const pageLinkHTML = loc.pageUrl ? `
-      <div style="margin:12px 0;"><a href="${loc.pageUrl}" target="_blank" style="display:inline-block;padding:9px 20px;background:#fff;color:#FF6600;font-weight:700;font-family:Arial,sans-serif;font-size:12.5px;text-decoration:none;border-radius:6px;border:2px solid #FF6600;">View Location Page →</a></div>` : '';
+    const pageBtn = loc.pageUrl ? `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:12px 0;">
+  <tr><td><a href="${loc.pageUrl}" target="_blank" style="display:inline-block;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;">View Location Page →</a></td></tr>
+</table>` : '';
 
-    const benefitsHTML = loc.benefits && loc.benefits.length
-      ? `<ul style="margin:0 0 20px;padding-left:20px;color:#444;font-size:13px;line-height:1.7;">${loc.benefits.map(b=>`<li style="margin:4px 0;">${b.text}</li>`).join('')}</ul>`
-      : `<ul style="margin:0 0 20px;padding-left:20px;color:#444;font-size:13px;line-height:1.7;">
-          <li style="margin:4px 0;">24/7 access to private offices and lounge areas</li>
-          <li style="margin:4px 0;">Fully furnished with high-speed Wi-Fi, unlimited tea, coffee &amp; filtered water</li>
-          <li style="margin:4px 0;">Office amenities — photocopying, printing, air conditioning &amp; daily cleaning</li>
-          <li style="margin:4px 0;">Professional business address, mail handling &amp; friendly centre team</li>
-          <li style="margin:4px 0;">Secure building with concierge, end-of-trip facilities &amp; utilities included</li>
-          <li style="margin:4px 0;">Monthly credits for meeting rooms and printing</li>
-        </ul>`;
+    // Location divider header (multi-location only)
+    const locHeader = isMulti ? `
+<tr><td style="padding:0;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="background:#fff3ec;border-left:4px solid #FF6600;padding:14px 20px;${li>0?'border-top:2px solid #ffe4d0;':''}">
+        <span style="font-family:Arial,sans-serif;font-size:15px;font-weight:800;color:#FF6600;">${loc.locName}</span>
+        ${loc.floor?`<span style="display:inline-block;margin-left:8px;background:#FF6600;color:#fff;font-family:Arial,sans-serif;font-size:11px;font-weight:700;padding:2px 8px;">${loc.floor}</span>`:''}
+        ${loc.city||loc.addr?`<div style="font-family:Arial,sans-serif;font-size:12px;color:#999;margin-top:3px;">${[loc.addr,loc.city].filter(Boolean).join(' · ')}</div>`:''}
+      </td>
+    </tr>
+  </table>
+</td></tr>` : '';
 
-    // For multi-location, each gets its own mini-header
-    const sectionHeader = isMulti ? `
-      <div style="background:#fff3ec;border-left:4px solid #FF6600;padding:12px 16px;margin:${li>0?'32px':'-8px'} 0 16px;border-radius:0 8px 8px 0;">
-        <div style="font-size:15px;font-weight:800;color:#FF6600;">${loc.locName}${loc.floor?` <span style="font-size:12px;background:#FF6600;color:#fff;padding:1px 7px;border-radius:8px;vertical-align:middle;">${loc.floor}</span>`:''}</div>
-        ${loc.city||loc.addr?`<div style="font-size:11.5px;color:#888;margin-top:3px;">${[loc.addr,loc.city].filter(Boolean).join(' · ')}</div>`:''}
-      </div>` : '';
-
-    return sectionHeader + (isMulti ? '' : benefitsHTML) + (hasPricing ? `
-      <div style="font-weight:700;color:#FF6600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pricing</div>
-      ${pricingTableHTML}` : '') + tourButtonsHTML + pageLinkHTML;
+    return `${locHeader}
+<tr><td style="padding:${li>0?'0 36px 28px':'0 36px 28px'};${li===0&&!isMulti?'padding-top:0;':'padding-top:20px;'}">
+  ${hasPricing?`<p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#FF6600;">Pricing</p>${pricingHTML}`:''}
+  ${toursHTML}${pageBtn}
+</td></tr>`;
   }).join('');
 
-  const headerLoc = isMulti
-    ? `${locations.length} Locations`
-    : `${firstLoc.locName}${firstLoc.floor?` – ${firstLoc.floor}`:''}`;
+  // Benefits (from first location, shown once)
+  const bens = firstLoc.benefits||[];
+  const bensHTML = bens.length ? bens.map(b=>`<li style="margin:5px 0;font-family:Arial,sans-serif;font-size:13.5px;color:#444;line-height:1.6;">${b.text}</li>`).join('')
+    : `<li style="margin:5px 0;font-family:Arial,sans-serif;font-size:13.5px;color:#444;line-height:1.6;">24/7 access to private offices and lounge areas</li>
+       <li style="margin:5px 0;font-family:Arial,sans-serif;font-size:13.5px;color:#444;line-height:1.6;">Fully furnished with high-speed Wi-Fi, unlimited tea, coffee &amp; filtered water</li>
+       <li style="margin:5px 0;font-family:Arial,sans-serif;font-size:13.5px;color:#444;line-height:1.6;">Office amenities — photocopying, printing, air conditioning &amp; daily cleaning</li>
+       <li style="margin:5px 0;font-family:Arial,sans-serif;font-size:13.5px;color:#444;line-height:1.6;">Professional business address, mail handling &amp; friendly centre team</li>
+       <li style="margin:5px 0;font-family:Arial,sans-serif;font-size:13.5px;color:#444;line-height:1.6;">Secure building with concierge, end-of-trip facilities &amp; utilities included</li>
+       <li style="margin:5px 0;font-family:Arial,sans-serif;font-size:13.5px;color:#444;line-height:1.6;">Monthly credits for meeting rooms and printing</li>`;
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f4;padding:24px 0;"><tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);max-width:600px;width:100%;">
-  <tr><td style="background:#FF6600;padding:28px 36px 24px;">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td><img src="https://www.compassoffices.com/wp-content/themes/compass-offices/img/compass-logo-white.png" alt="Compass Offices" height="30" style="display:block;height:30px;" onerror="this.style.display='none'">
-      <div style="color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:6px;">Office Proposal</div></td>
-      ${firstLoc.city&&!isMulti?`<td align="right"><span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:20px;">${firstLoc.city.toUpperCase()}</span></td>`:''}
-    </tr></table>
-    <div style="color:#fff;font-size:22px;font-weight:800;margin-top:16px;line-height:1.2;">${headerLoc}</div>
-    ${!isMulti&&firstLoc.addr?`<div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:5px;">${firstLoc.addr}</div>`:''}
-    ${isMulti?`<div style="color:rgba(255,255,255,0.85);font-size:13px;margin-top:6px;">${locations.map(l=>l.locName+(l.floor?` ${l.floor}`:'')).join(' · ')}</div>`:''}
-  </td></tr>
-  <tr><td style="padding:28px 36px;">
-    <p style="margin:0 0 16px;font-size:15px;color:#333;">Hello <strong>${toName||'there'}</strong>,</p>
-    <p style="margin:0 0 18px;font-size:14px;color:#555;line-height:1.6;">Thank you for your interest in Compass Offices${firstLoc.city&&!isMulti?`, ${firstLoc.city}`:''}. I hope this email finds you well.</p>
-    <p style="margin:0 0 18px;font-size:14px;color:#555;line-height:1.6;">I am pleased to share ${isMulti?'the following proposals':('the proposal for <strong>'+(firstLoc.locName||'this location')+'</strong>')}${company?` for <strong>${company}</strong>`:''} for your review.</p>
-    ${!isMulti ? benefitsHTML : ''}
-    ${locationSections}
-    <hr style="border:none;border-top:1px solid #f0f0f0;margin:28px 0;">
-    <p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.6;">If you have any questions or would like to discuss pricing further, please do not hesitate to reach out directly. I am available by mobile or email and would be happy to speak with you.</p>
-    <p style="margin:0;font-size:14px;color:#333;line-height:1.6;">Best regards,<br><strong style="color:#FF6600;font-size:15px;">${fromName||'[Your Name]'}</strong><br><span style="color:#888;font-size:12px;">Compass Offices</span></p>
-  </td></tr>
-  <tr><td style="background:#f8f8f8;padding:18px 36px;border-top:1px solid #eee;">
-    <p style="margin:0;font-size:11px;color:#aaa;text-align:center;">© Compass Offices · <a href="https://www.compassoffices.com" style="color:#FF6600;text-decoration:none;">compassoffices.com</a></p>
-  </td></tr>
-</table></td></tr></table></body></html>`;
-}
+  const locTitle = isMulti
+    ? locations.map(l=>l.locName+(l.floor?' '+l.floor:'')).join(' · ')
+    : [firstLoc.locName, firstLoc.floor].filter(Boolean).join(' – ');
+
+  return `<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Compass Offices Proposal</title>
+</head>
+<body style="margin:0;padding:0;background:#f0f0f0;-webkit-text-size-adjust:100%;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f0f0;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;max-width:600px;width:100%;">
+
+  <!-- LOGO HEADER — white background -->
+  <tr>
+    <td style="background:#ffffff;padding:24px 36px 20px;border-bottom:3px solid #FF6600;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td><img src="${LOGO_URL}" alt="Compass Offices" height="36" style="display:block;height:36px;max-width:200px;" border="0"></td>
+        ${firstLoc.city&&!isMulti?`<td align="right"><span style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:#FF6600;letter-spacing:.1em;text-transform:uppercase;">${firstLoc.city}</span></td>`:''}
+      </tr></table>
+    </td>
+  </tr>
+
+  <!-- ORANGE LOCATION BANNER -->
+  <tr>
+    <td style="background:#FF6600;padding:22px 36px;">
+      <p style="margin:0 0 4px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:.08em;">Office Proposal</p>
+      <p style="margin:0;font-family:Arial,sans-serif;font-size:20px;font-weight:800;color:#ffffff;line-height:1.25;">${locTitle}</p>
+      ${!isMulti&&firstLoc.addr?`<p style="margin:6px 0 0;font-family:Arial,sans-serif;font-size:12px;color:rgba(255,255,255,0.8);">${firstLoc.addr}</p>`:''}
+      ${isMulti?`<p style="margin:8px 0 0;font-family:Arial,sans-serif;font-size:12px;color:rgba(255,255,255,0.8);">${locations.length} locations included in this proposal</p>`:''}
+    </td>
+  </tr>
+
+  <!-- GREETING & BENEFITS -->
+  <tr>
+    <td style="padding:28px 36px 8px;">
+      <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:15px;color:#1a1a1a;">Hello <strong>${toName||'there'}</strong>,</p>
+      <p style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:13.5px;color:#555;line-height:1.65;">Thank you for your interest in <strong>Compass Offices</strong>${firstLoc.city&&!isMulti?`, ${firstLoc.city}`:''}. I hope this email finds you well.</p>
+      <p style="margin:0 0 14px;font-family:Arial,sans-serif;font-size:13.5px;color:#555;line-height:1.65;">I am pleased to share the proposal${company?` for <strong>${company}</strong>`:''} for your review. Compass Offices offers a range of benefits to meet your business needs, including:</p>
+      <ul style="margin:0 0 8px;padding-left:20px;">${bensHTML}</ul>
+    </td>
+  </tr>
+
+  <!-- LOCATION SECTIONS (pricing, tours) -->
+  ${locationSections}
+
+  <!-- DIVIDER -->
+  <tr><td style="padding:0 36px;"><hr style="border:none;border-top:1px solid #eee;margin:4px 0 20px;"></td></tr>
+
+  <!-- SIGN-OFF -->
+  <tr>
+    <td style="padding:0 36px 32px;">
+      <p style="margin:0 0 12px;font-family:Arial,sans-serif;font-size:13.5px;color:#555;line-height:1.65;">If you have any questions or would like to discuss further, please do not hesitate to reach out directly. I am available by mobile or email and would be happy to speak with you.</p>
+      <p style="margin:0 0 18px;font-family:Arial,sans-serif;font-size:13.5px;color:#555;line-height:1.65;">I look forward to the opportunity to assist you further.</p>
+      <p style="margin:0;font-family:Arial,sans-serif;font-size:13.5px;color:#1a1a1a;line-height:1.7;">Best regards,<br>
+        <strong style="font-size:15px;color:#FF6600;">${fromName||'[Your Name]'}</strong><br>
+        <span style="font-size:12px;color:#888;">Compass Offices</span>
+      </p>
+    </td>
+  </tr>
+
+  <!-- FOOTER -->
+  <tr>
+    <td style="background:#1a1a1a;padding:20px 36px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td><img src="${LOGO_URL}" alt="Compass Offices" height="24" style="display:block;height:24px;opacity:0.7;" border="0"></td>
+        <td align="right"><a href="https://www.compassoffices.com" style="font-family:Arial,sans-serif;font-size:11px;color:#888;text-decoration:none;">compassoffices.com</a></td>
+      </tr></table>
+    </td>
+  </tr>
+
+</table>
+</td></tr></table>
+</body></html>`;}
+
 
 function emailCopyHTML(btn){
   // Use select() + execCommand — works everywhere without HTTPS requirement
@@ -5001,10 +5070,7 @@ window.addEventListener('resize',()=>{
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">Client Company</label><input id="email-company" type="text" placeholder="e.g. Acme Corp" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
     </div>
     <div style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;"><div id="email-preview" style="max-width:600px;margin:0 auto;border-radius:10px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
-    <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;">
-      <button onclick="emailOpenMailto()" style="padding:9px 16px;border:1.5px solid #ddd;border-radius:8px;background:#fff;color:#555;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Open in Mail</button>
-      <button onclick="emailCopyHTML(this)" style="padding:9px 18px;border:none;border-radius:8px;background:#FF6600;color:#fff;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
-    </div>
+
   </div>
 </div>
 
