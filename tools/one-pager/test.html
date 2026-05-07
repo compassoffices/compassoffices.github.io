@@ -1246,6 +1246,11 @@ const RICH_FIELD_IDS = ['s-struct','s-comp','s-ceil','s-fa','s-ca','s-oa','s-el'
 
 // Storage: one entry per language
 const LANG_DATA = {};
+
+// ── FLOORPLAN DATA SHEET ──────────────────────────────────────────────────────
+const FP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSvcrpAkLzgXwtlCQvysASc983Caks7zFUu_8lygudCH9r4nOrNrYcWhhEj2CASc5Du1GWQyy7WqxZJ/pub?output=csv';
+let _fpSheetData = null;
+let _fpSheetLoading = false;
 LANG_KEYS.forEach(lc => { LANG_DATA[lc] = null; }); // null = never saved
 
 function saveLangData(lc){
@@ -2541,6 +2546,8 @@ function loadFromLib(idx){
   const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
   document.getElementById('json-search').value=displayName;
   hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
+  // Try to auto-load floorplan crop data from sheet
+  setTimeout(fpSheetTryAutoLoad, 200);
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
     const matchedCentre = ausCentreForCardName(displayName);
@@ -3377,6 +3384,8 @@ function mobBackToEdit(){
   renderAusLookup();
   // Auto-fetch AUS sheet if URL is saved
   if(AUS_SHEET_URL) ausFetchSheet(AUS_SHEET_URL);
+  // Live-load floorplan data sheet
+  fpSheetFetch();
 
   // On every page load: clear server library cards and reload fresh from server.
   // This ensures the latest JSON cards are always shown.
@@ -3423,6 +3432,8 @@ function mobBackToEdit(){
   }
 
   gen();
+  // Ensure photo slots reflect current S.photos state after full render
+  setTimeout(renderPhotoSlots, 50);
 })();
 
 
@@ -3890,6 +3901,8 @@ function ausSetCentre(centre){
   document.getElementById(map[centre]||'aus-c-all')?.classList.add('on');
 
   if(centre){
+    // Try auto-loading floorplan data for this centre
+    setTimeout(fpSheetTryAutoLoad, 300);
     const matches=ausLibCardsForCentre(centre);
     if(matches.length===1){
       // Only one floor → auto-load immediately, no extra click needed
@@ -4846,6 +4859,96 @@ async function downloadJPG(){
 // ── CROP JSON — exact polygon coordinates from the crop tool ─────────────────
 let _cropData = null;
 
+// ── FLOORPLAN SHEET: live CSV fetch ──────────────────────────────────────────
+async function fpSheetFetch(){
+  if(_fpSheetLoading) return;
+  _fpSheetLoading = true;
+  try{
+    const res = await fetch(FP_SHEET_URL,{cache:'no-cache'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const text = await res.text();
+    // Parse CSV (handle quoted commas)
+    const parseRow = line => {
+      const cells=[]; let cur='', inQ=false;
+      for(const ch of line+','){
+        if(ch==='"'){inQ=!inQ;}
+        else if(ch===','&&!inQ){cells.push(cur.trim());cur='';}
+        else cur+=ch;
+      }
+      return cells;
+    };
+    const rows = text.trim().split('\n').map(parseRow);
+    const map={};
+    rows.slice(1).forEach(r=>{
+      const code=(r[0]||'').trim();
+      if(!code) return;
+      map[code]={pdfUrl:_gdDlUrl(r[1]||''), jsonUrl:_gdDlUrl(r[2]||'')};
+    });
+    _fpSheetData=map;
+    const n=Object.keys(map).length;
+    console.log(`FP sheet: ${n} locations`);
+    const badge=document.getElementById('aus-crop-badge');
+    if(badge&&!_cropData){badge.textContent=`${n} floor plans`;badge.style.display='inline';badge.style.background='#e3f2fd';badge.style.color='#1565c0';}
+    fpSheetTryAutoLoad();
+  }catch(e){console.warn('FP sheet failed:',e.message);}
+  finally{_fpSheetLoading=false;}
+}
+
+function _gdDlUrl(url){
+  if(!url) return '';
+  if(url.includes('uc?export=download')) return url;
+  const m=url.match(/\/file\/d\/([^/]+)\//);
+  return m?`https://drive.google.com/uc?export=download&id=${m[1]}`:url;
+}
+
+function fpSheetFindCode(centre, floor){
+  if(!_fpSheetData||!centre) return null;
+  const streetNum=centre.trim().split(' ')[0];
+  const floorNum=(floor||'').replace(/[Ff]/g,'').trim();
+  if(!streetNum||!floorNum) return null;
+  return Object.keys(_fpSheetData).find(code=>
+    code.includes(streetNum)&&(code.endsWith(floorNum)||code.endsWith('L'+floorNum))
+  )||null;
+}
+
+async function fpSheetTryAutoLoad(){
+  if(!_fpSheetData) return;
+  const floor  = document.getElementById('floor')?.value.trim()||'';
+  const locName= document.getElementById('n-main')?.value.trim()||'';
+  let code=null;
+  // Try AUS centre filter first
+  if(AUS_CENTRE_FILTER&&floor) code=fpSheetFindCode(AUS_CENTRE_FILTER,floor);
+  // Try location name
+  if(!code&&locName&&floor){
+    const centres=['141 Walker Street','207 Kent Street','360 Collins Street',
+                   '459 Collins Street','570 Bourke Street','9 Castlereagh'];
+    for(const ctr of centres){
+      const prefix=ctr.split(' ').slice(0,2).join(' ').toLowerCase();
+      if(locName.toLowerCase().startsWith(prefix)){code=fpSheetFindCode(ctr,floor);if(code)break;}
+    }
+  }
+  if(!code) return;
+  if(_cropData?._sourceCode===code) return; // already loaded
+  const entry=_fpSheetData[code];
+  if(!entry?.jsonUrl) return;
+
+  const badge=document.getElementById('aus-crop-badge');
+  if(badge){badge.textContent='Loading room data…';badge.style.display='inline';badge.style.background='#fff3e0';badge.style.color='#e65100';}
+  try{
+    const res=await fetch(entry.jsonUrl,{cache:'no-cache'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const json=await res.json();
+    _parseCropJSON(json);
+    if(_cropData) _cropData._sourceCode=code;
+    if(badge){badge.style.background='#e8f5e9';badge.style.color='#2e7d32';}
+    showStatus(`Room data auto-loaded for ${code} ✓`,'s-ok');
+  }catch(e){
+    console.warn('FP auto-load failed:',e.message);
+    if(badge){badge.textContent='Room data unavailable';badge.style.background='#ffebee';badge.style.color='#c62828';}
+  }
+}
+
+// ── CROP JSON UPLOAD — exact polygon coordinates from the crop tool ───────────
 function _parseCropFile(e){
   const file=e.target.files[0];if(!file)return;
   e.target.value='';
