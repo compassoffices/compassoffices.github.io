@@ -805,6 +805,11 @@ img.co-icon-img{display:block;}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span style="font-size:12px;font-weight:800;color:var(--drk);">AUS Office Lookup</span>
             <span id="aus-source-badge" style="font-size:9px;padding:1px 6px;border-radius:10px;background:#fff3e0;color:#e65100;font-weight:700;">Loading…</span>
+          <button id="aus-highlight-btn" onclick="ausToggleHighlight()" title="Highlight selected offices on master floorplan"
+            style="font-size:10px;padding:2px 8px;border:1px solid var(--o);border-radius:5px;background:var(--olt);color:var(--o);font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:3px;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            Highlight
+          </button>
           </div>
           <button onclick="ausFetchSheet(AUS_SHEET_URL).then(ok=>!ok&&showStatus('Sheet fetch failed — check network.','s-err'))" title="Refresh from Google Sheet" style="font-size:10.5px;color:var(--xlt);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -2537,6 +2542,9 @@ function loadFromLib(idx){
     const matchedCentre = ausCentreForCardName(displayName);
     if(matchedCentre){
       AUS_CENTRE_FILTER = matchedCentre;
+      // Clear any previous floor filter when switching centres via library
+      const si=document.getElementById('aus-search');
+      if(si) si.value='';
       document.querySelectorAll('[id^="aus-c-"]').forEach(b=>b.classList.remove('on'));
       const cMap={'':'aus-c-all','141 Walker Street':'aus-c-141','207 Kent Street':'aus-c-207','360 Collins Street':'aus-c-360','459 Collins Street':'aus-c-459','570 Bourke Street':'aus-c-570','9 Castlereagh':'aus-c-9c'};
       document.getElementById(cMap[matchedCentre]||'aus-c-all')?.classList.add('on');
@@ -3865,6 +3873,10 @@ let _ausViewFilter = '';
 let _ausVTypeFilter = '';
 
 function ausSetCentre(centre){
+  // Clear floor/office search whenever centre changes — prevents stale floor filter persisting
+  const searchInp = document.getElementById('aus-search');
+  if(searchInp && searchInp.value) searchInp.value = '';
+
   AUS_CENTRE_FILTER=centre;
   // Update chip UI
   document.querySelectorAll('[id^="aus-c-"]').forEach(b=>b.classList.remove('on'));
@@ -3987,7 +3999,12 @@ function renderAusLookup(){
               ${sel?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>':''}
             </div>
           </td>
-          <td style="padding:5px 8px;font-weight:700;color:var(--drk);">${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></td>
+          <td style="padding:4px 8px;font-weight:700;color:var(--drk);">
+            <div style="display:flex;align-items:center;gap:7px;">
+              ${FP_BASE_URL?`<img src="${FP_BASE_URL}${oid.replace(/\s*-\s*C$/i,'').trim()}.jpg" style="width:38px;height:28px;object-fit:contain;border-radius:3px;border:1px solid ${sel?'var(--o)':'var(--bd)'};background:#f8f8f8;flex-shrink:0;" onerror="this.style.display='none'">`:''}
+              <div>${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></div>
+            </div>
+          </td>
           <td style="padding:5px 8px;text-align:center;">${o.w}</td>
           <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
           <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
@@ -4011,7 +4028,13 @@ function renderAusLookup(){
 function ausToggle(oid){
   if(AUS_SELECTED.has(oid)) AUS_SELECTED.delete(oid);
   else AUS_SELECTED.add(oid);
+  // Clear cached match for this office when deselected (force re-match next time)
+  if(!AUS_SELECTED.has(oid)) _highlightCache.delete(oid);
   renderAusLookup();
+  // Trigger highlight re-render if master plan exists and highlight is on
+  if(_highlightActive && FP_BASE_URL && FP_PLANS.length){
+    ausApplyHighlight();
+  }
 }
 
 function ausAddToRows(){
@@ -4553,6 +4576,178 @@ function buildEmailPlainText(toName, fromName, company){
   body += `\n${'─'.repeat(40)}\n`;
   body += `Please don't hesitate to reach out if you have any questions.\n\nBest regards,\n${fromName||'[Your Name]'}\nCompass Offices`;
   return body;
+}
+
+// ══════════════════════════════════════════════════════════
+//  MASTER FLOORPLAN HIGHLIGHT — canvas template matching
+// ══════════════════════════════════════════════════════════
+let _highlightActive = true;
+let _highlightCache = new Map(); // oid → {x,y,w,h,scale} match result
+
+async function ausApplyHighlight(){
+  if(!_highlightActive || !AUS_SELECTED.size || !FP_BASE_URL || !FP_PLANS.length) {
+    // Remove any existing highlight overlays
+    document.querySelectorAll('.aus-highlight-overlay').forEach(el=>el.remove());
+    return;
+  }
+  const masterUrl = FP_PLANS[0]?.url;
+  if(!masterUrl || masterUrl.startsWith('data:')) return;
+
+  // Find the master floorplan img element in the slide preview
+  const slideEl = document.getElementById('slide2') || document.getElementById('slide');
+  if(!slideEl) return;
+  const masterImgEl = slideEl.querySelector('.sl-fp img, .sl-fp-collage img');
+  if(!masterImgEl) return;
+
+  // Build highlighted canvas
+  const highlightedCanvas = await buildHighlightCanvas(masterUrl, AUS_SELECTED);
+  if(!highlightedCanvas) return;
+
+  // Replace or create overlay img over the master
+  const rect = masterImgEl.getBoundingClientRect();
+  const parentRect = masterImgEl.parentElement.getBoundingClientRect();
+  let overlay = masterImgEl.parentElement.querySelector('.aus-highlight-overlay');
+  if(!overlay){
+    overlay = document.createElement('img');
+    overlay.className = 'aus-highlight-overlay';
+    overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;pointer-events:none;';
+    masterImgEl.parentElement.style.position = 'relative';
+    masterImgEl.parentElement.appendChild(overlay);
+  }
+  overlay.src = highlightedCanvas.toDataURL('image/png');
+}
+
+function ausToggleHighlight(){
+  _highlightActive = !_highlightActive;
+  const btn = document.getElementById('aus-highlight-btn');
+  if(btn){
+    btn.style.background = _highlightActive ? 'var(--olt)' : 'transparent';
+    btn.style.color = _highlightActive ? 'var(--o)' : 'var(--xlt)';
+    btn.title = _highlightActive ? 'Highlight on: click to hide' : 'Highlight off: click to show';
+  }
+  ausRefreshHighlight();
+}
+
+function ausRefreshHighlight(){
+  if(!FP_BASE_URL || !FP_PLANS.length) return;
+  // Re-draw both slide previews with highlights
+  gen();
+}
+
+async function _loadImg(url){
+  return new Promise((res,rej)=>{
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = ()=>res(img);
+    img.onerror = ()=>{ const i2=new Image(); i2.onload=()=>res(i2); i2.onerror=()=>res(null); i2.src=url; };
+    img.src = url;
+  });
+}
+
+// Multi-scale template matching: find crop inside master
+// Returns {x,y,w,h} in master pixel coords, or null
+async function _findCropInMaster(masterUrl, cropUrl){
+  const [masterImg, cropImg] = await Promise.all([_loadImg(masterUrl), _loadImg(cropUrl)]);
+  if(!masterImg || !cropImg) return null;
+
+  const SEARCH_SIZE = 300; // downscale master to this width for speed
+  const mScale = SEARCH_SIZE / masterImg.naturalWidth;
+
+  // Draw master at reduced size
+  const mCanvas = document.createElement('canvas');
+  mCanvas.width  = Math.round(masterImg.naturalWidth  * mScale);
+  mCanvas.height = Math.round(masterImg.naturalHeight * mScale);
+  const mCtx = mCanvas.getContext('2d');
+  mCtx.drawImage(masterImg, 0, 0, mCanvas.width, mCanvas.height);
+  const mData = mCtx.getImageData(0, 0, mCanvas.width, mCanvas.height).data;
+
+  let bestScore = Infinity, bestX = -1, bestY = -1, bestCropW = 0, bestCropH = 0;
+
+  // Try crop at multiple scale factors relative to master's search size
+  const trialScales = [0.08, 0.11, 0.14, 0.18, 0.22, 0.27, 0.32, 0.38, 0.44];
+  const tCanvas = document.createElement('canvas');
+  const tCtx = tCanvas.getContext('2d');
+
+  for(const ts of trialScales){
+    const tw = Math.max(4, Math.round(cropImg.naturalWidth  * ts));
+    const th = Math.max(4, Math.round(cropImg.naturalHeight * ts));
+    if(tw > mCanvas.width || th > mCanvas.height) continue;
+
+    tCanvas.width = tw; tCanvas.height = th;
+    tCtx.clearRect(0,0,tw,th);
+    tCtx.drawImage(cropImg, 0, 0, tw, th);
+    const tData = tCtx.getImageData(0,0,tw,th).data;
+
+    // Sample pixels (every 3rd for speed)
+    const step = 3;
+    const maxX = mCanvas.width - tw;
+    const maxY = mCanvas.height - th;
+    for(let y=0; y<=maxY; y+=step){
+      for(let x=0; x<=maxX; x+=step){
+        let score = 0;
+        for(let py=0; py<th; py+=step){
+          for(let px=0; px<tw; px+=step){
+            const ti = (py*tw+px)*4;
+            const mi = ((y+py)*mCanvas.width+(x+px))*4;
+            const dr=mData[mi]-tData[ti], dg=mData[mi+1]-tData[ti+1], db=mData[mi+2]-tData[ti+2];
+            score += dr*dr + dg*dg + db*db;
+          }
+        }
+        if(score < bestScore){ bestScore=score; bestX=x; bestY=y; bestCropW=tw; bestCropH=th; }
+      }
+    }
+  }
+
+  if(bestX < 0) return null;
+
+  // Normalize: convert search-scale coords back to master pixel coords
+  return {
+    x: Math.round(bestX / mScale),
+    y: Math.round(bestY / mScale),
+    w: Math.round(bestCropW / mScale),
+    h: Math.round(bestCropH / mScale),
+  };
+}
+
+// Called by gen() — returns a canvas with highlights composited onto a floorplan image
+async function buildHighlightCanvas(fpUrl, selectedOids){
+  if(!fpUrl || !selectedOids.size || !_highlightActive) return null;
+  const masterImg = await _loadImg(fpUrl);
+  if(!masterImg) return null;
+
+  const cv = document.createElement('canvas');
+  cv.width = masterImg.naturalWidth;
+  cv.height = masterImg.naturalHeight;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(masterImg, 0, 0);
+
+  for(const oid of selectedOids){
+    const room = oid.replace(/\s*-\s*C$/i,'').trim();
+    const cropUrl = FP_BASE_URL + room + '.jpg';
+
+    // Check cache
+    let match = _highlightCache.get(oid);
+    if(!match){
+      match = await _findCropInMaster(fpUrl, cropUrl);
+      if(match) _highlightCache.set(oid, match);
+    }
+    if(!match) continue;
+
+    // Draw orange highlight
+    ctx.fillStyle   = 'rgba(255,120,0,0.28)';
+    ctx.fillRect(match.x, match.y, match.w, match.h);
+    ctx.strokeStyle = '#FF6600';
+    ctx.lineWidth   = Math.max(2, Math.round(masterImg.naturalWidth / 200));
+    ctx.strokeRect(match.x, match.y, match.w, match.h);
+
+    // Office label
+    const fontSize = Math.max(10, Math.round(masterImg.naturalWidth / 60));
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.fillStyle = '#FF6600';
+    ctx.fillText(oid, match.x + 3, match.y + fontSize + 2);
+  }
+
+  return cv;
 }
 
 function getExportName(){
