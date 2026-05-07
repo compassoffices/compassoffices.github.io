@@ -2836,7 +2836,9 @@ function gen(){
       return`<div class="sl-fp-collage" style="grid-template-columns:repeat(${cols},1fr)">${plans.map((p,pi)=>`<img src="${p.url}" alt="${p.label}" style="${pi===n-1&&lastCol>1?'grid-column:span '+lastCol+';':''}">`).join('')}</div>`;
     }
     const idx=Math.max(0,Math.min(pgIdx,plans.length-1));
-    return`<img src="${plans[idx].url}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
+    // Use highlighted master if available and this is the master (index 0)
+    const renderUrl = (idx===0 && _highlightActive && _highlightedMasterUrl) ? _highlightedMasterUrl : plans[idx].url;
+    return`<img src="${renderUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
   }
   // pgIdx: -2 = rooms-only collage, -1 = all collage, 0+ = specific plan
   const fp1Idx = FP_PAGE2_SAME ? -1 : FP_PAGE1_IDX;
@@ -4028,13 +4030,16 @@ function renderAusLookup(){
 function ausToggle(oid){
   if(AUS_SELECTED.has(oid)) AUS_SELECTED.delete(oid);
   else AUS_SELECTED.add(oid);
-  // Clear cached match for this office when deselected (force re-match next time)
-  if(!AUS_SELECTED.has(oid)) _highlightCache.delete(oid);
+  // Clear per-office match cache + full master cache on any selection change
+  _highlightCache.delete(oid);
+  _highlightedMasterUrl = null;
   renderAusLookup();
-  // Trigger highlight re-render if master plan exists and highlight is on
-  if(_highlightActive && FP_BASE_URL && FP_PLANS.length){
-    ausApplyHighlight();
-  }
+  // Debounce highlight re-render to avoid triggering on every rapid click
+  clearTimeout(ausToggle._t);
+  ausToggle._t = setTimeout(()=>{
+    if(_highlightActive && FP_BASE_URL && FP_PLANS.length) ausApplyHighlight();
+    else gen();
+  }, 300);
 }
 
 function ausAddToRows(){
@@ -4582,56 +4587,55 @@ function buildEmailPlainText(toName, fromName, company){
 //  MASTER FLOORPLAN HIGHLIGHT — canvas template matching
 // ══════════════════════════════════════════════════════════
 let _highlightActive = true;
+let _highlightedMasterUrl = null; // data URL of master with orange highlights
 let _highlightCache = new Map(); // oid → {x,y,w,h,scale} match result
 
 async function ausApplyHighlight(){
-  if(!_highlightActive || !AUS_SELECTED.size || !FP_BASE_URL || !FP_PLANS.length) {
-    // Remove any existing highlight overlays
-    document.querySelectorAll('.aus-highlight-overlay').forEach(el=>el.remove());
+  _highlightedMasterUrl = null; // reset first
+  if(!_highlightActive || !AUS_SELECTED.size || !FP_BASE_URL || !FP_PLANS.length){
+    gen(); // re-render without highlight
     return;
   }
   const masterUrl = FP_PLANS[0]?.url;
-  if(!masterUrl || masterUrl.startsWith('data:')) return;
+  if(!masterUrl || masterUrl.startsWith('data:')) { gen(); return; }
 
-  // Find the master floorplan img element in the slide preview
-  const slideEl = document.getElementById('slide2') || document.getElementById('slide');
-  if(!slideEl) return;
-  const masterImgEl = slideEl.querySelector('.sl-fp img, .sl-fp-collage img');
-  if(!masterImgEl) return;
+  // Show loading state on Page 2
+  const slide2 = document.getElementById('slide2');
+  if(slide2){
+    const existing = slide2.querySelector('.fp-highlight-spinner');
+    if(!existing){
+      const spinner = document.createElement('div');
+      spinner.className = 'fp-highlight-spinner';
+      spinner.style.cssText = 'position:absolute;top:8px;right:8px;background:rgba(255,102,0,.85);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;z-index:10;pointer-events:none;';
+      spinner.textContent = '⏳ Matching rooms…';
+      slide2.style.position = 'relative';
+      slide2.appendChild(spinner);
+    }
+  }
 
   // Build highlighted canvas
-  const highlightedCanvas = await buildHighlightCanvas(masterUrl, AUS_SELECTED);
-  if(!highlightedCanvas) return;
-
-  // Replace or create overlay img over the master
-  const rect = masterImgEl.getBoundingClientRect();
-  const parentRect = masterImgEl.parentElement.getBoundingClientRect();
-  let overlay = masterImgEl.parentElement.querySelector('.aus-highlight-overlay');
-  if(!overlay){
-    overlay = document.createElement('img');
-    overlay.className = 'aus-highlight-overlay';
-    overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;pointer-events:none;';
-    masterImgEl.parentElement.style.position = 'relative';
-    masterImgEl.parentElement.appendChild(overlay);
+  const canvas = await buildHighlightCanvas(masterUrl, AUS_SELECTED);
+  if(canvas){
+    _highlightedMasterUrl = canvas.toDataURL('image/jpeg', 0.92);
   }
-  overlay.src = highlightedCanvas.toDataURL('image/png');
+
+  // Remove spinner
+  slide2?.querySelectorAll('.fp-highlight-spinner').forEach(el=>el.remove());
+
+  gen(); // re-render — buildFpHtml will now use _highlightedMasterUrl
 }
 
 function ausToggleHighlight(){
   _highlightActive = !_highlightActive;
+  _highlightedMasterUrl = null; // clear cache so it re-matches
   const btn = document.getElementById('aus-highlight-btn');
   if(btn){
     btn.style.background = _highlightActive ? 'var(--olt)' : 'transparent';
     btn.style.color = _highlightActive ? 'var(--o)' : 'var(--xlt)';
-    btn.title = _highlightActive ? 'Highlight on: click to hide' : 'Highlight off: click to show';
+    btn.textContent = _highlightActive ? '● Highlight' : '○ Highlight';
   }
-  ausRefreshHighlight();
-}
-
-function ausRefreshHighlight(){
-  if(!FP_BASE_URL || !FP_PLANS.length) return;
-  // Re-draw both slide previews with highlights
-  gen();
+  if(_highlightActive && AUS_SELECTED.size) ausApplyHighlight();
+  else gen();
 }
 
 async function _loadImg(url){
