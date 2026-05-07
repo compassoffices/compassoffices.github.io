@@ -3983,6 +3983,7 @@ function renderAusLookup(){
         <tr style="border-bottom:1.5px solid var(--bd);">
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;width:28px;"></th>
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Office #</th>
+          <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--o);font-size:10px;text-transform:uppercase;letter-spacing:.04em;" title="Click 📍 to mark room position on master for highlighting">📍</th>
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">WS</th>
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Sqm</th>
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Market</th>
@@ -4006,6 +4007,9 @@ function renderAusLookup(){
               ${FP_BASE_URL?`<img src="${FP_BASE_URL}${oid.replace(/\s*-\s*C$/i,'').trim()}.jpg" style="width:38px;height:28px;object-fit:contain;border-radius:3px;border:1px solid ${sel?'var(--o)':'var(--bd)'};background:#f8f8f8;flex-shrink:0;" onerror="this.style.display='none'">`:''}
               <div>${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></div>
             </div>
+          </td>
+          <td style="padding:4px 6px;text-align:center;">
+            <button onclick="event.stopPropagation();openPinModal('${oid.replace(/'/g,"\\'")}');" title="Pin this room on the master floorplan" style="border:none;background:${_roomPins[oid]?'var(--o)':'var(--bg)'};color:${_roomPins[oid]?'#fff':'var(--xlt)'};border-radius:4px;padding:2px 5px;font-size:11px;cursor:pointer;line-height:1;transition:all .15s;">${_roomPins[oid]?'📍':'○'}</button>
           </td>
           <td style="padding:5px 8px;text-align:center;">${o.w}</td>
           <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
@@ -4584,11 +4588,36 @@ function buildEmailPlainText(toName, fromName, company){
 }
 
 // ══════════════════════════════════════════════════════════
-//  MASTER FLOORPLAN HIGHLIGHT — canvas template matching
+//  MASTER FLOORPLAN HIGHLIGHT — click-to-pin coordinates
 // ══════════════════════════════════════════════════════════
 let _highlightActive = true;
-let _highlightedMasterUrl = null; // data URL of master with orange highlights
-let _highlightCache = new Map(); // oid → {x,y,w,h,scale} match result
+let _highlightedMasterUrl = null; // cached composited master
+let _roomPins = {};   // {officeId: {x,y,w,h}} as % of master image (0-1)
+let _pinMode = false; // whether pin-placement mode is active
+
+function ausToggleHighlight(){
+  _highlightActive = !_highlightActive;
+  _highlightedMasterUrl = null;
+  const btn = document.getElementById('aus-highlight-btn');
+  if(btn){
+    btn.style.background = _highlightActive ? 'var(--olt)' : 'transparent';
+    btn.style.color = _highlightActive ? 'var(--o)' : 'var(--xlt)';
+    btn.innerHTML = _highlightActive
+      ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg> Highlight'
+      : '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg> Highlight';
+  }
+  if(_highlightActive && AUS_SELECTED.size) ausApplyHighlight();
+  else gen();
+}
+
+// Load an image as a promise
+async function _loadImg(url){
+  return new Promise((res)=>{
+    const img = new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>res(img); img.onerror=()=>res(null); img.src=url;
+  });
+}
+
 
 async function ausApplyHighlight(){
   _highlightedMasterUrl = null; // reset first
@@ -4752,6 +4781,192 @@ async function buildHighlightCanvas(fpUrl, selectedOids){
   }
 
   return cv;
+}
+
+async function ausApplyHighlight(){
+  _highlightedMasterUrl = null;
+  if(!_highlightActive || !FP_BASE_URL || !FP_PLANS.length){ gen(); return; }
+
+  const masterUrl = FP_PLANS[0]?.url;
+  if(!masterUrl || masterUrl.startsWith('data:')){ gen(); return; }
+
+  // Find which selected offices have pins
+  const pinsToRender = [...AUS_SELECTED]
+    .map(oid=>({oid, pin:_roomPins[oid]}))
+    .filter(({pin})=>pin);
+
+  if(!pinsToRender.length){ gen(); return; } // no pins yet
+
+  const masterImg = await _loadImg(masterUrl);
+  if(!masterImg){ gen(); return; }
+
+  const cv = document.createElement('canvas');
+  cv.width = masterImg.naturalWidth; cv.height = masterImg.naturalHeight;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(masterImg, 0, 0);
+
+  pinsToRender.forEach(({oid, pin})=>{
+    const px = pin.x * cv.width, py = pin.y * cv.height;
+    const pw = pin.w * cv.width, ph = pin.h * cv.height;
+    ctx.fillStyle   = 'rgba(255,110,0,0.30)';
+    ctx.fillRect(px, py, pw, ph);
+    ctx.strokeStyle = '#FF6600'; ctx.lineWidth = Math.max(2, cv.width/250);
+    ctx.strokeRect(px, py, pw, ph);
+    const fs = Math.max(11, cv.width/60);
+    ctx.font = `bold ${fs}px Arial`; ctx.fillStyle='#FF6600';
+    ctx.fillText(oid, px+4, py+fs+3);
+  });
+
+  _highlightedMasterUrl = cv.toDataURL('image/jpeg', 0.92);
+  gen();
+}
+
+// ── PIN PLACEMENT MODE ────────────────────────────────────────────────────────
+// Opens a fullscreen modal where user click-drags a rectangle on the master
+let _pinCurrentOid = '';
+let _pinDragStart  = null;
+
+function openPinModal(oid){
+  if(!FP_BASE_URL || !FP_PLANS.length){
+    alert('Set a Base URL and load a master floor plan first (Media tab → Floor Plan).');
+    return;
+  }
+  const masterUrl = FP_PLANS[0]?.url;
+  if(!masterUrl){ alert('No master floor plan loaded.'); return; }
+  _pinCurrentOid = oid;
+
+  // Build modal
+  let modal = document.getElementById('pin-modal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'pin-modal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:950;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;overflow:hidden;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;width:100%;">
+        <div style="padding:12px 18px;background:#FF6600;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <div>
+            <div style="font-weight:800;font-size:14px;" id="pin-modal-title">Pin Room Location</div>
+            <div style="font-size:11px;opacity:.85;">Click and drag to mark the room's position on the master floor plan</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="confirmPin()" style="padding:6px 14px;background:#fff;color:#FF6600;border:none;border-radius:6px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;">✓ Confirm</button>
+            <button onclick="closePinModal()" style="padding:6px 12px;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">✕ Cancel</button>
+          </div>
+        </div>
+        <div style="overflow:auto;flex:1;position:relative;cursor:crosshair;" id="pin-scroll">
+          <div style="position:relative;display:inline-block;" id="pin-img-wrap">
+            <img id="pin-master-img" src="" style="display:block;max-width:100%;">
+            <canvas id="pin-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;"></canvas>
+          </div>
+        </div>
+        <div style="padding:8px 18px;background:#fff8f5;font-size:11px;color:#888;flex-shrink:0;">
+          Existing pins shown in grey · New selection in orange · Drag to resize the highlighted area
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    setupPinEvents();
+  }
+
+  document.getElementById('pin-modal-title').textContent = `Pin Room ${oid} on Master Floor Plan`;
+  document.getElementById('pin-master-img').src = masterUrl;
+  document.getElementById('pin-master-img').onload = ()=>drawPinCanvas();
+  modal.style.display = 'flex';
+  _pinDragStart = null;
+  drawPinCanvas();
+}
+
+function closePinModal(){ document.getElementById('pin-modal').style.display='none'; }
+
+function setupPinEvents(){
+  const canvas = document.getElementById('pin-canvas');
+  let dragging=false, sx=0, sy=0, ex=0, ey=0;
+
+  const toImgCoords=e=>{
+    const img=document.getElementById('pin-master-img');
+    const r=img.getBoundingClientRect();
+    return {
+      x: Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),
+      y: Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))
+    };
+  };
+
+  canvas.addEventListener('mousedown',e=>{
+    const p=toImgCoords(e); sx=p.x; sy=p.y; ex=p.x; ey=p.y;
+    dragging=true; e.preventDefault();
+  });
+  canvas.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const p=toImgCoords(e); ex=p.x; ey=p.y;
+    drawPinCanvas({sx,sy,ex,ey});
+  });
+  canvas.addEventListener('mouseup',e=>{
+    if(!dragging) return;
+    const p=toImgCoords(e); ex=p.x; ey=p.y; dragging=false;
+    _pinDragStart = {sx,sy,ex,ey};
+    drawPinCanvas({sx,sy,ex,ey});
+  });
+  // Touch support
+  canvas.addEventListener('touchstart',e=>{const t=e.touches[0];const p=toImgCoords(t);sx=p.x;sy=p.y;ex=p.x;ey=p.y;dragging=true;e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchmove',e=>{if(!dragging)return;const t=e.touches[0];const p=toImgCoords(t);ex=p.x;ey=p.y;drawPinCanvas({sx,sy,ex,ey});e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchend',e=>{dragging=false;_pinDragStart={sx,sy,ex,ey};drawPinCanvas({sx,sy,ex,ey});},{passive:false});
+}
+
+function drawPinCanvas(current=null){
+  const canvas=document.getElementById('pin-canvas');
+  const img=document.getElementById('pin-master-img');
+  if(!canvas||!img) return;
+  canvas.width=img.naturalWidth||img.offsetWidth;
+  canvas.height=img.naturalHeight||img.offsetHeight;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const cw=canvas.width, ch=canvas.height;
+
+  // Draw existing pins (grey for other offices, orange for current)
+  Object.entries(_roomPins).forEach(([oid,pin])=>{
+    const isCurrent=oid===_pinCurrentOid;
+    if(isCurrent) return; // skip — will be replaced
+    ctx.fillStyle='rgba(100,100,100,0.20)';
+    ctx.fillRect(pin.x*cw,pin.y*ch,pin.w*cw,pin.h*ch);
+    ctx.strokeStyle='#888'; ctx.lineWidth=1.5;
+    ctx.strokeRect(pin.x*cw,pin.y*ch,pin.w*cw,pin.h*ch);
+    ctx.font=`bold ${Math.max(9,cw/80)}px Arial`; ctx.fillStyle='#666';
+    ctx.fillText(oid,pin.x*cw+3,pin.y*ch+Math.max(9,cw/80)+2);
+  });
+
+  // Draw existing pin for current oid (dimmed)
+  if(_roomPins[_pinCurrentOid]&&!current){
+    const p=_roomPins[_pinCurrentOid];
+    ctx.fillStyle='rgba(255,110,0,0.25)'; ctx.fillRect(p.x*cw,p.y*ch,p.w*cw,p.h*ch);
+    ctx.strokeStyle='#FF6600'; ctx.lineWidth=2; ctx.strokeRect(p.x*cw,p.y*ch,p.w*cw,p.h*ch);
+  }
+
+  // Draw active drag selection
+  if(current){
+    const x=Math.min(current.sx,current.ex)*cw, y=Math.min(current.sy,current.ey)*ch;
+    const w=Math.abs(current.ex-current.sx)*cw, h=Math.abs(current.ey-current.sy)*ch;
+    ctx.fillStyle='rgba(255,110,0,0.30)'; ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle='#FF6600'; ctx.lineWidth=2.5;
+    ctx.setLineDash([5,3]); ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
+    ctx.font=`bold ${Math.max(10,cw/70)}px Arial`; ctx.fillStyle='#FF6600';
+    ctx.fillText(_pinCurrentOid,x+4,y+Math.max(10,cw/70)+3);
+  }
+}
+
+function confirmPin(){
+  if(!_pinDragStart) { alert('Please drag to select the room area first.'); return; }
+  const {sx,sy,ex,ey}=_pinDragStart;
+  _roomPins[_pinCurrentOid]={
+    x:Math.min(sx,ex), y:Math.min(sy,ey),
+    w:Math.abs(ex-sx), h:Math.abs(ey-sy)
+  };
+  closePinModal();
+  // Save pins to JSON card data
+  if(LANG_DATA[LANG]) LANG_DATA[LANG]._roomPins = JSON.parse(JSON.stringify(_roomPins));
+  // Re-render with new pin
+  _highlightedMasterUrl=null;
+  if(_highlightActive && AUS_SELECTED.size) ausApplyHighlight();
+  else gen();
+  showStatus(`Room ${_pinCurrentOid} pinned ✓ — select it in AUS Lookup to see highlight on Page 2.`,'s-ok');
 }
 
 function getExportName(){
