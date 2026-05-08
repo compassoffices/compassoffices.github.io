@@ -1582,6 +1582,63 @@ function loadLayout(input){
   reader.readAsText(file);
 }
 
+function gotoEditor(){
+  gel('step-upload')?.classList.remove('active');
+  gel('step-editor')?.classList.add('active');
+  redrawRooms(); renderList(); updateBadge(); updatePenBtn();
+  setStatus('Click a room to select · drag handles to resize · Refine for precise pen editing');
+
+  // Apply pending layout from Google Sheets
+  if(typeof pendingLayout!=='undefined' && pendingLayout){
+    try{
+      const data = pendingLayout; pendingLayout = null;
+      if(data.version && data.pages){
+        if(pdfDoc){
+          pageRooms={};
+          for(const[pg,rms] of Object.entries(data.pages)){
+            const pgNum=parseInt(pg); pageRooms[pgNum]={};
+            for(const rm of rms) pageRooms[pgNum][rm.label]=rm;
+          }
+          rooms=pageRooms[currentPage]||{};
+          const allIdxsPDF=Object.values(pageRooms).flatMap(pr=>Object.values(pr).map(r=>r.colorIdx||0));
+          colorCounter=allIdxsPDF.length?Math.max(...allIdxsPDF)+1:0;
+        } else {
+          rooms={};
+          const firstPage=Object.values(data.pages)[0]||[];
+          for(const rm of firstPage) rooms[rm.label]=rm;
+          const idxs=Object.values(rooms).map(r=>r.colorIdx||0);
+          colorCounter=idxs.length?Math.max(...idxs)+1:0;
+        }
+        if(data.colourMode){
+          if(data.colourMode.levelNum!==undefined) levelNum=data.colourMode.levelNum;
+          if(data.colourMode.legendItems) legendItems=data.colourMode.legendItems;
+          if(data.colourMode.legendPos) legendPos=data.colourMode.legendPos;
+          if(data.colourMode.legendScale) legendScale=data.colourMode.legendScale;
+          if(typeof data.colourMode.showRoomLabels==='boolean') showRoomLabels=data.colourMode.showRoomLabels;
+          const li=gel('level-input'); if(li) li.value=levelNum;
+          const ls=gel('legend-scale-slider'); if(ls) ls.value=legendScale;
+          syncLabelToggleBtn();
+          renderLegendItemsList();
+          if(appMode==='colour') redrawColourOverlay();
+        }
+        if(typeof data.logoBadgeScale==='number') logoBadgeScale=data.logoBadgeScale;
+        const lbs=gel('logo-badge-slider'); if(lbs) lbs.value=logoBadgeScale;
+        redrawLogoCanvas();
+        selectedRoom=null;
+        redrawRooms(); renderList(); updateBadge(); updatePenBtn();
+        setStatus(`Layout restored from sheet — ${Object.keys(rooms).length} rooms`);
+        setTimeout(()=>setStatus(''),3000);
+      }
+    } catch(e){ console.warn('pendingLayout apply failed',e); }
+  }
+
+  // Init colour mode UI
+  if(typeof buildSwatches==='function') buildSwatches();
+  if(typeof renderLegendItemsList==='function') renderLegendItemsList();
+  gstyle('logo-badge-wrap','display','flex');
+  setMode('edit');
+}
+
 function resetApp(){
   if(raf)cancelAnimationFrame(raf);if(penRaf)cancelAnimationFrame(penRaf);
   rooms={};origImage=null;wallData=null;pdfDoc=null;pageRooms={};currentPage=1;totalPages=1;colorCounter=0;selectedRoom=null;mode='idle';
