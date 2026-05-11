@@ -805,7 +805,6 @@ img.co-icon-img{display:block;}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span style="font-size:12px;font-weight:800;color:var(--drk);">AUS Office Lookup</span>
             <span id="aus-source-badge" style="font-size:9px;padding:1px 6px;border-radius:10px;background:#fff3e0;color:#e65100;font-weight:700;">Loading…</span>
-
           </div>
           <button onclick="ausFetchSheet(AUS_SHEET_URL).then(ok=>!ok&&showStatus('Sheet fetch failed — check network.','s-err'))" title="Refresh from Google Sheet" style="font-size:10.5px;color:var(--xlt);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1238,8 +1237,6 @@ const RICH_FIELD_IDS = ['s-struct','s-comp','s-ceil','s-fa','s-ca','s-oa','s-el'
 
 // Storage: one entry per language
 const LANG_DATA = {};
-
-// ── FLOORPLAN DATA SHEET ──────────────────────────────────────────────────────
 LANG_KEYS.forEach(lc => { LANG_DATA[lc] = null; }); // null = never saved
 
 function saveLangData(lc){
@@ -2534,8 +2531,7 @@ function loadFromLib(idx){
   LAST_LOCATION=p;applyLocationData(p);
   const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
   document.getElementById('json-search').value=displayName;
-  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();setTimeout(renderPhotoSlots,60);
-  // Try to auto-load floorplan crop data from sheet
+  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
     const matchedCentre = ausCentreForCardName(displayName);
@@ -2632,18 +2628,7 @@ function applyLocationData(p){
   if(p.logo_separator&&['x','bar','none'].includes(p.logo_separator)){setSep(p.logo_separator);}
   if(p.amenities){AMENITY_ICONS.forEach(a=>{a.on=p.amenities.includes(a.id);});renderAmenities();}
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
-  (function(){
-  // Try multiple photo sources for compatibility with different JSON formats
-  const _ph = p.photos || p.photo_urls || (p.langs && (p.langs['en']||p.langs[Object.keys(p.langs)[0]])?.photos) || null;
-  if(!_ph) return;
-  const _arr = Array.isArray(_ph) ? _ph : Object.values(_ph);
-  if(!_arr.length) return;
-  S.photos=[null,null,null,null,null,null];
-  _arr.slice(0,6).forEach((url,i)=>{
-    S.photos[i]=(url&&typeof url==='string'&&!url.startsWith('data:')&&url.length>5)?url:null;
-  });
-  renderPhotoSlots();
-})();
+  if(p.photos?.length){S.photos=[null,null,null,null,null,null];p.photos.slice(0,6).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
   if(p.fp_plans&&Array.isArray(p.fp_plans)&&p.fp_plans.length){
     FP_PLANS=p.fp_plans.filter(p=>p.url).map(p=>({url:p.url,label:p.label||''}));
     FP_PAGE2_SAME=p.fp_page2_same!==false;
@@ -3312,7 +3297,7 @@ function downloadCurrentJSON(){
     pricing_cols:  PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
     // ── Media (global) ──
     partner_logo_url: (S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
-    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:null),
+    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:'').filter(Boolean),
     floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?S.floorplan:'',
     fp_plans: FP_PLANS.map(p=>({url:p.url&&!p.url.startsWith('data:')?p.url:'',label:p.label||''})),
     fp_page2_same: FP_PAGE2_SAME,
@@ -3427,8 +3412,6 @@ function mobBackToEdit(){
   }
 
   gen();
-  // Ensure photo slots reflect current S.photos state after full render
-  setTimeout(renderPhotoSlots, 50);
 })();
 
 
@@ -3478,7 +3461,7 @@ function clearLoadedCard(){
   });
   [...document.querySelectorAll('.spec-rich-editor')].forEach(el=>el.innerHTML='');
   const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML='';
-  S.rows=[];S.photos=[null,null,null,null,null,null];S.floorplan=null;S.partnerLogo=null;
+  S.rows=[];S.photos=[null,null,null];S.floorplan=null;S.partnerLogo=null;
   TRANSPORT=[];
   renderRows();renderPhotoSlots();renderFloorplanCard();renderLogoCard();renderTransport();
   showStatus('Card cleared.','s-info');
@@ -3896,8 +3879,6 @@ function ausSetCentre(centre){
   document.getElementById(map[centre]||'aus-c-all')?.classList.add('on');
 
   if(centre){
-    // Try auto-loading floorplan data for this centre
-    setTimeout(fpSheetTryAutoLoad, 300);
     const matches=ausLibCardsForCentre(centre);
     if(matches.length===1){
       // Only one floor → auto-load immediately, no extra click needed
@@ -3995,7 +3976,6 @@ function renderAusLookup(){
         <tr style="border-bottom:1.5px solid var(--bd);">
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;width:28px;"></th>
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Office #</th>
-
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">WS</th>
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Sqm</th>
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Market</th>
@@ -4014,12 +3994,7 @@ function renderAusLookup(){
               ${sel?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>':''}
             </div>
           </td>
-          <td style="padding:4px 8px;font-weight:700;color:var(--drk);">
-            <div style="display:flex;align-items:center;gap:7px;">
-              ${FP_BASE_URL?`<img src="${FP_BASE_URL}${oid.replace(/\s*-\s*C$/i,'').trim()}.jpg" style="width:38px;height:28px;object-fit:contain;border-radius:3px;border:1px solid ${sel?'var(--o)':'var(--bd)'};background:#f8f8f8;flex-shrink:0;" onerror="this.style.display='none'">`:''}
-              <div>${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></div>
-            </div>
-          </td>
+          <td style="padding:5px 8px;font-weight:700;color:var(--drk);">${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></td>
           <td style="padding:5px 8px;text-align:center;">${o.w}</td>
           <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
           <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
@@ -4587,189 +4562,544 @@ function buildEmailPlainText(toName, fromName, company){
   return body;
 }
 
-async function slideToCanvas(elId){
-  const el=document.getElementById(elId);
-  if(!el) return document.createElement('canvas');
+function getExportName(){
+  const enName = LANG_DATA['en']?.fields?.['n-main'] || '';
+  const curName = document.getElementById('n-main')?.value || '';
+  const raw = enName || curName || 'one-pager';
+  return raw.toLowerCase().replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,'-').replace(/^-|-$/g,'') || 'one-pager';
+}
 
+
+async function slideToCanvas(elId){
+  const el=document.getElementById(elId);if(!el)return document.createElement('canvas');
+
+  // 1. Make the preview container visible (mobile hides it behind tabs)
   const preview=document.querySelector('.preview');
+  const sidebar=document.querySelector('.sidebar');
   const prevPreviewD=preview?preview.style.display:'';
   const prevPreviewV=preview?preview.style.visibility:'';
   if(preview){preview.style.display='block';preview.style.visibility='visible';}
 
+  // 2. Force the slide to exact output dimensions
   const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio;
   const prevPos=el.style.position,prevLeft=el.style.left,prevTop=el.style.top;
   el.style.width='1122px';el.style.height='794px';el.style.aspectRatio='unset';
+  // On mobile, ensure it's not clipped by viewport
   el.style.position='fixed';el.style.left='-9999px';el.style.top='0';
+
+  // 3. Re-run gen() with captureMode so font scales at 1122px (not mobile viewport)
+  gen._captureMode = true;
   gen();
+  gen._captureMode = false;
 
-  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  await new Promise(r=>setTimeout(r,isIOS?300:80));
-  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  // 4. Wait for layout + fonts to settle (longer on mobile)
+  // Three rAF passes ensure flex containers fully compute child sizes after position:fixed
+  const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  await new Promise(r=>setTimeout(r,isIOS2?400:80));
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 
-  // ── Step 0: Pre-render collage grids to canvas ──────────────────────────────
+// ── Step 0: Pre-render .sl-fp-collage grids to a single canvas ──────────────
+  // html2canvas cannot reliably render CSS grid children with object-fit:contain.
+  // We composite each collage into a canvas image BEFORE running html2canvas.
   const collageRestores=[];
-  for(const collage of Array.from(el.querySelectorAll('.sl-fp-collage'))){
+  const collageEls=Array.from(el.querySelectorAll('.sl-fp-collage'));
+  for(const collage of collageEls){
     const rect=collage.getBoundingClientRect();
-    const cw=Math.round(rect.width)||collage.offsetWidth||400;
-    const ch=Math.round(rect.height)||collage.offsetHeight||300;
+    const cw=Math.round(rect.width)||collage.offsetWidth||collage.parentElement?.offsetWidth||400;
+    const ch=Math.round(rect.height)||collage.offsetHeight||collage.parentElement?.offsetHeight||300;
     if(!cw||!ch) continue;
+
     const imgs=Array.from(collage.querySelectorAll('img'));
     if(!imgs.length) continue;
+
+    // Load all images, cross-origin safe (data URLs already applied in Step 2 below,
+    // but we need to load them now — use current src which may still be external)
+    const loadImg=src=>new Promise(res=>{
+      if(!src){res(null);return;}
+      const i=new Image();
+      i.crossOrigin='anonymous';
+      i.onload=()=>res(i);
+      i.onerror=()=>{
+        // Try without CORS
+        const i2=new Image();
+        i2.onload=()=>res(i2);
+        i2.onerror=()=>res(null);
+        i2.src=src;
+      };
+      i.src=src;
+    });
+
     const n=imgs.length;
     const cols=n===2?2:n===3?3:n<=4?2:3;
     const rows=Math.ceil(n/cols);
-    const cellW=Math.floor(cw/cols),cellH=Math.floor(ch/rows);
+    const cellW=Math.floor(cw/cols);
+    const cellH=Math.floor(ch/rows);
     const scale=2;
     const cv=document.createElement('canvas');
     cv.width=cw*scale;cv.height=ch*scale;
     const ctx=cv.getContext('2d');
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
-    const loadImg=src=>new Promise(res=>{if(!src){res(null);return;}const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>{const i2=new Image();i2.onload=()=>res(i2);i2.onerror=()=>res(null);i2.src=src;};i.src=src;});
-    const loaded=await Promise.all(imgs.map(img=>loadImg(img.src||'')));
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,cv.width,cv.height);
+
+    // Load all and draw
+    const loaded=await Promise.all(imgs.map(img=>loadImg(img.src||img.getAttribute('src')||'')));
     loaded.forEach((image,pi)=>{
-      if(!image)return;
-      const col=pi%cols,row=Math.floor(pi/cols);
-      const dx=col*cellW*scale,dy=row*cellH*scale,dw=cellW*scale,dh=cellH*scale;
+      if(!image) return;
+      const col=pi%cols;
+      const row=Math.floor(pi/cols);
+      const dx=col*cellW*scale;
+      const dy=row*cellH*scale;
+      const dw=cellW*scale;
+      const dh=cellH*scale;
+      // object-fit:contain — scale preserving aspect ratio to fit cell
       const sc=Math.min(dw/image.naturalWidth,dh/image.naturalHeight);
-      const sw=image.naturalWidth*sc,sh=image.naturalHeight*sc;
-      ctx.fillStyle='#fff';ctx.fillRect(dx,dy,dw,dh);
+      const sw=image.naturalWidth*sc;
+      const sh=image.naturalHeight*sc;
+      ctx.fillStyle='#ffffff';ctx.fillRect(dx,dy,dw,dh);
       ctx.drawImage(image,dx+(dw-sw)/2,dy+(dh-sh)/2,sw,sh);
     });
+
+    // Replace collage div with an img
+    const dataUrl=cv.toDataURL('image/png');
     const replacement=document.createElement('img');
-    replacement.src=cv.toDataURL('image/png');
+    replacement.src=dataUrl;
     replacement.style.cssText=`width:${cw}px;height:${ch}px;display:block;object-fit:contain;`;
     collage.parentNode.replaceChild(replacement,collage);
     collageRestores.push(()=>replacement.parentNode&&replacement.parentNode.replaceChild(collage,replacement));
   }
 
-  // ── Step 1: Build image data-URL map ────────────────────────────────────────
+  // ── Step 1: Build a Map of src → dataURL for ALL images in this slide ──
   const dataURLMap=new Map();
+  const svgInlineMap=new Map(); // for SVG imgs: src → inline SVG text
+
   const allImgs=Array.from(el.querySelectorAll('img'));
+  await Promise.all(allImgs.map(async img=>{
+    const src=img.getAttribute('src')||img.src||'';
+    if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
+    if(dataURLMap.has(src)) return;
+
+    // For SVG files, try to inline them (avoids all CORS issues)
+    if(src.toLowerCase().includes('.svg')){
+      const svgText=await fetchSVGInline(src);
+      if(svgText){svgInlineMap.set(src,svgText);dataURLMap.set(src,'SVG_INLINE');return;}
+    }
+    const du=await urlToDataURL(src);
+    dataURLMap.set(src,du||null);
+  }));
+
+  // ── Step 2: Apply data URLs to original DOM so fixObjectFit works correctly ──
   const origSrcs=new Map();
-  allImgs.forEach(img=>{if(img.src&&!img.src.startsWith('data:'))origSrcs.set(img,img.src);});
+  allImgs.forEach(img=>{
+    const src=img.getAttribute('src')||'';
+    if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
+    const du=dataURLMap.get(src);
+    origSrcs.set(img,src);
+    if(du&&du!=='SVG_INLINE') img.src=du;
+    // SVG inlines and nulls handled in onclone
+  });
+  await new Promise(r=>requestAnimationFrame(r)); // let browser update
 
-  await Promise.all([...origSrcs.entries()].map(([img,src])=>new Promise(res=>{
-    const t=new Image();t.crossOrigin='anonymous';
-    t.onload=()=>{const cv=document.createElement('canvas');cv.width=t.naturalWidth;cv.height=t.naturalHeight;cv.getContext('2d').drawImage(t,0,0);try{dataURLMap.set(src,cv.toDataURL('image/jpeg',0.95));}catch(e){}res();};
-    t.onerror=()=>res();t.src=src;
-  })));
-
-  // ── Step 2: Apply data URLs ──────────────────────────────────────────────────
-  allImgs.forEach(img=>{const du=dataURLMap.get(img.src);if(du)img.src=du;});
-
-  // ── Step 3: Fix object-fit ───────────────────────────────────────────────────
+  // ── Step 3: Fix object-fit images (now srcs are data URLs, no taint) ──
+  // html2canvas ignores object-fit CSS. We replace each cover/contain img
+  // with a pre-drawn canvas so the export looks identical to the browser.
   const fitRestores=[];
   allImgs.forEach(img=>{
-    if(!img.complete||img.naturalWidth===0)return;
-    const cs=getComputedStyle(img);
+    if(!img.complete||img.naturalWidth===0) return;
+    const cs=window.getComputedStyle(img);
     const fit=cs.objectFit;
-    if(fit!=='cover'&&fit!=='contain')return;
-    const r=img.getBoundingClientRect();
-    if(!r.width||!r.height)return;
-    const cv=document.createElement('canvas');
-    cv.width=Math.round(r.width);cv.height=Math.round(r.height);
-    const ctx=cv.getContext('2d');
+    if(fit!=='cover'&&fit!=='contain') return;
+
+    // getBoundingClientRect is more reliable than offsetWidth when slide is position:fixed
+    const rect=img.getBoundingClientRect();
+    const w=Math.round(rect.width)||img.offsetWidth||img.parentElement?.offsetWidth||100;
+    const h=Math.round(rect.height)||img.offsetHeight||img.parentElement?.offsetHeight||100;
+    if(!w||!h) return;
+
+    const c2=document.createElement('canvas');
+    c2.width=w*2;c2.height=h*2;
+    c2.style.cssText=`width:${w}px;height:${h}px;display:block;flex-shrink:0;`;
+    const ctx=c2.getContext('2d');
     const iw=img.naturalWidth,ih=img.naturalHeight;
-    let sx=0,sy=0,sw=iw,sh=ih,dw=cv.width,dh=cv.height;
-    if(fit==='cover'){const s=Math.max(dw/iw,dh/ih);sw=dw/s;sh=dh/s;sx=(iw-sw)/2;sy=(ih-sh)/2;}
-    else{const s=Math.min(dw/iw,dh/ih);const rw=iw*s,rh=ih*s;ctx.fillStyle='#fff';ctx.fillRect(0,0,dw,dh);sx=0;sy=0;sw=iw;sh=ih;dw=rw;dh=rh;const ox=(cv.width-rw)/2,oy=(cv.height-rh)/2;ctx.drawImage(img,sx,sy,sw,sh,ox,oy,dw,dh);const du=cv.toDataURL('image/jpeg',0.95);const origSrc=img.src;const origStyle=img.style.cssText;img.src=du;img.style.objectFit='fill';fitRestores.push(()=>{img.src=origSrc;img.style.cssText=origStyle;});return;}
-    ctx.drawImage(img,sx,sy,sw,sh,0,0,cv.width,cv.height);
-    const du=cv.toDataURL('image/jpeg',0.95);
-    const origSrc=img.src,origStyle=img.style.cssText;
-    img.src=du;img.style.objectFit='fill';
-    fitRestores.push(()=>{img.src=origSrc;img.style.cssText=origStyle;});
+
+    if(fit==='cover'){
+      const sc=Math.max(w/iw,h/ih);
+      const sw=w/sc,sh=h/sc,sx=(iw-sw)/2,sy=(ih-sh)/2;
+      ctx.drawImage(img,sx,sy,sw,sh,0,0,w*2,h*2);
+    } else { // contain
+      const sc=Math.min(w/iw,h/ih);
+      const dw=iw*sc*2,dh=ih*sc*2;
+      ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w*2,h*2);
+      ctx.drawImage(img,0,0,iw,ih,(w*2-dw)/2,(h*2-dh)/2,dw,dh);
+    }
+    img.parentNode.replaceChild(c2,img);
+    fitRestores.push(()=>c2.parentNode&&c2.parentNode.replaceChild(img,c2));
   });
 
-  // ── Step 4: html2canvas ──────────────────────────────────────────────────────
-  let canvas;
-  try{
-    canvas=await html2canvas(el,{
-      scale:isIOS?1.5:2,useCORS:true,allowTaint:false,backgroundColor:'#fff',
-      width:1122,height:794,windowWidth:1122,windowHeight:794,
-      onclone:(doc)=>{
-        const cloneEl=doc.getElementById(elId);
-        if(cloneEl){cloneEl.style.position='static';cloneEl.style.left='0';cloneEl.style.top='0';}
-      }
-    });
-  }catch(e){console.error('html2canvas error:',e);canvas=document.createElement('canvas');}
+  // ── Step 4: html2canvas with onclone to patch the clone's images ──
+  const canvas=await html2canvas(el,{
+    scale:2, useCORS:true, allowTaint:true,
+    backgroundColor:'#ffffff', width:1122, height:794,
+    logging:false, imageTimeout:15000,
+    onclone:(clonedDoc,clonedEl)=>{
+      // Build a reverse map: originalURL → origImg (for fast lookup)
+      const srcToOrig = new Map();
+      allImgs.forEach(i=>{ const s=origSrcs.get(i); if(s) srcToOrig.set(s,i); });
 
-  // ── Step 5: Restore ──────────────────────────────────────────────────────────
+      clonedEl.querySelectorAll('img').forEach(clonedImg=>{
+        const clonedSrc = clonedImg.getAttribute('src')||'';
+
+        // If already a data URL — we successfully converted it in Step 2.
+        // html2canvas clone will have that data URL, nothing to do.
+        if(clonedSrc.startsWith('data:')||clonedSrc.startsWith('blob:')||!clonedSrc) return;
+
+        // clonedSrc is still an external URL — means conversion was SVG_INLINE or null.
+        // Find the matching original img by original URL.
+        const origImg = srcToOrig.get(clonedSrc);
+        const du = dataURLMap.get(clonedSrc);
+
+        if(du==='SVG_INLINE'){
+          const svgText = svgInlineMap.get(clonedSrc)||'';
+          if(svgText){
+            const ow = origImg ? (origImg.offsetWidth||origImg.clientWidth||16) : 16;
+            const oh = origImg ? (origImg.offsetHeight||origImg.clientHeight||16) : 16;
+            const wrapper = clonedDoc.createElement('div');
+            wrapper.innerHTML = svgText;
+            const svgEl = wrapper.firstElementChild;
+            if(svgEl){
+              if(origImg) svgEl.style.cssText = origImg.style.cssText;
+              svgEl.style.display='block';
+              svgEl.style.flexShrink='0';
+              svgEl.setAttribute('width', ow);
+              svgEl.setAttribute('height', oh);
+              svgEl.style.width = ow+'px';
+              svgEl.style.height = oh+'px';
+              clonedImg.parentNode.replaceChild(svgEl, clonedImg);
+            }
+          } else {
+            clonedImg.style.visibility='hidden';
+          }
+        } else if(du){
+          // A data URL we have but didn't apply in Step 2 (shouldn't happen, but safe fallback)
+          clonedImg.setAttribute('src', du);
+          clonedImg.removeAttribute('onerror');
+          if(origImg){
+            const ow=origImg.offsetWidth||origImg.clientWidth;
+            const oh=origImg.offsetHeight||origImg.clientHeight;
+            if(ow) clonedImg.style.width=ow+'px';
+            if(oh) clonedImg.style.height=oh+'px';
+          }
+        } else {
+          // Truly unresolvable — hide it
+          clonedImg.style.visibility='hidden';
+        }
+      });
+    }
+  });
+
+  // ── Step 5: Restore everything ──
   collageRestores.forEach(fn=>fn());
   fitRestores.forEach(fn=>fn());
-  allImgs.forEach(img=>{const orig=origSrcs.get(img);if(orig)img.src=orig;});
+  allImgs.forEach(img=>{ const orig=origSrcs.get(img); if(orig) img.src=orig; });
   el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;
   el.style.position=prevPos;el.style.left=prevLeft;el.style.top=prevTop;
   if(preview){preview.style.display=prevPreviewD;preview.style.visibility=prevPreviewV;}
+  // Re-render preview at normal (mobile-appropriate) size
   gen();
+
   return canvas;
 }
 
-async function downloadPDF(){
+async function downloadJPG(){
+  gen();
   const btn=document.getElementById('pdf-btn');
-  const lbl=document.getElementById('pdf-btn-label');
   const origHTML=btn?btn.innerHTML:'';
-  if(btn){btn.style.opacity='0.6';btn.disabled=true;}
-  if(lbl) lbl.textContent='Generating…';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Generating…</span>';btn.disabled=true;}
+  // ── Set button labels/actions based on device ────────────
+  (function(){
+    const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    if(isIOS2){
+      // iOS: PDF button becomes Share JPGs (no download API)
+      const btn=document.getElementById('pdf-btn');
+      const mBtn=document.getElementById('mob-pdf-btn');
+      const lbl=document.getElementById('pdf-btn-label');
+      const mLbl=document.getElementById('mob-pdf-btn-label');
+      if(btn){btn.onclick=downloadJPG;btn.style.background='#1a1a1a';}
+      if(mBtn){mBtn.onclick=downloadJPG;mBtn.style.background='#1a1a1a';}
+      if(lbl)lbl.textContent='↑ Share';
+      if(mLbl)mLbl.textContent='↑ Share';
+      const tabLbl=document.getElementById('mob-tab-pdf-label');
+      if(tabLbl)tabLbl.textContent='Share';
+      const tabBtn=document.getElementById('mtab-print');
+      if(tabBtn)tabBtn.onclick=downloadJPG;
+    }
+    // Remove stale btn_download_pdf i18n elements (now handled by #pdf-btn-label)
+  })();
+  const name=getExportName();
+
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const canShare = isIOS && navigator.share && navigator.canShare;
+
   try{
-    gen._captureMode=true;gen();gen._captureMode=false;
-    const cv1=await slideToCanvas('slide');
-    const cv2=await slideToCanvas('slide2');
+    // Render both slides
+    const canvas1 = await slideToCanvas('slide');
+    const canvas2 = await slideToCanvas('slide2');
+
+    if(isIOS && navigator.share){
+      // iOS: use Web Share API — opens native share sheet (Save to Photos, AirDrop, Messages…)
+      // Convert canvases to Blobs
+      const toBlob = (canvas) => new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.95));
+      const [blob1, blob2] = await Promise.all([toBlob(canvas1), toBlob(canvas2)]);
+      const file1 = new File([blob1], name+'-p1.jpg', {type:'image/jpeg'});
+      const file2 = new File([blob2], name+'-p2.jpg', {type:'image/jpeg'});
+      const shareData = {files:[file1,file2]};
+      if(navigator.canShare && navigator.canShare(shareData)){
+        await navigator.share(shareData);
+      } else {
+        // canShare failed — fallback to opening images in new tabs
+        [canvas1,canvas2].forEach((cv,i)=>{
+          const w=window.open('','_blank');
+          if(w){ w.document.write('<img src="'+cv.toDataURL('image/jpeg',0.95)+'" style="max-width:100%">'); w.document.close(); }
+        });
+      }
+    } else {
+      // Desktop / Android: standard download
+      const dl = (canvas, suffix) => {
+        let jpgData;
+        try{ jpgData=canvas.toDataURL('image/jpeg',0.95); }
+        catch(e){
+          const c2=document.createElement('canvas');c2.width=canvas.width;c2.height=canvas.height;
+          c2.getContext('2d').drawImage(canvas,0,0);
+          jpgData=c2.toDataURL('image/jpeg',0.95);
+        }
+        const a=document.createElement('a');
+        a.href=jpgData;a.download=name+suffix+'.jpg';
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+      };
+      dl(canvas1,'-p1');
+      await new Promise(r=>setTimeout(r,400));
+      dl(canvas2,'-p2');
+    }
+  }catch(err){
+    console.error('JPG failed:',err);
+    if(err.name==='AbortError') return; // user cancelled share — not an error
+    alert('Export failed: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
+  }
+}
+async function downloadPDF(){
+  // Combined 2-page PDF — reuses slideToCanvas for correct image/logo rendering
+  gen();
+  const btn=document.getElementById('pdf-btn');
+  const origHTML=btn?btn.innerHTML:'';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Building PDF…</span>';btn.disabled=true;}
+
+  const name = getExportName();
+
+  try{
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-    if(cv1) pdf.addImage(cv1.toDataURL('image/jpeg',0.95),'JPEG',0,0,297,210);
-    if(cv2){pdf.addPage();pdf.addImage(cv2.toDataURL('image/jpeg',0.95),'JPEG',0,0,297,210);}
-    pdf.save(getExportName()+'.pdf');
-  }catch(err){console.error('PDF error:',err);alert('PDF export failed: '+err.message);}
-  finally{
-    gen();
-    if(btn){btn.innerHTML=origHTML;btn.style.opacity='1';btn.disabled=false;}
-    if(lbl) lbl.textContent='↓ PDF';
+    // slideToCanvas already handles: captureMode font, CORS images, object-fit, SVG inline
+    const cv1 = await slideToCanvas('slide');
+    if(cv1) pdf.addImage(cv1.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);
+    const cv2 = await slideToCanvas('slide2');
+    if(cv2){pdf.addPage();pdf.addImage(cv2.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);}
+    pdf.save(name+'.pdf');
+  }catch(err){
+    console.error('PDF failed:',err);
+    alert('PDF failed: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
   }
 }
 
-async function downloadJPG(){
-  gen._captureMode=true;gen();gen._captureMode=false;
-  const btn=document.getElementById('pdf-btn');
-  const lbl=document.getElementById('pdf-btn-label');
-  if(lbl) lbl.textContent='Saving…';
-  try{
-    const cv1=await slideToCanvas('slide');
-    const cv2=await slideToCanvas('slide2');
-    const name=getExportName();
-    if(navigator.share&&navigator.canShare&&cv1&&cv2){
-      const toFile=(cv,n)=>new Promise(res=>{cv.toBlob(b=>res(new File([b],n,{type:'image/jpeg'})),'image/jpeg',0.93);});
-      try{
-        const files=[await toFile(cv1,name+'_p1.jpg'),await toFile(cv2,name+'_p2.jpg')];
-        if(navigator.canShare({files})){await navigator.share({files,title:name});return;}
-      }catch{}
+
+// ── CUSTOM INFO BLOCK POSITION ───────────────────────────
+function setCustomPos(pos){
+  CUSTOM_POS=pos;
+  document.getElementById('cpos-below')?.classList.toggle('on',pos==='below');
+  document.getElementById('cpos-above')?.classList.toggle('on',pos==='above');
+  gen();
+}
+
+const TRANSIT = IC.tr_metro; // backward compat alias
+
+function icInner(id){
+  const m=(renderIcHtml(id)||IC[id]||'')?.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
+  return m?m[1]:'';
+}
+
+const ALL_ICONS_LIST = [...IC_LIST]; // CO icons appended after load
+
+// ── DOWNLOAD LIB INDEX ───────────────────────────────────
+function downloadLibIndex(){
+  const lib=getLib();
+  if(!lib.length){showStatus('Library is empty — upload JSON files first.','s-err');return;}
+  const index=lib.map(p=>{
+    const n=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):(p.name||'location');
+    return n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'.json';
+  });
+  const blob=new Blob([JSON.stringify(index,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='index.json';a.click();
+  URL.revokeObjectURL(a.href);
+  showStatus('index.json downloaded — upload it to your json/ folder on the server.','s-ok');
+}
+
+// ── LEGACY PHOTO UPLOAD ──────────────────────────────────
+function onPhotos(e){
+  const files=Array.from(e.target.files).slice(0,3);
+  files.forEach((f,i)=>{
+    const r=new FileReader();
+    r.onload=ev=>{S.photos[i]=ev.target.result;renderPhotoSlots();gen();};
+    r.readAsDataURL(f);
+  });
+}
+function rmPhoto(i){rmPhotoSlot(i);}
+
+// ── CLICK-TO-EDIT: click any slide region → jump to tab & field ──
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-edit]');
+  if(!el)return;
+  if(!el.closest('#slide,#slide2'))return;
+  const[tab,fieldId]=(el.dataset.edit||'').split(':');
+  if(!tab)return;
+  openTab(tab);
+  const panel=document.getElementById('p-'+tab);
+  if(panel)panel.scrollTop=0;
+  if(fieldId){
+    setTimeout(()=>{
+      const target=document.getElementById(fieldId);
+      if(!target)return;
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      const flashEl=target.closest('.field')||target;
+      flashEl.classList.remove('edit-flash');
+      void flashEl.offsetWidth;
+      flashEl.classList.add('edit-flash');
+      if(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.contentEditable==='true'){
+        setTimeout(()=>target.focus(),300);
+      }
+    },120);
+  }
+});
+
+// ── RICH EDITOR: controlled Enter key & clean paste ──────
+document.addEventListener('keydown',e=>{
+  const el=e.target;
+  if(!el.isContentEditable)return;
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    const sel=window.getSelection();
+    if(!sel||!sel.rangeCount)return;
+    const range=sel.getRangeAt(0);
+    range.deleteContents();
+    const br=document.createElement('br');
+    range.insertNode(br);
+    if(!br.nextSibling||(br.nextSibling.nodeType===3&&br.nextSibling.textContent==='')){
+      const trail=document.createElement('br');
+      br.parentNode.insertBefore(trail,br.nextSibling);
     }
-    // Desktop download
-    const a=document.createElement('a');
-    if(cv1){a.href=cv1.toDataURL('image/jpeg',0.93);a.download=name+'_p1.jpg';a.click();}
-    await new Promise(r=>setTimeout(r,400));
-    if(cv2){a.href=cv2.toDataURL('image/jpeg',0.93);a.download=name+'_p2.jpg';a.click();}
-  }catch(err){console.error('JPG error:',err);}
-  finally{ gen(); if(lbl) lbl.textContent='↓ PDF'; }
+    range.setStartAfter(br);range.collapse(true);
+    sel.removeAllRanges();sel.addRange(range);
+    if(typeof gen==='function')gen();
+  }
+});
+
+document.addEventListener('paste',e=>{
+  const el=e.target;
+  if(!el.isContentEditable)return;
+  e.preventDefault();
+  const text=(e.clipboardData||window.clipboardData).getData('text/plain');
+  if(!text)return;
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount)return;
+  const range=sel.getRangeAt(0);
+  range.deleteContents();
+  const lines=text.split(/\r?\n/);
+  const frag=document.createDocumentFragment();
+  lines.forEach((line,i)=>{if(i>0)frag.appendChild(document.createElement('br'));if(line)frag.appendChild(document.createTextNode(line));});
+  range.insertNode(frag);range.collapse(false);
+  sel.removeAllRanges();sel.addRange(range);
+  if(el.classList.contains('tr-rich-editor')&&el.dataset.trId){updateTrHtml(el.dataset.trId,el);}
+  if(typeof gen==='function')gen();
+});
+
+// ── MOBILE APP LOGIC ─────────────────────────────────────
+function isMobile(){return window.innerWidth<=768;}
+let _mobCurrentTab='loc';
+
+function mobOpenTab(name){
+  if(!isMobile())return;
+  _mobCurrentTab=name;
+  document.querySelectorAll('.mob-tab').forEach(b=>{
+    b.classList.toggle('on',b.id==='mtab-'+name&&name!=='print');
+  });
+  document.querySelector('.sidebar').style.display='';
+  document.querySelector('.preview').classList.add('mob-hidden');
+  const fab=document.getElementById('mob-fab');
+  if(fab)fab.style.display='flex';
+  const bar=document.getElementById('mob-preview-bar');
+  if(bar)bar.style.display='none';
+  openTab(name);
 }
 
-
-function getExportName(){
-  // Prefer EN name for export filename
-  const enData = LANG_DATA['en'];
-  const enName = enData?.fields?.['n-main'] || '';
-  if(enName) return enName.replace(/[^a-zA-Z0-9一-鿿぀-ヿ]+/g,'-').replace(/^-|-$/g,'');
-  const name = document.getElementById('n-main')?.value.trim() || 'compass-offices';
-  return name.replace(/[^a-zA-Z0-9一-鿿぀-ヿ]+/g,'-').replace(/^-|-$/g,'');
+function mobShowPreview(){
+  if(!isMobile())return;
+  gen();
+  document.querySelector('.sidebar').style.display='none';
+  document.querySelector('.preview').classList.remove('mob-hidden');
+  const fab=document.getElementById('mob-fab');
+  if(fab)fab.style.display='none';
+  const bar=document.getElementById('mob-preview-bar');
+  if(bar)bar.style.display='flex';
 }
+
+function mobBackToEdit(){
+  document.querySelector('.sidebar').style.display='';
+  document.querySelector('.preview').classList.add('mob-hidden');
+  const fab=document.getElementById('mob-fab');
+  if(fab)fab.style.display='flex';
+  const bar=document.getElementById('mob-preview-bar');
+  if(bar)bar.style.display='none';
+  document.querySelectorAll('.mob-tab').forEach(b=>{
+    b.classList.toggle('on',b.id==='mtab-'+_mobCurrentTab);
+  });
+}
+
+window.addEventListener('resize',()=>{
+  if(!isMobile()){
+    document.querySelector('.sidebar').style.display='';
+    document.querySelector('.preview').classList.remove('mob-hidden');
+  } else {
+    mobOpenTab(_mobCurrentTab);
+  }
+});
 
 </script>
 
-<!-- Mobile FAB — Preview -->
-<button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-</button>
+<div class="mob-tabbar" id="mob-tabbar">
+  <button class="mob-tab on" id="mtab-loc" onclick="mobOpenTab('loc')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span data-i18n="tab_loc">Location</span>
+  </button>
+  <button class="mob-tab" id="mtab-specs" onclick="mobOpenTab('specs')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+    <span data-i18n="tab_specs">Specs</span>
+  </button>
+  <button class="mob-tab" id="mtab-price" onclick="mobOpenTab('price')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    <span data-i18n="tab_price">Pricing</span>
+  </button>
+  <button class="mob-tab" id="mtab-media" onclick="mobOpenTab('media')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    <span data-i18n="tab_media">Media</span>
+  </button>
+  <button class="mob-tab mob-tab-action" id="mtab-print" onclick="downloadPDF()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span id="mob-tab-pdf-label">↓ PDF</span>
+  </button>
+</div>
 
-<!-- ── EMAIL TEMPLATE MODAL ─────────────────────────────────────── -->
+<!-- EMAIL MODAL -->
 <div id="email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:center;justify-content:center;padding:16px;">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;">
     <div style="padding:16px 20px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
@@ -4781,7 +5111,7 @@ function getExportName(){
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">From (Your Name)</label><input id="email-from-name" type="text" placeholder="e.g. Sarah Chen" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">Client Company</label><input id="email-company" type="text" placeholder="e.g. Acme Corp" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;" id="email-scroll-area"><div id="email-preview" style="max-width:600px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
+    <div style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;"><div id="email-preview" style="max-width:600px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
     <!-- Copy footer -->
     <div style="padding:10px 20px;border-top:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff;">
       <span id="email-copy-hint" style="font-size:12px;color:#888;transition:color .2s;"></span>
@@ -4790,10 +5120,16 @@ function getExportName(){
         Copy
       </button>
     </div>
+
   </div>
 </div>
 
-<!-- ── PDF QUEUE PANEL ─────────────────────────────────────────── -->
+<!-- Mobile FAB — Preview -->
+<button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+</button>
+
+<!-- ── PDF QUEUE PANEL ─────────────────────────────────────── -->
 <div id="queue-panel" style="display:none;position:fixed;right:16px;bottom:76px;width:320px;max-height:70vh;background:var(--wh);border:1.5px solid var(--bd);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:600;flex-direction:column;overflow:hidden;">
   <div style="padding:12px 14px 10px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
     <span style="font-size:13px;font-weight:700;color:var(--drk);">PDF Queue</span>
