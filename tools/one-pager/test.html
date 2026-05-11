@@ -2861,8 +2861,29 @@ function gen(){
 
   // In Auto mode: 2-col layout when 5+ benefits (matches Transport 2-col grid)
   const bUseTwoCol = BENEFITS_POS==='auto' && checked.length>=5;
-  const bFScale = b => { const len=b.text.length; return len<=38?0.82:len<=50?0.74:len<=62?0.65:len<=75?0.58:0.52; };
-  const meritsHTML=checked.length?`<div class="sl-merits-wrap"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:flex-start;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;word-break:break-word;white-space:normal;line-height:1.25;">${b.text}</span></span></li>`).join('')}</ul></div>`:'';
+  // ── Density-aware sizing: shrinks font + gap as item count grows, so the
+  //    last item never gets clipped by the container's overflow:hidden.
+  //    In 2-col mode the "effective" row count is half the item count.
+  const bEffCount = bUseTwoCol ? Math.ceil(checked.length/2) : checked.length;
+  const bDensity = bEffCount<=5  ? 1.00
+                : bEffCount<=7  ? 0.92
+                : bEffCount<=9  ? 0.83
+                : bEffCount<=11 ? 0.74
+                : bEffCount<=13 ? 0.66
+                :                 0.60;
+  const bGapFs  = bEffCount<=5  ? 0.18
+                : bEffCount<=7  ? 0.14
+                : bEffCount<=9  ? 0.10
+                : bEffCount<=11 ? 0.07
+                : bEffCount<=13 ? 0.05
+                :                 0.04;
+  const bFScale = b => {
+    const len = b.text.length;
+    const base = len<=38?0.82:len<=50?0.74:len<=62?0.65:len<=75?0.58:0.52;
+    return (base * bDensity).toFixed(3);
+  };
+  const bGapStyle = `gap:calc(var(--fs)*${bGapFs.toFixed(2)});`;
+  const meritsHTML=checked.length?`<div class="sl-merits-wrap"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}" style="${bGapStyle}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:flex-start;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;word-break:break-word;white-space:normal;line-height:1.25;">${b.text}</span></span></li>`).join('')}</ul></div>`:'';
   // Determine which floorplan(s) to show on each page
   const fpPh=`<div class="sl-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:32%;opacity:.15;display:block;margin:0 auto 6px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>Floor Plan</div>`;
   function buildFpHtml(pgIdx, showAll){
@@ -2923,7 +2944,7 @@ function gen(){
           ${(()=>{const _nsTr=trLines.length?`<div style="flex-shrink:0;"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:1fr">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _nsCu=hasCustom?`<div style="flex-shrink:0;">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div>`:'';return CUSTOM_POS==='above'?_nsCu+_nsTr:_nsTr+_nsCu;})()}
         </div>
         <div style="overflow:hidden;padding:calc(var(--fs)*0.4) calc(var(--fs)*0.6);display:flex;flex-direction:column;">
-          ${checked.length?`<div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits" style="margin-top:calc(var(--fs)*0.1)">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul>`:''}
+          ${checked.length?`<div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits" style="margin-top:calc(var(--fs)*0.1);${bGapStyle}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul>`:''}
         </div>
       </div>
     </div>
@@ -2932,7 +2953,7 @@ function gen(){
       <div class="sl-specs-inner">
         ${specRows.length?`<div class="sl-section ${(trLines.length||hasCustom||putBenInCentre)?'shrink':'grow'}"><div class="sl-sec">${sl('specs')}</div>${specGridHTML}</div>`:''}
         ${(()=>{const _tr=trLines.length?`<div class="sl-section shrink"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _cu=hasCustom?`<div class="sl-section shrink"><div class="sl-custom-block">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div></div>`:'';return CUSTOM_POS==='above'?_cu+_tr:_tr+_cu;})()}
-        ${putBenInCentre&&checked.length?`<div class="sl-section shrink"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul></div>`:''}
+        ${putBenInCentre&&checked.length?`<div class="sl-section shrink"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}" style="${bGapStyle}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul></div>`:''}
       </div>
     </div>
     <div class="sl-right">${fpHTML}${putBenInCentre?'':meritsHTML}</div>
