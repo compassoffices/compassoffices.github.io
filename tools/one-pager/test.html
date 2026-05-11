@@ -2534,7 +2534,7 @@ function loadFromLib(idx){
   LAST_LOCATION=p;applyLocationData(p);
   const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
   document.getElementById('json-search').value=displayName;
-  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
+  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();setTimeout(renderPhotoSlots,60);
   // Try to auto-load floorplan crop data from sheet
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
@@ -2632,7 +2632,18 @@ function applyLocationData(p){
   if(p.logo_separator&&['x','bar','none'].includes(p.logo_separator)){setSep(p.logo_separator);}
   if(p.amenities){AMENITY_ICONS.forEach(a=>{a.on=p.amenities.includes(a.id);});renderAmenities();}
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
-  if(p.photos?.length){S.photos=[null,null,null,null,null,null];p.photos.slice(0,6).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
+  (function(){
+  // Try multiple photo sources for compatibility with different JSON formats
+  const _ph = p.photos || p.photo_urls || (p.langs && (p.langs['en']||p.langs[Object.keys(p.langs)[0]])?.photos) || null;
+  if(!_ph) return;
+  const _arr = Array.isArray(_ph) ? _ph : Object.values(_ph);
+  if(!_arr.length) return;
+  S.photos=[null,null,null,null,null,null];
+  _arr.slice(0,6).forEach((url,i)=>{
+    S.photos[i]=(url&&typeof url==='string'&&!url.startsWith('data:')&&url.length>5)?url:null;
+  });
+  renderPhotoSlots();
+})();
   if(p.fp_plans&&Array.isArray(p.fp_plans)&&p.fp_plans.length){
     FP_PLANS=p.fp_plans.filter(p=>p.url).map(p=>({url:p.url,label:p.label||''}));
     FP_PAGE2_SAME=p.fp_page2_same!==false;
@@ -3301,7 +3312,7 @@ function downloadCurrentJSON(){
     pricing_cols:  PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
     // ── Media (global) ──
     partner_logo_url: (S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
-    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:'').filter(Boolean),
+    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:null),
     floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?S.floorplan:'',
     fp_plans: FP_PLANS.map(p=>({url:p.url&&!p.url.startsWith('data:')?p.url:'',label:p.label||''})),
     fp_page2_same: FP_PAGE2_SAME,
@@ -3467,7 +3478,7 @@ function clearLoadedCard(){
   });
   [...document.querySelectorAll('.spec-rich-editor')].forEach(el=>el.innerHTML='');
   const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML='';
-  S.rows=[];S.photos=[null,null,null];S.floorplan=null;S.partnerLogo=null;
+  S.rows=[];S.photos=[null,null,null,null,null,null];S.floorplan=null;S.partnerLogo=null;
   TRANSPORT=[];
   renderRows();renderPhotoSlots();renderFloorplanCard();renderLogoCard();renderTransport();
   showStatus('Card cleared.','s-info');
