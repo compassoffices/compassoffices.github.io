@@ -805,15 +805,7 @@ img.co-icon-img{display:block;}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span style="font-size:12px;font-weight:800;color:var(--drk);">AUS Office Lookup</span>
             <span id="aus-source-badge" style="font-size:9px;padding:1px 6px;border-radius:10px;background:#fff3e0;color:#e65100;font-weight:700;">Loading…</span>
-          <span id="aus-crop-badge" style="display:none;font-size:9px;padding:1px 6px;border-radius:10px;background:#e8f5e9;color:#2e7d32;font-weight:700;"></span>
-          <label title="Upload the crop JSON to enable exact room highlighting on the master floor plan" style="cursor:pointer;font-size:10px;color:var(--o);font-weight:700;display:flex;align-items:center;gap:3px;border:1px solid var(--o);border-radius:5px;padding:2px 7px;">
-            <input type="file" accept=".json,application/json" style="display:none" onchange="_parseCropFile(event)">
-            📐 Room Data
-          </label>
-          <button id="aus-highlight-btn" onclick="ausToggleHighlight()" title="Highlight selected offices on master floorplan (requires Room Data JSON)"
-            style="font-size:10px;padding:2px 8px;border:1px solid var(--o);border-radius:5px;background:var(--olt);color:var(--o);font-weight:700;font-family:inherit;cursor:pointer;">
-            ● Highlight
-          </button>
+
           </div>
           <button onclick="ausFetchSheet(AUS_SHEET_URL).then(ok=>!ok&&showStatus('Sheet fetch failed — check network.','s-err'))" title="Refresh from Google Sheet" style="font-size:10.5px;color:var(--xlt);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1248,9 +1240,6 @@ const RICH_FIELD_IDS = ['s-struct','s-comp','s-ceil','s-fa','s-ca','s-oa','s-el'
 const LANG_DATA = {};
 
 // ── FLOORPLAN DATA SHEET ──────────────────────────────────────────────────────
-const FP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSvcrpAkLzgXwtlCQvysASc983Caks7zFUu_8lygudCH9r4nOrNrYcWhhEj2CASc5Du1GWQyy7WqxZJ/pub?output=csv';
-let _fpSheetData = null;
-let _fpSheetLoading = false;
 LANG_KEYS.forEach(lc => { LANG_DATA[lc] = null; }); // null = never saved
 
 function saveLangData(lc){
@@ -2547,7 +2536,6 @@ function loadFromLib(idx){
   document.getElementById('json-search').value=displayName;
   hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
   // Try to auto-load floorplan crop data from sheet
-  setTimeout(fpSheetTryAutoLoad, 200);
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
     const matchedCentre = ausCentreForCardName(displayName);
@@ -2847,9 +2835,7 @@ function gen(){
       return`<div class="sl-fp-collage" style="grid-template-columns:repeat(${cols},1fr)">${plans.map((p,pi)=>`<img src="${p.url}" alt="${p.label}" style="${pi===n-1&&lastCol>1?'grid-column:span '+lastCol+';':''}">`).join('')}</div>`;
     }
     const idx=Math.max(0,Math.min(pgIdx,plans.length-1));
-    // Use highlighted master if available and this is the master (index 0)
-    const renderUrl = (idx===0 && _highlightActive && _highlightedMasterUrl) ? _highlightedMasterUrl : plans[idx].url;
-    return`<img src="${renderUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
+    return`<img src="${plans[idx].url}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
   }
   // pgIdx: -2 = rooms-only collage, -1 = all collage, 0+ = specific plan
   const fp1Idx = FP_PAGE2_SAME ? -1 : FP_PAGE1_IDX;
@@ -3384,8 +3370,6 @@ function mobBackToEdit(){
   renderAusLookup();
   // Auto-fetch AUS sheet if URL is saved
   if(AUS_SHEET_URL) ausFetchSheet(AUS_SHEET_URL);
-  // Live-load floorplan data sheet
-  fpSheetFetch();
 
   // On every page load: clear server library cards and reload fresh from server.
   // This ensures the latest JSON cards are always shown.
@@ -4000,7 +3984,7 @@ function renderAusLookup(){
         <tr style="border-bottom:1.5px solid var(--bd);">
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;width:28px;"></th>
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Office #</th>
-          <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--o);font-size:10px;text-transform:uppercase;letter-spacing:.04em;" title="Click 📍 to mark room position on master for highlighting">📍</th>
+
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">WS</th>
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Sqm</th>
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Market</th>
@@ -4025,9 +4009,6 @@ function renderAusLookup(){
               <div>${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></div>
             </div>
           </td>
-          <td style="padding:4px 6px;text-align:center;">
-            <button onclick="event.stopPropagation();openPinModal('${oid.replace(/'/g,"\\'")}');" title="Pin this room on the master floorplan" style="border:none;background:${_roomPins[oid]?'var(--o)':'var(--bg)'};color:${_roomPins[oid]?'#fff':'var(--xlt)'};border-radius:4px;padding:2px 5px;font-size:11px;cursor:pointer;line-height:1;transition:all .15s;">${_roomPins[oid]?'📍':'○'}</button>
-          </td>
           <td style="padding:5px 8px;text-align:center;">${o.w}</td>
           <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
           <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
@@ -4051,16 +4032,7 @@ function renderAusLookup(){
 function ausToggle(oid){
   if(AUS_SELECTED.has(oid)) AUS_SELECTED.delete(oid);
   else AUS_SELECTED.add(oid);
-  // Clear per-office match cache + full master cache on any selection change
-  _highlightCache.delete(oid);
-  _highlightedMasterUrl = null;
   renderAusLookup();
-  // Debounce highlight re-render to avoid triggering on every rapid click
-  clearTimeout(ausToggle._t);
-  ausToggle._t = setTimeout(()=>{
-    if(_highlightActive && FP_BASE_URL && FP_PLANS.length) ausApplyHighlight();
-    else gen();
-  }, 300);
 }
 
 function ausAddToRows(){
@@ -4604,92 +4576,6 @@ function buildEmailPlainText(toName, fromName, company){
   return body;
 }
 
-// ══════════════════════════════════════════════════════════
-//  MASTER FLOORPLAN HIGHLIGHT — click-to-pin coordinates
-// ══════════════════════════════════════════════════════════
-let _highlightActive = true;
-let _highlightedMasterUrl = null; // cached composited master
-let _roomPins = {};   // {officeId: {x,y,w,h}} as % of master image (0-1)
-let _pinMode = false; // whether pin-placement mode is active
-
-function ausToggleHighlight(){
-  _highlightActive = !_highlightActive;
-  _highlightedMasterUrl = null;
-  const btn = document.getElementById('aus-highlight-btn');
-  if(btn){
-    btn.style.background = _highlightActive ? 'var(--olt)' : 'transparent';
-    btn.style.color = _highlightActive ? 'var(--o)' : 'var(--xlt)';
-    btn.textContent = _highlightActive ? '● Highlight' : '○ Highlight';
-  }
-  if(_highlightActive && AUS_SELECTED.size) ausApplyHighlight();
-  else gen();
-}
-
-async function _loadImg(url){
-  return new Promise((res)=>{
-    const img = new Image(); img.crossOrigin='anonymous';
-    img.onload=()=>res(img); img.onerror=()=>res(null); img.src=url;
-  });
-}
-
-
-async function ausApplyHighlight(){
-  _highlightedMasterUrl = null;
-  if(!_highlightActive || !FP_BASE_URL || !FP_PLANS.length || !_cropData){ gen(); return; }
-
-  const masterUrl = FP_PLANS[0]?.url;
-  if(!masterUrl || masterUrl.startsWith('data:')){ gen(); return; }
-
-  const masterImg = await _loadImg(masterUrl);
-  if(!masterImg){ gen(); return; }
-
-  const cv = document.createElement('canvas');
-  cv.width = masterImg.naturalWidth; cv.height = masterImg.naturalHeight;
-  const ctx = cv.getContext('2d');
-  ctx.drawImage(masterImg, 0, 0);
-
-  const cw = cv.width, ch = cv.height;
-  let painted = 0;
-
-  for(const oid of AUS_SELECTED){
-    const label = _ausOidToRoomLabel(oid);
-    if(!label) continue;
-    const room = _cropData.rooms[label];
-    if(!room) continue;
-
-    if(room.poly && room.poly.length > 2){
-      // Draw the exact polygon shape from the crop JSON
-      ctx.beginPath();
-      room.poly.forEach((pt,i)=>{
-        i===0 ? ctx.moveTo(pt.x*cw, pt.y*ch) : ctx.lineTo(pt.x*cw, pt.y*ch);
-      });
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(255,110,0,0.30)';
-      ctx.fill();
-      ctx.strokeStyle = '#FF6600';
-      ctx.lineWidth = Math.max(2, cw/300);
-      ctx.stroke();
-    } else {
-      // Fallback to bounding rect
-      ctx.fillStyle = 'rgba(255,110,0,0.30)';
-      ctx.fillRect(room.rx*cw, room.ry*ch, room.rw*cw, room.rh*ch);
-      ctx.strokeStyle = '#FF6600'; ctx.lineWidth = Math.max(2, cw/300);
-      ctx.strokeRect(room.rx*cw, room.ry*ch, room.rw*cw, room.rh*ch);
-    }
-
-    // Label at room centre
-    const cx2 = (room.rx+room.rw/2)*cw, cy2 = (room.ry+room.rh/2)*ch;
-    const fs = Math.max(12, cw/55);
-    ctx.font = `bold ${fs}px Arial`;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillText(oid,cx2-1,cy2+1);
-    ctx.fillStyle = '#CC4400'; ctx.fillText(oid, cx2, cy2);
-    painted++;
-  }
-
-  if(painted > 0) _highlightedMasterUrl = cv.toDataURL('image/jpeg', 0.92);
-  gen();
-}
-
 async function slideToCanvas(elId){
   const el=document.getElementById(elId);
   if(!el) return document.createElement('canvas');
@@ -4855,143 +4741,6 @@ async function downloadJPG(){
   finally{ gen(); if(lbl) lbl.textContent='↓ PDF'; }
 }
 
-
-// ── CROP JSON — exact polygon coordinates from the crop tool ─────────────────
-let _cropData = null;
-
-// ── FLOORPLAN SHEET: live CSV fetch ──────────────────────────────────────────
-async function fpSheetFetch(){
-  if(_fpSheetLoading) return;
-  _fpSheetLoading = true;
-  try{
-    const res = await fetch(FP_SHEET_URL,{cache:'no-cache'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const text = await res.text();
-    // Parse CSV (handle quoted commas)
-    const parseRow = line => {
-      const cells=[]; let cur='', inQ=false;
-      for(const ch of line+','){
-        if(ch==='"'){inQ=!inQ;}
-        else if(ch===','&&!inQ){cells.push(cur.trim());cur='';}
-        else cur+=ch;
-      }
-      return cells;
-    };
-    const rows = text.trim().split('\n').map(parseRow);
-    const map={};
-    rows.slice(1).forEach(r=>{
-      const code=(r[0]||'').trim();
-      if(!code) return;
-      map[code]={pdfUrl:_gdDlUrl(r[1]||''), jsonUrl:_gdDlUrl(r[2]||'')};
-    });
-    _fpSheetData=map;
-    const n=Object.keys(map).length;
-    console.log(`FP sheet: ${n} locations`);
-    const badge=document.getElementById('aus-crop-badge');
-    if(badge&&!_cropData){badge.textContent=`${n} floor plans`;badge.style.display='inline';badge.style.background='#e3f2fd';badge.style.color='#1565c0';}
-    fpSheetTryAutoLoad();
-  }catch(e){console.warn('FP sheet failed:',e.message);}
-  finally{_fpSheetLoading=false;}
-}
-
-function _gdDlUrl(url){
-  if(!url) return '';
-  if(url.includes('uc?export=download')) return url;
-  const m=url.match(/\/file\/d\/([^/]+)\//);
-  return m?`https://drive.google.com/uc?export=download&id=${m[1]}`:url;
-}
-
-function fpSheetFindCode(centre, floor){
-  if(!_fpSheetData||!centre) return null;
-  const streetNum=centre.trim().split(' ')[0];
-  const floorNum=(floor||'').replace(/[Ff]/g,'').trim();
-  if(!streetNum||!floorNum) return null;
-  return Object.keys(_fpSheetData).find(code=>
-    code.includes(streetNum)&&(code.endsWith(floorNum)||code.endsWith('L'+floorNum))
-  )||null;
-}
-
-async function fpSheetTryAutoLoad(){
-  if(!_fpSheetData) return;
-  const floor  = document.getElementById('floor')?.value.trim()||'';
-  const locName= document.getElementById('n-main')?.value.trim()||'';
-  let code=null;
-  // Try AUS centre filter first
-  if(AUS_CENTRE_FILTER&&floor) code=fpSheetFindCode(AUS_CENTRE_FILTER,floor);
-  // Try location name
-  if(!code&&locName&&floor){
-    const centres=['141 Walker Street','207 Kent Street','360 Collins Street',
-                   '459 Collins Street','570 Bourke Street','9 Castlereagh'];
-    for(const ctr of centres){
-      const prefix=ctr.split(' ').slice(0,2).join(' ').toLowerCase();
-      if(locName.toLowerCase().startsWith(prefix)){code=fpSheetFindCode(ctr,floor);if(code)break;}
-    }
-  }
-  if(!code) return;
-  if(_cropData?._sourceCode===code) return; // already loaded
-  const entry=_fpSheetData[code];
-  if(!entry?.jsonUrl) return;
-
-  const badge=document.getElementById('aus-crop-badge');
-  if(badge){badge.textContent='Loading room data…';badge.style.display='inline';badge.style.background='#fff3e0';badge.style.color='#e65100';}
-  try{
-    const res=await fetch(entry.jsonUrl,{cache:'no-cache'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const json=await res.json();
-    _parseCropJSON(json);
-    if(_cropData) _cropData._sourceCode=code;
-    if(badge){badge.style.background='#e8f5e9';badge.style.color='#2e7d32';}
-    showStatus(`Room data auto-loaded for ${code} ✓`,'s-ok');
-  }catch(e){
-    console.warn('FP auto-load failed:',e.message);
-    if(badge){badge.textContent='Room data unavailable';badge.style.background='#ffebee';badge.style.color='#c62828';}
-  }
-}
-
-// ── CROP JSON UPLOAD — exact polygon coordinates from the crop tool ───────────
-function _parseCropFile(e){
-  const file=e.target.files[0];if(!file)return;
-  e.target.value='';
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    try{_parseCropJSON(JSON.parse(ev.target.result));}
-    catch(err){showStatus('Invalid JSON: '+err.message,'s-err');}
-  };
-  reader.readAsText(file);
-}
-
-function _parseCropJSON(json){
-  const rooms=json.pages&&(json.pages['1']||Object.values(json.pages)[0]);
-  if(!rooms){showStatus('No room data found in JSON.','s-err');return;}
-  const master=rooms.find(r=>r.label==='master');
-  if(!master){showStatus('No master crop found in JSON.','s-err');return;}
-  const mx1=master.rect.x1,my1=master.rect.y1;
-  const masterW=master.rect.x2-mx1,masterH=master.rect.y2-my1;
-  const levelNum=json.colourMode?.levelNum||'';
-  const roomMap={};
-  rooms.forEach(r=>{
-    if(r.label==='master')return;
-    const poly=(r.polygon||[]).map(pt=>({x:(pt.x-mx1)/masterW,y:(pt.y-my1)/masterH}));
-    const rx=(r.rect.x1-mx1)/masterW,ry=(r.rect.y1-my1)/masterH;
-    const rw=(r.rect.x2-r.rect.x1)/masterW,rh=(r.rect.y2-r.rect.y1)/masterH;
-    roomMap[r.label]={poly,rx,ry,rw,rh};
-  });
-  _cropData={levelNum,rooms:roomMap,roomCount:Object.keys(roomMap).length};
-  _highlightedMasterUrl=null;
-  const badge=document.getElementById('aus-crop-badge');
-  if(badge){badge.textContent=`${_cropData.roomCount} rooms mapped`;badge.style.display='inline';}
-  showStatus(`Loaded ${_cropData.roomCount} room polygons from crop JSON${levelNum?' (Level '+levelNum+')':''}.`,'s-ok');
-  if(_highlightActive&&AUS_SELECTED.size) ausApplyHighlight();
-}
-
-function _ausOidToRoomLabel(oid){
-  if(!_cropData)return null;
-  const clean=oid.replace(/\s*-\s*\w+$/i,'').trim();
-  const lv=_cropData.levelNum;
-  let label=lv&&clean.startsWith(lv)?clean.slice(lv.length):clean.slice(-2);
-  if(label.length===1)label='0'+label;
-  return _cropData.rooms[label]?label:null;
-}
 
 function getExportName(){
   // Prefer EN name for export filename
