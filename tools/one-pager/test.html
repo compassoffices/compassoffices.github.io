@@ -2988,7 +2988,205 @@ function gen(){
 //  PRINT — Cross-browser fix (Safari, Firefox, Chrome, Edge)
 //  Replace the existing printSlide() function with this one.
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  PRINT QUEUE — Multi-location Print / Save PDF
+//  Opens a new window with every queued slide (using pre-captured
+//  JPEG data URLs from addToQueue) and auto-triggers the print dialog.
+//  Mirrors printSlide()'s @page rules so each slide lands on its own
+//  A4 landscape page with zero margin.
+// ══════════════════════════════════════════════════════════
+function printQueue(){
+  if(!PDF_QUEUE.length){alert('Queue is empty.');return;}
+
+  const pagesHtml = PDF_QUEUE.flatMap(item=>{
+    const arr=[];
+    if(item.cv1DataUrl) arr.push(`<div class="page-wrap"><img class="queue-page-img" src="${item.cv1DataUrl}" alt=""></div>`);
+    if(item.cv2DataUrl) arr.push(`<div class="page-wrap"><img class="queue-page-img" src="${item.cv2DataUrl}" alt=""></div>`);
+    return arr;
+  }).join('\n');
+
+  if(!pagesHtml){alert('Queue items are missing rendered images. Try removing and re-adding them.');return;}
+
+  const w = window.open('','_blank');
+  if(!w){alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.');return;}
+
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    || /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const titleParts = PDF_QUEUE.map(i=>i.name).filter(Boolean).slice(0,3).join(' · ');
+  const docTitle = `Compass Offices — ${PDF_QUEUE.length} Location${PDF_QUEUE.length!==1?'s':''}${titleParts?' — '+titleParts:''}`;
+
+  w.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1122">
+<title>${docTitle}</title>
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
+}
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { background:#fff; overflow:visible; font-family:'Hanken Grotesk',sans-serif; }
+
+/* ── Page wrapper: 297mm = 1122px @96dpi, 210mm = 794px ── */
+.page-wrap {
+  width: 1122px;
+  height: 794px;
+  max-width: 1122px;
+  max-height: 794px;
+  overflow: hidden;
+  display: block;
+  position: relative;
+  background: #fff;
+  page-break-after: always;
+  break-after: page;
+  -webkit-break-after: page;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  -webkit-break-inside: avoid;
+}
+.page-wrap:last-child {
+  page-break-after: avoid;
+  break-after: avoid;
+  -webkit-break-after: avoid;
+}
+.queue-page-img {
+  display: block;
+  width: 1122px;
+  height: 794px;
+  object-fit: contain;
+  background:#fff;
+}
+
+/* ── @page: A4 Landscape, zero margin (matches printSlide) ── */
+@page {
+  size: 297mm 210mm landscape;
+  margin: 0 !important;
+  padding: 0 !important;
+  -webkit-margin-before: 0 !important;
+  -webkit-margin-after: 0 !important;
+  -webkit-margin-start: 0 !important;
+  -webkit-margin-end: 0 !important;
+  marks: none;
+}
+@page :first { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :left  { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :right { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :blank { size: 297mm 210mm landscape; margin: 0 !important; }
+
+/* ── Screen preview ── */
+@media screen {
+  body { padding: 20px; background:#888; min-height: 100vh; }
+  .page-wrap { margin: 0 auto 24px; box-shadow: 0 4px 20px rgba(0,0,0,.35); }
+  .print-controls {
+    position: fixed; bottom: 20px; right: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 999; align-items: flex-end;
+  }
+  .print-btn {
+    padding: 12px 24px; border: none; border-radius: 99px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: 'Hanken Grotesk', sans-serif;
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  }
+  .print-btn-primary { background:#FF6600; color:#fff; box-shadow: 0 3px 12px rgba(255,102,0,.4); }
+  .print-btn-secondary { background:#fff; color:#555; border:1.5px solid #ddd; }
+  .print-hint-box {
+    background:#fffbe6; border:2px solid #f0a500; border-radius:10px;
+    padding:12px 16px; font-size:12.5px; color:#5a3e00; max-width:280px;
+    line-height:1.65; box-shadow: 0 3px 12px rgba(0,0,0,.18);
+  }
+  .print-hint-box b { color:#c44400; }
+}
+
+@media print {
+  .print-controls { display: none !important; }
+  html, body {
+    padding: 0 !important; margin: 0 !important;
+    background:#fff !important; width: 1122px !important;
+  }
+  .page-wrap {
+    width: 1122px !important; height: 794px !important;
+    max-height: 794px !important;
+    margin: 0 !important; padding: 0 !important;
+    box-shadow: none !important; overflow: hidden !important;
+  }
+}
+</style>
+</head>
+<body>
+
+${pagesHtml}
+
+<!-- Floating controls (screen only) -->
+<div class="print-controls">
+  <div class="print-hint-box">
+    <b>${PDF_QUEUE.length} location${PDF_QUEUE.length!==1?'s':''}</b> · ${PDF_QUEUE.length*2} pages ready.
+    In the print dialog choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.
+  </div>
+  <button class="print-btn print-btn-secondary" onclick="window.close()">✕ Close</button>
+  <button class="print-btn print-btn-primary" onclick="triggerPrint()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Print / Save PDF
+  </button>
+</div>
+
+\x3Cscript>
+var isSafari = ${isSafari ? 'true' : 'false'};
+var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+var printed = false;
+
+function triggerPrint(){
+  var delay = (isSafari || isIOS) ? 800 : 200;
+  setTimeout(function(){ window.print(); }, delay);
+}
+
+// Wait until every page image has finished decoding before auto-printing
+function imagesReady(){
+  var imgs = document.querySelectorAll('img');
+  for(var i=0; i<imgs.length; i++){
+    if(!imgs[i].complete || imgs[i].naturalWidth === 0) return false;
+  }
+  return true;
+}
+
+function autoPrint(){
+  if(printed) return;
+  if(!imagesReady()){
+    setTimeout(autoPrint, 200);
+    return;
+  }
+  printed = true;
+  var delay = (isSafari || isIOS) ? 1000 : 400;
+  setTimeout(function(){ window.print(); }, delay);
+}
+
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(autoPrint).catch(function(){ setTimeout(autoPrint, 600); });
+} else {
+  setTimeout(autoPrint, 800);
+}
+
+// Absolute safety net — fire within 6s no matter what
+setTimeout(function(){ if(!printed){ printed = true; window.print(); } }, 6000);
+<\/script>
+
+</body>
+</html>`);
+
+  w.document.close();
+}
+
+
 function printSlide(){
+  // If queue has items, open a print preview that contains every queued
+  // location's two pages — same behavior as Download PDF when the queue is in use.
+  if(PDF_QUEUE.length) return printQueue();
   // Ensure preview is up to date
   gen();
 
@@ -4991,6 +5189,9 @@ async function downloadJPG(){
   }
 }
 async function downloadPDF(){
+  // If queue has items, export the whole queue as one multi-page PDF
+  // (matches the behavior of the "Export All PDF" button in the queue panel)
+  if(PDF_QUEUE.length) return exportQueuePDF();
   // Combined 2-page PDF — reuses slideToCanvas for correct image/logo rendering
   gen();
   const btn=document.getElementById('pdf-btn');
