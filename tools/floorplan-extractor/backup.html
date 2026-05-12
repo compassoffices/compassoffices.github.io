@@ -1530,7 +1530,6 @@ async function downloadAll(){
     const mc=document.createElement('canvas'); mc.width=mw; mc.height=mh;
     const mx=mc.getContext('2d');
     mx.drawImage(img, ox, oy, mw, mh, 0, 0, mw, mh);
-    await drawCompassLogo(mx, mw, mh);
     const mb=await new Promise(r=>mc.toBlob(r,'image/png'));
     zip.file(masterFile, mb);
   }
@@ -1704,6 +1703,83 @@ function gotoEditor(){
   if(typeof renderLegendItemsList==='function') renderLegendItemsList();
   gstyle('logo-badge-wrap','display','flex');
   setMode('edit');
+}
+
+
+function saveLayout(){
+  if(pdfDoc) pageRooms[currentPage] = rooms;
+  const allRooms = pdfDoc
+    ? Object.fromEntries(Object.entries(pageRooms).map(([pg,rm])=>[pg, Object.values(rm)]))
+    : {1: Object.values(rooms)};
+  const totalRooms = Object.values(allRooms).flat().length;
+  if(!totalRooms){ alert('No rooms to save yet!'); return; }
+  const payload = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    sourceFile: gel('fi')?.files[0]?.name || 'unknown',
+    isPDF: !!pdfDoc,
+    totalPages,
+    imageSize: { width: origW, height: origH },
+    pages: allRooms,
+    colourMode: { levelNum, legendItems, legendPos, legendScale, showRoomLabels },
+    logoBadgeScale,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'floorplan-layout.json';
+  a.click();
+  setStatus('Layout saved as floorplan-layout.json');
+  setTimeout(()=>setStatus(''), 3000);
+}
+
+function loadLayout(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.version || !data.pages) throw new Error('Invalid layout file');
+      if(pdfDoc){
+        pageRooms = {};
+        for(const [pg,rms] of Object.entries(data.pages)){
+          const pgNum = parseInt(pg); pageRooms[pgNum] = {};
+          for(const rm of rms) pageRooms[pgNum][rm.label] = rm;
+        }
+        rooms = pageRooms[currentPage] || {};
+      } else {
+        rooms = {};
+        const firstPage = Object.values(data.pages)[0] || [];
+        for(const rm of firstPage) rooms[rm.label] = rm;
+      }
+      const allIdxs = Object.values(rooms).map(r=>r.colorIdx||0);
+      colorCounter = allIdxs.length ? Math.max(...allIdxs)+1 : 0;
+      // Restore colour mode state
+      if(data.colourMode){
+        if(data.colourMode.levelNum !== undefined) levelNum = data.colourMode.levelNum;
+        if(data.colourMode.legendItems) legendItems = data.colourMode.legendItems;
+        if(data.colourMode.legendPos) legendPos = data.colourMode.legendPos;
+        if(data.colourMode.legendScale) legendScale = data.colourMode.legendScale;
+        if(typeof data.colourMode.showRoomLabels === 'boolean') showRoomLabels = data.colourMode.showRoomLabels;
+        const li = gel('level-input'); if(li) li.value = levelNum;
+        const ls = gel('legend-scale-slider'); if(ls) ls.value = legendScale;
+        syncLabelToggleBtn();
+        renderLegendItemsList();
+        if(appMode === 'colour') redrawColourOverlay();
+      }
+      if(typeof data.logoBadgeScale === 'number') logoBadgeScale = data.logoBadgeScale;
+      const lbs = gel('logo-badge-slider'); if(lbs) lbs.value = logoBadgeScale;
+      redrawLogoCanvas();
+      selectedRoom = null;
+      redrawRooms(); renderList(); updateBadge(); updatePenBtn();
+      setStatus('Layout loaded — ' + Object.keys(rooms).length + ' rooms');
+      setTimeout(()=>setStatus(''), 3000);
+    } catch(err){
+      alert('Error loading layout file: ' + err.message);
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function resetApp(){
