@@ -5293,10 +5293,47 @@ function ausGetCurrentLoadedFloor(){
   return m ? m[1].replace(/^0+/, '') : null;
 }
 
+// Push an Office Lookup office's room number into Floor Plan Room # so the
+// user doesn't have to type it. Mode-aware:
+//   • Highlight mode (FP_MASTER_DATA loaded) → fpHighlightAdd, which also
+//     bakes the polygon into the master image. Silently fails if the room
+//     isn't in the polygon JSON.
+//   • Legacy collage mode (FP_BASE_URL set, no polygon data) → push a
+//     {url,label} entry into FP_PLANS, same shape "+ Add Plan" produces.
+//   • Neither configured → no-op (no chip mechanism is wired up yet).
+function _ausAddOfficeToFp(oid){
+  if(!oid) return;
+  // Strip the " - C" combined-unit suffix some AUS listings carry
+  const room = String(oid).replace(/\s*-\s*C$/i, '').trim();
+  if(!room) return;
+  if(FP_MASTER_DATA){
+    fpHighlightAdd(room);  // chip render + gen() handled inside
+    return;
+  }
+  if(!FP_BASE_URL) return;
+  const url = FP_BASE_URL + room + '.png';
+  const label = oid;
+  if(FP_PLANS.some(p => p.url === url || p.label === label)) return;
+  FP_PLANS.push({url, label});
+  if(FP_PLANS.length === 1) S.floorplan = url;
+  applyFpSmartDefaults();
+  renderFpList();
+  renderPrFpChips();
+  gen();
+}
+
 function ausToggle(oid){
   const wasSelected = AUS_SELECTED.has(oid);
-  if(wasSelected) AUS_SELECTED.delete(oid);
-  else AUS_SELECTED.add(oid);
+  if(wasSelected){
+    AUS_SELECTED.delete(oid);
+  } else {
+    AUS_SELECTED.add(oid);
+    // Auto-add the office number to Floor Plan Room # so the user doesn't
+    // have to type it manually. Works whether they're in highlight mode
+    // (uses polygon data) or legacy collage mode (uses base URL + .png).
+    // Silently no-ops when no FP source is configured.
+    _ausAddOfficeToFp(oid);
+  }
   // ── Auto-load matching library card by floor ──
   // When user clicks an office (newly selecting it) and a centre filter is
   // active, detect the floor from the first 1-2 digits of the office ID and
@@ -5339,23 +5376,15 @@ function ausAddToRows(){
       commitment,                       // init  → 12-Month Commitment
       `A$${avg.toLocaleString()}`        // avail → Average Price (plain text)
     );
-    // Also add to floor plan if base URL is set
-    if(FP_BASE_URL){
-      const room=oid.replace(/\s*-\s*C$/i,'').trim(); // strip "- C" suffix
-      const url=FP_BASE_URL+room+'.png';
-      const label=oid;
-      const exists=FP_PLANS.some(p=>p.url===url||p.label===label);
-      if(!exists){
-        FP_PLANS.push({url,label});
-        if(FP_PLANS.length===1) S.floorplan=url;
-        applyFpSmartDefaults();
-      }
-    }
+    // Ensure the office is also in Floor Plan Room # (no-op if ausToggle
+    // already added it on selection, or if no FP source is configured).
+    _ausAddOfficeToFp(oid);
   });
-  if(FP_BASE_URL) renderFpList();
-  renderPrFpChips();
+  // _ausAddOfficeToFp already calls renderFpList/renderPrFpChips/gen as
+  // needed per item, but a final gen() keeps the slide in sync with the
+  // pricing rows we just added.
   gen();
-  showStatus(`Added ${AUS_SELECTED.size} office${AUS_SELECTED.size!==1?'s':''} to pricing rows${FP_BASE_URL?' and floor plan':''}.`,'s-ok');
+  showStatus(`Added ${AUS_SELECTED.size} office${AUS_SELECTED.size!==1?'s':''} to pricing rows${(FP_MASTER_DATA||FP_BASE_URL)?' and floor plan':''}.`,'s-ok');
   AUS_SELECTED.clear();
   renderAusLookup();
   document.getElementById('pr-rows')?.scrollIntoView({behavior:'smooth',block:'nearest'});
