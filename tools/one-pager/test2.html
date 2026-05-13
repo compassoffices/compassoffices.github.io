@@ -1937,21 +1937,74 @@ let PRICING_COLS = [
 ];
 function getPricingColLabel(key){
   const col = PRICING_COLS.find(c=>c.key===key);
-  const lbl = col && col.labels && col.labels[LANG];
-  return lbl ? lbl : ui('pr_'+key);
+  if(!col) return key;
+  const lbl = col.labels && col.labels[LANG];
+  if(lbl) return lbl;
+  // Fallback to any language that has a label
+  const anyLbl = col.labels && Object.values(col.labels).find(v=>v);
+  if(anyLbl) return anyLbl;
+  // Built-in columns use the i18n key, custom columns default to "Column"
+  return col.custom ? 'Column' : ui('pr_'+key);
+}
+
+// Built-in column keys — cannot be deleted
+const PRICING_COLS_BUILTIN = ['seats','type','rent','mgmt','init','avail'];
+
+// Generate a unique key for a new custom column (custom_1, custom_2, ...)
+function generateCustomColKey(){
+  let i = 1;
+  while(PRICING_COLS.find(c => c.key === 'custom_'+i)) i++;
+  return 'custom_'+i;
+}
+
+function addPricingCol(){
+  const newKey = generateCustomColKey();
+  PRICING_COLS.push({
+    key: newKey,
+    on: true,
+    custom: true,
+    labels: {'en':'New Column','zh-hant':'','zh-hans':'','ja':''},
+  });
+  renderPricingColSettings();
+  renderRows();
+  gen();
+}
+
+function removePricingCol(key){
+  if(PRICING_COLS_BUILTIN.includes(key)) return; // Built-ins are never removed
+  if(!confirm(`Remove "${getPricingColLabel(key)}" column? Values in this column will be lost.`)) return;
+  PRICING_COLS = PRICING_COLS.filter(c => c.key !== key);
+  // Strip values from every row
+  S.rows.forEach(r => { delete r[key]; });
+  renderPricingColSettings();
+  renderRows();
+  gen();
 }
 function renderPricingColSettings(){
   const el = document.getElementById('pricing-col-settings');
   if(!el) return;
-  el.innerHTML = PRICING_COLS.map((col,i) => `
+  el.innerHTML = PRICING_COLS.map((col,i) => {
+    const isCustom = !!col.custom;
+    const builtinPlaceholder = !isCustom ? ui('pr_'+col.key) : 'Column name';
+    const labelHint = !isCustom ? ui('pr_'+col.key).slice(0,6) : '✱';
+    return `
     <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd);">
       <button class="ben-toggle${col.on?' on':''}" onclick="togglePricingCol(${i})" style="flex-shrink:0;"></button>
-      <span style="font-size:10px;color:var(--xlt);width:36px;flex-shrink:0">${ui('pr_'+col.key).slice(0,6)}</span>
-      <input type="text" value="${(col.labels&&col.labels[LANG])||''}" placeholder="${ui('pr_'+col.key)}"
+      <span style="font-size:10px;color:${isCustom?'var(--o)':'var(--xlt)'};width:36px;flex-shrink:0;font-weight:${isCustom?'700':'500'};">${labelHint}</span>
+      <input type="text" value="${(col.labels&&col.labels[LANG])||''}" placeholder="${builtinPlaceholder}"
         style="flex:1;border:1px solid var(--bd);border-radius:5px;padding:4px 8px;font-size:12px;font-family:inherit;outline:none;"
         oninput="PRICING_COLS[${i}].labels[LANG]=this.value;gen();renderRows();"
         onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
-    </div>`).join('');
+      ${isCustom?`<button onclick="removePricingCol('${col.key}')" title="Remove this column" style="width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;background:var(--wh);color:var(--xlt);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onmouseover="this.style.borderColor='#DC2626';this.style.color='#DC2626'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`:''}
+    </div>`;
+  }).join('')
+  + `
+    <button onclick="addPricingCol()" style="width:100%;margin-top:8px;padding:8px;border:1px dashed var(--bd);border-radius:6px;background:transparent;color:var(--xlt);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;"
+      onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'"
+      onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Custom Column
+    </button>`;
 }
 function togglePricingCol(i){
   PRICING_COLS[i].on = !PRICING_COLS[i].on;
@@ -2043,8 +2096,18 @@ function renderRows(){
   // Only show fields for visible columns
   const colOn=key=>PRICING_COLS.find(col=>col.key===key)?.on!==false;
   const colLabel=key=>getPricingColLabel(key);
+  // Custom columns sit BELOW the built-in fields in each pricing row card
+  const customCols = PRICING_COLS.filter(col => col.custom);
   c.innerHTML=S.rows.map(r=>{
     const eid=`rich-${r.id}`;
+    const customRows = customCols.length ? `
+      <div class="frow" style="grid-template-columns:1fr 1fr;">
+        ${customCols.map(col => colOn(col.key) ? `
+          <div class="field">
+            <label class="fl">${colLabel(col.key)} <span style="font-size:9px;color:var(--xlt);text-transform:none;font-weight:400;">(custom)</span></label>
+            <input type="text" value="${(r[col.key]||'').replace(/"/g,'&quot;')}" onchange="upd(${r.id},'${col.key}',this.value)" placeholder="${(col.labels&&col.labels[LANG])||'Value'}">
+          </div>` : '').join('')}
+      </div>` : '';
     return`<div class="pr-row">
       <div class="pr-head"><span class="pr-lbl">${ui('pr_row')}</span><button class="del-btn" onclick="delRow(${r.id})"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
       <div class="frow">
@@ -2070,7 +2133,7 @@ function renderRows(){
           </div>
         </div>`:''}
         ${colOn('avail')?`<div class="field"><label class="fl">${colLabel('avail')}</label><input type="text" value="${r.avail}" onchange="upd(${r.id},'avail',this.value)" placeholder="${ui('pr_avail_ph')}" style="${r.avail&&r.avail.match(/\$|A\$/)?'color:var(--o);font-weight:700;':''}" oninput="this.style.color=this.value.match(/\\$|A\\$/)?'var(--o)':'';this.style.fontWeight=this.value.match(/\\$|A\\$/)?'700':'';upd(${r.id},'avail',this.value)"></div>`:''}
-      </div>
+      </div>${customRows}
     </div>`;
   }).join('');
 }
@@ -2144,7 +2207,23 @@ function setFpP2(i){FP_PAGE2_IDX=i;renderFpList();gen();}
 let _fpDataDebounceT = null;
 function setFpBaseUrl(v){
   FP_BASE_URL=v;
+  // Auto-create a "Master" plan as FP_PLANS[0] when user enters a Base URL.
+  // This means the master image appears in the preview immediately without
+  // the user needing to type "master" in the room # input.
+  if(v){
+    const masterUrl = v + 'master.png';
+    if(!FP_PLANS.length){
+      FP_PLANS.push({url: masterUrl, label: 'Master'});
+      S.floorplan = masterUrl;
+    } else if(!FP_PLANS[0].url || /master\.(png|jpe?g)$/i.test(FP_PLANS[0].url)){
+      // Empty slot, or it already pointed at a master image → update in place
+      FP_PLANS[0] = {url: masterUrl, label: 'Master'};
+      S.floorplan = masterUrl;
+    }
+  }
   renderFpList();
+  renderPrFpChips();
+  gen();
   // Base URL change can also trigger a fetch IF user hasn't set a separate
   // Data URL — old behavior of "{base}data.json" stays as a convenience.
   clearTimeout(_fpDataDebounceT);
@@ -3026,7 +3105,21 @@ function applyLocationData(p){
         },
         customBody: ld.custom_body || '',
         transport: (ld.transport||[]).map((t,i)=>({id:_trId(),iconId:t.iconId||'tr_metro',text:t.text||''})),
-        rows: (ld.pricing||[]).map(row=>({id:Date.now()+Math.random(),seats:row.seats||'',type:row.type||'',rent:row.rent||'',mgmt:row.mgmt||'',init:row.init||'',avail:row.avail||''})),
+        rows: (ld.pricing||[]).map(row=>{
+          // Preserve all keys (including custom_X) — strip any stale id from
+          // saved data and assign a fresh runtime id.
+          const {id, ...rest} = row;
+          return {
+            id: Date.now()+Math.random(),
+            seats: rest.seats || '',
+            type:  rest.type  || '',
+            rent:  rest.rent  || '',
+            mgmt:  rest.mgmt  || '',
+            init:  rest.init  || '',
+            avail: rest.avail || '',
+            ...rest,
+          };
+        }),
         benefits: (ld.benefits||[]).map(b=>({...b})),
         // benefits_title handled globally below
         amenities: AMENITY_ICONS.map(a=> p.amenities ? p.amenities.includes(a.id) : a.on),
@@ -3068,7 +3161,18 @@ function applyLocationData(p){
     sv('custom-title',p.custom_title);
     const customBodyVal=r(p.custom_body);
     if(customBodyVal){const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML=customBodyVal;const cbh=document.getElementById('custom-body');if(cbh)cbh.value=customBodyVal;}
-    if(p.pricing?.length){S.rows=[];p.pricing.filter(row=>row.seats||row.rent).forEach(row=>addRow(r(row.seats)||'',r(row.type)||'',r(row.rent)||'',r(row.mgmt)||'',r(row.init)||'',r(row.avail||row.available)||''));}
+    if(p.pricing?.length){
+      S.rows=[];
+      p.pricing.filter(row=>row.seats||row.rent).forEach(row=>{
+        addRow(r(row.seats)||'',r(row.type)||'',r(row.rent)||'',r(row.mgmt)||'',r(row.init)||'',r(row.avail||row.available)||'');
+        // Copy any custom column values into the newly-added row (last entry)
+        const last = S.rows[S.rows.length-1];
+        Object.entries(row).forEach(([k,v])=>{
+          if(['id','seats','type','rent','mgmt','init','avail','available'].includes(k)) return;
+          last[k] = r(v) || '';
+        });
+      });
+    }
   }
   if(p.partner_logo_url){S.partnerLogo=p.partner_logo_url;renderLogoCard();}
   if(p.logo_separator&&['x','bar','none'].includes(p.logo_separator)){setSep(p.logo_separator);}
@@ -3123,7 +3227,30 @@ function applyLocationData(p){
       });
     });
   }
-  if(p.pricing_cols&&Array.isArray(p.pricing_cols)){p.pricing_cols.forEach(pc=>{const col=PRICING_COLS.find(c=>c.key===pc.key);if(col){col.on=pc.on!==false;if(pc.labels&&typeof pc.labels==='object')Object.assign(col.labels,pc.labels);else if(pc.label)col.labels[LANG]=pc.label;}});renderPricingColSettings();}
+  if(p.pricing_cols&&Array.isArray(p.pricing_cols)){
+    // Strip any existing custom columns first so loads are deterministic.
+    PRICING_COLS = PRICING_COLS.filter(c => !c.custom);
+    p.pricing_cols.forEach(pc=>{
+      const col = PRICING_COLS.find(c=>c.key===pc.key);
+      if(col){
+        // Existing built-in column → update on/labels
+        col.on = pc.on!==false;
+        if(pc.labels && typeof pc.labels==='object') Object.assign(col.labels, pc.labels);
+        else if(pc.label) col.labels[LANG] = pc.label;
+      } else if(pc.custom || !PRICING_COLS_BUILTIN.includes(pc.key)){
+        // Custom column from saved JSON → re-create it
+        PRICING_COLS.push({
+          key: pc.key,
+          on: pc.on!==false,
+          custom: true,
+          labels: pc.labels && typeof pc.labels==='object'
+            ? {'en':'','zh-hant':'','zh-hans':'','ja':'', ...pc.labels}
+            : {'en': pc.label||'Column','zh-hant':'','zh-hans':'','ja':''},
+        });
+      }
+    });
+    renderPricingColSettings();
+  }
   if(p.icon_overrides&&typeof p.icon_overrides==='object'){window.ICON_OVERRIDES={...p.icon_overrides};}
   // Save the loaded data into current lang slot so it persists on lang switch
   saveLangData(LANG);
@@ -3990,7 +4117,20 @@ function downloadCurrentJSON(){
     virtual_tour: (document.getElementById('matterport')?.value||'').trim(),
     transport: TRANSPORT.map(t=>({iconId:t.iconId,text:t.text})),
     specs: {structure:g('s-struct'),completion:g('s-comp'),ceiling:g('s-ceil'),floor_area:g('s-fa'),common_area:g('s-ca'),oa:g('s-oa'),elevators:g('s-el'),ac:g('s-ac'),network:g('s-net'),facilities:g('s-fac'),hours:g('s-hrs'),parking:g('s-park')},
-    pricing: S.rows.map(row=>({seats:row.seats,type:row.type,rent:row.rent,mgmt:row.mgmt,init:row.init||'',avail:row.avail})),
+    pricing: S.rows.map(row=>{
+      // Save every key (including custom columns), strip the runtime id.
+      const {id, ...rest} = row;
+      // Ensure built-in keys always exist for backward compat with old loaders.
+      return {
+        seats: rest.seats || '',
+        type:  rest.type  || '',
+        rent:  rest.rent  || '',
+        mgmt:  rest.mgmt  || '',
+        init:  rest.init  || '',
+        avail: rest.avail || '',
+        ...rest, // overrides built-ins with row's real values + carries custom_X keys
+      };
+    }),
     amenities: AMENITY_ICONS.filter(a=>a.on).map(a=>a.id),
     benefits_on: BENEFITS.filter(b=>b.on).map(b=>b.id),
     custom_title: g('custom-title'),
@@ -4003,7 +4143,7 @@ function downloadCurrentJSON(){
     show_specs:    SHOW_SPECS,
     hidden_specs:  [...HIDDEN_SPECS],
     logo_separator: LOGO_SEP,
-    pricing_cols:  PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
+    pricing_cols:  PRICING_COLS.map(col=>({key:col.key,on:col.on,custom:!!col.custom,labels:{...col.labels}})),
     // ── Media (global) ──
     partner_logo_url: (S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
     photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:'').filter(Boolean),
@@ -4263,7 +4403,7 @@ function buildStateSnapshot(){
     benefits_pos:BENEFITS_POS,custom_pos:CUSTOM_POS,
     show_specs:SHOW_SPECS,hidden_specs:[...HIDDEN_SPECS],
     logo_separator:LOGO_SEP,
-    pricing_cols:PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
+    pricing_cols:PRICING_COLS.map(col=>({key:col.key,on:col.on,custom:!!col.custom,labels:{...col.labels}})),
     amenities:AMENITY_ICONS.map(a=>a.on),
     benefits_on:BENEFITS.filter(b=>b.on).map(b=>b.id),
     photos:S.photos.map(p=>p&&!p.startsWith('data:')?p:(p?'__local__':null)),
@@ -4313,10 +4453,24 @@ function restoreStateSnapshot(state){
   if(state.icon_overrides)     { window.ICON_OVERRIDES={...state.icon_overrides}; }
 
   // ── 3. Restore pricing columns ─────────────────────────────────────────────
-  if(state.pricing_cols) state.pricing_cols.forEach(sc=>{
-    const col=PRICING_COLS.find(c=>c.key===sc.key);
-    if(col){ col.on=sc.on; col.labels={...sc.labels}; }
-  });
+  if(state.pricing_cols){
+    // Drop any current custom columns first
+    PRICING_COLS = PRICING_COLS.filter(c => !c.custom);
+    state.pricing_cols.forEach(sc=>{
+      const col=PRICING_COLS.find(c=>c.key===sc.key);
+      if(col){
+        col.on = sc.on;
+        col.labels = {...sc.labels};
+      } else if(sc.custom || !PRICING_COLS_BUILTIN.includes(sc.key)){
+        PRICING_COLS.push({
+          key: sc.key,
+          on: sc.on!==false,
+          custom: true,
+          labels: {'en':'','zh-hant':'','zh-hans':'','ja':'', ...(sc.labels||{})},
+        });
+      }
+    });
+  }
 
   // ── 4. Restore amenity icons ───────────────────────────────────────────────
   if(state.amenities) AMENITY_ICONS.forEach((a,i)=>{ a.on=state.amenities[i]??true; });
@@ -4763,9 +4917,59 @@ function renderAusLookup(){
   _ausLookupRendering=false;
 }
 
+// Find a library card matching a centre + floor number combination.
+// Used by ausToggle to auto-switch cards when the user clicks an office on
+// a different floor than the one currently loaded.
+function ausFindLibCardByFloor(centre, floorNum){
+  if(!centre || !floorNum) return null;
+  const matches = ausLibCardsForCentre(centre);
+  const target = String(floorNum).replace(/^0+/, '');
+  for(const m of matches){
+    const l = m.l;
+    const name = typeof l.name==='object' ? (l.name.en||Object.values(l.name)[0]) : (l.name||'');
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    const floorFromSlug = (slug.match(/_([^_]+)$/) || [])[1] || '';
+    const floorRaw = l.floor || l.langs?.en?.floor || floorFromSlug || '';
+    const cardFloorNum = (floorRaw.match(/(\d+)/) || [])[1] || '';
+    if(cardFloorNum && cardFloorNum.replace(/^0+/, '') === target) return m;
+  }
+  return null;
+}
+
+// Return the floor digits of the currently loaded card, or null.
+function ausGetCurrentLoadedFloor(){
+  const floorField = document.getElementById('floor')?.value || '';
+  const m = floorField.match(/(\d+)/);
+  return m ? m[1].replace(/^0+/, '') : null;
+}
+
 function ausToggle(oid){
-  if(AUS_SELECTED.has(oid)) AUS_SELECTED.delete(oid);
+  const wasSelected = AUS_SELECTED.has(oid);
+  if(wasSelected) AUS_SELECTED.delete(oid);
   else AUS_SELECTED.add(oid);
+  // ── Auto-load matching library card by floor ──
+  // When user clicks an office (newly selecting it) and a centre filter is
+  // active, detect the floor from the first 1-2 digits of the office ID and
+  // switch to the library card for that floor — but only if it differs from
+  // the currently loaded card (otherwise we'd wipe user edits unnecessarily).
+  if(!wasSelected && AUS_CENTRE_FILTER){
+    // Office IDs like "1718" (level 17, room 18) or "2101" (level 21, room 01).
+    // The level is the leading 1-2 digits, except some centres prefix "P" etc.
+    const cleanOid = oid.replace(/\s*-\s*C$/i, '').trim();
+    const fm = cleanOid.match(/^(\d{1,2})\d{2}$/) || cleanOid.match(/^(\d{1,2})/);
+    const officeFloor = fm ? fm[1].replace(/^0+/, '') : null;
+    const currentFloor = ausGetCurrentLoadedFloor();
+    if(officeFloor && officeFloor !== currentFloor){
+      const match = ausFindLibCardByFloor(AUS_CENTRE_FILTER, officeFloor);
+      if(match){
+        // Preserve the current selection through the card swap
+        const savedSelection = new Set(AUS_SELECTED);
+        _ausLoadCard(match.i);
+        AUS_SELECTED = savedSelection;
+        showStatus(`Switched to ${match.l.name?.en || match.l.name || 'matching card'} (Level ${officeFloor})`, 's-ok');
+      }
+    }
+  }
   renderAusLookup();
 }
 
