@@ -5377,7 +5377,15 @@ function ausParseAndApplyCSV(text){
     if(row.length<4) continue;
     const raw_centre=stripRegionPrefix((cCol>=0?row[cCol]:''));
     const oid=(oCol>=0?row[oCol]:'').trim();
-    if(!oid||!raw_centre||!raw_centre.match(/\d/)) continue;
+    // Skip rows without an office ID (legend rows at the bottom of the sheet
+    // — "Y - Vacant", "O - Occupied", etc. — have no oid).
+    // Previously this also required a digit in the centre name, which
+    // accidentally filtered out valid centres like "AIA Tower", "China Building",
+    // "Arthaland Century Pacific Tower" — anything outside AUS basically.
+    if(!oid||!raw_centre) continue;
+    // Defence-in-depth: also skip if the stripped centre looks like a legend
+    // code ("Y - Vacant", "N - NDD not due", etc. — single-letter prefix).
+    if(/^[YONS]\s*-\s*/i.test(raw_centre)) continue;
     const mp=parseFloat((mpCol>=0?row[mpCol]:'').replace(/[^\d.]/g,''))||0;
     if(!mp) continue;
 
@@ -5431,20 +5439,84 @@ function getLoadedCentreNames(){
 
 function ausCentreForCardName(cardName){
   if(!cardName) return '';
-  const n = cardName.toLowerCase();
-  return getLoadedCentreNames().find(c => {
-    const prefix = c.toLowerCase().split(' ').slice(0,2).join(' ');
-    return n.startsWith(prefix);
-  }) || '';
+  return getLoadedCentreNames().find(c => centresMatch(c, cardName)) || '';
+}
+
+// ── Centre-name normaliser & fuzzy matcher ─────────────────────────────────
+// Goal: a centre name from the availability sheet (e.g. "PHL - Arthaland
+// Century Pacific Tower" → stripped to "Arthaland Century Pacific Tower")
+// should be able to match a library card named just "Arthaland", or
+// "Arthaland 15F", or the full "Arthaland Century Pacific Tower 15F".
+//
+// Algorithm:
+//   1. Normalise both names: lowercase, strip non-word chars, split into words.
+//   2. Drop generic "filler" words ("tower", "building", "centre", "street"…)
+//      so the discriminative tokens remain ("arthaland", "141", "walker"…).
+//   3. The shorter list must be fully contained in the longer list.
+// This handles both directions ("Arthaland" library → centre "Arthaland …")
+// and ("Arthaland …" library → centre "Arthaland"). The filler list keeps
+// "one"/"two" as significant so "Lee Garden One" ≠ "Lee Garden Two".
+const _CENTRE_FILLER_WORDS = new Set([
+  'tower','towers','building','buildings','bldg',
+  'centre','center','ctr',
+  'plaza','plazas',
+  'street','st',
+  'road','rd',
+  'avenue','ave','av',
+  'place','pl',
+  'square','sq',
+  'park','parks',
+  'house','hall','court',
+  'the','of','on','at','in','and','for','de','la','el','del',
+  'annex','annexe',
+]);
+
+function _normalizeCentreWords(s){
+  return String(s||'').toLowerCase()
+    .replace(/[_\-\.\/]/g,' ')
+    .replace(/[^\w\s\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+function _significantCentreWords(words){
+  const sig = words.filter(w => {
+    if(_CENTRE_FILLER_WORDS.has(w)) return false;
+    // Floor-suffix tokens — "18f", "21fl", "5flr" — are per-floor labels,
+    // not building discriminators. Treat as filler so e.g. "BGC 18F" library
+    // matches "BGC Corporate Center" centre.
+    if(/^\d+f(l(r)?)?$/i.test(w)) return false;
+    return true;
+  });
+  return sig.length ? sig : words;  // fallback: all words filler → use all
+}
+
+// Returns true if centreName and libName refer to the same building.
+function centresMatch(centreName, libName){
+  if(!centreName || !libName) return false;
+  const cSig = _significantCentreWords(_normalizeCentreWords(centreName));
+  const lSig = _significantCentreWords(_normalizeCentreWords(libName));
+  if(!cSig.length || !lSig.length) return false;
+  // Shorter side must be fully contained in longer side (word-level)
+  const [shorter, longer] = cSig.length <= lSig.length ? [cSig, lSig] : [lSig, cSig];
+  return shorter.every(w => longer.includes(w));
 }
 
 function ausLibCardsForCentre(centre){
   if(!centre) return [];
   const lib = getLib();
-  const prefix = centre.toLowerCase().split(' ').slice(0,2).join(' ');
   return lib.map((l,i)=>({l,i})).filter(({l})=>{
-    const n = (typeof l.name==='object'?(l.name.en||''):l.name||'').toLowerCase();
-    return n.startsWith(prefix);
+    // A library card's name may be a string or a per-language object.
+    // Try every variant — match if any one matches.
+    let nameVariants = [];
+    if(typeof l.name === 'object' && l.name){
+      nameVariants = Object.values(l.name).filter(Boolean);
+    } else if(l.name){
+      nameVariants = [l.name];
+    }
+    return nameVariants.some(name => centresMatch(centre, name));
   });
 }
 
