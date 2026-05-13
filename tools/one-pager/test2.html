@@ -2259,7 +2259,14 @@ function openTab(n){
 //  PRICING ROWS
 // ══════════════════════════════════════════════════════════
 function addRow(seats='',type='',rent='',mgmt='',init='',avail=''){S.rows.push({id:Date.now()+Math.random(),seats,type,rent,mgmt,init,avail});renderRows();}
-function delRow(id){S.rows=S.rows.filter(r=>r.id!==id);renderRows();}
+function delRow(id){
+  // Before dropping the row, sync-remove its office # from Floor Plan
+  // Room # if we auto-added it earlier. User-typed FP entries are safe —
+  // _ausRemoveOfficeFromFp checks the auto-tracked set and bails otherwise.
+  const row = (S.rows||[]).find(r => r.id === id);
+  if(row && row.seats) _ausRemoveOfficeFromFp(row.seats);
+  S.rows=S.rows.filter(r=>r.id!==id);renderRows();
+}
 function upd(id,f,v){const r=S.rows.find(r=>r.id===id);if(r)r[f]=v;}
 function updHtml(id,f,el){const r=S.rows.find(r=>r.id===id);if(r)r[f]=el.innerHTML;}
 function richCmd(cmd,editorId){
@@ -2443,6 +2450,11 @@ function prAddFpPlanBtn(){
   if(!inp) return;
   const room=inp.value.trim();
   if(!room) return;
+  // When the user types a room manually here, treat it as user-owned —
+  // drop it from the auto-tracked set so unchecking the office in Office
+  // Lookup won't sweep this entry away.
+  const stripped = room.replace(/\s*-\s*C$/i,'').trim();
+  if(stripped) _AUS_FP_AUTO_ADDED.delete(stripped);
   // ── Highlight mode: add to manual highlights and bake into master ──
   if(FP_MASTER_DATA){
     const ok = fpHighlightAdd(room);
@@ -2838,6 +2850,10 @@ function fpHighlightAdd(roomVal){
 }
 function fpHighlightRemove(displayLabel){
   FP_HIGHLIGHTS_MANUAL.delete(displayLabel);
+  // displayLabel is typically the same as the user-facing room # used
+  // when auto-adding; clear it from the auto set so re-adding later
+  // tracks correctly.
+  _AUS_FP_AUTO_ADDED.delete(displayLabel);
   ensureHighlightRender();
   renderPrFpChips();
   gen();
@@ -2865,6 +2881,12 @@ function addFpPlan(){
 }
 
 function delFpPlan(i){
+  // Clean up the auto-tracked set — same logic as fpHighlightRemove
+  const removed = FP_PLANS[i];
+  if(removed && removed.label){
+    const r = String(removed.label).replace(/\s*-\s*C$/i,'').trim();
+    if(r) _AUS_FP_AUTO_ADDED.delete(r);
+  }
   FP_PLANS.splice(i,1);
   if(FP_PAGE1_IDX>=FP_PLANS.length) FP_PAGE1_IDX=-1;
   if(FP_PAGE2_IDX>=FP_PLANS.length) FP_PAGE2_IDX=0;
@@ -5301,21 +5323,61 @@ function ausGetCurrentLoadedFloor(){
 //   • Legacy collage mode (FP_BASE_URL set, no polygon data) → push a
 //     {url,label} entry into FP_PLANS, same shape "+ Add Plan" produces.
 //   • Neither configured → no-op (no chip mechanism is wired up yet).
+//
+// Rooms successfully auto-added are recorded in _AUS_FP_AUTO_ADDED so the
+// reverse action (uncheck office, remove pricing row) can sync-remove them
+// later WITHOUT touching entries the user typed in manually.
+const _AUS_FP_AUTO_ADDED = new Set(); // keyed by stripped office # (e.g. "1801")
 function _ausAddOfficeToFp(oid){
-  if(!oid) return;
-  // Strip the " - C" combined-unit suffix some AUS listings carry
+  if(!oid) return false;
   const room = String(oid).replace(/\s*-\s*C$/i, '').trim();
-  if(!room) return;
+  if(!room) return false;
   if(FP_MASTER_DATA){
-    fpHighlightAdd(room);  // chip render + gen() handled inside
+    // Highlight mode — must check existence BEFORE calling fpHighlightAdd
+    // (which itself dedupes silently), so we only mark as auto on a true
+    // new addition. If the room was already highlighted (e.g. user typed
+    // it manually first), don't mark as auto — they own it.
+    const found = fpFindRoom(room);
+    if(!found) return false; // room not in polygon JSON
+    if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
+    const ok = fpHighlightAdd(room);   // chip render + gen() handled inside
+    if(ok) _AUS_FP_AUTO_ADDED.add(room);
+    return ok;
+  }
+  if(!FP_BASE_URL) return false;
+  const url = FP_BASE_URL + room + '.png';
+  const label = oid;
+  if(FP_PLANS.some(p => p.url === url || p.label === label)) return false;
+  FP_PLANS.push({url, label});
+  _AUS_FP_AUTO_ADDED.add(room);
+  if(FP_PLANS.length === 1) S.floorplan = url;
+  applyFpSmartDefaults();
+  renderFpList();
+  renderPrFpChips();
+  gen();
+  return true;
+}
+
+// Reverse of _ausAddOfficeToFp. Only removes rooms we actually auto-added
+// — user-typed entries (never tracked in the auto set) are left alone.
+function _ausRemoveOfficeFromFp(oid){
+  if(!oid) return;
+  const room = String(oid).replace(/\s*-\s*C$/i, '').trim();
+  if(!room || !_AUS_FP_AUTO_ADDED.has(room)) return;
+  _AUS_FP_AUTO_ADDED.delete(room);
+  if(FP_MASTER_DATA){
+    const found = fpFindRoom(room);
+    if(found) fpHighlightRemove(found.displayLabel); // chip render + gen() inside
     return;
   }
   if(!FP_BASE_URL) return;
   const url = FP_BASE_URL + room + '.png';
-  const label = oid;
-  if(FP_PLANS.some(p => p.url === url || p.label === label)) return;
-  FP_PLANS.push({url, label});
-  if(FP_PLANS.length === 1) S.floorplan = url;
+  const idx = FP_PLANS.findIndex(p => p.url === url || p.label === oid || p.label === room);
+  if(idx < 0) return;
+  FP_PLANS.splice(idx, 1);
+  if(typeof FP_PAGE1_IDX !== 'undefined' && FP_PAGE1_IDX >= FP_PLANS.length) FP_PAGE1_IDX = -1;
+  if(typeof FP_PAGE2_IDX !== 'undefined' && FP_PAGE2_IDX >= FP_PLANS.length) FP_PAGE2_IDX = 0;
+  S.floorplan = FP_PLANS.length > 0 ? FP_PLANS[0].url : null;
   applyFpSmartDefaults();
   renderFpList();
   renderPrFpChips();
@@ -5326,6 +5388,10 @@ function ausToggle(oid){
   const wasSelected = AUS_SELECTED.has(oid);
   if(wasSelected){
     AUS_SELECTED.delete(oid);
+    // Unchecking syncs back to Floor Plan Room # — if we auto-added this
+    // office's room earlier, take it back out so the chips track the
+    // selection state. Cards the user typed manually stay put.
+    _ausRemoveOfficeFromFp(oid);
   } else {
     AUS_SELECTED.add(oid);
     // Auto-add the office number to Floor Plan Room # so the user doesn't
