@@ -466,10 +466,13 @@ img.co-icon-img{display:block;}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span data-i18n="btn_save_card">Save Card</span>
     </button>
-    <button class="hbtn" id="queue-btn" onclick="addToQueue()" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd);position:relative;">
+    <button class="hbtn" id="queue-btn" onclick="addToQueue()" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd);position:relative;border-top-right-radius:0;border-bottom-right-radius:0;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       <span>+ Queue</span>
       <span id="queue-count" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--o);color:#fff;font-size:9px;font-weight:800;border-radius:50%;width:16px;height:16px;line-height:16px;text-align:center;"></span>
+    </button>
+    <button class="hbtn" id="queue-open-btn" onclick="toggleQueuePanel()" title="Open queue panel" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd);border-left:none;padding:6px 8px;border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
     <button class="hbtn" onclick="openEmailModal()" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg> <span>Email</span></button>
         <button class="hbtn" id="pdf-btn" onclick="downloadPDF()" style="background:#c44000;border:none;">
@@ -3492,6 +3495,20 @@ function applyLocationData(p){
     renderPricingColSettings();
   }
   if(p.icon_overrides&&typeof p.icon_overrides==='object'){window.ICON_OVERRIDES={...p.icon_overrides};}
+  // ── Restore PDF queue from saved card ─────────────────────────────────────
+  // Saved queues carry only {name, thumb, state} per item; cv1/cv2 are
+  // regenerated lazily at export time by the text-PDF re-render path.
+  if(Array.isArray(p.queue)){
+    PDF_QUEUE = p.queue.map(item => ({
+      name: item.name || '',
+      thumb: item.thumb || '',
+      cv1DataUrl: '',   // re-rendered at PDF export
+      cv2DataUrl: '',
+      state: item.state || {},
+    }));
+    updateQueueBadge();
+    renderQueueList();
+  }
   // Save the loaded data into current lang slot so it persists on lang switch
   saveLangData(LANG);
   // Auto-switch layout: if loaded card has specs, switch to Classic; if none, stay/go Auto
@@ -3795,133 +3812,169 @@ function gen(){
 //  Mirrors printSlide()'s @page rules so each slide lands on its own
 //  A4 landscape page with zero margin.
 // ══════════════════════════════════════════════════════════
-function printQueue(){
+async function printQueue(){
   if(!PDF_QUEUE.length){alert('Queue is empty.');return;}
 
-  const pagesHtml = PDF_QUEUE.flatMap(item=>{
-    const arr=[];
-    if(item.cv1DataUrl) arr.push(`<div class="page-wrap"><img class="queue-page-img" src="${item.cv1DataUrl}" alt=""></div>`);
-    if(item.cv2DataUrl) arr.push(`<div class="page-wrap"><img class="queue-page-img" src="${item.cv2DataUrl}" alt=""></div>`);
-    return arr;
+  // ── Text-PDF queue export ──
+  // Instead of using pre-captured JPEGs (which produced image-only PDFs),
+  // we re-render each queued card live, capture its HTML, and feed all the
+  // captured HTML into a print window. Result: selectable, copyable text
+  // throughout the queued PDF — every page is real DOM, not raster.
+  showStatus(`Rendering ${PDF_QUEUE.length} card${PDF_QUEUE.length>1?'s':''} for PDF…`,'s-info');
+
+  // Save current app state so we can restore it after we're done.
+  const stash = buildStateSnapshot();
+
+  const captured = [];
+  let renderError = null;
+  try {
+    for(let i = 0; i < PDF_QUEUE.length; i++){
+      const item = PDF_QUEUE[i];
+      showStatus(`Rendering card ${i+1} of ${PDF_QUEUE.length}: ${item.name || ''}`,'s-info');
+      restoreStateSnapshot(item.state);
+      gen._captureMode = true;
+      gen();
+      gen._captureMode = false;
+      await _waitForCardReady();
+      // Re-gen after highlight render finished, so the slide uses the new baked URL
+      gen._captureMode = true;
+      gen();
+      gen._captureMode = false;
+      await new Promise(r => setTimeout(r, 80));
+      const page1El = document.getElementById('slide');
+      const page2El = document.getElementById('slide2');
+      if(page1El){
+        captured.push({
+          name: item.name || '',
+          slide1: page1El.outerHTML,
+          slide2: page2El ? page2El.outerHTML : '',
+        });
+      }
+    }
+  } catch(err){
+    renderError = err;
+    console.error('[Queue PDF] render error:', err);
+  } finally {
+    // Always restore original state
+    try { restoreStateSnapshot(stash); gen(); } catch(e){ console.warn('Restore failed:', e); }
+  }
+
+  if(renderError){
+    showStatus('Queue render failed — see console for details.','s-err');
+    alert('Failed to render queue: ' + (renderError.message || renderError));
+    return;
+  }
+  if(!captured.length){
+    showStatus('Nothing to print.','s-err');
+    return;
+  }
+
+  showStatus(`Opening print preview — ${captured.length * 2} pages with selectable text…`,'s-ok');
+  _openQueueTextPrintWindow(captured);
+}
+
+// Wait for the current card's slide to settle: highlight bake completes and
+// every <img> on either slide finishes loading.
+async function _waitForCardReady(){
+  // 1. Wait for highlight render (if in highlight mode) up to 6s
+  if(typeof FP_MASTER_DATA !== 'undefined' && FP_MASTER_DATA){
+    const t0 = Date.now();
+    while((FP_HIGHLIGHT_RENDERING || FP_HIGHLIGHT_PENDING_KEY) && Date.now()-t0 < 6000){
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+  // 2. Wait for all images to load (or fail) — bounded by 4s per image
+  const imgs = document.querySelectorAll('#slide img, #slide2 img');
+  await Promise.all(Array.from(imgs).map(img => {
+    if(img.complete && (img.naturalWidth > 0 || (img.src||'').startsWith('data:'))) return Promise.resolve();
+    return new Promise(resolve => {
+      let done = false;
+      const finish = () => { if(!done){ done = true; resolve(); } };
+      img.addEventListener('load', finish, {once:true});
+      img.addEventListener('error', finish, {once:true});
+      setTimeout(finish, 4000);
+    });
+  }));
+  // 3. Tiny settling tick for layout
+  await new Promise(r => setTimeout(r, 80));
+}
+
+// Open the print window with re-rendered slides — every page is live DOM,
+// so the browser's Save-as-PDF preserves selectable text.
+function _openQueueTextPrintWindow(captured){
+  // Collect all CSS from the page; skip @media (max-width: 768px) rules that
+  // would hide preview elements at print width.
+  const allCss = Array.from(document.styleSheets).flatMap(ss => {
+    try {
+      return Array.from(ss.cssRules).flatMap(r => {
+        if(r.media && r.conditionText && (
+          r.conditionText.includes('max-width:768px') ||
+          r.conditionText.includes('max-width: 768px')
+        )) return [];
+        return [r.cssText];
+      });
+    } catch { return []; }
   }).join('\n');
 
-  if(!pagesHtml){alert('Queue items are missing rendered images. Try removing and re-adding them.');return;}
-
   const w = window.open('','_blank');
-  if(!w){alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.');return;}
+  if(!w){ alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.'); return; }
 
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-    || /iPad|iPhone|iPod/.test(navigator.userAgent);
-  // Title becomes the suggested filename in the browser's Save-as-PDF dialog.
-  // Use the same slug pattern as the legacy jsPDF export for consistency.
-  const slugFilename = (PDF_QUEUE.map(i=>i.name).filter(Boolean).join('-')||'queue')
+  const slugFilename = (PDF_QUEUE.map(i => i.name).filter(Boolean).join('-') || 'queue')
     .toLowerCase()
     .replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff-]+/g,'-')
     .replace(/^-|-$/g,'')
     .slice(0,80) || 'compass-offices-queue';
-  const docTitle = slugFilename;
+
+  const pagesHtml = captured.flatMap(c => {
+    const arr = [`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`];
+    if(c.slide2) arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide2}</div></div>`);
+    return arr;
+  }).join('\n');
+
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    || /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  const printFs = '16px';
 
   w.document.write(`<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1122">
-<title>${docTitle}</title>
+<title>${slugFilename}</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  -webkit-print-color-adjust: exact !important;
-  print-color-adjust: exact !important;
-  color-adjust: exact !important;
-}
-html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { background:#fff; overflow:visible; font-family:'Hanken Grotesk',sans-serif; }
-
-/* ── Page wrapper: 297mm = 1122px @96dpi, 210mm = 794px ── */
-.page-wrap {
-  width: 1122px;
-  height: 794px;
-  max-width: 1122px;
-  max-height: 794px;
-  overflow: hidden;
-  display: block;
-  position: relative;
-  background: #fff;
-  page-break-after: always;
-  break-after: page;
-  -webkit-break-after: page;
-  page-break-inside: avoid;
-  break-inside: avoid;
-  -webkit-break-inside: avoid;
-}
-.page-wrap:last-child {
-  page-break-after: avoid;
-  break-after: avoid;
-  -webkit-break-after: avoid;
-}
-.queue-page-img {
-  display: block;
-  width: 1122px;
-  height: 794px;
-  object-fit: contain;
-  background:#fff;
-}
-
-/* ── @page: A4 Landscape, zero margin (matches printSlide) ── */
-@page {
-  size: 297mm 210mm landscape;
-  margin: 0 !important;
-  padding: 0 !important;
-  -webkit-margin-before: 0 !important;
-  -webkit-margin-after: 0 !important;
-  -webkit-margin-start: 0 !important;
-  -webkit-margin-end: 0 !important;
-  marks: none;
-}
-@page :first { size: 297mm 210mm landscape; margin: 0 !important; }
-@page :left  { size: 297mm 210mm landscape; margin: 0 !important; }
-@page :right { size: 297mm 210mm landscape; margin: 0 !important; }
-@page :blank { size: 297mm 210mm landscape; margin: 0 !important; }
-
-/* ── Screen preview ── */
+${allCss}
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+body { background:#fff; overflow:visible; }
+.page-wrap { width:1122px; height:794px; max-width:1122px; max-height:794px; overflow:hidden; display:block; position:relative; background:#fff; page-break-after:always; break-after:page; -webkit-break-after:page; page-break-inside:avoid; break-inside:avoid; -webkit-break-inside:avoid; }
+.page-wrap:last-child { page-break-after:avoid; break-after:avoid; -webkit-break-after:avoid; }
+.page-clip { position:absolute; top:0; left:0; width:1122px; height:794px; overflow:hidden; }
+.slide, .slide2 { --fs: ${printFs} !important; width:1122px !important; height:794px !important; max-width:1122px !important; max-height:794px !important; aspect-ratio:unset !important; border-radius:0 !important; border:none !important; box-shadow:none !important; font-size:var(--fs) !important; overflow:hidden !important; display:grid !important; position:relative !important; padding:3px !important; }
+.sl-body, .p2-body { overflow:hidden !important; max-height:100% !important; }
+.sl-ph-stack, .p2-photos, .sl-specs, .sl-right, .p2-fp-area, .p2-right { overflow:hidden !important; min-height:0 !important; }
+@page { size: 297mm 210mm landscape; margin:0 !important; padding:0 !important; -webkit-margin-before:0 !important; -webkit-margin-after:0 !important; -webkit-margin-start:0 !important; -webkit-margin-end:0 !important; marks:none; }
+@page :first { size: 297mm 210mm landscape; margin:0 !important; }
+@page :left  { size: 297mm 210mm landscape; margin:0 !important; }
+@page :right { size: 297mm 210mm landscape; margin:0 !important; }
+@page :blank { size: 297mm 210mm landscape; margin:0 !important; }
 @media screen {
-  body { padding: 20px; background:#888; min-height: 100vh; }
-  .page-wrap { margin: 0 auto 24px; box-shadow: 0 4px 20px rgba(0,0,0,.35); }
-  .print-controls {
-    position: fixed; bottom: 20px; right: 20px;
-    display: flex; flex-direction: column; gap: 8px;
-    z-index: 999; align-items: flex-end;
-  }
-  .print-btn {
-    padding: 12px 24px; border: none; border-radius: 99px;
-    font-size: 14px; font-weight: 700; cursor: pointer;
-    font-family: 'Hanken Grotesk', sans-serif;
-    display: flex; align-items: center; gap: 8px; white-space: nowrap;
-  }
-  .print-btn-primary { background:#FF6600; color:#fff; box-shadow: 0 3px 12px rgba(255,102,0,.4); }
+  body { padding:20px; background:#888; min-height:100vh; }
+  .page-wrap { margin:0 auto 24px; box-shadow:0 4px 20px rgba(0,0,0,.35); }
+  .print-controls { position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:999; align-items:flex-end; }
+  .print-btn { padding:12px 24px; border:none; border-radius:99px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Hanken Grotesk',sans-serif; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .print-btn-primary { background:#FF6600; color:#fff; box-shadow:0 3px 12px rgba(255,102,0,.4); }
   .print-btn-secondary { background:#fff; color:#555; border:1.5px solid #ddd; }
-  .print-hint-box {
-    background:#fffbe6; border:2px solid #f0a500; border-radius:10px;
-    padding:12px 16px; font-size:12.5px; color:#5a3e00; max-width:280px;
-    line-height:1.65; box-shadow: 0 3px 12px rgba(0,0,0,.18);
-  }
+  .print-hint-box { background:#fffbe6; border:2px solid #f0a500; border-radius:10px; padding:12px 16px; font-size:12.5px; font-family:'Hanken Grotesk',sans-serif; color:#5a3e00; max-width:280px; line-height:1.65; box-shadow:0 3px 12px rgba(0,0,0,.18); }
   .print-hint-box b { color:#c44400; }
 }
-
 @media print {
-  .print-controls { display: none !important; }
-  html, body {
-    padding: 0 !important; margin: 0 !important;
-    background:#fff !important; width: 1122px !important;
-  }
-  .page-wrap {
-    width: 1122px !important; height: 794px !important;
-    max-height: 794px !important;
-    margin: 0 !important; padding: 0 !important;
-    box-shadow: none !important; overflow: hidden !important;
-  }
+  .print-controls { display:none !important; }
+  html, body { padding:0 !important; margin:0 !important; background:#fff !important; width:1122px !important; }
+  .page-wrap { width:1122px !important; height:794px !important; max-height:794px !important; margin:0 !important; padding:0 !important; box-shadow:none !important; overflow:hidden !important; }
+  .page-clip { position:absolute !important; top:0 !important; left:0 !important; width:1122px !important; height:794px !important; overflow:hidden !important; }
+  .slide, .slide2 { width:1122px !important; height:794px !important; max-height:794px !important; overflow:hidden !important; }
 }
 </style>
 </head>
@@ -3929,63 +3982,35 @@ body { background:#fff; overflow:visible; font-family:'Hanken Grotesk',sans-seri
 
 ${pagesHtml}
 
-<!-- Floating controls (screen only) -->
 <div class="print-controls">
   <div class="print-hint-box">
-    <b>${PDF_QUEUE.length} location${PDF_QUEUE.length!==1?'s':''}</b> · ${PDF_QUEUE.length*2} pages ready.<br>
+    <b>${captured.length} location${captured.length>1?'s':''}</b> · ${captured.length*2} pages ready.<br>
     In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
     <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
   </div>
-  <button class="print-btn print-btn-secondary" onclick="window.close()">✕ Close</button>
-  <button class="print-btn print-btn-primary" onclick="triggerPrint()">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-    Print / Save PDF
+  <button class="print-btn print-btn-primary" onclick="window.print()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Print / Save as PDF
   </button>
+  <button class="print-btn print-btn-secondary" onclick="window.close()">Close</button>
 </div>
 
-\x3Cscript>
-var isSafari = ${isSafari ? 'true' : 'false'};
-var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-var printed = false;
-
-function triggerPrint(){
-  var delay = (isSafari || isIOS) ? 800 : 200;
-  setTimeout(function(){ window.print(); }, delay);
-}
-
-// Wait until every page image has finished decoding before auto-printing
-function imagesReady(){
-  var imgs = document.querySelectorAll('img');
-  for(var i=0; i<imgs.length; i++){
-    if(!imgs[i].complete || imgs[i].naturalWidth === 0) return false;
-  }
-  return true;
-}
-
-function autoPrint(){
-  if(printed) return;
-  if(!imagesReady()){
-    setTimeout(autoPrint, 200);
-    return;
-  }
-  printed = true;
-  var delay = (isSafari || isIOS) ? 1000 : 400;
-  setTimeout(function(){ window.print(); }, delay);
-}
-
-if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(autoPrint).catch(function(){ setTimeout(autoPrint, 600); });
-} else {
-  setTimeout(autoPrint, 800);
-}
-
-// Absolute safety net — fire within 6s no matter what
-setTimeout(function(){ if(!printed){ printed = true; window.print(); } }, 6000);
-<\/script>
-
+<script>
+  // Wait for images to load before auto-print
+  (function(){
+    const imgs = Array.from(document.images);
+    if(!imgs.length) return setTimeout(() => window.focus(), 300);
+    let done = 0;
+    const onDone = () => { done++; if(done === imgs.length) setTimeout(() => window.focus(), 300); };
+    imgs.forEach(img => {
+      if(img.complete) onDone();
+      else { img.addEventListener('load', onDone); img.addEventListener('error', onDone); }
+    });
+    setTimeout(() => window.focus(), 3000);
+  })();
+</${'script'}>
 </body>
 </html>`);
-
   w.document.close();
 }
 
@@ -4416,6 +4441,15 @@ function downloadCurrentJSON(){
     office_lookup_region: AX_REGION,
     office_lookup_centre: AUS_CENTRE_FILTER,
     icon_overrides: window.ICON_OVERRIDES||{},
+    // ── PDF Queue ──────────────────────────────────────────
+    // Save lightweight queue entries (name + thumb + state). The cv1/cv2
+    // pre-captured JPEGs are skipped because the new text-PDF export path
+    // re-renders each card live at export time anyway.
+    queue: (PDF_QUEUE || []).map(item => ({
+      name: item.name,
+      thumb: item.thumb,
+      state: item.state,
+    })),
   };
 
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -4820,12 +4854,17 @@ function toggleQueuePanel(){
 function updateQueueBadge(){
   const badge=document.getElementById('queue-count');
   const btn=document.getElementById('queue-btn');
+  const openBtn=document.getElementById('queue-open-btn');
   if(!badge||!btn) return;
   const n=PDF_QUEUE.length;
   badge.textContent=n;
   badge.style.display=n>0?'block':'none';
   btn.style.borderColor=n>0?'var(--o)':'var(--bd)';
   btn.style.color=n>0?'var(--o)':'var(--mid)';
+  if(openBtn){
+    openBtn.style.borderColor=n>0?'var(--o)':'var(--bd)';
+    openBtn.style.color=n>0?'var(--o)':'var(--mid)';
+  }
 }
 
 function renderQueueList(){
@@ -5057,14 +5096,17 @@ function ausSetCentre(centre){
 
   if(centre){
     const matches=ausLibCardsForCentre(centre);
-    if(matches.length===1){
-      // Only one floor → auto-load immediately, no extra click needed
-      _ausLoadCard(matches[0].i);
-      // Still render the lookup filtered to this centre after load
-      setTimeout(()=>renderAusLookup(), 0);
-      return;
+    if(matches.length){
+      // Auto-load the first floor — user can switch via floor chips below.
+      // Skip if that floor's card is already loaded (would wipe edits).
+      const currentFloor = ausGetCurrentLoadedFloor();
+      const firstFloorRaw = matches[0].l.floor || matches[0].l.langs?.en?.floor || '';
+      const firstFloorNum = (firstFloorRaw.match(/(\d+)/) || [])[1] || '';
+      if(firstFloorNum && firstFloorNum.replace(/^0+/,'') !== (currentFloor||'')){
+        _ausLoadCard(matches[0].i);
+      }
     }
-    // Multiple floors → render lookup + show floor selector strip
+    // Render lookup + show all floor chips so user can switch
     renderAusLookup();
     renderAusLibSuggestions(centre);
   } else {
@@ -5447,23 +5489,48 @@ function renderAusLibSuggestions(centre){
 // ══════════════════════════════════════════════════════════
 
 // Returns array of location data objects — from queue if queued, else current slide
+// Returns array of location data objects — from queue if queued, else current slide
+// Language is driven by EMAIL_LANG (which defaults to the current UI language).
+let EMAIL_LANG = ''; // '' = follow current UI LANG, otherwise a specific lang key
+function getEmailLang(){ return EMAIL_LANG || LANG; }
+
+const EMAIL_LANG_LABELS = {'en':'EN','zh-hant':'繁體','zh-hans':'简体','ja':'日本語'};
+
+function renderEmailLangChips(){
+  const el = document.getElementById('email-lang-chips');
+  if(!el) return;
+  const active = getEmailLang();
+  el.innerHTML = LANG_KEYS.map(lc => {
+    const isOn = lc === active;
+    return `<button onclick="setEmailLang('${lc}')" style="padding:3px 10px;border:1.5px solid ${isOn?'var(--o)':'var(--bd)'};background:${isOn?'var(--o)':'transparent'};color:${isOn?'#fff':'var(--mid)'};border-radius:99px;font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">${EMAIL_LANG_LABELS[lc]||lc.toUpperCase()}</button>`;
+  }).join('');
+}
+
+function setEmailLang(lc){
+  EMAIL_LANG = lc || '';
+  renderEmailLangChips();
+  updateEmailPreview();
+}
+
 function _emailGetLocations(){
+  const emailLang = getEmailLang();
   if(PDF_QUEUE && PDF_QUEUE.length > 0){
     return PDF_QUEUE.map(item=>{
       const st = item.state || {};
       const langs = st.langs || {};
-      const enData = langs['en'] || langs[Object.keys(langs)[0]] || {};
-      const fields = enData.fields || {};
-      const rows = enData.rows || [];
-      const benefits = (enData.benefits || []).filter(b=>b.on&&b.text);
+      // Use the email language, falling back to en, then any available lang
+      const langData = langs[emailLang] || langs['en'] || langs[Object.keys(langs)[0]] || {};
+      const fields = langData.fields || {};
+      const rows = langData.rows || [];
+      const benefits = (langData.benefits || []).filter(b=>b.on&&b.text);
       const mRaw = fields['matterport'] || '';
       // Deposit note: pull from queue snapshot's per-lang object if present, else default
       let depositNote = '';
       if(st.deposit_note && typeof st.deposit_note === 'object'){
-        depositNote = st.deposit_note[LANG] || st.deposit_note['en'] || '';
+        depositNote = st.deposit_note[emailLang] || st.deposit_note['en'] || '';
       }
-      if(!depositNote && enData.deposit_note) depositNote = enData.deposit_note;
-      if(!depositNote) depositNote = DEPOSIT_NOTE_DEFAULT[LANG] || DEPOSIT_NOTE_DEFAULT.en;
+      if(!depositNote && langData.deposit_note) depositNote = langData.deposit_note;
+      if(!depositNote) depositNote = DEPOSIT_NOTE_DEFAULT[emailLang] || DEPOSIT_NOTE_DEFAULT.en;
       return {
         name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
         locName: fields['n-main'] || item.name || 'Compass Offices',
@@ -5478,7 +5545,33 @@ function _emailGetLocations(){
       };
     });
   }
-  // Fallback: current slide state
+  // Fallback: current slide state — for current card we need the user's per-lang LANG_DATA
+  // If they're previewing a non-current language, save current first then read the saved lang
+  if(emailLang !== LANG){
+    // Save the current language's input values into LANG_DATA so we read fresh data
+    if(typeof saveLangData === 'function') saveLangData(LANG);
+    const ld = LANG_DATA[emailLang] || {};
+    const fields = ld.fields || {};
+    const rows = ld.rows || [];
+    const benefits = (ld.benefits || []).filter(b=>b.on&&b.text);
+    const mRaw = fields['matterport'] || '';
+    let depositNote = '';
+    if(typeof DEPOSIT_NOTE === 'object') depositNote = DEPOSIT_NOTE[emailLang] || '';
+    if(!depositNote) depositNote = DEPOSIT_NOTE_DEFAULT[emailLang] || DEPOSIT_NOTE_DEFAULT.en;
+    return [{
+      name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
+      locName: fields['n-main'] || 'Compass Offices',
+      floor:   fields['floor'] || '',
+      city:    fields['city'] || '',
+      addr:    fields['addr'] || '',
+      pageUrl: fields['purl'] || '',
+      tours:   mRaw.split(',').map(u=>u.trim()).filter(Boolean),
+      rows,
+      benefits,
+      depositNote,
+    }];
+  }
+  // Same language as UI → read live from DOM
   const mRaw = document.getElementById('matterport')?.value.trim() || '';
   return [{
     name:    [document.getElementById('n-main')?.value.trim()||'', document.getElementById('floor')?.value.trim()||''].filter(Boolean).join(' '),
@@ -5532,6 +5625,9 @@ function openEmailModal(){
   const modal = document.getElementById('email-modal');
   if(!modal) return;
   modal.style.display = 'flex';
+  // Default email language to current UI language on each open
+  EMAIL_LANG = LANG;
+  renderEmailLangChips();
   // Show queue status in modal subtitle
   const subtitle = modal.querySelector('[data-email-subtitle]');
   if(subtitle){
@@ -5573,7 +5669,7 @@ function buildEmailHTML(toName, fromName, company){
     const activeCols = PRICING_COLS.filter(col=>col.on);
 
     const pricingHTML = hasPricing ? `
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-size:13px;margin:16px 0;">
+<table class="em-pricing-stack" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-size:13px;margin:16px 0;">
   <thead><tr style="background:#FF6600;">
     ${activeCols.map(col=>`<th style="padding:10px 14px;text-align:left;color:#ffffff;font-weight:700;font-family:Arial,sans-serif;white-space:nowrap;font-size:12px;">${getPricingColLabel(col.key)}</th>`).join('')}
   </tr></thead>
@@ -5582,7 +5678,8 @@ function buildEmailHTML(toName, fromName, company){
       ${activeCols.map(col=>{
         const v=(r[col.key]||'').replace(/<[^>]+>/g,'');
         const isPrice=col.key==='mgmt'||col.key==='avail';
-        return `<td style="padding:9px 14px;border-bottom:1px solid #f2e8e3;font-family:Arial,sans-serif;font-size:13px;${isPrice?'color:#FF6600;font-weight:700;':''}">${v}</td>`;
+        const label=getPricingColLabel(col.key).replace(/"/g,'&quot;');
+        return `<td data-label="${label}" style="padding:9px 14px;border-bottom:1px solid #f2e8e3;font-family:Arial,sans-serif;font-size:13px;${isPrice?'color:#FF6600;font-weight:700;':''}">${v}</td>`;
       }).join('')}
     </tr>`).join('')}
   </tbody>
@@ -6355,21 +6452,22 @@ window.addEventListener('resize',()=>{
 
 <!-- EMAIL MODAL -->
 <div id="email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:center;justify-content:center;padding:16px;">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;">
-    <div style="padding:16px 20px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-      <div><div style="font-size:15px;font-weight:800;color:#1a1a1a;">✉ Email Template</div><div style="font-size:11px;color:#999;margin-top:1px;" data-email-subtitle>Branded proposal email — copy HTML or open in mail client</div></div>
-      <button onclick="closeEmailModal()" style="border:none;background:#f5f5f5;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;color:#666;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>
+  <div class="email-modal-inner" style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;">
+    <div class="email-modal-head" style="padding:16px 20px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:160px;"><div style="font-size:15px;font-weight:800;color:#1a1a1a;">✉ Email Template</div><div style="font-size:11px;color:#999;margin-top:1px;" data-email-subtitle>Branded proposal email — copy HTML or open in mail client</div></div>
+      <div id="email-lang-chips" style="display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;"></div>
+      <button onclick="closeEmailModal()" style="border:none;background:#f5f5f5;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;color:#666;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;">×</button>
     </div>
-    <div style="padding:12px 20px;border-bottom:1px solid #eee;display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;background:#fafafa;">
+    <div class="email-modal-fields" style="padding:12px 20px;border-bottom:1px solid #eee;display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;background:#fafafa;">
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">To (Client Name)</label><input id="email-to-name" type="text" placeholder="e.g. John Smith" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">From (Your Name)</label><input id="email-from-name" type="text" placeholder="e.g. Sarah Chen" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">Client Company</label><input id="email-company" type="text" placeholder="e.g. Acme Corp" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;"><div id="email-preview" style="max-width:600px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
+    <div class="email-modal-scroll" style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;"><div id="email-preview" style="max-width:600px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
     <!-- Copy footer -->
-    <div style="padding:10px 20px;border-top:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff;">
-      <span id="email-copy-hint" style="font-size:12px;color:#888;transition:color .2s;"></span>
-      <button onclick="emailSelectAll(this)" style="padding:8px 22px;border:none;border-radius:8px;background:#FF6600;color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:6px;">
+    <div class="email-modal-foot" style="padding:10px 20px;border-top:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff;gap:8px;">
+      <span id="email-copy-hint" style="font-size:12px;color:#888;transition:color .2s;flex:1;min-width:0;"></span>
+      <button onclick="emailSelectAll(this)" style="padding:8px 22px;border:none;border-radius:8px;background:#FF6600;color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy
       </button>
@@ -6377,6 +6475,51 @@ window.addEventListener('resize',()=>{
 
   </div>
 </div>
+
+<!-- Email modal responsive styles + transformations to make the email body itself fluid on phones -->
+<style>
+@media screen and (max-width: 640px){
+  #email-modal{padding:0!important;}
+  #email-modal .email-modal-inner{
+    max-width:100%!important;
+    width:100%!important;
+    height:100vh!important;
+    max-height:100vh!important;
+    border-radius:0!important;
+  }
+  #email-modal .email-modal-head{padding:10px 12px 8px!important;gap:6px;}
+  #email-modal .email-modal-head > div:first-child > div:first-child{font-size:13.5px!important;}
+  #email-modal .email-modal-head > div:first-child > div:nth-child(2){font-size:10px!important;}
+  #email-modal .email-modal-fields{padding:8px 12px!important;gap:6px!important;}
+  #email-modal .email-modal-fields > div{min-width:48%!important;}
+  #email-modal .email-modal-fields label{font-size:8.5px!important;}
+  #email-modal .email-modal-fields input{font-size:12px!important;padding:5px 8px!important;}
+  #email-modal .email-modal-scroll{padding:8px 8px!important;}
+  #email-modal #email-preview{
+    max-width:100%!important;
+    margin:0!important;
+  }
+  /* Make email-content tables shrink on mobile preview */
+  #email-modal #email-preview table[width]{width:100%!important;max-width:100%!important;}
+  #email-modal #email-preview img{max-width:100%!important;height:auto!important;}
+  /* Pricing rows: convert wide tables to stacked blocks on phones */
+  #email-modal #email-preview .em-pricing-stack tr{display:block;border-bottom:1px solid #f2e8e3;padding:6px 0;}
+  #email-modal #email-preview .em-pricing-stack td{display:block;padding:2px 8px!important;border:none!important;font-size:12px!important;}
+  #email-modal #email-preview .em-pricing-stack td::before{
+    content:attr(data-label);
+    font-weight:700;
+    color:#999;
+    text-transform:uppercase;
+    font-size:9.5px;
+    letter-spacing:.04em;
+    display:block;
+    margin-bottom:1px;
+  }
+  #email-modal #email-preview .em-pricing-stack thead{display:none;}
+  #email-modal .email-modal-foot{padding:8px 10px!important;}
+  #email-modal .email-modal-foot button{padding:7px 14px!important;font-size:12px!important;}
+}
+</style>
 
 <!-- Mobile FAB — Preview -->
 <button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
