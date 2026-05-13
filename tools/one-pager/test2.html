@@ -2207,6 +2207,20 @@ function setFpP1(i){FP_PAGE1_IDX=i;renderFpList();gen();}
 function setFpP2(i){FP_PAGE2_IDX=i;renderFpList();gen();}
 let _fpDataDebounceT = null;
 function setFpBaseUrl(v){
+  // ── Normalize: handle the common mistake of pasting the full master.png
+  // URL into the Base URL field. We want a directory prefix, so if the
+  // pasted URL ends with .png/.jpg/.jpeg, strip that filename off.
+  // Without this, the tool would build URLs like ".../master.pngmaster.png".
+  const m = v && v.match(/^(.+\/)([^\/]+\.(?:png|jpe?g))(\?.*)?$/i);
+  if(m){
+    v = m[1];
+    // Reflect the normalized value in the input field, but deferred so we
+    // don't yank the cursor while the user is still typing/pasting.
+    const inp = document.getElementById('fp-base-url');
+    if(inp && inp.value !== v){
+      setTimeout(() => { if(document.activeElement !== inp) inp.value = v; }, 80);
+    }
+  }
   FP_BASE_URL=v;
   // Auto-create a "Master" plan as FP_PLANS[0] when user enters a Base URL.
   // This means the master image appears in the preview immediately without
@@ -2288,22 +2302,14 @@ function renderPrFpChips(){
   const chips=document.getElementById('pr-fp-chips');
   if(!chips) return;
 
-  // ── Highlight mode: show currently-highlighted rooms ──
+  // ── Highlight mode: show currently-highlighted rooms (all manual) ──
   if(FP_MASTER_DATA){
-    const pricingIds = new Set();
-    (S.rows || []).forEach(row => {
-      const id = (row.seats || '').trim();
-      if(id){
-        const m = fpFindRoom(id);
-        if(m) pricingIds.add(m.displayLabel);
-      }
-    });
     const manualIds = new Set();
     FP_HIGHLIGHTS_MANUAL.forEach(id => {
       const m = fpFindRoom(id);
       if(m) manualIds.add(m.displayLabel);
     });
-    const allIds = [...new Set([...pricingIds, ...manualIds])].sort();
+    const allIds = [...manualIds].sort();
     // Master chip ALWAYS first — non-removable, indicates master plan is the base layer
     const masterChip = `
       <div style="display:flex;align-items:center;gap:4px;padding:2px 8px 2px 6px;border-radius:20px;background:var(--drk);border:1px solid var(--drk);font-size:11px;color:#fff;font-weight:700;" title="Master floor plan — always shown as the base layer">
@@ -2311,19 +2317,16 @@ function renderPrFpChips(){
         <span>Master</span>
       </div>`;
     if(!allIds.length){
-      chips.innerHTML = masterChip + `<span style="font-size:10.5px;color:var(--xlt);font-style:italic;margin-left:6px;">No rooms highlighted yet · add a pricing row or type a room # above.</span>`;
+      chips.innerHTML = masterChip + `<span style="font-size:10.5px;color:var(--xlt);font-style:italic;margin-left:6px;">No rooms highlighted yet · type a room # above and click "+ Add Plan".</span>`;
     } else {
       chips.innerHTML = masterChip + allIds.map(id => {
-        const isAuto = pricingIds.has(id);
-        const isManual = manualIds.has(id);
         const room = fpFindRoom(id);
         const colour = (room && room.fillColor) || '#FF6600';
-        const xBtn = isManual ? `<button onclick="fpHighlightRemove('${id.replace(/'/g,"\\'")}')" style="border:none;background:transparent;color:var(--o);cursor:pointer;padding:0;line-height:1;font-size:12px;margin-left:1px;" title="Remove manual highlight">×</button>` : '';
-        const autoBadge = isAuto && !isManual ? `<span style="font-size:8px;font-weight:800;color:#888;background:#fff;border:1px solid #ddd;border-radius:99px;padding:0 4px;margin-left:2px;letter-spacing:.04em;">AUTO</span>` : '';
         return `
           <div style="display:flex;align-items:center;gap:3px;padding:2px 8px 2px 6px;border-radius:20px;background:var(--olt);border:1px solid var(--o);font-size:11px;color:var(--o);font-weight:600;">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colour};border:1px solid rgba(0,0,0,.1);"></span>
-            <span>${id}</span>${autoBadge}${xBtn}
+            <span>${id}</span>
+            <button onclick="fpHighlightRemove('${id.replace(/'/g,"\\'")}')" style="border:none;background:transparent;color:var(--o);cursor:pointer;padding:0;line-height:1;font-size:12px;margin-left:1px;" title="Remove">×</button>
           </div>
         `;
       }).join('');
@@ -2374,18 +2377,13 @@ function fpFindRoom(needle){
 
 // Collect every room that should currently be highlighted.
 // Returns a sorted array of {displayLabel, polygon, fillColor, ...}.
-// Pricing rows contribute their `seats` field (which holds Office #).
-// FP_HIGHLIGHTS_MANUAL contributes user-typed room IDs.
+// Highlights are MANUAL only — driven by the Floor Plan Room # input in
+// the Pricing tab. Pricing row office numbers no longer auto-highlight
+// (would surprise users into seeing rooms they didn't ask for).
 function getActiveHighlightRooms(){
   if(!FP_MASTER_DATA) return [];
-  const ids = new Set();
-  (S.rows || []).forEach(row => {
-    const v = (row.seats || '').trim();
-    if(v) ids.add(v);
-  });
-  FP_HIGHLIGHTS_MANUAL.forEach(v => ids.add(v));
   const seen = new Set(), out = [];
-  ids.forEach(id => {
+  FP_HIGHLIGHTS_MANUAL.forEach(id => {
     const room = fpFindRoom(id);
     if(room && !seen.has(room.displayLabel)){
       seen.add(room.displayLabel);
@@ -2571,8 +2569,10 @@ async function fpStartRender(initialRooms){
 // Fetch the polygon JSON. Uses FP_DATA_URL when set, else falls back to
 // {base}data.json. On success → activates highlight mode. On failure
 // (404, CORS, malformed) → silent fallback to legacy image-collage mode.
-// force=true bypasses the dedupe check (used by the Reload button).
-async function tryFetchFpData(force){
+//   force=true: bypass the dedupe check (used by the Reload button + card load).
+//   fromLoad=true: don't auto-set Page 2 different (saved card carries the
+//                  user's prior preference; don't overwrite it).
+async function tryFetchFpData(force, fromLoad){
   const url = fpEffectiveDataUrl();
   if(!url){
     FP_MASTER_DATA = null;
@@ -2584,6 +2584,7 @@ async function tryFetchFpData(force){
     return;
   }
   if(!force && url === FP_DATA_LAST_FETCHED_BASE && FP_DATA_STATUS === 'ok') return;
+  const wasInHighlightMode = !!FP_MASTER_DATA;
   FP_DATA_LAST_FETCHED_BASE = url;
   FP_DATA_STATUS = 'fetching';
   updateFpDataStatusUI();
@@ -2597,6 +2598,17 @@ async function tryFetchFpData(force){
     FP_HIGHLIGHT_LAST_KEY = null;
     FP_HIGHLIGHT_LAST_ERROR = '';
     Object.keys(FP_HIGHLIGHT_CACHE).forEach(k => delete FP_HIGHLIGHT_CACHE[k]);
+    // ── On FIRST entry to highlight mode for this session/card, default to
+    // "Page 2 different" so page 1 shows room close-ups and page 2 shows
+    // the master with highlights. Skip when loading a saved card so the
+    // user's saved toggle preference is preserved.
+    if(!wasInHighlightMode && !fromLoad){
+      FP_PAGE2_SAME = false;
+      FP_PAGE1_IDX = -2;
+      FP_PAGE2_IDX = 0;
+      document.getElementById('fp-p2-same')?.classList.remove('on');
+      document.getElementById('fp-p2-diff')?.classList.add('on');
+    }
     updateFpDataStatusUI();
     ensureHighlightRender();
     gen();
@@ -3261,7 +3273,7 @@ function applyLocationData(p){
     FP_HIGHLIGHT_RENDER_URL = null;
     FP_HIGHLIGHT_LAST_KEY = null;
     FP_DATA_LAST_FETCHED_BASE = '';
-    if(fpEffectiveDataUrl()) tryFetchFpData(true);
+    if(fpEffectiveDataUrl()) tryFetchFpData(true, true);
     else updateFpDataStatusUI();
   } else if(p.floorplan_url){
     S.floorplan=p.floorplan_url;
@@ -4602,7 +4614,7 @@ function restoreStateSnapshot(state){
   // Sync the inputs to current values
   const _bInp=document.getElementById('fp-base-url');if(_bInp)_bInp.value=FP_BASE_URL;
   const _dInp=document.getElementById('fp-data-url');if(_dInp)_dInp.value=FP_DATA_URL;
-  if(fpEffectiveDataUrl()) tryFetchFpData(true); else updateFpDataStatusUI();
+  if(fpEffectiveDataUrl()) tryFetchFpData(true, true); else updateFpDataStatusUI();
   loadLangData(LANG);
   renderPhotoSlots();
   renderLogoCard();
