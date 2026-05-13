@@ -1838,6 +1838,7 @@ let FP_HIGHLIGHT_RENDERING = false; // mutex while a render is in flight
 const FP_HIGHLIGHT_CACHE = {};      // key -> data URL (per-session cache)
 let FP_DATA_STATUS = 'idle';        // 'idle' | 'fetching' | 'ok' | 'error'
 let FP_DATA_LAST_FETCHED_BASE = ''; // de-dupe fetches when same base URL
+let FP_HIGHLIGHT_LAST_ERROR = '';   // last bake error message (shown in status UI)
 
 // Default highlight colour when room has no fillColor (Compass orange).
 const FP_DEFAULT_HIGHLIGHT_COLOR = '#FF6600';
@@ -2401,15 +2402,41 @@ function fpHighlightCacheKey(rooms){
   return masterUrl + '|' + rooms.map(r => r.displayLabel + ':' + (r.fillColor||'')).join(',');
 }
 
-// Load an image with CORS enabled (canvas won't be tainted; toDataURL works).
-function fpLoadImage(url){
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Failed to load image: '+url));
-    img.src = url;
-  });
+// Load a cross-origin image robustly for canvas drawing.
+// Strategy 1 (preferred): fetch the bytes → blob → data URL → img.
+//   The data URL is treated as same-origin, so the canvas isn't tainted and
+//   toDataURL works. Most reliable for Cloudinary which serves images with
+//   CORS headers — fetch() can read the bytes even when img+crossOrigin
+//   sometimes can't paint to canvas due to subtle header mismatches.
+// Strategy 2 (fallback): traditional img + crossOrigin='anonymous'.
+//   Used only if Strategy 1 fails for some reason (e.g. fetch blocked).
+async function fpLoadImage(url){
+  try {
+    const resp = await fetch(url, {mode:'cors', credentials:'omit', cache:'no-cache'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status+' '+resp.statusText);
+    const blob = await resp.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+      reader.readAsDataURL(blob);
+    });
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload  = () => resolve(img);
+      img.onerror = () => reject(new Error('Image decode failed from data URL'));
+      img.src = dataUrl;
+    });
+  } catch (fetchErr) {
+    console.warn('[Floor plan] fetch+blob image load failed, trying img+crossOrigin fallback:', fetchErr.message);
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload  = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load image (both strategies): '+url+' — original error: '+fetchErr.message));
+      img.src = url;
+    });
+  }
 }
 
 // Effective Data URL — explicit FP_DATA_URL wins; fall back to {base}data.json
@@ -2527,11 +2554,14 @@ async function fpStartRender(initialRooms){
         FP_HIGHLIGHT_RENDER_URL = url;
         FP_HIGHLIGHT_LAST_KEY = targetKey;
         FP_HIGHLIGHT_PENDING_KEY = null;
+        FP_HIGHLIGHT_LAST_ERROR = '';
         gen();
       }
     } catch(err){
       console.warn('Floor plan highlight render failed:', err);
       FP_HIGHLIGHT_PENDING_KEY = null;
+      FP_HIGHLIGHT_LAST_ERROR = err.message || String(err);
+      updateFpDataStatusUI();
       break;
     }
   }
@@ -2565,6 +2595,7 @@ async function tryFetchFpData(force){
     FP_MASTER_DATA = data;
     FP_DATA_STATUS = 'ok';
     FP_HIGHLIGHT_LAST_KEY = null;
+    FP_HIGHLIGHT_LAST_ERROR = '';
     Object.keys(FP_HIGHLIGHT_CACHE).forEach(k => delete FP_HIGHLIGHT_CACHE[k]);
     updateFpDataStatusUI();
     ensureHighlightRender();
@@ -2590,7 +2621,11 @@ function updateFpDataStatusUI(){
   } else if(FP_DATA_STATUS === 'ok' && FP_MASTER_DATA){
     const n = (FP_MASTER_DATA.rooms || []).length;
     const lvl = FP_MASTER_DATA.level ? ' · Level '+FP_MASTER_DATA.level : '';
-    el.innerHTML = `<span style="display:inline-block;padding:1px 7px;background:#FF6600;color:#fff;border-radius:99px;font-size:9.5px;font-weight:700;">✓ HIGHLIGHT MODE</span> ${n} rooms${lvl} loaded · master from <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${getMasterImageUrl()||'(no image base)'}</code>`;
+    const masterUrl = getMasterImageUrl() || '(no image base)';
+    const errLine = FP_HIGHLIGHT_LAST_ERROR
+      ? `<div style="margin-top:3px;padding:4px 7px;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;color:#991b1b;font-size:10px;line-height:1.4;"><b>Master image failed to load:</b> ${FP_HIGHLIGHT_LAST_ERROR.slice(0,140)}<br><span style="color:#7f1d1d;">Check that <code style="background:#fff;border:1px solid #fecaca;padding:0 3px;">${masterUrl}</code> is publicly accessible on Cloudinary.</span></div>`
+      : '';
+    el.innerHTML = `<span style="display:inline-block;padding:1px 7px;background:#FF6600;color:#fff;border-radius:99px;font-size:9.5px;font-weight:700;">✓ HIGHLIGHT MODE</span> ${n} rooms${lvl} loaded · master from <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${masterUrl}</code>${errLine}`;
   } else if(FP_DATA_STATUS === 'error'){
     el.innerHTML = `<span style="color:var(--xlt);">No polygon JSON at <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${shortUrl}</code> &middot; using legacy image-collage mode.</span>`;
   } else {
@@ -3444,7 +3479,7 @@ function gen(){
       }
       // No highlights yet → just show the master image
       const masterUrl = getMasterImageUrl();
-      return `<img src="${masterUrl}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
+      return `<img src="${masterUrl}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
     }
     // ── Legacy image-collage mode ──
     const plans=FP_PLANS.length>0?FP_PLANS:(S.floorplan?[{url:S.floorplan,label:'Master'}]:[]);
