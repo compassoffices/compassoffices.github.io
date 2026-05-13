@@ -2114,13 +2114,18 @@ let PRICING_COLS = [
 function getPricingColLabel(key){
   const col = PRICING_COLS.find(c=>c.key===key);
   if(!col) return key;
+  // 1. If the user set an explicit label for the current language, use it.
   const lbl = col.labels && col.labels[LANG];
   if(lbl) return lbl;
-  // Fallback to any language that has a label
+  // 2. Built-in columns with no override → use the i18n string for the
+  //    current language. This prevents a label the user typed only in
+  //    zh-hant ("辦公桌") from leaking into the EN view via cross-language
+  //    fallback.
+  if(!col.custom) return ui('pr_'+key);
+  // 3. Custom column with no label in this language → fall back to any
+  //    other language the user typed in, then to a generic "Column" string.
   const anyLbl = col.labels && Object.values(col.labels).find(v=>v);
-  if(anyLbl) return anyLbl;
-  // Built-in columns use the i18n key, custom columns default to "Column"
-  return col.custom ? 'Column' : ui('pr_'+key);
+  return anyLbl || 'Column';
 }
 
 // Built-in column keys — cannot be deleted
@@ -5172,9 +5177,14 @@ function _ausLoadCardAndFilter(idx, floorNum){
     if(searchInp){
       searchInp.value = floorNum;
     }
-    // Defer so loadFromLib completes first
-    setTimeout(()=>renderAusLookup(), 0);
   }
+  // Defer so loadFromLib completes first, then refresh both the office list
+  // and the floor-chip bar (the chip for the just-loaded floor should turn
+  // solid to indicate it's the active card).
+  setTimeout(()=>{
+    renderAusLookup();
+    if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
+  }, 0);
 }
 function renderAusLookup(){
   if(_ausLookupRendering) return;
@@ -5619,13 +5629,20 @@ function renderAusLibSuggestions(centre){
     return;
   }
 
-  // Multiple matches → prompt user to pick a floor
+  // Multiple matches → prompt user to pick a floor; highlight the one
+  // that's currently loaded so the user sees which floor's card is active.
+  const activeFloor = (typeof ausGetCurrentLoadedFloor === 'function')
+    ? (ausGetCurrentLoadedFloor() || '')
+    : '';
   bar.innerHTML='<span style="font-size:9.5px;font-weight:700;color:var(--o);white-space:nowrap;">Select floor:</span>'
     +matches.map(({l,i})=>{
       const floor=getFloor({l});
       // Extract numeric floor for office # filtering (e.g. "21F" → "21")
       const floorNum=(floor.match(/^(\d+)[Ff]/)||[])[1]||'';
-      return `<button onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:var(--olt);color:var(--o);font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}</button>`;
+      const isActive = floorNum && floorNum.replace(/^0+/,'') === activeFloor;
+      const bg = isActive ? 'var(--o)' : 'var(--olt)';
+      const fg = isActive ? '#fff' : 'var(--o)';
+      return `<button onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:${bg};color:${fg};font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}</button>`;
     }).join('');
 }
 
