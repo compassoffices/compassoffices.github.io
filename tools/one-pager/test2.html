@@ -1892,8 +1892,19 @@ async function ausFetchSheet(url){
       if(badge){badge.textContent=`Live ● (${count})`;badge.style.background='#e8f5e9';badge.style.color='#2e7d32';}
       _rebuildMonthFilter();
       _rebuildViewFilters();
-      renderCentreChips();
-      renderAusLookup();
+      // If this region has exactly one centre AND no filter is already
+      // restored from a saved card, auto-pick it via ausSetCentre — that
+      // populates the filter, renders the chip in "on" state, and triggers
+      // the matching library-card auto-load. Otherwise just render normally;
+      // applyLocationData's saved filter restore (if any) runs after this
+      // returns and will set its own state.
+      const uniqueCentres = [...new Set(Object.values(AUS_OFFICES).map(o=>o.c).filter(Boolean))];
+      if(uniqueCentres.length === 1 && !AUS_CENTRE_FILTER){
+        ausSetCentre(uniqueCentres[0]);
+      } else {
+        renderCentreChips();
+        renderAusLookup();
+      }
       return true;
     }
     throw new Error('No valid data');
@@ -2037,14 +2048,26 @@ function renderCentreChips(){
   const centres = new Set();
   Object.values(AUS_OFFICES).forEach(o => { if(o.c) centres.add(o.c); });
   const list = [...centres].sort();
-  if(list.length <= 1){
-    // Only one centre (or none) — no point showing a sub-filter
+  if(!list.length){
+    // No centres loaded — hide and clear filter
     el.style.display = 'none';
     AUS_CENTRE_FILTER = '';
     return;
   }
   el.style.display = 'flex';
   const shorten = c => c.replace(/\s+(Street|St|Road|Rd|Avenue|Ave|Place|Pl)$/i, '');
+  if(list.length === 1){
+    // Single-centre region (e.g. Kuala Lumpur, Hanoi, Osaka) — show the chip
+    // anyway so the user can see which centre is loaded, and clicking it
+    // still triggers the library-card auto-load. No "All" chip needed.
+    const c = list[0];
+    AUS_CENTRE_FILTER = c;
+    el.innerHTML = `<button onclick="ausSetCentre('${c.replace(/'/g,"\\'")}')" class="lib-city-chip on" style="font-size:10px;padding:2px 8px;">${shorten(c)}</button>`;
+    return;
+  }
+  // 2+ centres: if a previously-set filter no longer exists in this region's
+  // data (e.g. switching from Sydney to KL), clear it so the chip row is sane.
+  if(AUS_CENTRE_FILTER && !centres.has(AUS_CENTRE_FILTER)) AUS_CENTRE_FILTER = '';
   el.innerHTML =
     `<button onclick="ausSetCentre('')" class="lib-city-chip${AUS_CENTRE_FILTER===''?' on':''}" style="font-size:10px;padding:2px 8px;">All</button>` +
     list.map(c => `<button onclick="ausSetCentre('${c.replace(/'/g,"\\'")}')" class="lib-city-chip${AUS_CENTRE_FILTER===c?' on':''}" style="font-size:10px;padding:2px 8px;">${shorten(c)}</button>`).join('');
