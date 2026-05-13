@@ -352,6 +352,7 @@ img.co-icon-img{display:block;}
 .sl-ptbl td.init-cell b{font-weight:700;color:var(--drk);}
 .sl-ptbl td.init-cell [style*="color"]{color:#FF6600 !important;}
 .sl-url{margin-top:calc(var(--fs)*0.28);text-align:right;font-size:calc(var(--fs)*0.58);color:var(--xlt);}
+.sl-deposit-note{font-size:calc(var(--fs)*0.6);color:var(--lt);font-style:italic;line-height:1.4;margin-top:calc(var(--fs)*0.28);padding-top:calc(var(--fs)*0.18);border-top:1px dashed var(--bd);}
 .slide2{--fs:16px;width:100%;aspect-ratio:297/210;background:var(--wh);border-radius:8px;overflow:hidden;box-shadow:0 4px 8px rgba(0,0,0,.08),0 12px 40px rgba(0,0,0,.14);border:1px solid var(--bd);display:grid;grid-template-rows:auto 1fr auto;font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;font-size:var(--fs);line-height:1;padding:3px;}
 .p2-top{background:var(--wh);border-bottom:2px solid var(--bd);padding:calc(var(--fs)*0.55) calc(var(--fs)*1.4);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:calc(var(--fs)*0.7);flex-shrink:0;border-radius:5px 5px 0 0;}
 .p2-body{display:grid;grid-template-columns:1fr 28%;overflow:hidden;min-height:0;}
@@ -805,7 +806,6 @@ img.co-icon-img{display:block;}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span style="font-size:12px;font-weight:800;color:var(--drk);">AUS Office Lookup</span>
             <span id="aus-source-badge" style="font-size:9px;padding:1px 6px;border-radius:10px;background:#fff3e0;color:#e65100;font-weight:700;">Loading…</span>
-
           </div>
           <button onclick="ausFetchSheet(AUS_SHEET_URL).then(ok=>!ok&&showStatus('Sheet fetch failed — check network.','s-err'))" title="Refresh from Google Sheet" style="font-size:10.5px;color:var(--xlt);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -913,6 +913,27 @@ img.co-icon-img{display:block;}
 
       <div class="slabel" style="margin-top:16px"><span data-i18n="sec_col_settings">Column Settings</span></div>
       <div id="pricing-col-settings" style="background:var(--bg);border-radius:8px;padding:4px 10px;"></div>
+
+      <!-- Deposit terms note: per-language, rendered below pricing table on slide + email -->
+      <div style="margin-top:8px;padding:9px 11px;background:var(--olt);border-radius:8px;border:1px solid #FFD9B8;">
+        <div style="font-size:10px;font-weight:800;color:var(--o);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Deposit Terms
+          <span style="font-weight:500;color:var(--xlt);text-transform:none;letter-spacing:0;font-size:9.5px;">— shown below pricing on slide &amp; email</span>
+        </div>
+        <textarea id="deposit-note-input" rows="2"
+          style="width:100%;border:1px solid #FFD9B8;border-radius:6px;padding:6px 9px;font-size:12px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;resize:vertical;line-height:1.45;box-sizing:border-box;"
+          placeholder=""
+          oninput="DEPOSIT_NOTE[LANG]=this.value;genDebounced(300);"
+          onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='#FFD9B8'"></textarea>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:5px;">
+          <button type="button" onclick="resetDepositNote()"
+            style="padding:3px 9px;border:1px solid var(--bd);border-radius:5px;background:var(--wh);color:var(--xlt);font-size:10px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .12s;"
+            onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'"
+            onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">↺ Reset to default</button>
+          <span style="font-size:10px;color:var(--xlt);">Leave empty to use the default for this language</span>
+        </div>
+      </div>
 
       <div class="slabel" style="margin-top:20px"><span data-i18n="sec_amenities">Amenities</span> <span style="font-size:9px;font-weight:500;color:var(--xlt);text-transform:none;letter-spacing:0">— icon grid on slide centre</span></div>
       <p class="note-txt" data-i18n="note_amenities" style="margin-bottom:8px">Toggle which icons appear in the amenity grid.</p>
@@ -1116,6 +1137,10 @@ img.co-icon-img{display:block;}
             oninput="setFpBaseUrl(this.value.trim());"
             onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
         </div>
+        <div id="fp-data-status" style="margin-top:4px;font-size:10px;color:var(--xlt);line-height:1.4;">
+          Room images are PNG: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}{room#}.png</code> &middot;
+          Highlights: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}data.json</code>
+        </div>
       </div>
 
       <!-- Page 2 same/different toggle -->
@@ -1238,8 +1263,6 @@ const RICH_FIELD_IDS = ['s-struct','s-comp','s-ceil','s-fa','s-ca','s-oa','s-el'
 
 // Storage: one entry per language
 const LANG_DATA = {};
-
-// ── FLOORPLAN DATA SHEET ──────────────────────────────────────────────────────
 LANG_KEYS.forEach(lc => { LANG_DATA[lc] = null; }); // null = never saved
 
 function saveLangData(lc){
@@ -1440,6 +1463,8 @@ function setLang(lc){
   // Update benefits title input to show current lang's value
   const bTitleInput=document.getElementById('benefits-title-input');
   if(bTitleInput) bTitleInput.value=BENEFITS_TITLE[lc]||'';
+  // Update deposit note input to show current lang's value + correct placeholder
+  syncDepositNoteInput();
 
   gen();
 }
@@ -1763,6 +1788,38 @@ let FP_PAGE2_SAME = true;  // true = page2 shows same plans as page1
 let FP_PAGE1_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
 let FP_PAGE2_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
 let FP_BASE_URL = '';       // e.g. https://compassoffices.com/uploads/2026/03/floorplan_lg1-24-
+
+// ══════════════════════════════════════════════════════════
+//  HIGHLIGHT MODE (NEW)
+//  When a polygon JSON ({base}data.json) exists on Cloudinary, the floor
+//  plan switches from "image collage of separate room PNGs" to "single
+//  master PNG with selected rooms highlighted via colored polygons".
+//
+//  Data flow:
+//    setFpBaseUrl(v) -> tryFetchFpData() -> fetches {base}data.json
+//      success -> FP_MASTER_DATA = parsed JSON; gen() triggers ensureHighlightRender
+//      failure -> FP_MASTER_DATA = null; legacy image-collage mode stays
+//
+//  Active highlights = (pricing row "office" #s) ∪ FP_HIGHLIGHTS_MANUAL
+//  intersected with rooms that actually exist in FP_MASTER_DATA.rooms.
+//
+//  Rendering is done on an offscreen canvas at the master's native
+//  resolution, then output as a PNG data URL that replaces the floor plan
+//  <img> src. Result: highlights are baked into a single image, so PDF,
+//  print, queue snapshots — every export path — captures them correctly.
+// ══════════════════════════════════════════════════════════
+let FP_MASTER_DATA = null;          // parsed data.json { version, level, master, rooms[] } or null
+let FP_HIGHLIGHTS_MANUAL = new Set(); // displayLabels added via the Room # input (NOT in pricing)
+let FP_HIGHLIGHT_RENDER_URL = null; // current rendered data URL (used as the <img> src on slide)
+let FP_HIGHLIGHT_LAST_KEY = null;   // cache key currently in FP_HIGHLIGHT_RENDER_URL
+let FP_HIGHLIGHT_PENDING_KEY = null;// next render to do
+let FP_HIGHLIGHT_RENDERING = false; // mutex while a render is in flight
+const FP_HIGHLIGHT_CACHE = {};      // key -> data URL (per-session cache)
+let FP_DATA_STATUS = 'idle';        // 'idle' | 'fetching' | 'ok' | 'error'
+let FP_DATA_LAST_FETCHED_BASE = ''; // de-dupe fetches when same base URL
+
+// Default highlight colour when room has no fillColor (Compass orange).
+const FP_DEFAULT_HIGHLIGHT_COLOR = '#FF6600';
 let LOGO_SEP='x';
 let HIDDEN_SPECS=new Set();
 let SHOW_SPECS=true;
@@ -1832,6 +1889,21 @@ function getBenefitsTitle(){
   return {en:'Benefits','zh-hant':'使用優點','zh-hans':'使用优点',ja:'ご利用のメリット'}[LANG]||'Benefits';
 }
 
+// ── DEPOSIT NOTE ─────────────────────────────────────────
+// Per-language override. Empty = use language default.
+// Shown below the pricing table on slide 1 + in the email.
+const DEPOSIT_NOTE_DEFAULT = {
+  'en':       'A 2-month deposit applies to contracts over 3 months, and a 1-month deposit for contracts under 3 months.',
+  'zh-hant':  '合約超過 3 個月需 2 個月按金,3 個月以內合約需 1 個月按金。',
+  'zh-hans':  '合约超过 3 个月需 2 个月押金,3 个月以内合约需 1 个月押金。',
+  'ja':       '3ヶ月超の契約は2ヶ月分、3ヶ月以内の契約は1ヶ月分のデポジットが必要です。',
+};
+let DEPOSIT_NOTE = {'en':'','zh-hant':'','zh-hans':'','ja':''};
+function getDepositNote(){
+  const custom = (DEPOSIT_NOTE[LANG] || '').trim();
+  return custom || DEPOSIT_NOTE_DEFAULT[LANG] || DEPOSIT_NOTE_DEFAULT.en;
+}
+
 // ── PRICING COLUMN CONFIG ────────────────────────────────
 // Each column: {key, on (visible), label (custom override)}
 let PRICING_COLS = [
@@ -1864,6 +1936,20 @@ function togglePricingCol(i){
   PRICING_COLS[i].on = !PRICING_COLS[i].on;
   renderPricingColSettings();
   renderRows();
+  gen();
+}
+
+// ── DEPOSIT NOTE UI HELPERS ──────────────────────────────
+function syncDepositNoteInput(){
+  // Refresh the textarea value + placeholder to match the active language.
+  const el = document.getElementById('deposit-note-input');
+  if(!el) return;
+  el.value = DEPOSIT_NOTE[LANG] || '';
+  el.placeholder = DEPOSIT_NOTE_DEFAULT[LANG] || DEPOSIT_NOTE_DEFAULT.en;
+}
+function resetDepositNote(){
+  DEPOSIT_NOTE[LANG] = '';
+  syncDepositNoteInput();
   gen();
 }
 
@@ -2009,7 +2095,7 @@ function mcApplyUrl(key){
     else FP_PLANS[0]={url,label:'master'};
     S.floorplan=url;
     // Auto-extract base URL
-    FP_BASE_URL=url.replace(/[^/]+\.jpg$/i,'');
+    FP_BASE_URL=url.replace(/[^/]+\.(jpg|jpeg|png)$/i,'');
     const bInp=document.getElementById('fp-base-url');if(bInp)bInp.value=FP_BASE_URL;
     renderFpList();gen();
   }
@@ -2034,7 +2120,14 @@ function onFloorplan(e){const f=e.target.files[0];if(!f)return;const r=new FileR
 // Setter functions — needed because let variables can't be assigned from inline onclick attributes
 function setFpP1(i){FP_PAGE1_IDX=i;renderFpList();gen();}
 function setFpP2(i){FP_PAGE2_IDX=i;renderFpList();gen();}
-function setFpBaseUrl(v){FP_BASE_URL=v;renderFpList();}
+let _fpBaseDebounceT = null;
+function setFpBaseUrl(v){
+  FP_BASE_URL=v;
+  renderFpList();
+  // Debounce — wait for user to stop typing before hitting the network
+  clearTimeout(_fpBaseDebounceT);
+  _fpBaseDebounceT = setTimeout(tryFetchFpData, 600);
+}
 
 // ── Pricing tab → Floor Plan Room # shortcut ──────────────────────────────
 // Mirrors the Media tab but provides a quick-add from the Pricing context
@@ -2049,15 +2142,29 @@ function prAddFpPlanBtn(){
   if(!inp) return;
   const room=inp.value.trim();
   if(!room) return;
-  // Build URL from base
+  // ── Highlight mode: add to manual highlights and bake into master ──
+  if(FP_MASTER_DATA){
+    const ok = fpHighlightAdd(room);
+    if(!ok){
+      // Room not found in polygon data — show a hint without alerting
+      const status = document.getElementById('fp-data-status');
+      if(status){
+        const prev = status.innerHTML;
+        status.innerHTML = `<span style="color:#dc2626;font-weight:600;">⚠ Room "${room}" is not in the polygon data (data.json). Check the room number.</span>`;
+        setTimeout(()=>{ updateFpDataStatusUI(); }, 3500);
+      }
+    }
+    inp.value='';
+    return;
+  }
+  // ── Legacy image-collage mode: append individual room PNG ──
   const base=FP_BASE_URL;
   if(!base){
     alert('Set the Base URL in the Media → Floor Plan section first.');
     return;
   }
-  const url=base+room+'.jpg';
+  const url=base+room+'.png';
   const label=room.toLowerCase()==='master'?'Master':room;
-  // Check if room already exists
   const exists=FP_PLANS.some(p=>p.label===label||p.url===url);
   if(!exists){
     FP_PLANS.push({url,label});
@@ -2073,6 +2180,47 @@ function prAddFpPlanBtn(){
 function renderPrFpChips(){
   const chips=document.getElementById('pr-fp-chips');
   if(!chips) return;
+
+  // ── Highlight mode: show currently-highlighted rooms ──
+  if(FP_MASTER_DATA){
+    const pricingIds = new Set();
+    (S.rows || []).forEach(row => {
+      const id = (row.seats || '').trim();
+      if(id){
+        const m = fpFindRoom(id);
+        if(m) pricingIds.add(m.displayLabel);
+      }
+    });
+    const manualIds = new Set();
+    FP_HIGHLIGHTS_MANUAL.forEach(id => {
+      const m = fpFindRoom(id);
+      if(m) manualIds.add(m.displayLabel);
+    });
+    const allIds = [...new Set([...pricingIds, ...manualIds])].sort();
+    if(!allIds.length){
+      chips.innerHTML = `<span style="font-size:10.5px;color:var(--xlt);font-style:italic;">No rooms highlighted yet · add a pricing row or type a room # above.</span>`;
+    } else {
+      chips.innerHTML = allIds.map(id => {
+        const isAuto = pricingIds.has(id);
+        const isManual = manualIds.has(id);
+        const room = fpFindRoom(id);
+        const colour = (room && room.fillColor) || '#FF6600';
+        const xBtn = isManual ? `<button onclick="fpHighlightRemove('${id.replace(/'/g,"\\'")}')" style="border:none;background:transparent;color:var(--o);cursor:pointer;padding:0;line-height:1;font-size:12px;margin-left:1px;" title="Remove manual highlight">×</button>` : '';
+        const autoBadge = isAuto && !isManual ? `<span style="font-size:8px;font-weight:800;color:#888;background:#fff;border:1px solid #ddd;border-radius:99px;padding:0 4px;margin-left:2px;letter-spacing:.04em;">AUTO</span>` : '';
+        return `
+          <div style="display:flex;align-items:center;gap:3px;padding:2px 8px 2px 6px;border-radius:20px;background:var(--olt);border:1px solid var(--o);font-size:11px;color:var(--o);font-weight:600;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colour};border:1px solid rgba(0,0,0,.1);"></span>
+            <span>${id}</span>${autoBadge}${xBtn}
+          </div>
+        `;
+      }).join('');
+    }
+    const inp=document.getElementById('pr-fp-room');
+    if(inp) inp.placeholder = `e.g. ${FP_MASTER_DATA.rooms[0]?.displayLabel||'2412'} (type room # to highlight)`;
+    return;
+  }
+
+  // ── Legacy image-collage mode: show FP_PLANS ──
   chips.innerHTML=FP_PLANS.map((fp,i)=>`
     <div style="display:flex;align-items:center;gap:3px;padding:2px 8px 2px 6px;border-radius:20px;background:var(--olt);border:1px solid var(--o);font-size:11px;color:var(--o);font-weight:600;">
       ${fp.url&&!fp.url.startsWith('data:')?`<img src="${fp.url}" style="width:16px;height:12px;object-fit:contain;border-radius:2px;background:#fff;">`:''}
@@ -2080,9 +2228,246 @@ function renderPrFpChips(){
       <button onclick="delFpPlan(${i});renderPrFpChips();" style="border:none;background:transparent;color:var(--o);cursor:pointer;padding:0;line-height:1;font-size:12px;margin-left:1px;">×</button>
     </div>
   `).join('');
-  // Update the room input placeholder to show next expected room
   const inp=document.getElementById('pr-fp-room');
   if(inp) inp.placeholder=FP_PLANS.length===0?'master (first = master plan)':`e.g. ${FP_PLANS.length+2400} (add more rooms)`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  HIGHLIGHT MODE — implementation
+// ══════════════════════════════════════════════════════════
+
+// Convert "#FF6600" or "#F60" → {r,g,b}. Falls back to brand orange.
+function fpHexToRgb(hex){
+  if(!hex) return {r:255,g:102,b:0};
+  const s = hex.length===4 ? '#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3] : hex;
+  const r=parseInt(s.slice(1,3),16),g=parseInt(s.slice(3,5),16),b=parseInt(s.slice(5,7),16);
+  if(isNaN(r)||isNaN(g)||isNaN(b)) return {r:255,g:102,b:0};
+  return {r,g,b};
+}
+
+// Find a room in FP_MASTER_DATA that matches a given pricing/manual label.
+// Accepts the displayLabel directly ("2717"), the short label ("17"),
+// and tolerates whitespace + an optional "- C" suffix that AUS uses.
+function fpFindRoom(needle){
+  if(!FP_MASTER_DATA || !needle) return null;
+  const n = String(needle).replace(/\s*-\s*C$/i,'').trim();
+  if(!n) return null;
+  const rooms = FP_MASTER_DATA.rooms || [];
+  return rooms.find(r => r.displayLabel===n)
+      || rooms.find(r => r.label===n)
+      || rooms.find(r => String(r.displayLabel).toLowerCase()===n.toLowerCase())
+      || null;
+}
+
+// Collect every room that should currently be highlighted.
+// Returns a sorted array of {displayLabel, polygon, fillColor, ...}.
+// Pricing rows contribute their `seats` field (which holds Office #).
+// FP_HIGHLIGHTS_MANUAL contributes user-typed room IDs.
+function getActiveHighlightRooms(){
+  if(!FP_MASTER_DATA) return [];
+  const ids = new Set();
+  (S.rows || []).forEach(row => {
+    const v = (row.seats || '').trim();
+    if(v) ids.add(v);
+  });
+  FP_HIGHLIGHTS_MANUAL.forEach(v => ids.add(v));
+  const seen = new Set(), out = [];
+  ids.forEach(id => {
+    const room = fpFindRoom(id);
+    if(room && !seen.has(room.displayLabel)){
+      seen.add(room.displayLabel);
+      out.push(room);
+    }
+  });
+  return out.sort((a,b)=>String(a.displayLabel).localeCompare(String(b.displayLabel)));
+}
+
+// Cache key — same set of rooms with same colours → same rendered image.
+function fpHighlightCacheKey(rooms){
+  if(!FP_MASTER_DATA) return '';
+  const masterUrl = FP_BASE_URL + (FP_MASTER_DATA.master?.file || 'master.png');
+  return masterUrl + '|' + rooms.map(r => r.displayLabel + ':' + (r.fillColor||'')).join(',');
+}
+
+// Load an image with CORS enabled (canvas won't be tainted; toDataURL works).
+function fpLoadImage(url){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load image: '+url));
+    img.src = url;
+  });
+}
+
+// Core renderer: draw the master, then overlay each highlighted polygon.
+async function renderHighlightedMaster(rooms){
+  if(!FP_MASTER_DATA) return null;
+  const masterFile = FP_MASTER_DATA.master?.file || 'master.png';
+  const masterUrl = FP_BASE_URL + masterFile;
+  const img = await fpLoadImage(masterUrl);
+  const cv = document.createElement('canvas');
+  cv.width = img.naturalWidth;
+  cv.height = img.naturalHeight;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const lineWidth = Math.max(2, img.naturalWidth * 0.002);
+  rooms.forEach(room => {
+    let hasPath = false;
+    if(room.polygon && room.polygon.length >= 3){
+      ctx.beginPath();
+      ctx.moveTo(room.polygon[0].x, room.polygon[0].y);
+      for(let i=0; i<room.polygon.length; i++){
+        const A = room.polygon[i];
+        const B = room.polygon[(i+1) % room.polygon.length];
+        if(A.hOut){
+          ctx.bezierCurveTo(A.x+A.hOut[0], A.y+A.hOut[1],
+                            B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*0.4), B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*0.4),
+                            B.x, B.y);
+        } else {
+          ctx.lineTo(B.x, B.y);
+        }
+      }
+      ctx.closePath();
+      hasPath = true;
+    } else if(room.rect){
+      ctx.beginPath();
+      ctx.rect(room.rect.x1, room.rect.y1, room.rect.x2-room.rect.x1, room.rect.y2-room.rect.y1);
+      hasPath = true;
+    }
+    if(!hasPath) return;
+    const {r,g,b} = fpHexToRgb(room.fillColor || FP_DEFAULT_HIGHLIGHT_COLOR);
+    ctx.fillStyle   = `rgba(${r},${g},${b},0.45)`;  ctx.fill();
+    ctx.strokeStyle = `rgba(${r},${g},${b},1)`;
+    ctx.lineWidth   = lineWidth;
+    ctx.stroke();
+  });
+  return cv.toDataURL('image/png');
+}
+
+// Main entry — call from anywhere that mutates highlight inputs.
+// Returns immediately; if a render is needed it kicks off async and
+// re-calls gen() when ready (so the slide updates with the new URL).
+function ensureHighlightRender(){
+  if(!FP_MASTER_DATA){
+    FP_HIGHLIGHT_RENDER_URL = null;
+    FP_HIGHLIGHT_LAST_KEY = null;
+    return;
+  }
+  const rooms = getActiveHighlightRooms();
+  if(!rooms.length){
+    // No highlights → master shown without overlay (handled in buildFpHtml)
+    FP_HIGHLIGHT_RENDER_URL = null;
+    FP_HIGHLIGHT_LAST_KEY = null;
+    return;
+  }
+  const key = fpHighlightCacheKey(rooms);
+  if(key === FP_HIGHLIGHT_LAST_KEY) return;
+  if(FP_HIGHLIGHT_CACHE[key]){
+    FP_HIGHLIGHT_RENDER_URL = FP_HIGHLIGHT_CACHE[key];
+    FP_HIGHLIGHT_LAST_KEY = key;
+    return;
+  }
+  FP_HIGHLIGHT_PENDING_KEY = key;
+  if(FP_HIGHLIGHT_RENDERING) return; // will pick up pending on completion
+  fpStartRender(rooms);
+}
+
+async function fpStartRender(initialRooms){
+  FP_HIGHLIGHT_RENDERING = true;
+  let safety = 0;
+  while(FP_HIGHLIGHT_PENDING_KEY && safety < 8){
+    safety++;
+    const targetKey = FP_HIGHLIGHT_PENDING_KEY;
+    const rooms = (safety === 1) ? initialRooms : getActiveHighlightRooms();
+    try{
+      const url = await renderHighlightedMaster(rooms);
+      FP_HIGHLIGHT_CACHE[targetKey] = url;
+      if(FP_HIGHLIGHT_PENDING_KEY === targetKey){
+        FP_HIGHLIGHT_RENDER_URL = url;
+        FP_HIGHLIGHT_LAST_KEY = targetKey;
+        FP_HIGHLIGHT_PENDING_KEY = null;
+        gen();
+      }
+    } catch(err){
+      console.warn('Floor plan highlight render failed:', err);
+      FP_HIGHLIGHT_PENDING_KEY = null;
+      break;
+    }
+  }
+  FP_HIGHLIGHT_RENDERING = false;
+}
+
+// Fetch the polygon JSON from {base}data.json. Activates highlight mode
+// on success; on failure (404, CORS, malformed) silently falls back.
+async function tryFetchFpData(){
+  if(!FP_BASE_URL){
+    FP_MASTER_DATA = null;
+    FP_DATA_STATUS = 'idle';
+    FP_DATA_LAST_FETCHED_BASE = '';
+    updateFpDataStatusUI();
+    return;
+  }
+  if(FP_BASE_URL === FP_DATA_LAST_FETCHED_BASE && FP_DATA_STATUS === 'ok') return;
+  FP_DATA_LAST_FETCHED_BASE = FP_BASE_URL;
+  FP_DATA_STATUS = 'fetching';
+  updateFpDataStatusUI();
+  const url = FP_BASE_URL + 'data.json';
+  try{
+    const resp = await fetch(url, {mode:'cors', credentials:'omit', cache:'no-cache'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data = await resp.json();
+    if(!data || !Array.isArray(data.rooms)) throw new Error('Malformed JSON (missing rooms[])');
+    FP_MASTER_DATA = data;
+    FP_DATA_STATUS = 'ok';
+    FP_HIGHLIGHT_LAST_KEY = null;
+    Object.keys(FP_HIGHLIGHT_CACHE).forEach(k => delete FP_HIGHLIGHT_CACHE[k]);
+    updateFpDataStatusUI();
+    ensureHighlightRender();
+    gen();
+  } catch(err){
+    FP_MASTER_DATA = null;
+    FP_DATA_STATUS = 'error';
+    FP_HIGHLIGHT_RENDER_URL = null;
+    FP_HIGHLIGHT_LAST_KEY = null;
+    updateFpDataStatusUI();
+    console.info('[Floor plan] No polygon data at', url, '(falling back to image mode)');
+    gen();
+  }
+}
+
+function updateFpDataStatusUI(){
+  const el = document.getElementById('fp-data-status');
+  if(!el) return;
+  if(FP_DATA_STATUS === 'fetching'){
+    el.innerHTML = '<span style="color:var(--o);font-weight:600;">⟳ Checking for floor plan data…</span>';
+  } else if(FP_DATA_STATUS === 'ok' && FP_MASTER_DATA){
+    const n = (FP_MASTER_DATA.rooms || []).length;
+    const lvl = FP_MASTER_DATA.level ? ' · Level '+FP_MASTER_DATA.level : '';
+    el.innerHTML = `<span style="display:inline-block;padding:1px 7px;background:#FF6600;color:#fff;border-radius:99px;font-size:9.5px;font-weight:700;">✓ HIGHLIGHT MODE</span> ${n} rooms${lvl} loaded from <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">data.json</code>`;
+  } else if(FP_DATA_STATUS === 'error'){
+    el.innerHTML = `<span style="color:var(--xlt);">No <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">data.json</code> at this base &middot; using legacy image-collage mode (room PNGs).</span>`;
+  } else {
+    el.innerHTML = `Room images are PNG: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}{room#}.png</code> &middot; Highlights: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}data.json</code>`;
+  }
+}
+
+// Manual highlight management (room # input in Pricing tab)
+function fpHighlightAdd(roomVal){
+  if(!FP_MASTER_DATA) return false;
+  const room = fpFindRoom(roomVal);
+  if(!room) return false;
+  FP_HIGHLIGHTS_MANUAL.add(room.displayLabel);
+  ensureHighlightRender();
+  renderPrFpChips();
+  gen();
+  return true;
+}
+function fpHighlightRemove(displayLabel){
+  FP_HIGHLIGHTS_MANUAL.delete(displayLabel);
+  ensureHighlightRender();
+  renderPrFpChips();
+  gen();
 }
 
 function setFpPage2Same(same){
@@ -2141,17 +2526,17 @@ function updateFpUrl(i){
     // Fall back to deriving from plan 0's URL if base not set
     let base=FP_BASE_URL;
     if(!base&&FP_PLANS[0]?.url){
-      const m=FP_PLANS[0].url.match(/^(.+[-_])[^-_]+\.jpg$/i);
+      const m=FP_PLANS[0].url.match(/^(.+[-_])[^-_]+\.(jpg|jpeg|png)$/i);
       base=m?m[1]:'';
     }
     if(base){
-      FP_PLANS[i].url=base+room+'.jpg';
+      FP_PLANS[i].url=base+room+'.png';
       FP_PLANS[i].label=room;
       urlInp.value=FP_PLANS[i].url;
     }
   } else {
     FP_PLANS[i].url=urlInp.value.trim();
-    const fname=FP_PLANS[i].url.split('/').pop().replace(/\.jpg$/i,'');
+    const fname=FP_PLANS[i].url.split('/').pop().replace(/\.(jpg|jpeg|png)$/i,'');
     FP_PLANS[i].label=fname||FP_PLANS[i].label;
   }
   if(i===0) S.floorplan=FP_PLANS[0].url||null;
@@ -2173,10 +2558,11 @@ function updateFpUrlDirect(i){
   FP_PLANS[i].url=url;
   if(!url){if(i===0)S.floorplan=null;gen();return;}
   // Detect base: split at the last - or _ before the filename
-  // Matches: …/floorplan_lg1-24-master.jpg → base=…/floorplan_lg1-24-  room=master
-  //          …/LG1-1234.jpg                → base=…/LG1-               room=1234
-  //          …/floorplan-2412.jpg          → base=…/floorplan-          room=2412
-  const baseMatch=url.match(/^(.+[-_])([^-_/]+)\.jpg$/i);
+  // Matches: …/floorplan_lg1-24-master.png → base=…/floorplan_lg1-24-  room=master
+  //          …/LG1-1234.png                → base=…/LG1-               room=1234
+  //          …/floorplan-2412.png          → base=…/floorplan-          room=2412
+  // (also accepts legacy .jpg / .jpeg for backwards compat)
+  const baseMatch=url.match(/^(.+[-_])([^-_/]+)\.(jpg|jpeg|png)$/i);
   if(baseMatch){
     const base=baseMatch[1];
     const room=baseMatch[2];
@@ -2186,9 +2572,11 @@ function updateFpUrlDirect(i){
       FP_BASE_URL=base;
       const bInp=document.getElementById('fp-base-url');
       if(bInp) bInp.value=FP_BASE_URL;
+      // Trigger polygon data auto-fetch when base url changes
+      tryFetchFpData();
     }
   } else {
-    FP_PLANS[i].label=url.split('/').pop().replace(/\.jpg$/i,'')||('Plan '+(i+1));
+    FP_PLANS[i].label=url.split('/').pop().replace(/\.(jpg|jpeg|png)$/i,'')||('Plan '+(i+1));
     if(roomInp) roomInp.value='';
   }
   if(i===0) S.floorplan=FP_PLANS[0].url||null;
@@ -2246,7 +2634,7 @@ function renderFpList(){
         <label for="fp-up-${i}" class="mc-upload-btn" style="font-size:10px;padding:3px 7px;cursor:pointer;flex-shrink:0;">↑ Upload</label>
       </div>
       <input id="fp-url-${i}" type="url" value="${fp.url&&!fp.url.startsWith('data:')?fp.url:''}"
-        placeholder="https://…/floorplan.jpg"
+        placeholder="https://…/floorplan.png"
         style="width:100%;box-sizing:border-box;border:1px solid var(--bd);border-radius:5px;padding:3px 8px;font-size:11px;font-family:inherit;outline:none;"
         oninput="updateFpUrlDirect(${i})"
         onchange="updateFpUrlDirect(${i})"
@@ -2534,8 +2922,7 @@ function loadFromLib(idx){
   LAST_LOCATION=p;applyLocationData(p);
   const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
   document.getElementById('json-search').value=displayName;
-  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();setTimeout(renderPhotoSlots,60);
-  // Try to auto-load floorplan crop data from sheet
+  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
     const matchedCentre = ausCentreForCardName(displayName);
@@ -2604,6 +2991,7 @@ function applyLocationData(p){
     LANG_KEYS.forEach(lc=>{
       const ld2=p.langs[lc];
       if(ld2&&ld2.benefits_title!==undefined) BENEFITS_TITLE[lc]=ld2.benefits_title||'';
+      if(ld2&&ld2.deposit_note!==undefined)   DEPOSIT_NOTE[lc]  =ld2.deposit_note||'';
     });
     const bTitleInp=document.getElementById('benefits-title-input');
     if(bTitleInp) bTitleInp.value=BENEFITS_TITLE[LANG]||'';
@@ -2634,18 +3022,7 @@ function applyLocationData(p){
   if(p.logo_separator&&['x','bar','none'].includes(p.logo_separator)){setSep(p.logo_separator);}
   if(p.amenities){AMENITY_ICONS.forEach(a=>{a.on=p.amenities.includes(a.id);});renderAmenities();}
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
-  (function(){
-  // Try multiple photo sources for compatibility with different JSON formats
-  const _ph = p.photos || p.photo_urls || (p.langs && (p.langs['en']||p.langs[Object.keys(p.langs)[0]])?.photos) || null;
-  if(!_ph) return;
-  const _arr = Array.isArray(_ph) ? _ph : Object.values(_ph);
-  if(!_arr.length) return;
-  S.photos=[null,null,null,null,null,null];
-  _arr.slice(0,6).forEach((url,i)=>{
-    S.photos[i]=(url&&typeof url==='string'&&!url.startsWith('data:')&&url.length>5)?url:null;
-  });
-  renderPhotoSlots();
-})();
+  if(p.photos?.length){S.photos=[null,null,null,null,null,null];p.photos.slice(0,6).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
   if(p.fp_plans&&Array.isArray(p.fp_plans)&&p.fp_plans.length){
     FP_PLANS=p.fp_plans.filter(p=>p.url).map(p=>({url:p.url,label:p.label||''}));
     FP_PAGE2_SAME=p.fp_page2_same!==false;
@@ -2656,15 +3033,26 @@ function applyLocationData(p){
     const bInp=document.getElementById('fp-base-url');if(bInp)bInp.value=FP_BASE_URL;
     setFpPage2Same(FP_PAGE2_SAME);
     renderFpList();
+    // Restore manual highlight additions
+    FP_HIGHLIGHTS_MANUAL = new Set(Array.isArray(p.fp_highlights_manual) ? p.fp_highlights_manual : []);
+    // Reset highlight state and re-fetch polygon data for the new base
+    FP_MASTER_DATA = null;
+    FP_HIGHLIGHT_RENDER_URL = null;
+    FP_HIGHLIGHT_LAST_KEY = null;
+    FP_DATA_LAST_FETCHED_BASE = '';
+    if(FP_BASE_URL) tryFetchFpData();
+    else updateFpDataStatusUI();
   } else if(p.floorplan_url){
     S.floorplan=p.floorplan_url;
     FP_PLANS=[{url:p.floorplan_url,label:'master'}];
-    FP_BASE_URL=p.floorplan_url.replace(/[^/]+\.jpg$/i,'');
+    FP_BASE_URL=p.floorplan_url.replace(/[^/]+\.(jpg|jpeg|png)$/i,'');
     renderFpList();
   }
   // ── Restore all layout settings ──
   if(p.benefits_pos)setBenPos(p.benefits_pos);
   if(p.benefits_title&&typeof p.benefits_title==='object'){Object.assign(BENEFITS_TITLE,p.benefits_title);const bi=document.getElementById('benefits-title-input');if(bi)bi.value=BENEFITS_TITLE[LANG]||'';}
+  if(p.deposit_note&&typeof p.deposit_note==='object'){Object.assign(DEPOSIT_NOTE,p.deposit_note);}
+  syncDepositNoteInput();
   if(p.custom_pos)setCustomPos(p.custom_pos);
   if(p.show_specs===false&&SHOW_SPECS)toggleShowSpecs();
   else if(p.show_specs===true&&!SHOW_SPECS)toggleShowSpecs();
@@ -2731,6 +3119,10 @@ function checkAutoLayout(){
 // ══════════════════════════════════════════════════════════
 function gen(){
   const _captureMode = gen._captureMode || false;
+  // Keep highlight render in sync with current pricing rows + manual additions.
+  // Cheap when nothing has changed (returns immediately due to cache key check).
+  // Triggers async re-render when state has changed; calls gen() again on completion.
+  if(typeof ensureHighlightRender === 'function') ensureHighlightRender();
   const name=g('n-main')||'Location Name';
   const addr=g('addr');const city=g('city')||'Hong Kong';const floor=g('floor');const purl=g('purl');
   const trLines=TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
@@ -2820,18 +3212,51 @@ function gen(){
 
   // In Auto mode: 2-col layout when 5+ benefits (matches Transport 2-col grid)
   const bUseTwoCol = BENEFITS_POS==='auto' && checked.length>=5;
-  const bFScale = b => { const len=b.text.length; return len<=38?0.82:len<=50?0.74:len<=62?0.65:len<=75?0.58:0.52; };
-  const meritsHTML=checked.length?`<div class="sl-merits-wrap"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:flex-start;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;word-break:break-word;white-space:normal;line-height:1.25;">${b.text}</span></span></li>`).join('')}</ul></div>`:'';
+  // ── Density-aware sizing: shrinks font + gap as item count grows, so the
+  //    last item never gets clipped by the container's overflow:hidden.
+  //    In 2-col mode the "effective" row count is half the item count.
+  const bEffCount = bUseTwoCol ? Math.ceil(checked.length/2) : checked.length;
+  const bDensity = bEffCount<=5  ? 1.00
+                : bEffCount<=7  ? 0.92
+                : bEffCount<=9  ? 0.83
+                : bEffCount<=11 ? 0.74
+                : bEffCount<=13 ? 0.66
+                :                 0.60;
+  const bGapFs  = bEffCount<=5  ? 0.18
+                : bEffCount<=7  ? 0.14
+                : bEffCount<=9  ? 0.10
+                : bEffCount<=11 ? 0.07
+                : bEffCount<=13 ? 0.05
+                :                 0.04;
+  const bFScale = b => {
+    const len = b.text.length;
+    const base = len<=38?0.82:len<=50?0.74:len<=62?0.65:len<=75?0.58:0.52;
+    return (base * bDensity).toFixed(3);
+  };
+  const bGapStyle = `gap:calc(var(--fs)*${bGapFs.toFixed(2)});`;
+  const meritsHTML=checked.length?`<div class="sl-merits-wrap"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}" style="${bGapStyle}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:flex-start;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;word-break:break-word;white-space:normal;line-height:1.25;">${b.text}</span></span></li>`).join('')}</ul></div>`:'';
   // Determine which floorplan(s) to show on each page
   const fpPh=`<div class="sl-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:32%;opacity:.15;display:block;margin:0 auto 6px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>Floor Plan</div>`;
   function buildFpHtml(pgIdx, showAll){
+    // ── Highlight mode: a single master image with baked-in polygon overlays ──
+    // If we have a rendered URL (highlights exist + render finished), use it.
+    // If we have master data but no highlights yet, show the master directly.
+    if(FP_MASTER_DATA){
+      const baked = FP_HIGHLIGHT_RENDER_URL;
+      if(baked){
+        return `<img src="${baked}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
+      }
+      // No highlights yet → just show the master image
+      const masterUrl = FP_BASE_URL + (FP_MASTER_DATA.master?.file || 'master.png');
+      return `<img src="${masterUrl}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
+    }
+    // ── Legacy image-collage mode ──
     const plans=FP_PLANS.length>0?FP_PLANS:(S.floorplan?[{url:S.floorplan,label:'Master'}]:[]);
     if(!plans.length) return fpPh;
     // pgIdx: -2 = rooms only (exclude master/index 0), -1 = all collage, 0+ = specific plan
     if(pgIdx===-2){
-      // Rooms only — skip master (index 0)
       const rooms=plans.slice(1);
-      if(!rooms.length) return buildFpHtml(0,false); // fallback to master if no rooms
+      if(!rooms.length) return buildFpHtml(0,false);
       if(rooms.length===1) return`<img src="${rooms[0].url}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
       const n=rooms.length;
       const cols=n===2?2:n===3?3:n<=4?2:3;
@@ -2840,10 +3265,8 @@ function gen(){
     }
     if(showAll||pgIdx===-1){
       if(plans.length===1) return`<img src="${plans[0].url}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
-      // Collage grid: 2→2col, 3→3col, 4→2×2, 5-6→3col
       const n=plans.length;
       const cols=n===2?2:n===3?3:n<=4?2:3;
-      // Last item spans remaining columns if row isn't full
       const lastCol=(n%cols===0)?1:(cols-(n%cols)+1);
       return`<div class="sl-fp-collage" style="grid-template-columns:repeat(${cols},1fr)">${plans.map((p,pi)=>`<img src="${p.url}" alt="${p.label}" style="${pi===n-1&&lastCol>1?'grid-column:span '+lastCol+';':''}">`).join('')}</div>`;
     }
@@ -2882,7 +3305,7 @@ function gen(){
           ${(()=>{const _nsTr=trLines.length?`<div style="flex-shrink:0;"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:1fr">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _nsCu=hasCustom?`<div style="flex-shrink:0;">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div>`:'';return CUSTOM_POS==='above'?_nsCu+_nsTr:_nsTr+_nsCu;})()}
         </div>
         <div style="overflow:hidden;padding:calc(var(--fs)*0.4) calc(var(--fs)*0.6);display:flex;flex-direction:column;">
-          ${checked.length?`<div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits" style="margin-top:calc(var(--fs)*0.1)">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul>`:''}
+          ${checked.length?`<div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits" style="margin-top:calc(var(--fs)*0.1);${bGapStyle}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul>`:''}
         </div>
       </div>
     </div>
@@ -2891,7 +3314,7 @@ function gen(){
       <div class="sl-specs-inner">
         ${specRows.length?`<div class="sl-section ${(trLines.length||hasCustom||putBenInCentre)?'shrink':'grow'}"><div class="sl-sec">${sl('specs')}</div>${specGridHTML}</div>`:''}
         ${(()=>{const _tr=trLines.length?`<div class="sl-section shrink"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _cu=hasCustom?`<div class="sl-section shrink"><div class="sl-custom-block">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div></div>`:'';return CUSTOM_POS==='above'?_cu+_tr:_tr+_cu;})()}
-        ${putBenInCentre&&checked.length?`<div class="sl-section shrink"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul></div>`:''}
+        ${putBenInCentre&&checked.length?`<div class="sl-section shrink"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}" style="${bGapStyle}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul></div>`:''}
       </div>
     </div>
     <div class="sl-right">${fpHTML}${putBenInCentre?'':meritsHTML}</div>
@@ -2899,6 +3322,7 @@ function gen(){
   </div>
   <div class="sl-foot">
     ${S.rows.length?`<table class="sl-ptbl"><thead><tr>${activeCols.map(k=>`<th>${pHdr[k]}</th>`).join('')}</tr></thead><tbody>${S.rows.map(r=>`<tr>${activeCols.map(k=>{const v=r[k]||'';const isPrice=k==='rent'||k==='mgmt'||k==='avail';return isPrice?`<td class="acc">${v}</td>`:k==='init'?`<td class="init-cell">${v}</td>`:`<td>${v}</td>`;}).join('')}</tr>`).join('')}</tbody></table>`:`<p style="font-size:.65em;color:#CCC">Add pricing rows in the Pricing tab</p>`}
+    ${S.rows.length&&getDepositNote()?`<div class="sl-deposit-note">${getDepositNote()}</div>`:''}
     ${purl?`<div class="sl-url">${purl}</div>`:''}
   </div>`;
 
@@ -2909,7 +3333,7 @@ function gen(){
   ${topBarHTML(2)}
   <div class="p2-body">
     <div class="p2-fp-area">
-      ${(FP_PLANS.length||S.floorplan)?buildFpHtml(fp2Idx,fp2All):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
+      ${(FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
     </div>
     <div class="p2-right">
             <div class="p2-photos">
@@ -2925,7 +3349,212 @@ function gen(){
 //  PRINT — Cross-browser fix (Safari, Firefox, Chrome, Edge)
 //  Replace the existing printSlide() function with this one.
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  PRINT QUEUE — Multi-location Print / Save PDF
+//  Opens a new window with every queued slide (using pre-captured
+//  JPEG data URLs from addToQueue) and auto-triggers the print dialog.
+//  Mirrors printSlide()'s @page rules so each slide lands on its own
+//  A4 landscape page with zero margin.
+// ══════════════════════════════════════════════════════════
+function printQueue(){
+  if(!PDF_QUEUE.length){alert('Queue is empty.');return;}
+
+  const pagesHtml = PDF_QUEUE.flatMap(item=>{
+    const arr=[];
+    if(item.cv1DataUrl) arr.push(`<div class="page-wrap"><img class="queue-page-img" src="${item.cv1DataUrl}" alt=""></div>`);
+    if(item.cv2DataUrl) arr.push(`<div class="page-wrap"><img class="queue-page-img" src="${item.cv2DataUrl}" alt=""></div>`);
+    return arr;
+  }).join('\n');
+
+  if(!pagesHtml){alert('Queue items are missing rendered images. Try removing and re-adding them.');return;}
+
+  const w = window.open('','_blank');
+  if(!w){alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.');return;}
+
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    || /iPad|iPhone|iPod/.test(navigator.userAgent);
+  // Title becomes the suggested filename in the browser's Save-as-PDF dialog.
+  // Use the same slug pattern as the legacy jsPDF export for consistency.
+  const slugFilename = (PDF_QUEUE.map(i=>i.name).filter(Boolean).join('-')||'queue')
+    .toLowerCase()
+    .replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff-]+/g,'-')
+    .replace(/^-|-$/g,'')
+    .slice(0,80) || 'compass-offices-queue';
+  const docTitle = slugFilename;
+
+  w.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1122">
+<title>${docTitle}</title>
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
+}
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { background:#fff; overflow:visible; font-family:'Hanken Grotesk',sans-serif; }
+
+/* ── Page wrapper: 297mm = 1122px @96dpi, 210mm = 794px ── */
+.page-wrap {
+  width: 1122px;
+  height: 794px;
+  max-width: 1122px;
+  max-height: 794px;
+  overflow: hidden;
+  display: block;
+  position: relative;
+  background: #fff;
+  page-break-after: always;
+  break-after: page;
+  -webkit-break-after: page;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  -webkit-break-inside: avoid;
+}
+.page-wrap:last-child {
+  page-break-after: avoid;
+  break-after: avoid;
+  -webkit-break-after: avoid;
+}
+.queue-page-img {
+  display: block;
+  width: 1122px;
+  height: 794px;
+  object-fit: contain;
+  background:#fff;
+}
+
+/* ── @page: A4 Landscape, zero margin (matches printSlide) ── */
+@page {
+  size: 297mm 210mm landscape;
+  margin: 0 !important;
+  padding: 0 !important;
+  -webkit-margin-before: 0 !important;
+  -webkit-margin-after: 0 !important;
+  -webkit-margin-start: 0 !important;
+  -webkit-margin-end: 0 !important;
+  marks: none;
+}
+@page :first { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :left  { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :right { size: 297mm 210mm landscape; margin: 0 !important; }
+@page :blank { size: 297mm 210mm landscape; margin: 0 !important; }
+
+/* ── Screen preview ── */
+@media screen {
+  body { padding: 20px; background:#888; min-height: 100vh; }
+  .page-wrap { margin: 0 auto 24px; box-shadow: 0 4px 20px rgba(0,0,0,.35); }
+  .print-controls {
+    position: fixed; bottom: 20px; right: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 999; align-items: flex-end;
+  }
+  .print-btn {
+    padding: 12px 24px; border: none; border-radius: 99px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: 'Hanken Grotesk', sans-serif;
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  }
+  .print-btn-primary { background:#FF6600; color:#fff; box-shadow: 0 3px 12px rgba(255,102,0,.4); }
+  .print-btn-secondary { background:#fff; color:#555; border:1.5px solid #ddd; }
+  .print-hint-box {
+    background:#fffbe6; border:2px solid #f0a500; border-radius:10px;
+    padding:12px 16px; font-size:12.5px; color:#5a3e00; max-width:280px;
+    line-height:1.65; box-shadow: 0 3px 12px rgba(0,0,0,.18);
+  }
+  .print-hint-box b { color:#c44400; }
+}
+
+@media print {
+  .print-controls { display: none !important; }
+  html, body {
+    padding: 0 !important; margin: 0 !important;
+    background:#fff !important; width: 1122px !important;
+  }
+  .page-wrap {
+    width: 1122px !important; height: 794px !important;
+    max-height: 794px !important;
+    margin: 0 !important; padding: 0 !important;
+    box-shadow: none !important; overflow: hidden !important;
+  }
+}
+</style>
+</head>
+<body>
+
+${pagesHtml}
+
+<!-- Floating controls (screen only) -->
+<div class="print-controls">
+  <div class="print-hint-box">
+    <b>${PDF_QUEUE.length} location${PDF_QUEUE.length!==1?'s':''}</b> · ${PDF_QUEUE.length*2} pages ready.<br>
+    In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
+    <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
+  </div>
+  <button class="print-btn print-btn-secondary" onclick="window.close()">✕ Close</button>
+  <button class="print-btn print-btn-primary" onclick="triggerPrint()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Print / Save PDF
+  </button>
+</div>
+
+\x3Cscript>
+var isSafari = ${isSafari ? 'true' : 'false'};
+var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+var printed = false;
+
+function triggerPrint(){
+  var delay = (isSafari || isIOS) ? 800 : 200;
+  setTimeout(function(){ window.print(); }, delay);
+}
+
+// Wait until every page image has finished decoding before auto-printing
+function imagesReady(){
+  var imgs = document.querySelectorAll('img');
+  for(var i=0; i<imgs.length; i++){
+    if(!imgs[i].complete || imgs[i].naturalWidth === 0) return false;
+  }
+  return true;
+}
+
+function autoPrint(){
+  if(printed) return;
+  if(!imagesReady()){
+    setTimeout(autoPrint, 200);
+    return;
+  }
+  printed = true;
+  var delay = (isSafari || isIOS) ? 1000 : 400;
+  setTimeout(function(){ window.print(); }, delay);
+}
+
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(autoPrint).catch(function(){ setTimeout(autoPrint, 600); });
+} else {
+  setTimeout(autoPrint, 800);
+}
+
+// Absolute safety net — fire within 6s no matter what
+setTimeout(function(){ if(!printed){ printed = true; window.print(); } }, 6000);
+<\/script>
+
+</body>
+</html>`);
+
+  w.document.close();
+}
+
+
 function printSlide(){
+  // If queue has items, open a print preview that contains every queued
+  // location's two pages — same behavior as Download PDF when the queue is in use.
+  if(PDF_QUEUE.length) return printQueue();
   // Ensure preview is up to date
   gen();
 
@@ -2980,7 +3609,7 @@ function printSlide(){
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1122">
-<title>Compass Offices — One-Pager</title>
+<title>${getExportName()||'compass-offices-one-pager'}</title>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 ${allCss}
@@ -3186,6 +3815,11 @@ ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div><
 
 <!-- Floating controls (screen only) -->
 <div class="print-controls">
+  <div class="print-hint-box">
+    <b>1 location</b> · 2 pages ready.<br>
+    In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
+    <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
+  </div>
   <button class="print-btn print-btn-secondary" onclick="window.close()">✕ Close</button>
   <button class="print-btn print-btn-primary" onclick="triggerPrint()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -3289,6 +3923,7 @@ function downloadCurrentJSON(){
       // benefits text per lang
       benefits: (ld.benefits||[]).map(b=>({id:b.id,on:b.on,text:b.text,iconId:b.iconId||null})),
       benefits_title: BENEFITS_TITLE[lc] || '',
+      deposit_note:   DEPOSIT_NOTE[lc]   || '',
     };
   });
 
@@ -3308,6 +3943,7 @@ function downloadCurrentJSON(){
     custom_body: (document.getElementById('custom-body-editor')?.innerHTML||'').trim(),
     // ── Layout settings (global, same across all langs) ──
     benefits_title: {...BENEFITS_TITLE},
+    deposit_note:   {...DEPOSIT_NOTE},
     benefits_pos:  BENEFITS_POS,
     custom_pos:    CUSTOM_POS,
     show_specs:    SHOW_SPECS,
@@ -3316,13 +3952,14 @@ function downloadCurrentJSON(){
     pricing_cols:  PRICING_COLS.map(col=>({key:col.key,on:col.on,labels:{...col.labels}})),
     // ── Media (global) ──
     partner_logo_url: (S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
-    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:null),
+    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:'').filter(Boolean),
     floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?S.floorplan:'',
     fp_plans: FP_PLANS.map(p=>({url:p.url&&!p.url.startsWith('data:')?p.url:'',label:p.label||''})),
     fp_page2_same: FP_PAGE2_SAME,
     fp_page1_idx: FP_PAGE1_IDX,
     fp_page2_idx: FP_PAGE2_IDX,
     fp_base_url: FP_BASE_URL,
+    fp_highlights_manual: Array.from(FP_HIGHLIGHTS_MANUAL),
     icon_overrides: window.ICON_OVERRIDES||{},
   };
 
@@ -3374,6 +4011,7 @@ function mobBackToEdit(){
   renderAmenities();
   renderRows();
   renderPricingColSettings();
+  syncDepositNoteInput();
   renderPhotoSlots();
   renderFpList();
   renderLogoCard();
@@ -3431,8 +4069,6 @@ function mobBackToEdit(){
   }
 
   gen();
-  // Ensure photo slots reflect current S.photos state after full render
-  setTimeout(renderPhotoSlots, 50);
 })();
 
 
@@ -3482,7 +4118,7 @@ function clearLoadedCard(){
   });
   [...document.querySelectorAll('.spec-rich-editor')].forEach(el=>el.innerHTML='');
   const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML='';
-  S.rows=[];S.photos=[null,null,null,null,null,null];S.floorplan=null;S.partnerLogo=null;
+  S.rows=[];S.photos=[null,null,null];S.floorplan=null;S.partnerLogo=null;
   TRANSPORT=[];
   renderRows();renderPhotoSlots();renderFloorplanCard();renderLogoCard();renderTransport();
   showStatus('Card cleared.','s-info');
@@ -3564,6 +4200,7 @@ function buildStateSnapshot(){
       amenities:[...ld.amenities],
       benPos:ld.benPos,customPos:ld.customPos,
       benefits_title:BENEFITS_TITLE[lc]||'',
+      deposit_note:DEPOSIT_NOTE[lc]||'',
     };
   });
   return {
@@ -3581,8 +4218,9 @@ function buildStateSnapshot(){
     partner_logo_url:S.partnerLogo&&!S.partnerLogo.startsWith('data:')?S.partnerLogo:'',
     icon_overrides:window.ICON_OVERRIDES?{...window.ICON_OVERRIDES}:{},
     fp_plans:FP_PLANS.map(p=>({url:p.url,label:p.label})),
-    fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,
+    fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
     benefits_title:{...BENEFITS_TITLE},
+    deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
   };
 }
@@ -3607,6 +4245,7 @@ function restoreStateSnapshot(state){
         customPos:  ld.customPos||'below',
       };
       BENEFITS_TITLE[lc]=ld.benefits_title||'';
+      DEPOSIT_NOTE[lc]  =ld.deposit_note  ||'';
     });
   }
 
@@ -3650,7 +4289,7 @@ function restoreStateSnapshot(state){
   } else if(state.floorplan_url){
     S.floorplan=state.floorplan_url;
     FP_PLANS=[{url:state.floorplan_url,label:'master'}];
-    FP_BASE_URL=state.floorplan_url.replace(/[^/]+\.jpg$/i,'');
+    FP_BASE_URL=state.floorplan_url.replace(/[^/]+\.(jpg|jpeg|png)$/i,'');
   }
   if(state.floorplan_data){
     S.floorplan=state.floorplan_data;
@@ -3661,6 +4300,15 @@ function restoreStateSnapshot(state){
   // ── 9. Load current lang into DOM and re-render everything ─────────────────
   const bTitleInp=document.getElementById('benefits-title-input');
   if(bTitleInp) bTitleInp.value=BENEFITS_TITLE[LANG]||'';
+  if(state.deposit_note && typeof state.deposit_note === 'object') Object.assign(DEPOSIT_NOTE,state.deposit_note);
+  syncDepositNoteInput();
+  // Restore manual highlight set + refetch polygon data for the new base
+  FP_HIGHLIGHTS_MANUAL = new Set(Array.isArray(state.fp_highlights_manual) ? state.fp_highlights_manual : []);
+  FP_MASTER_DATA = null;
+  FP_HIGHLIGHT_RENDER_URL = null;
+  FP_HIGHLIGHT_LAST_KEY = null;
+  FP_DATA_LAST_FETCHED_BASE = '';
+  if(FP_BASE_URL) tryFetchFpData(); else updateFpDataStatusUI();
   loadLangData(LANG);
   renderPhotoSlots();
   renderLogoCard();
@@ -3832,6 +4480,18 @@ async function addToQueue(){
   try{
     const name=getExportName()||'Location';
     gen._captureMode=true;gen();gen._captureMode=false;
+    // If highlight mode is active and a render is pending, wait for it to
+    // complete so the captured JPEG includes the highlights. Cap at 8s.
+    if(FP_MASTER_DATA && (FP_HIGHLIGHT_RENDERING || FP_HIGHLIGHT_PENDING_KEY)){
+      const t0 = Date.now();
+      while((FP_HIGHLIGHT_RENDERING || FP_HIGHLIGHT_PENDING_KEY) && (Date.now()-t0) < 8000){
+        await new Promise(r => setTimeout(r, 150));
+      }
+      // gen() once more so the slide picks up the freshly rendered URL
+      gen._captureMode=true;gen();gen._captureMode=false;
+      // Tiny wait for browser to repaint with the new <img src>
+      await new Promise(r => setTimeout(r, 80));
+    }
     const cv1=await slideToCanvas('slide');
     const cv2=await slideToCanvas('slide2');
     const thumb=cv1?cv1.toDataURL('image/jpeg',0.5):'';
@@ -3854,6 +4514,14 @@ async function addToQueue(){
 }
 
 async function exportQueuePDF(){
+  // Route through the print system for proper selectable-text PDFs.
+  // (The old jsPDF.addImage path produced raster-only PDFs.)
+  return printQueue();
+}
+
+// Legacy raster path — kept for reference. Produces image-only PDF.
+// Call from console as exportQueuePDF_image() if ever needed.
+async function exportQueuePDF_image(){
   if(!PDF_QUEUE.length){alert('Queue is empty — add some locations first.');return;}
   const exportBtn=document.getElementById('queue-export-btn');
   const origHTML=exportBtn?exportBtn.innerHTML:'';
@@ -3900,8 +4568,6 @@ function ausSetCentre(centre){
   document.getElementById(map[centre]||'aus-c-all')?.classList.add('on');
 
   if(centre){
-    // Try auto-loading floorplan data for this centre
-    setTimeout(fpSheetTryAutoLoad, 300);
     const matches=ausLibCardsForCentre(centre);
     if(matches.length===1){
       // Only one floor → auto-load immediately, no extra click needed
@@ -3999,7 +4665,6 @@ function renderAusLookup(){
         <tr style="border-bottom:1.5px solid var(--bd);">
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;width:28px;"></th>
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Office #</th>
-
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">WS</th>
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Sqm</th>
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Market</th>
@@ -4018,12 +4683,7 @@ function renderAusLookup(){
               ${sel?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>':''}
             </div>
           </td>
-          <td style="padding:4px 8px;font-weight:700;color:var(--drk);">
-            <div style="display:flex;align-items:center;gap:7px;">
-              ${FP_BASE_URL?`<img src="${FP_BASE_URL}${oid.replace(/\s*-\s*C$/i,'').trim()}.jpg" style="width:38px;height:28px;object-fit:contain;border-radius:3px;border:1px solid ${sel?'var(--o)':'var(--bd)'};background:#f8f8f8;flex-shrink:0;" onerror="this.style.display='none'">`:''}
-              <div>${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></div>
-            </div>
-          </td>
+          <td style="padding:5px 8px;font-weight:700;color:var(--drk);">${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></td>
           <td style="padding:5px 8px;text-align:center;">${o.w}</td>
           <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
           <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
@@ -4056,7 +4716,7 @@ function ausAddToRows(){
   AUS_SELECTED.forEach(oid=>{
     const o=AUS_OFFICES[oid];if(!o)return;
     const {monthly,avg}=ausCalc(o.mp,disc);
-    const commitment=`16.6% Saving - 2 Months Free on 12! | Avg A$${avg.toLocaleString()}/ws`;
+    const commitment=`16.6% Saving - 2 Months Free on 12! | Avg A$${avg.toLocaleString()}`;
     // Add pricing row
     addRow(
       oid,                              // seats → Office #
@@ -4069,7 +4729,7 @@ function ausAddToRows(){
     // Also add to floor plan if base URL is set
     if(FP_BASE_URL){
       const room=oid.replace(/\s*-\s*C$/i,'').trim(); // strip "- C" suffix
-      const url=FP_BASE_URL+room+'.jpg';
+      const url=FP_BASE_URL+room+'.png';
       const label=oid;
       const exists=FP_PLANS.some(p=>p.url===url||p.label===label);
       if(!exists){
@@ -4258,6 +4918,13 @@ function _emailGetLocations(){
       const rows = enData.rows || [];
       const benefits = (enData.benefits || []).filter(b=>b.on&&b.text);
       const mRaw = fields['matterport'] || '';
+      // Deposit note: pull from queue snapshot's per-lang object if present, else default
+      let depositNote = '';
+      if(st.deposit_note && typeof st.deposit_note === 'object'){
+        depositNote = st.deposit_note[LANG] || st.deposit_note['en'] || '';
+      }
+      if(!depositNote && enData.deposit_note) depositNote = enData.deposit_note;
+      if(!depositNote) depositNote = DEPOSIT_NOTE_DEFAULT[LANG] || DEPOSIT_NOTE_DEFAULT.en;
       return {
         name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
         locName: fields['n-main'] || item.name || 'Compass Offices',
@@ -4268,6 +4935,7 @@ function _emailGetLocations(){
         tours:   mRaw.split(',').map(u=>u.trim()).filter(Boolean),
         rows,
         benefits,
+        depositNote,
       };
     });
   }
@@ -4283,6 +4951,7 @@ function _emailGetLocations(){
     tours:   mRaw.split(',').map(u=>u.trim()).filter(Boolean),
     rows:    S.rows || [],
     benefits:(LANG_DATA[LANG]?.benefits||BENEFITS||[]).filter(b=>b.on&&b.text),
+    depositNote: getDepositNote(),
   }];
 }
 
@@ -4380,6 +5049,10 @@ function buildEmailHTML(toName, fromName, company){
   </tbody>
 </table>` : '';
 
+    // Deposit note line: appears just under the pricing table when pricing exists.
+    const depositHTML = (hasPricing && loc.depositNote) ? `
+<p style="margin:6px 0 0;font-family:Arial,sans-serif;font-size:11.5px;color:#888;font-style:italic;line-height:1.5;">${loc.depositNote}</p>` : '';
+
     const toursHTML = loc.tours&&loc.tours.length ? `
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 8px;">
   <tr><td>
@@ -4409,7 +5082,7 @@ function buildEmailHTML(toName, fromName, company){
 
     return `${locHeader}
 <tr><td style="padding:${li>0?'0 36px 28px':'0 36px 28px'};${li===0&&!isMulti?'padding-top:0;':'padding-top:20px;'}">
-  ${hasPricing?`<p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#FF6600;">Pricing</p>${pricingHTML}`:''}
+  ${hasPricing?`<p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#FF6600;">Pricing</p>${pricingHTML}${depositHTML}`:''}
   ${toursHTML}${pageBtn}
 </td></tr>`;
   }).join('');
@@ -4591,189 +5264,557 @@ function buildEmailPlainText(toName, fromName, company){
   return body;
 }
 
-async function slideToCanvas(elId){
-  const el=document.getElementById(elId);
-  if(!el) return document.createElement('canvas');
+function getExportName(){
+  const enName = LANG_DATA['en']?.fields?.['n-main'] || '';
+  const curName = document.getElementById('n-main')?.value || '';
+  const raw = enName || curName || 'one-pager';
+  return raw.toLowerCase().replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,'-').replace(/^-|-$/g,'') || 'one-pager';
+}
 
+
+async function slideToCanvas(elId){
+  const el=document.getElementById(elId);if(!el)return document.createElement('canvas');
+
+  // 1. Make the preview container visible (mobile hides it behind tabs)
   const preview=document.querySelector('.preview');
+  const sidebar=document.querySelector('.sidebar');
   const prevPreviewD=preview?preview.style.display:'';
   const prevPreviewV=preview?preview.style.visibility:'';
   if(preview){preview.style.display='block';preview.style.visibility='visible';}
 
+  // 2. Force the slide to exact output dimensions
   const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio;
   const prevPos=el.style.position,prevLeft=el.style.left,prevTop=el.style.top;
   el.style.width='1122px';el.style.height='794px';el.style.aspectRatio='unset';
+  // On mobile, ensure it's not clipped by viewport
   el.style.position='fixed';el.style.left='-9999px';el.style.top='0';
+
+  // 3. Re-run gen() with captureMode so font scales at 1122px (not mobile viewport)
+  gen._captureMode = true;
   gen();
+  gen._captureMode = false;
 
-  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  await new Promise(r=>setTimeout(r,isIOS?300:80));
-  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  // 4. Wait for layout + fonts to settle (longer on mobile)
+  // Three rAF passes ensure flex containers fully compute child sizes after position:fixed
+  const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  await new Promise(r=>setTimeout(r,isIOS2?400:80));
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 
-  // ── Step 0: Pre-render collage grids to canvas ──────────────────────────────
+// ── Step 0: Pre-render .sl-fp-collage grids to a single canvas ──────────────
+  // html2canvas cannot reliably render CSS grid children with object-fit:contain.
+  // We composite each collage into a canvas image BEFORE running html2canvas.
   const collageRestores=[];
-  for(const collage of Array.from(el.querySelectorAll('.sl-fp-collage'))){
+  const collageEls=Array.from(el.querySelectorAll('.sl-fp-collage'));
+  for(const collage of collageEls){
     const rect=collage.getBoundingClientRect();
-    const cw=Math.round(rect.width)||collage.offsetWidth||400;
-    const ch=Math.round(rect.height)||collage.offsetHeight||300;
+    const cw=Math.round(rect.width)||collage.offsetWidth||collage.parentElement?.offsetWidth||400;
+    const ch=Math.round(rect.height)||collage.offsetHeight||collage.parentElement?.offsetHeight||300;
     if(!cw||!ch) continue;
+
     const imgs=Array.from(collage.querySelectorAll('img'));
     if(!imgs.length) continue;
+
+    // Load all images, cross-origin safe (data URLs already applied in Step 2 below,
+    // but we need to load them now — use current src which may still be external)
+    const loadImg=src=>new Promise(res=>{
+      if(!src){res(null);return;}
+      const i=new Image();
+      i.crossOrigin='anonymous';
+      i.onload=()=>res(i);
+      i.onerror=()=>{
+        // Try without CORS
+        const i2=new Image();
+        i2.onload=()=>res(i2);
+        i2.onerror=()=>res(null);
+        i2.src=src;
+      };
+      i.src=src;
+    });
+
     const n=imgs.length;
     const cols=n===2?2:n===3?3:n<=4?2:3;
     const rows=Math.ceil(n/cols);
-    const cellW=Math.floor(cw/cols),cellH=Math.floor(ch/rows);
+    const cellW=Math.floor(cw/cols);
+    const cellH=Math.floor(ch/rows);
     const scale=2;
     const cv=document.createElement('canvas');
     cv.width=cw*scale;cv.height=ch*scale;
     const ctx=cv.getContext('2d');
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
-    const loadImg=src=>new Promise(res=>{if(!src){res(null);return;}const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>{const i2=new Image();i2.onload=()=>res(i2);i2.onerror=()=>res(null);i2.src=src;};i.src=src;});
-    const loaded=await Promise.all(imgs.map(img=>loadImg(img.src||'')));
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,cv.width,cv.height);
+
+    // Load all and draw
+    const loaded=await Promise.all(imgs.map(img=>loadImg(img.src||img.getAttribute('src')||'')));
     loaded.forEach((image,pi)=>{
-      if(!image)return;
-      const col=pi%cols,row=Math.floor(pi/cols);
-      const dx=col*cellW*scale,dy=row*cellH*scale,dw=cellW*scale,dh=cellH*scale;
+      if(!image) return;
+      const col=pi%cols;
+      const row=Math.floor(pi/cols);
+      const dx=col*cellW*scale;
+      const dy=row*cellH*scale;
+      const dw=cellW*scale;
+      const dh=cellH*scale;
+      // object-fit:contain — scale preserving aspect ratio to fit cell
       const sc=Math.min(dw/image.naturalWidth,dh/image.naturalHeight);
-      const sw=image.naturalWidth*sc,sh=image.naturalHeight*sc;
-      ctx.fillStyle='#fff';ctx.fillRect(dx,dy,dw,dh);
+      const sw=image.naturalWidth*sc;
+      const sh=image.naturalHeight*sc;
+      ctx.fillStyle='#ffffff';ctx.fillRect(dx,dy,dw,dh);
       ctx.drawImage(image,dx+(dw-sw)/2,dy+(dh-sh)/2,sw,sh);
     });
+
+    // Replace collage div with an img
+    const dataUrl=cv.toDataURL('image/png');
     const replacement=document.createElement('img');
-    replacement.src=cv.toDataURL('image/png');
+    replacement.src=dataUrl;
     replacement.style.cssText=`width:${cw}px;height:${ch}px;display:block;object-fit:contain;`;
     collage.parentNode.replaceChild(replacement,collage);
     collageRestores.push(()=>replacement.parentNode&&replacement.parentNode.replaceChild(collage,replacement));
   }
 
-  // ── Step 1: Build image data-URL map ────────────────────────────────────────
+  // ── Step 1: Build a Map of src → dataURL for ALL images in this slide ──
   const dataURLMap=new Map();
+  const svgInlineMap=new Map(); // for SVG imgs: src → inline SVG text
+
   const allImgs=Array.from(el.querySelectorAll('img'));
+  await Promise.all(allImgs.map(async img=>{
+    const src=img.getAttribute('src')||img.src||'';
+    if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
+    if(dataURLMap.has(src)) return;
+
+    // For SVG files, try to inline them (avoids all CORS issues)
+    if(src.toLowerCase().includes('.svg')){
+      const svgText=await fetchSVGInline(src);
+      if(svgText){svgInlineMap.set(src,svgText);dataURLMap.set(src,'SVG_INLINE');return;}
+    }
+    const du=await urlToDataURL(src);
+    dataURLMap.set(src,du||null);
+  }));
+
+  // ── Step 2: Apply data URLs to original DOM so fixObjectFit works correctly ──
   const origSrcs=new Map();
-  allImgs.forEach(img=>{if(img.src&&!img.src.startsWith('data:'))origSrcs.set(img,img.src);});
+  allImgs.forEach(img=>{
+    const src=img.getAttribute('src')||'';
+    if(!src||src.startsWith('data:')||src.startsWith('blob:')) return;
+    const du=dataURLMap.get(src);
+    origSrcs.set(img,src);
+    if(du&&du!=='SVG_INLINE') img.src=du;
+    // SVG inlines and nulls handled in onclone
+  });
+  await new Promise(r=>requestAnimationFrame(r)); // let browser update
 
-  await Promise.all([...origSrcs.entries()].map(([img,src])=>new Promise(res=>{
-    const t=new Image();t.crossOrigin='anonymous';
-    t.onload=()=>{const cv=document.createElement('canvas');cv.width=t.naturalWidth;cv.height=t.naturalHeight;cv.getContext('2d').drawImage(t,0,0);try{dataURLMap.set(src,cv.toDataURL('image/jpeg',0.95));}catch(e){}res();};
-    t.onerror=()=>res();t.src=src;
-  })));
-
-  // ── Step 2: Apply data URLs ──────────────────────────────────────────────────
-  allImgs.forEach(img=>{const du=dataURLMap.get(img.src);if(du)img.src=du;});
-
-  // ── Step 3: Fix object-fit ───────────────────────────────────────────────────
+  // ── Step 3: Fix object-fit images (now srcs are data URLs, no taint) ──
+  // html2canvas ignores object-fit CSS. We replace each cover/contain img
+  // with a pre-drawn canvas so the export looks identical to the browser.
   const fitRestores=[];
   allImgs.forEach(img=>{
-    if(!img.complete||img.naturalWidth===0)return;
-    const cs=getComputedStyle(img);
+    if(!img.complete||img.naturalWidth===0) return;
+    const cs=window.getComputedStyle(img);
     const fit=cs.objectFit;
-    if(fit!=='cover'&&fit!=='contain')return;
-    const r=img.getBoundingClientRect();
-    if(!r.width||!r.height)return;
-    const cv=document.createElement('canvas');
-    cv.width=Math.round(r.width);cv.height=Math.round(r.height);
-    const ctx=cv.getContext('2d');
+    if(fit!=='cover'&&fit!=='contain') return;
+
+    // getBoundingClientRect is more reliable than offsetWidth when slide is position:fixed
+    const rect=img.getBoundingClientRect();
+    const w=Math.round(rect.width)||img.offsetWidth||img.parentElement?.offsetWidth||100;
+    const h=Math.round(rect.height)||img.offsetHeight||img.parentElement?.offsetHeight||100;
+    if(!w||!h) return;
+
+    const c2=document.createElement('canvas');
+    c2.width=w*2;c2.height=h*2;
+    c2.style.cssText=`width:${w}px;height:${h}px;display:block;flex-shrink:0;`;
+    const ctx=c2.getContext('2d');
     const iw=img.naturalWidth,ih=img.naturalHeight;
-    let sx=0,sy=0,sw=iw,sh=ih,dw=cv.width,dh=cv.height;
-    if(fit==='cover'){const s=Math.max(dw/iw,dh/ih);sw=dw/s;sh=dh/s;sx=(iw-sw)/2;sy=(ih-sh)/2;}
-    else{const s=Math.min(dw/iw,dh/ih);const rw=iw*s,rh=ih*s;ctx.fillStyle='#fff';ctx.fillRect(0,0,dw,dh);sx=0;sy=0;sw=iw;sh=ih;dw=rw;dh=rh;const ox=(cv.width-rw)/2,oy=(cv.height-rh)/2;ctx.drawImage(img,sx,sy,sw,sh,ox,oy,dw,dh);const du=cv.toDataURL('image/jpeg',0.95);const origSrc=img.src;const origStyle=img.style.cssText;img.src=du;img.style.objectFit='fill';fitRestores.push(()=>{img.src=origSrc;img.style.cssText=origStyle;});return;}
-    ctx.drawImage(img,sx,sy,sw,sh,0,0,cv.width,cv.height);
-    const du=cv.toDataURL('image/jpeg',0.95);
-    const origSrc=img.src,origStyle=img.style.cssText;
-    img.src=du;img.style.objectFit='fill';
-    fitRestores.push(()=>{img.src=origSrc;img.style.cssText=origStyle;});
+
+    if(fit==='cover'){
+      const sc=Math.max(w/iw,h/ih);
+      const sw=w/sc,sh=h/sc,sx=(iw-sw)/2,sy=(ih-sh)/2;
+      ctx.drawImage(img,sx,sy,sw,sh,0,0,w*2,h*2);
+    } else { // contain
+      const sc=Math.min(w/iw,h/ih);
+      const dw=iw*sc*2,dh=ih*sc*2;
+      ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w*2,h*2);
+      ctx.drawImage(img,0,0,iw,ih,(w*2-dw)/2,(h*2-dh)/2,dw,dh);
+    }
+    img.parentNode.replaceChild(c2,img);
+    fitRestores.push(()=>c2.parentNode&&c2.parentNode.replaceChild(img,c2));
   });
 
-  // ── Step 4: html2canvas ──────────────────────────────────────────────────────
-  let canvas;
-  try{
-    canvas=await html2canvas(el,{
-      scale:isIOS?1.5:2,useCORS:true,allowTaint:false,backgroundColor:'#fff',
-      width:1122,height:794,windowWidth:1122,windowHeight:794,
-      onclone:(doc)=>{
-        const cloneEl=doc.getElementById(elId);
-        if(cloneEl){cloneEl.style.position='static';cloneEl.style.left='0';cloneEl.style.top='0';}
-      }
-    });
-  }catch(e){console.error('html2canvas error:',e);canvas=document.createElement('canvas');}
+  // ── Step 4: html2canvas with onclone to patch the clone's images ──
+  const canvas=await html2canvas(el,{
+    scale:2, useCORS:true, allowTaint:true,
+    backgroundColor:'#ffffff', width:1122, height:794,
+    logging:false, imageTimeout:15000,
+    onclone:(clonedDoc,clonedEl)=>{
+      // Build a reverse map: originalURL → origImg (for fast lookup)
+      const srcToOrig = new Map();
+      allImgs.forEach(i=>{ const s=origSrcs.get(i); if(s) srcToOrig.set(s,i); });
 
-  // ── Step 5: Restore ──────────────────────────────────────────────────────────
+      clonedEl.querySelectorAll('img').forEach(clonedImg=>{
+        const clonedSrc = clonedImg.getAttribute('src')||'';
+
+        // If already a data URL — we successfully converted it in Step 2.
+        // html2canvas clone will have that data URL, nothing to do.
+        if(clonedSrc.startsWith('data:')||clonedSrc.startsWith('blob:')||!clonedSrc) return;
+
+        // clonedSrc is still an external URL — means conversion was SVG_INLINE or null.
+        // Find the matching original img by original URL.
+        const origImg = srcToOrig.get(clonedSrc);
+        const du = dataURLMap.get(clonedSrc);
+
+        if(du==='SVG_INLINE'){
+          const svgText = svgInlineMap.get(clonedSrc)||'';
+          if(svgText){
+            const ow = origImg ? (origImg.offsetWidth||origImg.clientWidth||16) : 16;
+            const oh = origImg ? (origImg.offsetHeight||origImg.clientHeight||16) : 16;
+            const wrapper = clonedDoc.createElement('div');
+            wrapper.innerHTML = svgText;
+            const svgEl = wrapper.firstElementChild;
+            if(svgEl){
+              if(origImg) svgEl.style.cssText = origImg.style.cssText;
+              svgEl.style.display='block';
+              svgEl.style.flexShrink='0';
+              svgEl.setAttribute('width', ow);
+              svgEl.setAttribute('height', oh);
+              svgEl.style.width = ow+'px';
+              svgEl.style.height = oh+'px';
+              clonedImg.parentNode.replaceChild(svgEl, clonedImg);
+            }
+          } else {
+            clonedImg.style.visibility='hidden';
+          }
+        } else if(du){
+          // A data URL we have but didn't apply in Step 2 (shouldn't happen, but safe fallback)
+          clonedImg.setAttribute('src', du);
+          clonedImg.removeAttribute('onerror');
+          if(origImg){
+            const ow=origImg.offsetWidth||origImg.clientWidth;
+            const oh=origImg.offsetHeight||origImg.clientHeight;
+            if(ow) clonedImg.style.width=ow+'px';
+            if(oh) clonedImg.style.height=oh+'px';
+          }
+        } else {
+          // Truly unresolvable — hide it
+          clonedImg.style.visibility='hidden';
+        }
+      });
+    }
+  });
+
+  // ── Step 5: Restore everything ──
   collageRestores.forEach(fn=>fn());
   fitRestores.forEach(fn=>fn());
-  allImgs.forEach(img=>{const orig=origSrcs.get(img);if(orig)img.src=orig;});
+  allImgs.forEach(img=>{ const orig=origSrcs.get(img); if(orig) img.src=orig; });
   el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;
   el.style.position=prevPos;el.style.left=prevLeft;el.style.top=prevTop;
   if(preview){preview.style.display=prevPreviewD;preview.style.visibility=prevPreviewV;}
+  // Re-render preview at normal (mobile-appropriate) size
   gen();
+
   return canvas;
 }
 
-async function downloadPDF(){
+async function downloadJPG(){
+  gen();
   const btn=document.getElementById('pdf-btn');
-  const lbl=document.getElementById('pdf-btn-label');
   const origHTML=btn?btn.innerHTML:'';
-  if(btn){btn.style.opacity='0.6';btn.disabled=true;}
-  if(lbl) lbl.textContent='Generating…';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Generating…</span>';btn.disabled=true;}
+  // ── Set button labels/actions based on device ────────────
+  (function(){
+    const isIOS2=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    if(isIOS2){
+      // iOS: PDF button becomes Share JPGs (no download API)
+      const btn=document.getElementById('pdf-btn');
+      const mBtn=document.getElementById('mob-pdf-btn');
+      const lbl=document.getElementById('pdf-btn-label');
+      const mLbl=document.getElementById('mob-pdf-btn-label');
+      if(btn){btn.onclick=downloadJPG;btn.style.background='#1a1a1a';}
+      if(mBtn){mBtn.onclick=downloadJPG;mBtn.style.background='#1a1a1a';}
+      if(lbl)lbl.textContent='↑ Share';
+      if(mLbl)mLbl.textContent='↑ Share';
+      const tabLbl=document.getElementById('mob-tab-pdf-label');
+      if(tabLbl)tabLbl.textContent='Share';
+      const tabBtn=document.getElementById('mtab-print');
+      if(tabBtn)tabBtn.onclick=downloadJPG;
+    }
+    // Remove stale btn_download_pdf i18n elements (now handled by #pdf-btn-label)
+  })();
+  const name=getExportName();
+
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const canShare = isIOS && navigator.share && navigator.canShare;
+
   try{
-    gen._captureMode=true;gen();gen._captureMode=false;
-    const cv1=await slideToCanvas('slide');
-    const cv2=await slideToCanvas('slide2');
+    // Render both slides
+    const canvas1 = await slideToCanvas('slide');
+    const canvas2 = await slideToCanvas('slide2');
+
+    if(isIOS && navigator.share){
+      // iOS: use Web Share API — opens native share sheet (Save to Photos, AirDrop, Messages…)
+      // Convert canvases to Blobs
+      const toBlob = (canvas) => new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.95));
+      const [blob1, blob2] = await Promise.all([toBlob(canvas1), toBlob(canvas2)]);
+      const file1 = new File([blob1], name+'-p1.jpg', {type:'image/jpeg'});
+      const file2 = new File([blob2], name+'-p2.jpg', {type:'image/jpeg'});
+      const shareData = {files:[file1,file2]};
+      if(navigator.canShare && navigator.canShare(shareData)){
+        await navigator.share(shareData);
+      } else {
+        // canShare failed — fallback to opening images in new tabs
+        [canvas1,canvas2].forEach((cv,i)=>{
+          const w=window.open('','_blank');
+          if(w){ w.document.write('<img src="'+cv.toDataURL('image/jpeg',0.95)+'" style="max-width:100%">'); w.document.close(); }
+        });
+      }
+    } else {
+      // Desktop / Android: standard download
+      const dl = (canvas, suffix) => {
+        let jpgData;
+        try{ jpgData=canvas.toDataURL('image/jpeg',0.95); }
+        catch(e){
+          const c2=document.createElement('canvas');c2.width=canvas.width;c2.height=canvas.height;
+          c2.getContext('2d').drawImage(canvas,0,0);
+          jpgData=c2.toDataURL('image/jpeg',0.95);
+        }
+        const a=document.createElement('a');
+        a.href=jpgData;a.download=name+suffix+'.jpg';
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+      };
+      dl(canvas1,'-p1');
+      await new Promise(r=>setTimeout(r,400));
+      dl(canvas2,'-p2');
+    }
+  }catch(err){
+    console.error('JPG failed:',err);
+    if(err.name==='AbortError') return; // user cancelled share — not an error
+    alert('Export failed: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
+  }
+}
+async function downloadPDF(){
+  // Route through the browser's print system instead of jsPDF + html2canvas.
+  // The print path renders the live DOM, so text stays as real PDF text
+  // (selectable, copyable, searchable) and the smart layout adjustments —
+  // the FEATURES density scale, font sizing, image cropping — all carry
+  // through exactly as you see them on screen.
+  //
+  // printSlide() automatically routes to printQueue() when PDF_QUEUE.length > 0,
+  // so this single delegation handles both single-card and queue cases.
+  return printSlide();
+}
+
+// Legacy raster-PDF path kept for reference / fallback. Not wired to any
+// button. To use: call downloadPDF_image() from the console. Produces a
+// large image-only PDF where text is NOT selectable.
+async function downloadPDF_image(){
+  gen();
+  const btn=document.getElementById('pdf-btn');
+  const origHTML=btn?btn.innerHTML:'';
+  if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span> Building PDF…</span>';btn.disabled=true;}
+
+  const name = getExportName();
+
+  try{
     const {jsPDF}=window.jspdf;
     const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-    if(cv1) pdf.addImage(cv1.toDataURL('image/jpeg',0.95),'JPEG',0,0,297,210);
-    if(cv2){pdf.addPage();pdf.addImage(cv2.toDataURL('image/jpeg',0.95),'JPEG',0,0,297,210);}
-    pdf.save(getExportName()+'.pdf');
-  }catch(err){console.error('PDF error:',err);alert('PDF export failed: '+err.message);}
-  finally{
-    gen();
-    if(btn){btn.innerHTML=origHTML;btn.style.opacity='1';btn.disabled=false;}
-    if(lbl) lbl.textContent='↓ PDF';
+    const cv1 = await slideToCanvas('slide');
+    if(cv1) pdf.addImage(cv1.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);
+    const cv2 = await slideToCanvas('slide2');
+    if(cv2){pdf.addPage();pdf.addImage(cv2.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);}
+    pdf.save(name+'.pdf');
+  }catch(err){
+    console.error('PDF failed:',err);
+    alert('PDF failed: '+err.message);
+  }finally{
+    if(btn){btn.innerHTML=origHTML;btn.disabled=false;}
   }
 }
 
-async function downloadJPG(){
-  gen._captureMode=true;gen();gen._captureMode=false;
-  const btn=document.getElementById('pdf-btn');
-  const lbl=document.getElementById('pdf-btn-label');
-  if(lbl) lbl.textContent='Saving…';
-  try{
-    const cv1=await slideToCanvas('slide');
-    const cv2=await slideToCanvas('slide2');
-    const name=getExportName();
-    if(navigator.share&&navigator.canShare&&cv1&&cv2){
-      const toFile=(cv,n)=>new Promise(res=>{cv.toBlob(b=>res(new File([b],n,{type:'image/jpeg'})),'image/jpeg',0.93);});
-      try{
-        const files=[await toFile(cv1,name+'_p1.jpg'),await toFile(cv2,name+'_p2.jpg')];
-        if(navigator.canShare({files})){await navigator.share({files,title:name});return;}
-      }catch{}
+
+// ── CUSTOM INFO BLOCK POSITION ───────────────────────────
+function setCustomPos(pos){
+  CUSTOM_POS=pos;
+  document.getElementById('cpos-below')?.classList.toggle('on',pos==='below');
+  document.getElementById('cpos-above')?.classList.toggle('on',pos==='above');
+  gen();
+}
+
+const TRANSIT = IC.tr_metro; // backward compat alias
+
+function icInner(id){
+  const m=(renderIcHtml(id)||IC[id]||'')?.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
+  return m?m[1]:'';
+}
+
+const ALL_ICONS_LIST = [...IC_LIST]; // CO icons appended after load
+
+// ── DOWNLOAD LIB INDEX ───────────────────────────────────
+function downloadLibIndex(){
+  const lib=getLib();
+  if(!lib.length){showStatus('Library is empty — upload JSON files first.','s-err');return;}
+  const index=lib.map(p=>{
+    const n=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):(p.name||'location');
+    return n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'.json';
+  });
+  const blob=new Blob([JSON.stringify(index,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='index.json';a.click();
+  URL.revokeObjectURL(a.href);
+  showStatus('index.json downloaded — upload it to your json/ folder on the server.','s-ok');
+}
+
+// ── LEGACY PHOTO UPLOAD ──────────────────────────────────
+function onPhotos(e){
+  const files=Array.from(e.target.files).slice(0,3);
+  files.forEach((f,i)=>{
+    const r=new FileReader();
+    r.onload=ev=>{S.photos[i]=ev.target.result;renderPhotoSlots();gen();};
+    r.readAsDataURL(f);
+  });
+}
+function rmPhoto(i){rmPhotoSlot(i);}
+
+// ── CLICK-TO-EDIT: click any slide region → jump to tab & field ──
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-edit]');
+  if(!el)return;
+  if(!el.closest('#slide,#slide2'))return;
+  const[tab,fieldId]=(el.dataset.edit||'').split(':');
+  if(!tab)return;
+  openTab(tab);
+  const panel=document.getElementById('p-'+tab);
+  if(panel)panel.scrollTop=0;
+  if(fieldId){
+    setTimeout(()=>{
+      const target=document.getElementById(fieldId);
+      if(!target)return;
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      const flashEl=target.closest('.field')||target;
+      flashEl.classList.remove('edit-flash');
+      void flashEl.offsetWidth;
+      flashEl.classList.add('edit-flash');
+      if(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.contentEditable==='true'){
+        setTimeout(()=>target.focus(),300);
+      }
+    },120);
+  }
+});
+
+// ── RICH EDITOR: controlled Enter key & clean paste ──────
+document.addEventListener('keydown',e=>{
+  const el=e.target;
+  if(!el.isContentEditable)return;
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    const sel=window.getSelection();
+    if(!sel||!sel.rangeCount)return;
+    const range=sel.getRangeAt(0);
+    range.deleteContents();
+    const br=document.createElement('br');
+    range.insertNode(br);
+    if(!br.nextSibling||(br.nextSibling.nodeType===3&&br.nextSibling.textContent==='')){
+      const trail=document.createElement('br');
+      br.parentNode.insertBefore(trail,br.nextSibling);
     }
-    // Desktop download
-    const a=document.createElement('a');
-    if(cv1){a.href=cv1.toDataURL('image/jpeg',0.93);a.download=name+'_p1.jpg';a.click();}
-    await new Promise(r=>setTimeout(r,400));
-    if(cv2){a.href=cv2.toDataURL('image/jpeg',0.93);a.download=name+'_p2.jpg';a.click();}
-  }catch(err){console.error('JPG error:',err);}
-  finally{ gen(); if(lbl) lbl.textContent='↓ PDF'; }
+    range.setStartAfter(br);range.collapse(true);
+    sel.removeAllRanges();sel.addRange(range);
+    if(typeof gen==='function')gen();
+  }
+});
+
+document.addEventListener('paste',e=>{
+  const el=e.target;
+  if(!el.isContentEditable)return;
+  e.preventDefault();
+  const text=(e.clipboardData||window.clipboardData).getData('text/plain');
+  if(!text)return;
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount)return;
+  const range=sel.getRangeAt(0);
+  range.deleteContents();
+  const lines=text.split(/\r?\n/);
+  const frag=document.createDocumentFragment();
+  lines.forEach((line,i)=>{if(i>0)frag.appendChild(document.createElement('br'));if(line)frag.appendChild(document.createTextNode(line));});
+  range.insertNode(frag);range.collapse(false);
+  sel.removeAllRanges();sel.addRange(range);
+  if(el.classList.contains('tr-rich-editor')&&el.dataset.trId){updateTrHtml(el.dataset.trId,el);}
+  if(typeof gen==='function')gen();
+});
+
+// ── MOBILE APP LOGIC ─────────────────────────────────────
+function isMobile(){return window.innerWidth<=768;}
+let _mobCurrentTab='loc';
+
+function mobOpenTab(name){
+  if(!isMobile())return;
+  _mobCurrentTab=name;
+  document.querySelectorAll('.mob-tab').forEach(b=>{
+    b.classList.toggle('on',b.id==='mtab-'+name&&name!=='print');
+  });
+  document.querySelector('.sidebar').style.display='';
+  document.querySelector('.preview').classList.add('mob-hidden');
+  const fab=document.getElementById('mob-fab');
+  if(fab)fab.style.display='flex';
+  const bar=document.getElementById('mob-preview-bar');
+  if(bar)bar.style.display='none';
+  openTab(name);
 }
 
-
-function getExportName(){
-  // Prefer EN name for export filename
-  const enData = LANG_DATA['en'];
-  const enName = enData?.fields?.['n-main'] || '';
-  if(enName) return enName.replace(/[^a-zA-Z0-9一-鿿぀-ヿ]+/g,'-').replace(/^-|-$/g,'');
-  const name = document.getElementById('n-main')?.value.trim() || 'compass-offices';
-  return name.replace(/[^a-zA-Z0-9一-鿿぀-ヿ]+/g,'-').replace(/^-|-$/g,'');
+function mobShowPreview(){
+  if(!isMobile())return;
+  gen();
+  document.querySelector('.sidebar').style.display='none';
+  document.querySelector('.preview').classList.remove('mob-hidden');
+  const fab=document.getElementById('mob-fab');
+  if(fab)fab.style.display='none';
+  const bar=document.getElementById('mob-preview-bar');
+  if(bar)bar.style.display='flex';
 }
+
+function mobBackToEdit(){
+  document.querySelector('.sidebar').style.display='';
+  document.querySelector('.preview').classList.add('mob-hidden');
+  const fab=document.getElementById('mob-fab');
+  if(fab)fab.style.display='flex';
+  const bar=document.getElementById('mob-preview-bar');
+  if(bar)bar.style.display='none';
+  document.querySelectorAll('.mob-tab').forEach(b=>{
+    b.classList.toggle('on',b.id==='mtab-'+_mobCurrentTab);
+  });
+}
+
+window.addEventListener('resize',()=>{
+  if(!isMobile()){
+    document.querySelector('.sidebar').style.display='';
+    document.querySelector('.preview').classList.remove('mob-hidden');
+  } else {
+    mobOpenTab(_mobCurrentTab);
+  }
+});
 
 </script>
 
-<!-- Mobile FAB — Preview -->
-<button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-</button>
+<div class="mob-tabbar" id="mob-tabbar">
+  <button class="mob-tab on" id="mtab-loc" onclick="mobOpenTab('loc')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span data-i18n="tab_loc">Location</span>
+  </button>
+  <button class="mob-tab" id="mtab-specs" onclick="mobOpenTab('specs')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+    <span data-i18n="tab_specs">Specs</span>
+  </button>
+  <button class="mob-tab" id="mtab-price" onclick="mobOpenTab('price')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    <span data-i18n="tab_price">Pricing</span>
+  </button>
+  <button class="mob-tab" id="mtab-media" onclick="mobOpenTab('media')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    <span data-i18n="tab_media">Media</span>
+  </button>
+  <button class="mob-tab mob-tab-action" id="mtab-print" onclick="downloadPDF()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span id="mob-tab-pdf-label">↓ PDF</span>
+  </button>
+</div>
 
-<!-- ── EMAIL TEMPLATE MODAL ─────────────────────────────────────── -->
+<!-- EMAIL MODAL -->
 <div id="email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:center;justify-content:center;padding:16px;">
   <div style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;">
     <div style="padding:16px 20px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
@@ -4785,7 +5826,7 @@ function getExportName(){
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">From (Your Name)</label><input id="email-from-name" type="text" placeholder="e.g. Sarah Chen" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
       <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">Client Company</label><input id="email-company" type="text" placeholder="e.g. Acme Corp" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;" id="email-scroll-area"><div id="email-preview" style="max-width:600px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
+    <div style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;"><div id="email-preview" style="max-width:600px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
     <!-- Copy footer -->
     <div style="padding:10px 20px;border-top:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff;">
       <span id="email-copy-hint" style="font-size:12px;color:#888;transition:color .2s;"></span>
@@ -4794,10 +5835,16 @@ function getExportName(){
         Copy
       </button>
     </div>
+
   </div>
 </div>
 
-<!-- ── PDF QUEUE PANEL ─────────────────────────────────────────── -->
+<!-- Mobile FAB — Preview -->
+<button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+</button>
+
+<!-- ── PDF QUEUE PANEL ─────────────────────────────────────── -->
 <div id="queue-panel" style="display:none;position:fixed;right:16px;bottom:76px;width:320px;max-height:70vh;background:var(--wh);border:1.5px solid var(--bd);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:600;flex-direction:column;overflow:hidden;">
   <div style="padding:12px 14px 10px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
     <span style="font-size:13px;font-weight:700;color:var(--drk);">PDF Queue</span>
