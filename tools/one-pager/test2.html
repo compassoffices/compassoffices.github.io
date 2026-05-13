@@ -2655,6 +2655,14 @@ function setFpPage2Same(same){
   FP_PAGE2_SAME=same;
   document.getElementById('fp-p2-same')?.classList.toggle('on',same);
   document.getElementById('fp-p2-diff')?.classList.toggle('on',!same);
+  // When switching to "Page 2 different" while in highlight mode, set up the
+  // sensible pairing: page 1 = individual room close-ups, page 2 = master
+  // with highlights overlaid. (In "Both pages same" mode both pages just
+  // show the master+highlights.)
+  if(!same && FP_MASTER_DATA){
+    FP_PAGE1_IDX = -2; // rooms-only collage
+    FP_PAGE2_IDX = 0;  // master (with highlights baked in)
+  }
   renderFpList();gen();
 }
 
@@ -2676,6 +2684,11 @@ function delFpPlan(i){
 // Smart defaults: when 2+ plans → page2 different, p1=collage(-1), p2=master(0)
 // When 1 plan → both same
 function applyFpSmartDefaults(){
+  // In highlight mode, FP_PLANS only carries the auto-Master entry; the
+  // "Both pages same" / "Page 2 different" choice is user-driven via the
+  // toggle, and page contents come from FP_MASTER_DATA (not FP_PLANS).
+  // Skip the legacy index-rewriting so the toggle isn't fought back.
+  if(FP_MASTER_DATA) return;
   if(FP_PLANS.length>=2){
     if(FP_PAGE2_SAME){
       // Auto-switch to page2 different with smart assignment
@@ -3469,15 +3482,33 @@ function gen(){
   // Determine which floorplan(s) to show on each page
   const fpPh=`<div class="sl-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:32%;opacity:.15;display:block;margin:0 auto 6px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>Floor Plan</div>`;
   function buildFpHtml(pgIdx, showAll){
-    // ── Highlight mode: a single master image with baked-in polygon overlays ──
-    // If we have a rendered URL (highlights exist + render finished), use it.
-    // If we have master data but no highlights yet, show the master directly.
+    // ── Highlight mode ──
     if(FP_MASTER_DATA){
+      // Page 1 in "Page 2 different" mode (pgIdx === -2) → individual room
+      // close-up collage. Uses {FP_BASE_URL}{room.file} for each highlighted
+      // room (the extractor uploads these alongside master.png).
+      if(pgIdx === -2){
+        const highlights = getActiveHighlightRooms();
+        if(highlights.length){
+          const items = highlights.map(r => ({
+            url: FP_BASE_URL + (r.file || (r.displayLabel + '.png')),
+            label: r.displayLabel,
+          }));
+          if(items.length === 1){
+            return `<img src="${items[0].url}" alt="${items[0].label}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
+          }
+          const n = items.length;
+          const cols = n===2?2:n===3?3:n<=4?2:3;
+          const lastCol = (n%cols===0)?1:(cols-(n%cols)+1);
+          return `<div class="sl-fp-collage" style="grid-template-columns:repeat(${cols},1fr)">${items.map((it,pi)=>`<img src="${it.url}" alt="${it.label}" style="${pi===n-1&&lastCol>1?'grid-column:span '+lastCol+';':''}">`).join('')}</div>`;
+        }
+        // No highlights → fall through to master display below
+      }
+      // All other modes → master with highlight polygons baked in
       const baked = FP_HIGHLIGHT_RENDER_URL;
       if(baked){
         return `<img src="${baked}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
       }
-      // No highlights yet → just show the master image
       const masterUrl = getMasterImageUrl();
       return `<img src="${masterUrl}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
     }
