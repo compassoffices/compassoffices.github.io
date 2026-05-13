@@ -2303,10 +2303,16 @@ function renderPrFpChips(){
       if(m) manualIds.add(m.displayLabel);
     });
     const allIds = [...new Set([...pricingIds, ...manualIds])].sort();
+    // Master chip ALWAYS first — non-removable, indicates master plan is the base layer
+    const masterChip = `
+      <div style="display:flex;align-items:center;gap:4px;padding:2px 8px 2px 6px;border-radius:20px;background:var(--drk);border:1px solid var(--drk);font-size:11px;color:#fff;font-weight:700;" title="Master floor plan — always shown as the base layer">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+        <span>Master</span>
+      </div>`;
     if(!allIds.length){
-      chips.innerHTML = `<span style="font-size:10.5px;color:var(--xlt);font-style:italic;">No rooms highlighted yet · add a pricing row or type a room # above.</span>`;
+      chips.innerHTML = masterChip + `<span style="font-size:10.5px;color:var(--xlt);font-style:italic;margin-left:6px;">No rooms highlighted yet · add a pricing row or type a room # above.</span>`;
     } else {
-      chips.innerHTML = allIds.map(id => {
+      chips.innerHTML = masterChip + allIds.map(id => {
         const isAuto = pricingIds.has(id);
         const isManual = manualIds.has(id);
         const room = fpFindRoom(id);
@@ -2391,7 +2397,7 @@ function getActiveHighlightRooms(){
 // Cache key — same set of rooms with same colours → same rendered image.
 function fpHighlightCacheKey(rooms){
   if(!FP_MASTER_DATA) return '';
-  const masterUrl = (fpDataDir() || FP_BASE_URL) + (FP_MASTER_DATA.master?.file || 'master.png');
+  const masterUrl = getMasterImageUrl();
   return masterUrl + '|' + rooms.map(r => r.displayLabel + ':' + (r.fillColor||'')).join(',');
 }
 
@@ -2423,13 +2429,22 @@ function fpDataDir(){
   return i >= 0 ? u.substring(0, i+1) : '';
 }
 
+// Resolve the master image URL. On Cloudinary, JSON files live under
+// /raw/upload/ but PNG images live under /image/upload/ — so we MUST use
+// FP_BASE_URL (the image base) for the master, NOT the JSON's directory.
+// If master.file in the JSON is an absolute URL we use it verbatim.
+// Fall back to the JSON's directory only when no image base is set at all
+// (unusual; mainly for self-hosted setups where both live in one folder).
+function getMasterImageUrl(){
+  const f = FP_MASTER_DATA?.master?.file || 'master.png';
+  if(/^https?:\/\//i.test(f)) return f;
+  return (FP_BASE_URL || fpDataDir()) + f;
+}
+
 // Core renderer: draw the master, then overlay each highlighted polygon.
 async function renderHighlightedMaster(rooms){
   if(!FP_MASTER_DATA) return null;
-  const masterFile = FP_MASTER_DATA.master?.file || 'master.png';
-  // Master lives in the same directory as data.json (extractor convention).
-  // Fall back to FP_BASE_URL if the data URL is empty for some reason.
-  const masterUrl = (fpDataDir() || FP_BASE_URL) + masterFile;
+  const masterUrl = getMasterImageUrl();
   const img = await fpLoadImage(masterUrl);
   const cv = document.createElement('canvas');
   cv.width = img.naturalWidth;
@@ -2575,7 +2590,7 @@ function updateFpDataStatusUI(){
   } else if(FP_DATA_STATUS === 'ok' && FP_MASTER_DATA){
     const n = (FP_MASTER_DATA.rooms || []).length;
     const lvl = FP_MASTER_DATA.level ? ' · Level '+FP_MASTER_DATA.level : '';
-    el.innerHTML = `<span style="display:inline-block;padding:1px 7px;background:#FF6600;color:#fff;border-radius:99px;font-size:9.5px;font-weight:700;">✓ HIGHLIGHT MODE</span> ${n} rooms${lvl} loaded · master from <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${fpDataDir() || FP_BASE_URL}master.png</code>`;
+    el.innerHTML = `<span style="display:inline-block;padding:1px 7px;background:#FF6600;color:#fff;border-radius:99px;font-size:9.5px;font-weight:700;">✓ HIGHLIGHT MODE</span> ${n} rooms${lvl} loaded · master from <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${getMasterImageUrl()||'(no image base)'}</code>`;
   } else if(FP_DATA_STATUS === 'error'){
     el.innerHTML = `<span style="color:var(--xlt);">No polygon JSON at <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${shortUrl}</code> &middot; using legacy image-collage mode.</span>`;
   } else {
@@ -3428,7 +3443,7 @@ function gen(){
         return `<img src="${baked}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
       }
       // No highlights yet → just show the master image
-      const masterUrl = (fpDataDir() || FP_BASE_URL) + (FP_MASTER_DATA.master?.file || 'master.png');
+      const masterUrl = getMasterImageUrl();
       return `<img src="${masterUrl}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
     }
     // ── Legacy image-collage mode ──
