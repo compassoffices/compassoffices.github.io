@@ -798,31 +798,31 @@ img.co-icon-img{display:block;}
 
     <!-- PRICING PANEL -->
     <div class="panel" id="p-price">
-      <!-- ── AUS Office Lookup ─────────────────────────────────── -->
+      <!-- ── Office Lookup (multi-region) ─────────────────────────────────── -->
       <div style="margin-bottom:14px;border:1.5px solid var(--bd);border-radius:10px;overflow:hidden;">
         <!-- Header -->
         <div style="background:var(--bg);padding:8px 12px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
           <div style="display:flex;align-items:center;gap:7px;">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            <span style="font-size:12px;font-weight:800;color:var(--drk);">AUS Office Lookup</span>
+            <span style="font-size:12px;font-weight:800;color:var(--drk);">Office Lookup</span>
             <span id="aus-source-badge" style="font-size:9px;padding:1px 6px;border-radius:10px;background:#fff3e0;color:#e65100;font-weight:700;">Loading…</span>
           </div>
-          <button onclick="ausFetchSheet(AUS_SHEET_URL).then(ok=>!ok&&showStatus('Sheet fetch failed — check network.','s-err'))" title="Refresh from Google Sheet" style="font-size:10.5px;color:var(--xlt);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;">
+          <button onclick="fetchAxRegions().then(ok=>!ok&&showStatus('Region index fetch failed — check network.','s-err'))" title="Refresh region index + reload current region" style="font-size:10.5px;color:var(--xlt);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             Refresh
           </button>
         </div>
 
-        <!-- Centre filter chips -->
-        <div style="padding:7px 10px 5px;border-bottom:1px solid var(--bd);display:flex;flex-wrap:wrap;gap:4px;">
-          <button onclick="ausSetCentre('')" id="aus-c-all" class="lib-city-chip on" style="font-size:10px;padding:2px 8px;">All</button>
-          <button onclick="ausSetCentre('141 Walker Street')" id="aus-c-141" class="lib-city-chip">141 Walker</button>
-          <button onclick="ausSetCentre('207 Kent Street')" id="aus-c-207" class="lib-city-chip">207 Kent</button>
-          <button onclick="ausSetCentre('360 Collins Street')" id="aus-c-360" class="lib-city-chip">360 Collins</button>
-          <button onclick="ausSetCentre('459 Collins Street')" id="aus-c-459" class="lib-city-chip">459 Collins</button>
-          <button onclick="ausSetCentre('570 Bourke Street')" id="aus-c-570" class="lib-city-chip">570 Bourke</button>
-          <button onclick="ausSetCentre('9 Castlereagh')" id="aus-c-9c" class="lib-city-chip">9 Castlereagh</button>
+        <!-- Region chips (top-level: which Availability Report to load) -->
+        <div style="padding:8px 10px 6px;border-bottom:1px solid var(--bd);background:#fafafa;">
+          <div style="font-size:9.5px;font-weight:700;color:var(--xlt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Region</div>
+          <div id="aus-region-chips" style="display:flex;flex-wrap:wrap;gap:4px;">
+            <span style="font-size:10.5px;color:var(--xlt);font-style:italic;">Loading regions…</span>
+          </div>
         </div>
+
+        <!-- Centre sub-filter chips (dynamic — derived from current region's data) -->
+        <div id="aus-centre-chips" style="padding:7px 10px 5px;border-bottom:1px solid var(--bd);display:none;flex-wrap:wrap;gap:4px;"></div>
 
         <!-- Filters row -->
         <div style="padding:6px 10px;border-bottom:1px solid var(--bd);display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -1882,11 +1882,14 @@ async function ausFetchSheet(url){
     const r=await fetch(url,{cache:'no-cache'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const text=await r.text();
+    // Reset offices for the new region (otherwise stale entries linger)
+    AUS_OFFICES = {};
     const count=ausParseAndApplyCSV(text);
     if(count>0){
       if(badge){badge.textContent=`Live ● (${count})`;badge.style.background='#e8f5e9';badge.style.color='#2e7d32';}
       _rebuildMonthFilter();
       _rebuildViewFilters();
+      renderCentreChips();
       renderAusLookup();
       return true;
     }
@@ -1896,6 +1899,152 @@ async function ausFetchSheet(url){
     if(badge){badge.textContent='Offline';badge.style.background='#fce4ec';badge.style.color='#c62828';}
     return false;
   }
+}
+
+// ══════════════════════════════════════════════════════════
+//  REGION INDEX (NEW)
+//  A master Google Sheet lists which regions are available and where each
+//  region's Availability Report CSV lives. Loaded once at startup; lets the
+//  user switch between Kuala Lumpur / Sydney / Melbourne / AUS / etc.
+//  without recompiling. Each region's CSV has the same column shape (the
+//  existing ausParseAndApplyCSV auto-finds the header row, so the "ignore
+//  the first 3 title rows, header on row 4" requirement is already handled).
+// ══════════════════════════════════════════════════════════
+// Strip a region-name prefix from a centre value. Examples:
+//   "AUS - 141 Walker Street" → "141 Walker Street"
+//   "Sydney - 1 Bligh"        → "1 Bligh"
+//   "KL - Suria KLCC"         → "Suria KLCC"
+//   "141 Walker Street"       → "141 Walker Street" (no change)
+// Matches either the current region's name (from the master sheet) OR a
+// short uppercase abbreviation (AUS / SYD / KL / etc.).
+function stripRegionPrefix(s){
+  if(!s) return '';
+  let out = String(s);
+  if(AX_REGION){
+    const escaped = AX_REGION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`^${escaped}\\s*-\\s*`, 'i'), '');
+  }
+  out = out.replace(/^[A-Z]{2,5}\s*-\s*/, '');
+  return out.trim();
+}
+
+const AX_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTuKjM9sngPtFmP-qPV8a1MobnTDepaOhH849LE2rPtJKYOWvUa3IW0g33dym0rkUQHkUiWWf5QnJXo/pub?output=csv';
+let AX_REGIONS = {};      // {regionName: csvUrl}
+let AX_REGION  = '';      // currently-selected region (e.g. "AUS", "Sydney")
+let AX_REGIONS_LOADED = false;
+
+// Fetch the master sheet and populate AX_REGIONS, then render region chips.
+async function fetchAxRegions(){
+  try{
+    const r = await fetch(AX_DATA_URL, {cache:'no-cache'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const text = await r.text();
+    AX_REGIONS = parseAxRegionsCsv(text);
+    AX_REGIONS_LOADED = Object.keys(AX_REGIONS).length > 0;
+    if(!AX_REGIONS_LOADED) throw new Error('No regions found in master sheet');
+    renderRegionChips();
+    // If a region was restored from a saved card, load its data; otherwise
+    // pick the first region as the default so the office list isn't empty.
+    if(AX_REGION && AX_REGIONS[AX_REGION]){
+      setAxRegion(AX_REGION, /*skipReset=*/true);
+    } else {
+      const first = Object.keys(AX_REGIONS)[0];
+      if(first) setAxRegion(first, /*skipReset=*/true);
+    }
+    return true;
+  } catch(err){
+    console.warn('AX region index fetch failed:', err.message);
+    // Graceful fallback: stay with whatever's loaded (could be nothing).
+    const badge = document.getElementById('aus-source-badge');
+    if(badge){ badge.textContent='Region index offline'; badge.style.background='#fce4ec'; badge.style.color='#c62828'; }
+    return false;
+  }
+}
+
+// Parse the master CSV. Looks for the header row containing "Region" + "Data".
+function parseAxRegionsCsv(text){
+  const parseCSVLine = line => {
+    const r=[]; let cur='', inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){ inQ=!inQ; }
+      else if(ch===',' && !inQ){ r.push(cur.trim()); cur=''; }
+      else { cur+=ch; }
+    }
+    r.push(cur.trim());
+    return r;
+  };
+  const rows = text.split(/\r?\n/).map(parseCSVLine);
+  // Find header row — should contain a cell matching "Region" (case-insensitive)
+  let hi = -1;
+  for(let i=0;i<Math.min(5, rows.length);i++){
+    if(rows[i].some(h => /^region$/i.test(h.trim()))){ hi=i; break; }
+  }
+  if(hi < 0) return {};
+  const headers = rows[hi].map(h => h.trim().toLowerCase());
+  const regionCol = headers.indexOf('region');
+  const dataCol   = headers.findIndex(h => h === 'data' || h.includes('url') || h.includes('csv'));
+  if(regionCol < 0 || dataCol < 0) return {};
+  const out = {};
+  for(let i = hi + 1; i < rows.length; i++){
+    const region = (rows[i][regionCol] || '').trim();
+    const url    = (rows[i][dataCol]   || '').trim();
+    if(region && url && /^https?:\/\//i.test(url)) out[region] = url;
+  }
+  return out;
+}
+
+// Switch active region. Fetches that region's CSV and repopulates the office
+// list. Resets the centre sub-filter so users don't carry stale filter state
+// across regions where the centre name doesn't exist.
+async function setAxRegion(name, skipReset){
+  if(!AX_REGIONS[name]) return false;
+  const changed = AX_REGION !== name;
+  AX_REGION = name;
+  if(changed && !skipReset){
+    AUS_CENTRE_FILTER = '';
+    AUS_SELECTED.clear();
+  }
+  renderRegionChips();
+  const url = AX_REGIONS[name];
+  const ok = await ausFetchSheet(url);
+  return ok;
+}
+
+// Render the region chip row from AX_REGIONS.
+function renderRegionChips(){
+  const el = document.getElementById('aus-region-chips');
+  if(!el) return;
+  const names = Object.keys(AX_REGIONS);
+  if(!names.length){
+    el.innerHTML = `<span style="font-size:10.5px;color:var(--xlt);font-style:italic;">No regions available · check network</span>`;
+    return;
+  }
+  el.innerHTML = names.map(n => {
+    const isOn = n === AX_REGION;
+    return `<button onclick="setAxRegion('${n.replace(/'/g,"\\'")}')" class="lib-city-chip${isOn?' on':''}" style="font-size:10.5px;padding:3px 10px;font-weight:700;">${n}</button>`;
+  }).join('');
+}
+
+// Render the centre sub-filter chips dynamically from whatever centres are
+// present in the currently-loaded region's offices.
+function renderCentreChips(){
+  const el = document.getElementById('aus-centre-chips');
+  if(!el) return;
+  const centres = new Set();
+  Object.values(AUS_OFFICES).forEach(o => { if(o.c) centres.add(o.c); });
+  const list = [...centres].sort();
+  if(list.length <= 1){
+    // Only one centre (or none) — no point showing a sub-filter
+    el.style.display = 'none';
+    AUS_CENTRE_FILTER = '';
+    return;
+  }
+  el.style.display = 'flex';
+  const shorten = c => c.replace(/\s+(Street|St|Road|Rd|Avenue|Ave|Place|Pl)$/i, '');
+  el.innerHTML =
+    `<button onclick="ausSetCentre('')" class="lib-city-chip${AUS_CENTRE_FILTER===''?' on':''}" style="font-size:10px;padding:2px 8px;">All</button>` +
+    list.map(c => `<button onclick="ausSetCentre('${c.replace(/'/g,"\\'")}')" class="lib-city-chip${AUS_CENTRE_FILTER===c?' on':''}" style="font-size:10px;padding:2px 8px;">${shorten(c)}</button>`).join('');
 }
 let AUS_SELECTED = new Set(); // selected office IDs
 let AUS_CENTRE_FILTER = '';   // active centre filter
@@ -3137,9 +3286,7 @@ function loadFromLib(idx){
       // Clear any previous floor filter when switching centres via library
       const si=document.getElementById('aus-search');
       if(si) si.value='';
-      document.querySelectorAll('[id^="aus-c-"]').forEach(b=>b.classList.remove('on'));
-      const cMap={'':'aus-c-all','141 Walker Street':'aus-c-141','207 Kent Street':'aus-c-207','360 Collins Street':'aus-c-360','459 Collins Street':'aus-c-459','570 Bourke Street':'aus-c-570','9 Castlereagh':'aus-c-9c'};
-      document.getElementById(cMap[matchedCentre]||'aus-c-all')?.classList.add('on');
+      renderCentreChips(); // re-renders chips with the new "on" state
       // Use setTimeout to defer renderAusLookup so loadFromLib completes first
       setTimeout(()=>renderAusLookup(), 0);
     }
@@ -3268,6 +3415,24 @@ function applyLocationData(p){
     renderFpList();
     // Restore manual highlight additions
     FP_HIGHLIGHTS_MANUAL = new Set(Array.isArray(p.fp_highlights_manual) ? p.fp_highlights_manual : []);
+    // ── Restore Office Lookup region + centre filter ──
+    // If the region differs from what's currently loaded, fetch the region's
+    // CSV (assuming the master sheet has already been loaded). Otherwise
+    // just re-apply the centre filter to the current data.
+    if(p.office_lookup_region){
+      if(AX_REGIONS_LOADED && AX_REGIONS[p.office_lookup_region] && p.office_lookup_region !== AX_REGION){
+        setAxRegion(p.office_lookup_region, /*skipReset=*/true).then(()=>{
+          AUS_CENTRE_FILTER = p.office_lookup_centre || '';
+          renderCentreChips();
+          renderAusLookup();
+        });
+      } else {
+        AX_REGION = p.office_lookup_region;
+        AUS_CENTRE_FILTER = p.office_lookup_centre || '';
+        renderRegionChips();
+        renderCentreChips();
+      }
+    }
     // Reset highlight state and re-fetch polygon data for the new base
     FP_MASTER_DATA = null;
     FP_HIGHLIGHT_RENDER_URL = null;
@@ -4248,6 +4413,8 @@ function downloadCurrentJSON(){
     fp_base_url: FP_BASE_URL,
     fp_data_url: FP_DATA_URL,
     fp_highlights_manual: Array.from(FP_HIGHLIGHTS_MANUAL),
+    office_lookup_region: AX_REGION,
+    office_lookup_centre: AUS_CENTRE_FILTER,
     icon_overrides: window.ICON_OVERRIDES||{},
   };
 
@@ -4309,8 +4476,9 @@ function mobBackToEdit(){
   updateLibStatus();
   initLibDragDrop();
   renderAusLookup();
-  // Auto-fetch AUS sheet if URL is saved
-  if(AUS_SHEET_URL) ausFetchSheet(AUS_SHEET_URL);
+  // Auto-fetch the region index (master sheet) → populates region chips →
+  // loads the first region (or the saved region if one was restored).
+  fetchAxRegions();
 
   // On every page load: clear server library cards and reload fresh from server.
   // This ensures the latest JSON cards are always shown.
@@ -4507,6 +4675,7 @@ function buildStateSnapshot(){
     icon_overrides:window.ICON_OVERRIDES?{...window.ICON_OVERRIDES}:{},
     fp_plans:FP_PLANS.map(p=>({url:p.url,label:p.label})),
     fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_data_url:FP_DATA_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
+    office_lookup_region:AX_REGION,office_lookup_centre:AUS_CENTRE_FILTER,
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
@@ -4607,6 +4776,21 @@ function restoreStateSnapshot(state){
   syncDepositNoteInput();
   // Restore manual highlight set + refetch polygon data
   FP_HIGHLIGHTS_MANUAL = new Set(Array.isArray(state.fp_highlights_manual) ? state.fp_highlights_manual : []);
+  // ── Restore Office Lookup region + centre filter ──
+  if(state.office_lookup_region){
+    if(AX_REGIONS_LOADED && AX_REGIONS[state.office_lookup_region] && state.office_lookup_region !== AX_REGION){
+      setAxRegion(state.office_lookup_region, /*skipReset=*/true).then(()=>{
+        AUS_CENTRE_FILTER = state.office_lookup_centre || '';
+        renderCentreChips();
+        renderAusLookup();
+      });
+    } else {
+      AX_REGION = state.office_lookup_region;
+      AUS_CENTRE_FILTER = state.office_lookup_centre || '';
+      renderRegionChips();
+      renderCentreChips();
+    }
+  }
   FP_MASTER_DATA = null;
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;
@@ -4868,10 +5052,8 @@ function ausSetCentre(centre){
   if(searchInp && searchInp.value) searchInp.value = '';
 
   AUS_CENTRE_FILTER=centre;
-  // Update chip UI
-  document.querySelectorAll('[id^="aus-c-"]').forEach(b=>b.classList.remove('on'));
-  const map={'':'aus-c-all','141 Walker Street':'aus-c-141','207 Kent Street':'aus-c-207','360 Collins Street':'aus-c-360','459 Collins Street':'aus-c-459','570 Bourke Street':'aus-c-570','9 Castlereagh':'aus-c-9c'};
-  document.getElementById(map[centre]||'aus-c-all')?.classList.add('on');
+  // Re-render dynamic centre chips so the new "on" state is reflected
+  renderCentreChips();
 
   if(centre){
     const matches=ausLibCardsForCentre(centre);
@@ -5151,7 +5333,7 @@ function ausParseAndApplyCSV(text){
   for(let i=hi+1;i<rows.length;i++){
     const row=rows[i];
     if(row.length<4) continue;
-    const raw_centre=(cCol>=0?row[cCol]:'').replace(/AUS\s*-\s*/,'').trim();
+    const raw_centre=stripRegionPrefix((cCol>=0?row[cCol]:''));
     const oid=(oCol>=0?row[oCol]:'').trim();
     if(!oid||!raw_centre||!raw_centre.match(/\d/)) continue;
     const mp=parseFloat((mpCol>=0?row[mpCol]:'').replace(/[^\d.]/g,''))||0;
@@ -5197,17 +5379,18 @@ function ausParseAndApplyCSV(text){
 
 
 
-// ── AUS ↔ Library Sync ───────────────────────────────────────────────────────
-const AUS_CENTRE_NAMES = [
-  '141 Walker Street','207 Kent Street','360 Collins Street',
-  '459 Collins Street','570 Bourke Street','9 Castlereagh'
-];
+// ── Office Lookup ↔ Library Sync ─────────────────────────────────────────────
+// Centres come from whichever region's data is currently loaded.
+function getLoadedCentreNames(){
+  const set = new Set();
+  Object.values(AUS_OFFICES).forEach(o => { if(o.c) set.add(o.c); });
+  return [...set];
+}
 
 function ausCentreForCardName(cardName){
   if(!cardName) return '';
   const n = cardName.toLowerCase();
-  // Match if card name starts with at least the first 2 words of a centre
-  return AUS_CENTRE_NAMES.find(c => {
+  return getLoadedCentreNames().find(c => {
     const prefix = c.toLowerCase().split(' ').slice(0,2).join(' ');
     return n.startsWith(prefix);
   }) || '';
