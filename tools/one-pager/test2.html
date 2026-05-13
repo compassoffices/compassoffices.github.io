@@ -5478,12 +5478,7 @@ function ausCentreForCardName(cardName, cardObj){
   // its address.
   const candidates = [];
   if(cardName) candidates.push(cardName);
-  if(cardObj && cardObj.langs && typeof cardObj.langs === 'object'){
-    Object.values(cardObj.langs).forEach(ld => {
-      const addr = ld?.fields?.addr;
-      if(addr) candidates.push(addr);
-    });
-  }
+  if(cardObj) candidates.push(..._libCardAddrVariants(cardObj));
   return getLoadedCentreNames().find(c =>
     candidates.some(text => centresMatch(c, text))
   ) || '';
@@ -5551,6 +5546,50 @@ function centresMatch(centreName, libName){
   return shorter.every(w => longer.includes(w));
 }
 
+// ── Library-card field extractors ──────────────────────────────────────────
+// Saved library cards (the raw JSON from downloadCurrentJSON) store fields
+// at `langs[lc].address`, `langs[lc].city`, `langs[lc].name`. The live
+// in-memory LANG_DATA structure uses `langs[lc].fields.addr` instead. These
+// helpers try both shapes so the matcher works on either.
+function _libCardLangVal(ld, savedKey, liveKey){
+  if(!ld) return '';
+  if(ld[savedKey]) return ld[savedKey];
+  if(ld.fields && ld.fields[liveKey]) return ld.fields[liveKey];
+  return '';
+}
+function _libCardAddrVariants(l){
+  const out = [];
+  if(l && l.langs && typeof l.langs === 'object'){
+    Object.values(l.langs).forEach(ld => {
+      const addr = _libCardLangVal(ld, 'address', 'addr');
+      if(addr) out.push(addr);
+    });
+  }
+  // Top-level fallback (very old/hand-edited cards)
+  if(l && l.address) out.push(l.address);
+  return out;
+}
+function _libCardRegionHints(l){
+  const hints = new Set();
+  if(l && l.office_lookup_region) hints.add(l.office_lookup_region);
+  if(l && l.city) hints.add(l.city);
+  if(l && l.langs && typeof l.langs === 'object'){
+    Object.values(l.langs).forEach(ld => {
+      const city = _libCardLangVal(ld, 'city', 'city');
+      if(city) hints.add(city);
+    });
+  }
+  return hints;
+}
+function _libCardNameVariants(l){
+  if(!l) return [];
+  if(typeof l.name === 'object' && l.name){
+    return Object.values(l.name).filter(Boolean);
+  }
+  if(l.name) return [l.name];
+  return [];
+}
+
 function ausLibCardsForCentre(centre){
   if(!centre) return [];
   const lib = getLib();
@@ -5559,47 +5598,27 @@ function ausLibCardsForCentre(centre){
     // A library card saved in Hong Kong shouldn't be returned when the
     // user has Kuala Lumpur loaded just because the building names share
     // a word ("AIA Tower" ↔ "Menara AIA Sentral"). Collect every region
-    // hint the card carries (saved office_lookup_region + every language's
-    // city field); if the active region matches NONE of them, skip the
-    // card. Cards with no region info at all fall through to the name
-    // match for backward compat with legacy/hand-edited libraries.
+    // hint the card carries (office_lookup_region + each language's city);
+    // if the active region matches NONE of them, skip the card. Cards
+    // with no region info at all fall through to the name match for
+    // backward compat with legacy/hand-edited libraries.
     if(AX_REGION){
-      const hints = new Set();
-      if(l.office_lookup_region) hints.add(l.office_lookup_region);
-      if(l.langs && typeof l.langs === 'object'){
-        Object.values(l.langs).forEach(ld => {
-          const city = ld?.fields?.city;
-          if(city) hints.add(city);
-        });
-      }
+      const hints = _libCardRegionHints(l);
       if(hints.size && !hints.has(AX_REGION)) return false;
     }
 
     // ── Name match ──
-    // A library card's name may be a string or a per-language object.
-    // Try every variant — match if any one matches.
-    let nameVariants = [];
-    if(typeof l.name === 'object' && l.name){
-      nameVariants = Object.values(l.name).filter(Boolean);
-    } else if(l.name){
-      nameVariants = [l.name];
-    }
-    if(nameVariants.some(name => centresMatch(centre, name))) return true;
+    const names = _libCardNameVariants(l);
+    if(names.some(name => centresMatch(centre, name))) return true;
 
     // ── Address match (fallback) ──
     // The availability sheet's centre name is sometimes a street address
     // ("136 Des Voeux Road Central") while the library card is named after
     // the building tenant ("Bank of Dongguan Tower"). When name match fails,
-    // try the card's address fields — every language's `addr`. If the
+    // try the card's address fields — every language's address. If the
     // centre's words appear in any address, treat it as the same building.
-    const addrVariants = [];
-    if(l.langs && typeof l.langs === 'object'){
-      Object.values(l.langs).forEach(ld => {
-        const addr = ld?.fields?.addr;
-        if(addr) addrVariants.push(addr);
-      });
-    }
-    return addrVariants.some(addr => centresMatch(centre, addr));
+    const addrs = _libCardAddrVariants(l);
+    return addrs.some(addr => centresMatch(centre, addr));
   });
 }
 
