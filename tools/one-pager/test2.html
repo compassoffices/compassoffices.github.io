@@ -3306,7 +3306,7 @@ function loadFromLib(idx){
   hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
-    const matchedCentre = ausCentreForCardName(displayName);
+    const matchedCentre = ausCentreForCardName(displayName, p);
     if(matchedCentre){
       AUS_CENTRE_FILTER = matchedCentre;
       // Clear any previous floor filter when switching centres via library
@@ -5460,9 +5460,23 @@ function getLoadedCentreNames(){
   return [...set];
 }
 
-function ausCentreForCardName(cardName){
-  if(!cardName) return '';
-  return getLoadedCentreNames().find(c => centresMatch(c, cardName)) || '';
+function ausCentreForCardName(cardName, cardObj){
+  if(!cardName && !cardObj) return '';
+  // Build the set of strings to try matching: the card's display name plus
+  // every language's address. This lets a card named "Bank of Dongguan
+  // Tower" still resolve to the centre "136 Des Voeux Road Central" via
+  // its address.
+  const candidates = [];
+  if(cardName) candidates.push(cardName);
+  if(cardObj && cardObj.langs && typeof cardObj.langs === 'object'){
+    Object.values(cardObj.langs).forEach(ld => {
+      const addr = ld?.fields?.addr;
+      if(addr) candidates.push(addr);
+    });
+  }
+  return getLoadedCentreNames().find(c =>
+    candidates.some(text => centresMatch(c, text))
+  ) || '';
 }
 
 // ── Centre-name normaliser & fuzzy matcher ─────────────────────────────────
@@ -5531,6 +5545,27 @@ function ausLibCardsForCentre(centre){
   if(!centre) return [];
   const lib = getLib();
   return lib.map((l,i)=>({l,i})).filter(({l})=>{
+    // ── Region scoping ──
+    // A library card saved in Hong Kong shouldn't be returned when the
+    // user has Kuala Lumpur loaded just because the building names share
+    // a word ("AIA Tower" ↔ "Menara AIA Sentral"). Collect every region
+    // hint the card carries (saved office_lookup_region + every language's
+    // city field); if the active region matches NONE of them, skip the
+    // card. Cards with no region info at all fall through to the name
+    // match for backward compat with legacy/hand-edited libraries.
+    if(AX_REGION){
+      const hints = new Set();
+      if(l.office_lookup_region) hints.add(l.office_lookup_region);
+      if(l.langs && typeof l.langs === 'object'){
+        Object.values(l.langs).forEach(ld => {
+          const city = ld?.fields?.city;
+          if(city) hints.add(city);
+        });
+      }
+      if(hints.size && !hints.has(AX_REGION)) return false;
+    }
+
+    // ── Name match ──
     // A library card's name may be a string or a per-language object.
     // Try every variant — match if any one matches.
     let nameVariants = [];
@@ -5539,7 +5574,22 @@ function ausLibCardsForCentre(centre){
     } else if(l.name){
       nameVariants = [l.name];
     }
-    return nameVariants.some(name => centresMatch(centre, name));
+    if(nameVariants.some(name => centresMatch(centre, name))) return true;
+
+    // ── Address match (fallback) ──
+    // The availability sheet's centre name is sometimes a street address
+    // ("136 Des Voeux Road Central") while the library card is named after
+    // the building tenant ("Bank of Dongguan Tower"). When name match fails,
+    // try the card's address fields — every language's `addr`. If the
+    // centre's words appear in any address, treat it as the same building.
+    const addrVariants = [];
+    if(l.langs && typeof l.langs === 'object'){
+      Object.values(l.langs).forEach(ld => {
+        const addr = ld?.fields?.addr;
+        if(addr) addrVariants.push(addr);
+      });
+    }
+    return addrVariants.some(addr => centresMatch(centre, addr));
   });
 }
 
