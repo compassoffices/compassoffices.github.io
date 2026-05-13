@@ -1130,16 +1130,36 @@ img.co-icon-img{display:block;}
 
       <!-- Base URL pattern helper -->
       <div style="margin-bottom:8px;">
-        <label class="fl" style="font-size:11px;color:var(--xlt);font-weight:500;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block">Base URL <span style="font-weight:400;text-transform:none">(paste prefix, then use room# below)</span></label>
+        <label class="fl" style="font-size:11px;color:var(--xlt);font-weight:500;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block">Base URL <span style="font-weight:400;text-transform:none">(prefix for room PNGs)</span></label>
         <div style="display:flex;gap:5px;">
           <input type="url" id="fp-base-url" placeholder="https://…/floorplan_lg1-24-"
             style="flex:1;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;font-size:11.5px;font-family:inherit;outline:none;"
             oninput="setFpBaseUrl(this.value.trim());"
             onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
         </div>
+      </div>
+
+      <!-- Data URL: full URL to the polygon JSON (may live elsewhere on Cloudinary) -->
+      <div style="margin-bottom:8px;">
+        <label class="fl" style="font-size:11px;color:var(--xlt);font-weight:500;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:flex;align-items:center;gap:5px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>
+          Floor Plan Data URL <span style="font-weight:400;text-transform:none">(JSON with room polygons — optional)</span>
+        </label>
+        <div style="display:flex;gap:5px;">
+          <input type="url" id="fp-data-url" placeholder="https://res.cloudinary.com/…/data.json"
+            style="flex:1;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;font-size:11.5px;font-family:inherit;outline:none;"
+            oninput="setFpDataUrl(this.value.trim());"
+            onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <button onclick="tryFetchFpData(true)" title="Reload polygons"
+            style="flex-shrink:0;padding:5px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--wh);color:var(--mid);font-size:11px;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:4px;"
+            onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'"
+            onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--mid)'">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Reload
+          </button>
+        </div>
         <div id="fp-data-status" style="margin-top:4px;font-size:10px;color:var(--xlt);line-height:1.4;">
-          Room images are PNG: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}{room#}.png</code> &middot;
-          Highlights: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}data.json</code>
+          Room images are PNG: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}{room#}.png</code> &middot; paste the data.json URL above to enable highlight mode
         </div>
       </div>
 
@@ -1788,6 +1808,7 @@ let FP_PAGE2_SAME = true;  // true = page2 shows same plans as page1
 let FP_PAGE1_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
 let FP_PAGE2_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
 let FP_BASE_URL = '';       // e.g. https://compassoffices.com/uploads/2026/03/floorplan_lg1-24-
+let FP_DATA_URL = '';       // Full URL to the polygon JSON, e.g. https://…/data.json (may live at a different path than the images)
 
 // ══════════════════════════════════════════════════════════
 //  HIGHLIGHT MODE (NEW)
@@ -2120,13 +2141,19 @@ function onFloorplan(e){const f=e.target.files[0];if(!f)return;const r=new FileR
 // Setter functions — needed because let variables can't be assigned from inline onclick attributes
 function setFpP1(i){FP_PAGE1_IDX=i;renderFpList();gen();}
 function setFpP2(i){FP_PAGE2_IDX=i;renderFpList();gen();}
-let _fpBaseDebounceT = null;
+let _fpDataDebounceT = null;
 function setFpBaseUrl(v){
   FP_BASE_URL=v;
   renderFpList();
-  // Debounce — wait for user to stop typing before hitting the network
-  clearTimeout(_fpBaseDebounceT);
-  _fpBaseDebounceT = setTimeout(tryFetchFpData, 600);
+  // Base URL change can also trigger a fetch IF user hasn't set a separate
+  // Data URL — old behavior of "{base}data.json" stays as a convenience.
+  clearTimeout(_fpDataDebounceT);
+  _fpDataDebounceT = setTimeout(()=>{ if(!FP_DATA_URL) tryFetchFpData(); }, 600);
+}
+function setFpDataUrl(v){
+  FP_DATA_URL = v;
+  clearTimeout(_fpDataDebounceT);
+  _fpDataDebounceT = setTimeout(()=>tryFetchFpData(true), 500);
 }
 
 // ── Pricing tab → Floor Plan Room # shortcut ──────────────────────────────
@@ -2285,7 +2312,7 @@ function getActiveHighlightRooms(){
 // Cache key — same set of rooms with same colours → same rendered image.
 function fpHighlightCacheKey(rooms){
   if(!FP_MASTER_DATA) return '';
-  const masterUrl = FP_BASE_URL + (FP_MASTER_DATA.master?.file || 'master.png');
+  const masterUrl = (fpDataDir() || FP_BASE_URL) + (FP_MASTER_DATA.master?.file || 'master.png');
   return masterUrl + '|' + rooms.map(r => r.displayLabel + ':' + (r.fillColor||'')).join(',');
 }
 
@@ -2300,11 +2327,30 @@ function fpLoadImage(url){
   });
 }
 
+// Effective Data URL — explicit FP_DATA_URL wins; fall back to {base}data.json
+// so users who keep everything in one folder don't need to fill both fields.
+function fpEffectiveDataUrl(){
+  if(FP_DATA_URL) return FP_DATA_URL;
+  if(FP_BASE_URL) return FP_BASE_URL + 'data.json';
+  return '';
+}
+
+// The directory containing the JSON — used as the base for the master image,
+// since the extractor outputs master.png alongside data.json.
+function fpDataDir(){
+  const u = fpEffectiveDataUrl();
+  if(!u) return '';
+  const i = u.lastIndexOf('/');
+  return i >= 0 ? u.substring(0, i+1) : '';
+}
+
 // Core renderer: draw the master, then overlay each highlighted polygon.
 async function renderHighlightedMaster(rooms){
   if(!FP_MASTER_DATA) return null;
   const masterFile = FP_MASTER_DATA.master?.file || 'master.png';
-  const masterUrl = FP_BASE_URL + masterFile;
+  // Master lives in the same directory as data.json (extractor convention).
+  // Fall back to FP_BASE_URL if the data URL is empty for some reason.
+  const masterUrl = (fpDataDir() || FP_BASE_URL) + masterFile;
   const img = await fpLoadImage(masterUrl);
   const cv = document.createElement('canvas');
   cv.width = img.naturalWidth;
@@ -2398,21 +2444,25 @@ async function fpStartRender(initialRooms){
   FP_HIGHLIGHT_RENDERING = false;
 }
 
-// Fetch the polygon JSON from {base}data.json. Activates highlight mode
-// on success; on failure (404, CORS, malformed) silently falls back.
-async function tryFetchFpData(){
-  if(!FP_BASE_URL){
+// Fetch the polygon JSON. Uses FP_DATA_URL when set, else falls back to
+// {base}data.json. On success → activates highlight mode. On failure
+// (404, CORS, malformed) → silent fallback to legacy image-collage mode.
+// force=true bypasses the dedupe check (used by the Reload button).
+async function tryFetchFpData(force){
+  const url = fpEffectiveDataUrl();
+  if(!url){
     FP_MASTER_DATA = null;
     FP_DATA_STATUS = 'idle';
     FP_DATA_LAST_FETCHED_BASE = '';
+    FP_HIGHLIGHT_RENDER_URL = null;
+    FP_HIGHLIGHT_LAST_KEY = null;
     updateFpDataStatusUI();
     return;
   }
-  if(FP_BASE_URL === FP_DATA_LAST_FETCHED_BASE && FP_DATA_STATUS === 'ok') return;
-  FP_DATA_LAST_FETCHED_BASE = FP_BASE_URL;
+  if(!force && url === FP_DATA_LAST_FETCHED_BASE && FP_DATA_STATUS === 'ok') return;
+  FP_DATA_LAST_FETCHED_BASE = url;
   FP_DATA_STATUS = 'fetching';
   updateFpDataStatusUI();
-  const url = FP_BASE_URL + 'data.json';
   try{
     const resp = await fetch(url, {mode:'cors', credentials:'omit', cache:'no-cache'});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
@@ -2439,16 +2489,18 @@ async function tryFetchFpData(){
 function updateFpDataStatusUI(){
   const el = document.getElementById('fp-data-status');
   if(!el) return;
+  const url = fpEffectiveDataUrl();
+  const shortUrl = url ? url.length > 60 ? '…'+url.slice(-58) : url : '';
   if(FP_DATA_STATUS === 'fetching'){
-    el.innerHTML = '<span style="color:var(--o);font-weight:600;">⟳ Checking for floor plan data…</span>';
+    el.innerHTML = `<span style="color:var(--o);font-weight:600;">⟳ Fetching ${shortUrl}…</span>`;
   } else if(FP_DATA_STATUS === 'ok' && FP_MASTER_DATA){
     const n = (FP_MASTER_DATA.rooms || []).length;
     const lvl = FP_MASTER_DATA.level ? ' · Level '+FP_MASTER_DATA.level : '';
-    el.innerHTML = `<span style="display:inline-block;padding:1px 7px;background:#FF6600;color:#fff;border-radius:99px;font-size:9.5px;font-weight:700;">✓ HIGHLIGHT MODE</span> ${n} rooms${lvl} loaded from <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">data.json</code>`;
+    el.innerHTML = `<span style="display:inline-block;padding:1px 7px;background:#FF6600;color:#fff;border-radius:99px;font-size:9.5px;font-weight:700;">✓ HIGHLIGHT MODE</span> ${n} rooms${lvl} loaded · master from <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${fpDataDir() || FP_BASE_URL}master.png</code>`;
   } else if(FP_DATA_STATUS === 'error'){
-    el.innerHTML = `<span style="color:var(--xlt);">No <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">data.json</code> at this base &middot; using legacy image-collage mode (room PNGs).</span>`;
+    el.innerHTML = `<span style="color:var(--xlt);">No polygon JSON at <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">${shortUrl}</code> &middot; using legacy image-collage mode.</span>`;
   } else {
-    el.innerHTML = `Room images are PNG: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}{room#}.png</code> &middot; Highlights: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}data.json</code>`;
+    el.innerHTML = `Room images are PNG: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}{room#}.png</code> &middot; paste the data.json URL above to enable highlight mode`;
   }
 }
 
@@ -3029,8 +3081,10 @@ function applyLocationData(p){
     FP_PAGE1_IDX=p.fp_page1_idx!==undefined?p.fp_page1_idx:-2;
     FP_PAGE2_IDX=p.fp_page2_idx!==undefined?p.fp_page2_idx:0;
     FP_BASE_URL=p.fp_base_url||'';
+    FP_DATA_URL=p.fp_data_url||'';
     S.floorplan=FP_PLANS[0]?.url||null;
     const bInp=document.getElementById('fp-base-url');if(bInp)bInp.value=FP_BASE_URL;
+    const dInp=document.getElementById('fp-data-url');if(dInp)dInp.value=FP_DATA_URL;
     setFpPage2Same(FP_PAGE2_SAME);
     renderFpList();
     // Restore manual highlight additions
@@ -3040,7 +3094,7 @@ function applyLocationData(p){
     FP_HIGHLIGHT_RENDER_URL = null;
     FP_HIGHLIGHT_LAST_KEY = null;
     FP_DATA_LAST_FETCHED_BASE = '';
-    if(FP_BASE_URL) tryFetchFpData();
+    if(fpEffectiveDataUrl()) tryFetchFpData(true);
     else updateFpDataStatusUI();
   } else if(p.floorplan_url){
     S.floorplan=p.floorplan_url;
@@ -3247,7 +3301,7 @@ function gen(){
         return `<img src="${baked}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
       }
       // No highlights yet → just show the master image
-      const masterUrl = FP_BASE_URL + (FP_MASTER_DATA.master?.file || 'master.png');
+      const masterUrl = (fpDataDir() || FP_BASE_URL) + (FP_MASTER_DATA.master?.file || 'master.png');
       return `<img src="${masterUrl}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
     }
     // ── Legacy image-collage mode ──
@@ -3959,6 +4013,7 @@ function downloadCurrentJSON(){
     fp_page1_idx: FP_PAGE1_IDX,
     fp_page2_idx: FP_PAGE2_IDX,
     fp_base_url: FP_BASE_URL,
+    fp_data_url: FP_DATA_URL,
     fp_highlights_manual: Array.from(FP_HIGHLIGHTS_MANUAL),
     icon_overrides: window.ICON_OVERRIDES||{},
   };
@@ -4218,7 +4273,7 @@ function buildStateSnapshot(){
     partner_logo_url:S.partnerLogo&&!S.partnerLogo.startsWith('data:')?S.partnerLogo:'',
     icon_overrides:window.ICON_OVERRIDES?{...window.ICON_OVERRIDES}:{},
     fp_plans:FP_PLANS.map(p=>({url:p.url,label:p.label})),
-    fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
+    fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_data_url:FP_DATA_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
@@ -4285,6 +4340,7 @@ function restoreStateSnapshot(state){
     FP_PAGE1_IDX=state.fp_page1_idx!==undefined?state.fp_page1_idx:-2;
     FP_PAGE2_IDX=state.fp_page2_idx!==undefined?state.fp_page2_idx:0;
     FP_BASE_URL=state.fp_base_url||'';
+    FP_DATA_URL=state.fp_data_url||'';
     S.floorplan=FP_PLANS[0]?.url||null;
   } else if(state.floorplan_url){
     S.floorplan=state.floorplan_url;
@@ -4302,13 +4358,16 @@ function restoreStateSnapshot(state){
   if(bTitleInp) bTitleInp.value=BENEFITS_TITLE[LANG]||'';
   if(state.deposit_note && typeof state.deposit_note === 'object') Object.assign(DEPOSIT_NOTE,state.deposit_note);
   syncDepositNoteInput();
-  // Restore manual highlight set + refetch polygon data for the new base
+  // Restore manual highlight set + refetch polygon data
   FP_HIGHLIGHTS_MANUAL = new Set(Array.isArray(state.fp_highlights_manual) ? state.fp_highlights_manual : []);
   FP_MASTER_DATA = null;
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;
   FP_DATA_LAST_FETCHED_BASE = '';
-  if(FP_BASE_URL) tryFetchFpData(); else updateFpDataStatusUI();
+  // Sync the inputs to current values
+  const _bInp=document.getElementById('fp-base-url');if(_bInp)_bInp.value=FP_BASE_URL;
+  const _dInp=document.getElementById('fp-data-url');if(_dInp)_dInp.value=FP_DATA_URL;
+  if(fpEffectiveDataUrl()) tryFetchFpData(true); else updateFpDataStatusUI();
   loadLangData(LANG);
   renderPhotoSlots();
   renderLogoCard();
