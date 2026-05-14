@@ -4428,8 +4428,12 @@ async function printQueue(){
       gen._captureMode = true;
       gen();
       gen._captureMode = false;
+      // _waitForCardReady now includes Phase 0 (data.json fetch) + Phase 1
+      // (highlight render) + Phase 2 (image load). All three must complete
+      // before the capture so the floor plan is fully composited.
       await _waitForCardReady();
-      // Re-gen after highlight render finished, so the slide uses the new baked URL
+      // After all phases done, run gen() one final time so the slide's
+      // <img> src reflects the freshly-baked FP_HIGHLIGHT_RENDER_URL.
       gen._captureMode = true;
       gen();
       gen._captureMode = false;
@@ -4469,14 +4473,28 @@ async function printQueue(){
 // Wait for the current card's slide to settle: highlight bake completes and
 // every <img> on either slide finishes loading.
 async function _waitForCardReady(){
-  // 1. Wait for highlight render (if in highlight mode) up to 6s
+  // Phase 0: wait for the data.json fetch to complete (FP_DATA_STATUS goes
+  // from 'fetching' to 'ok' or 'error'). restoreStateSnapshot calls
+  // tryFetchFpData as fire-and-forget; without this phase _waitForCardReady
+  // would check FP_HIGHLIGHT_RENDERING while the network request is still
+  // in flight (FP_HIGHLIGHT_RENDERING is not set until AFTER the fetch
+  // completes and ensureHighlightRender runs). Result was printQueue
+  // capturing a blank slide because it reached gen() before any floor plan
+  // data arrived.
+  if(typeof FP_DATA_STATUS !== 'undefined' && FP_DATA_STATUS === 'fetching'){
+    const t0 = Date.now();
+    while(FP_DATA_STATUS === 'fetching' && Date.now()-t0 < 8000){
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+  // Phase 1: Wait for highlight render (if in highlight mode) up to 6s
   if(typeof FP_MASTER_DATA !== 'undefined' && FP_MASTER_DATA){
     const t0 = Date.now();
     while((FP_HIGHLIGHT_RENDERING || FP_HIGHLIGHT_PENDING_KEY) && Date.now()-t0 < 6000){
       await new Promise(r => setTimeout(r, 100));
     }
   }
-  // 2. Wait for all images to load (or fail) — bounded by 4s per image
+  // Phase 2: Wait for all images to load (or fail) — bounded by 4s per image
   const imgs = document.querySelectorAll('#slide img, #slide2 img');
   await Promise.all(Array.from(imgs).map(img => {
     if(img.complete && (img.naturalWidth > 0 || (img.src||'').startsWith('data:'))) return Promise.resolve();
@@ -4488,7 +4506,7 @@ async function _waitForCardReady(){
       setTimeout(finish, 4000);
     });
   }));
-  // 3. Tiny settling tick for layout
+  // Phase 3: Tiny settling tick for layout
   await new Promise(r => setTimeout(r, 80));
 }
 
