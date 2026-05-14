@@ -3086,6 +3086,20 @@ async function _probeFp3D(){
   } catch(e){
     FP_HAS_3D = false;
   }
+  // ── Auto-fallback ──
+  // Probe has finished. If the user's saved FP_USE_3D was true but the 3D
+  // file is missing or mismatched, silently flip back to 2D and invalidate
+  // the highlight cache so the next render uses the 2D background.
+  // CRITICAL: this auto-flip lives HERE, not in _renderFp3DToggle, so that
+  // calling _renderFp3DToggle during the transient "probe in flight" state
+  // (right after FP_MASTER_DATA is nulled, before the new fetch resolves)
+  // doesn't accidentally clobber the user's restored preference.
+  if(!FP_HAS_3D && FP_USE_3D){
+    FP_USE_3D = false;
+    FP_HIGHLIGHT_LAST_KEY = null;
+    FP_HIGHLIGHT_RENDER_URL = null;
+    if(typeof gen === 'function') gen();
+  }
   _renderFp3DToggle();
   return FP_HAS_3D;
 }
@@ -3107,20 +3121,15 @@ function setFp3D(use3d){
   gen();
 }
 
-// Show/hide the toggle row and reflect current state. Called after the
-// probe finishes and whenever FP_HAS_3D changes. If 3D is no longer
-// available but the user had it toggled on, silently fall back to 2D and
-// invalidate the cache.
+// Pure UI render — show/hide the toggle row and reflect current state.
+// Called from invalidation paths and from _probeFp3D. Does NOT mutate
+// FP_USE_3D; the actual auto-fallback decision belongs to _probeFp3D
+// (which knows the probe finished). Calling this during a probe-pending
+// window simply hides the toggle until the probe resolves.
 function _renderFp3DToggle(){
   const wrap = document.getElementById('fp-3d-toggle-wrap');
   if(!wrap) return;
   wrap.style.display = FP_HAS_3D ? 'inline-flex' : 'none';
-  if(!FP_HAS_3D && FP_USE_3D){
-    FP_USE_3D = false;
-    FP_HIGHLIGHT_LAST_KEY = null;
-    FP_HIGHLIGHT_RENDER_URL = null;
-    if(typeof gen === 'function') gen();
-  }
   document.getElementById('fp-3d-btn-2d')?.classList.toggle('active', !FP_USE_3D);
   document.getElementById('fp-3d-btn-3d')?.classList.toggle('active',  FP_USE_3D);
 }
@@ -3235,7 +3244,7 @@ async function tryFetchFpData(force, fromLoad){
   const url = fpEffectiveDataUrl();
   if(!url){
     FP_MASTER_DATA = null;
-    FP_HAS_3D = false; FP_USE_3D = false;
+    FP_HAS_3D = false;
     if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
     FP_DATA_STATUS = 'idle';
     FP_DATA_LAST_FETCHED_BASE = '';
@@ -3285,7 +3294,7 @@ async function tryFetchFpData(force, fromLoad){
     gen();
   } catch(err){
     FP_MASTER_DATA = null;
-    FP_HAS_3D = false; FP_USE_3D = false;
+    FP_HAS_3D = false;
     if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
     FP_DATA_STATUS = 'error';
     FP_HIGHLIGHT_RENDER_URL = null;
@@ -3979,7 +3988,7 @@ function applyLocationData(p){
     }
     // Reset highlight state and re-fetch polygon data for the new base
     FP_MASTER_DATA = null;
-    FP_HAS_3D = false; FP_USE_3D = false;
+    FP_HAS_3D = false;
     if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
     FP_HIGHLIGHT_RENDER_URL = null;
     FP_HIGHLIGHT_LAST_KEY = null;
@@ -5520,7 +5529,7 @@ function restoreStateSnapshot(state){
     renderAusLookup();
   }
   FP_MASTER_DATA = null;
-  FP_HAS_3D = false; FP_USE_3D = false;
+  FP_HAS_3D = false; // FP_USE_3D persists from the restore above (line ~5488)
   if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;
