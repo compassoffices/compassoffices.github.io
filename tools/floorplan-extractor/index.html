@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
 <title>Compass Offices — Floorplan Tool</title>
 <style>
 /* ── Reset & base ─────────────────────────────────────────────────────── */
@@ -467,6 +466,37 @@ window._pdfjsReady = true;
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 const COLORS=['#2563eb','#16a34a','#dc2626','#d97706','#9333ea','#0891b2','#ea580c','#65a30d','#db2777','#0369a1'];
+// ── Colour preset palette ─────────────────────────────────────────────────
+const PRESET_COLORS = [
+  {color:'#4ade80', label:'Apr-2026'},
+  {color:'#facc15', label:'May-2026'},
+  {color:'#60a5fa', label:'Jun-2026'},
+  {color:'#fb923c', label:'Jul-2026'},
+  {color:'#f87171', label:'Pre sold'},
+  {color:'#a8956a', label:'NDD not due'},
+];
+
+function buildSwatches(){
+  const wrap = gel('color-swatches');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const current = gel('custom-color')?.value || '';
+  for(const p of PRESET_COLORS){
+    const col = p.color || p;
+    const btn = document.createElement('div');
+    btn.className = 'cp-swatch' + (col===current?' active':'');
+    btn.style.background = col;
+    btn.title = p.label || col;
+    btn.onclick = () => {
+      const cc = gel('custom-color'); if(cc) cc.value = col;
+      document.querySelectorAll('.cp-swatch').forEach(s=>s.classList.remove('active'));
+      btn.classList.add('active');
+      applyRoomColor(col);
+    };
+    wrap.appendChild(btn);
+  }
+}
+
 
 // ── Compass Offices logo (embedded SVG) ───────────────────────────────────
 function redrawLogoCanvas(){
@@ -534,6 +564,208 @@ const gc=i=>COLORS[i%COLORS.length];
 
 // Safe getElementById — returns null silently if element missing
 const gel = id => document.getElementById(id);
+
+// ── Presentation viewer template (embedded at export into viewer.html) ───
+const VIEWER_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compass Offices — Floorplan Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--brand:#ff6600;--pale:#fff4ed}
+body{font-family:system-ui,sans-serif;background:#f5f4f2;color:#1a1a1a;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{background:#fff;border-bottom:1px solid #e8e8e6;padding:.55rem 1.25rem;display:flex;align-items:center;gap:12px;flex-shrink:0}
+header h1{font-size:14px;font-weight:700;color:var(--brand);letter-spacing:-.2px}
+header p{font-size:12px;color:#999}
+#main{display:flex;flex:1;overflow:hidden}
+#map-panel{flex:1;background:#ccc;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
+#map-wrap{position:relative;line-height:0;box-shadow:0 4px 32px rgba(0,0,0,.2)}
+#map-img{display:block;max-width:100%;max-height:calc(100vh - 48px);user-select:none}
+#hl-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#room-panel{width:260px;flex-shrink:0;background:#fff;border-left:1px solid #e8e8e6;display:flex;flex-direction:column;overflow:hidden}
+#rp-head{padding:.65rem 1rem .5rem;border-bottom:1px solid #f0f0ee}
+#rp-head strong{font-size:13px;font-weight:600;display:block;margin-bottom:5px}
+#search{width:100%;padding:5px 9px;border:0.5px solid #ddd;border-radius:7px;font-size:12px;font-family:inherit;outline:none;background:#fafaf8}
+#search:focus{border-color:var(--brand)}
+#rlist{flex:1;overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+.rc{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:7px;cursor:pointer;transition:background .1s;border:1.5px solid transparent}
+.rc:hover{background:var(--pale)}
+.rc.on{background:var(--pale);border-color:var(--brand)}
+.sw{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.1)}
+.sw.empty{border:1.5px dashed #ccc;background:transparent}
+.rl{font-size:13px;font-weight:500;flex:1;color:#1a1a1a}
+.rt{font-size:10px;color:#bbb;background:#f5f5f3;padding:1px 5px;border-radius:4px}
+#detail{position:absolute;bottom:14px;left:14px;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-radius:11px;padding:.75rem 1rem;box-shadow:0 4px 24px rgba(0,0,0,.15);min-width:160px;max-width:210px;display:none}
+#detail.on{display:block}
+#d-lbl{font-size:15px;font-weight:700;margin-bottom:3px}
+#d-col{font-size:11px;color:#888;display:flex;align-items:center;gap:5px;margin-bottom:7px}
+#d-sw{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.1)}
+#d-img{width:100%;border-radius:7px;border:.5px solid #e8e8e6;display:block;background:#f0f0ee}
+#d-close{position:absolute;top:7px;right:9px;font-size:11px;color:#ccc;cursor:pointer;padding:2px 5px;border-radius:4px;line-height:1}
+#d-close:hover{background:#f0f0ee;color:#888}
+#no-master{display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#aaa;font-size:14px;text-align:center;padding:2rem;background:#f5f4f2}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(255,102,0,.2);border-radius:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Compass Offices</h1>
+  <p id="h-sub">Floorplan Viewer</p>
+  <span style="margin-left:auto;font-size:11px;color:#ccc" id="h-count"></span>
+</header>
+<div id="main">
+  <div id="map-panel">
+    <div id="map-wrap">
+      <img id="map-img" alt="Floorplan">
+      <canvas id="hl-canvas"></canvas>
+    </div>
+    <div id="detail">
+      <span id="d-close" onclick="deselect()">x</span>
+      <div id="d-lbl"></div>
+      <div id="d-col"><div id="d-sw"></div><span id="d-hex"></span></div>
+      <img id="d-img" alt="">
+    </div>
+    <div id="no-master">
+      <div style="font-size:36px">&#128663;</div>
+      <strong>No master floorplan</strong>
+      <p style="font-size:12px">Name a selection "master" in the extractor, then re-export.</p>
+    </div>
+  </div>
+  <div id="room-panel">
+    <div id="rp-head">
+      <strong>Rooms</strong>
+      <input id="search" type="text" placeholder="Search rooms..." oninput="filter(this.value)">
+    </div>
+    <div id="rlist"></div>
+  </div>
+</div>
+<script>
+const DATA = __FLOORPLAN_DATA__;
+
+const mapImg   = document.getElementById('map-img');
+const hlCanvas = document.getElementById('hl-canvas');
+const hc       = hlCanvas.getContext('2d');
+let sel = null, imgW = 0, imgH = 0;
+
+function hexRgb(h){
+  if(!h) return [255,102,0];
+  const s = h.length===4 ? '#'+h[1]+h[1]+h[2]+h[2]+h[3]+h[3] : h;
+  return [parseInt(s.slice(1,3),16), parseInt(s.slice(3,5),16), parseInt(s.slice(5,7),16)];
+}
+
+function setupCanvas(){
+  imgW = mapImg.naturalWidth; imgH = mapImg.naturalHeight;
+  hlCanvas.width = imgW; hlCanvas.height = imgH;
+  requestAnimationFrame(function(){
+    var r = mapImg.getBoundingClientRect();
+    hlCanvas.style.width  = r.width  + 'px';
+    hlCanvas.style.height = r.height + 'px';
+    drawHL(sel);
+  });
+}
+
+function drawHL(room){
+  hc.clearRect(0, 0, imgW, imgH);
+  if(!room || !room.rect) return;
+  var rgb = hexRgb(room.fillColor);
+  hc.save();
+  if(room.polygon && room.polygon.length >= 3){
+    hc.beginPath();
+    hc.moveTo(room.polygon[0].x, room.polygon[0].y);
+    for(var i = 0; i < room.polygon.length; i++){
+      var A = room.polygon[i];
+      var B = room.polygon[(i+1) % room.polygon.length];
+      if(A.hOut){ hc.bezierCurveTo(A.x+A.hOut[0], A.y+A.hOut[1], B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4), B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4), B.x, B.y); }
+      else { hc.lineTo(B.x, B.y); }
+    }
+    hc.closePath();
+  } else {
+    hc.beginPath();
+    hc.rect(room.rect.x1, room.rect.y1, room.rect.x2-room.rect.x1, room.rect.y2-room.rect.y1);
+  }
+  hc.fillStyle   = 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+',0.45)';  hc.fill();
+  hc.strokeStyle = 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+',1)';
+  hc.lineWidth   = Math.max(2, imgW * 0.002);
+  hc.stroke();
+  hc.restore();
+}
+
+function pick(room){
+  if(sel === room){ deselect(); return; }
+  sel = room;
+  drawHL(sel);
+  document.querySelectorAll('.rc').forEach(function(el){ el.classList.toggle('on', el.dataset.id === room.displayLabel); });
+  // Detail panel
+  var dp = document.getElementById('detail');
+  document.getElementById('d-lbl').textContent = 'Room ' + room.displayLabel;
+  var rgb = room.fillColor || '';
+  document.getElementById('d-sw').style.background  = rgb || '#eee';
+  document.getElementById('d-hex').textContent       = rgb || 'No colour';
+  var di = document.getElementById('d-img');
+  di.src = room.file; di.style.display = 'block';
+  dp.classList.add('on');
+}
+
+function deselect(){
+  sel = null; drawHL(null);
+  document.querySelectorAll('.rc').forEach(function(el){ el.classList.remove('on'); });
+  document.getElementById('detail').classList.remove('on');
+}
+
+function renderList(rooms){
+  var list = document.getElementById('rlist');
+  list.innerHTML = '';
+  if(!rooms.length){ list.innerHTML = '<p style="font-size:12px;color:#ccc;padding:8px 4px">No rooms</p>'; return; }
+  rooms.forEach(function(room){
+    var card = document.createElement('div');
+    card.className = 'rc'; card.dataset.id = room.displayLabel;
+    var sw = room.fillColor ? '<div class="sw" style="background:'+room.fillColor+'"></div>' : '<div class="sw empty"></div>';
+    card.innerHTML = sw + '<span class="rl">Room '+room.displayLabel+'</span><span class="rt">'+(room.type||'')+'</span>';
+    card.onclick = function(){ pick(room); };
+    list.appendChild(card);
+  });
+}
+
+function filter(q){
+  var lq = q.toLowerCase();
+  renderList(DATA.rooms.filter(function(r){ return r.displayLabel.toLowerCase().indexOf(lq)>=0 || r.label.toLowerCase().indexOf(lq)>=0; }));
+}
+
+function init(){
+  if(!DATA.master){
+    document.getElementById('no-master').style.display = 'flex';
+    document.getElementById('map-wrap').style.display  = 'none';
+  } else {
+    mapImg.src = DATA.master.file;
+    mapImg.onload = setupCanvas;
+    if(mapImg.complete && mapImg.naturalWidth > 0) setupCanvas();
+  }
+  var level = DATA.level ? 'Level ' + DATA.level + '  ' : '';
+  document.getElementById('h-sub').textContent  = level + (DATA.master ? DATA.master.file : 'Viewer');
+  document.getElementById('h-count').textContent = DATA.rooms.length + ' rooms';
+  renderList(DATA.rooms);
+}
+
+window.addEventListener('resize', function(){
+  if(!imgW) return;
+  requestAnimationFrame(function(){
+    var r = mapImg.getBoundingClientRect();
+    hlCanvas.style.width  = r.width  + 'px';
+    hlCanvas.style.height = r.height + 'px';
+    drawHL(sel);
+  });
+});
+
+init();
+<\/script>
+</body>
+</html>
+
+</body>
+</html>`;
+
 const gset = (id, prop, val) => { const el=gel(id); if(el) el[prop]=val; };
 const gstyle = (id, prop, val) => { const el=gel(id); if(el) el.style[prop]=val; };
 
@@ -1240,82 +1472,196 @@ function drawPolyPath(ctx,poly,ox,oy){
   ctx.closePath();
 }
 async function downloadAll(){
-  if(pdfDoc)pageRooms[currentPage]=rooms;
-  const jobs=[];
-  if(pdfDoc){for(let pg=1;pg<=totalPages;pg++)for(const rm of Object.values(pageRooms[pg]||{}))jobs.push({room:rm,pg});}
-  else{for(const rm of Object.values(rooms))jobs.push({room:rm,pg:null});}
-  if(!jobs.length){alert('No rooms to export yet!');return;}
-  const btn=document.getElementById('dl-btn'),status=document.getElementById('dl-status');
-  btn.disabled=true;const zip=new JSZip();const imgCache={};
-  for(const{room,pg}of jobs){
-    status.textContent=`Exporting ${room.label}${pg?` (p${pg})`:''}…`;
-    let img=origImage,w=origW,h=origH;
-    if(pg!==null){
-      if(!imgCache[pg]){const page=await pdfDoc.getPage(pg);const vp=page.getViewport({scale:3.5});const tmp=document.createElement('canvas');tmp.width=vp.width;tmp.height=vp.height;await page.render({canvasContext:tmp.getContext('2d'),viewport:vp}).promise;const pi=new Image();await new Promise(res=>{pi.onload=res;pi.src=tmp.toDataURL('image/png');});imgCache[pg]={img:pi,w:vp.width,h:vp.height};}
-      ({img,w,h}=imgCache[pg]);
-    }
-    if(!room.rect)continue;
-    const{x1,y1,x2,y2}=room.rect;const PAD=20;
-    const rx1=Math.max(0,x1-PAD),ry1=Math.max(0,y1-PAD),rx2=Math.min(w,x2+PAD),ry2=Math.min(h,y2+PAD);
-    const cw=rx2-rx1,ch=ry2-ry1;
-    const tmp=document.createElement('canvas');tmp.width=cw;tmp.height=ch;
-    const ctx=tmp.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cw,ch);
-    if(room.polygon&&room.polygon.length>=3){
-      // Polygon clip (rotation already baked into polygon coords via pen tool)
-      ctx.save();drawPolyPath(ctx,room.polygon,rx1,ry1);ctx.clip();
-      ctx.drawImage(img,rx1,ry1,cw,ch,0,0,cw,ch);ctx.restore();
-    } else if(room.rotation){
-      // Rotated box — clip to rotated rectangle
-      const rcx=(room.rect.x1+room.rect.x2)/2,rcy=(room.rect.y1+room.rect.y2)/2;
-      const rrot=room.rotation;
-      const corners2=[[room.rect.x1,room.rect.y1],[room.rect.x2,room.rect.y1],[room.rect.x2,room.rect.y2],[room.rect.x1,room.rect.y2]];
-      const rotCorners=corners2.map(([px,py])=>{
-        const dx=px-rcx,dy=py-rcy;
-        return[rcx+dx*Math.cos(rrot)-dy*Math.sin(rrot)-rx1, rcy+dx*Math.sin(rrot)+dy*Math.cos(rrot)-ry1];
-      });
-      ctx.save();ctx.beginPath();
-      rotCorners.forEach(([px,py],i)=>i===0?ctx.moveTo(px,py):ctx.lineTo(px,py));
-      ctx.closePath();ctx.clip();
-      ctx.drawImage(img,rx1,ry1,cw,ch,0,0,cw,ch);ctx.restore();
-    } else {
-      ctx.drawImage(img,rx1,ry1,cw,ch,0,0,cw,ch);
-    }
-    // paint fill colour overlay onto individual export
-    if(room.fillColor){
-      const fr=parseInt(room.fillColor.slice(1,3),16),fg=parseInt(room.fillColor.slice(3,5),16),fb=parseInt(room.fillColor.slice(5,7),16);
-      ctx.save();
-      if(room.polygon&&room.polygon.length>=3){drawPolyPath(ctx,room.polygon,rx1,ry1);}
-      else{ctx.beginPath();ctx.rect(0,0,cw,ch);}
-      ctx.fillStyle=`rgba(${fr},${fg},${fb},0.55)`;ctx.fill();ctx.restore();
-    }
-    const blob=await new Promise(res=>tmp.toBlob(res,'image/jpeg',0.93));
-    // Filename: if level set, use level+label (e.g. 1001.jpg), else room_01.jpg
-    const roomFileName = (levelNum && levelNum.trim())
-      ? `${levelNum}${room.label}.jpg`
-      : (pg ? `p${pg}_room_${room.label}.jpg` : `room_${room.label}.jpg`);
-    zip.file(roomFileName, blob);await wait(0);
+  if(pdfDoc) pageRooms[currentPage] = rooms;
+
+  // Detect master room on current page (case-insensitive)
+  const curRooms  = pdfDoc ? (pageRooms[currentPage]||{}) : rooms;
+  const masterLbl = Object.keys(curRooms).find(l => l.toLowerCase().includes('master'));
+  const masterRoom = masterLbl ? curRooms[masterLbl] : null;
+  const masterPg   = pdfDoc ? currentPage : null;
+
+  // Build job list — master always on same page, rooms from same page when master exists
+  const jobs = [];
+  if(pdfDoc && masterRoom){
+    for(const [lbl,rm] of Object.entries(pageRooms[masterPg]||{}))
+      if(!lbl.toLowerCase().includes('master')) jobs.push({room:rm, pg:masterPg});
+  } else if(pdfDoc){
+    for(let pg=1; pg<=totalPages; pg++)
+      for(const rm of Object.values(pageRooms[pg]||{}))
+        if(!rm.label.toLowerCase().includes('master')) jobs.push({room:rm, pg});
+  } else {
+    for(const [lbl,rm] of Object.entries(rooms))
+      if(!lbl.toLowerCase().includes('master')) jobs.push({room:rm, pg:null});
   }
-  const content=await zip.generateAsync({type:'blob'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(content);a.download='rooms.zip';a.click();
-  if(btn)btn.disabled=false; if(status)status.textContent=`${jobs.length} rooms exported as JPG`;
+
+  if(!jobs.length && !masterRoom){ alert('No rooms to export!'); return; }
+
+  const btn = gel('dl-btn'), status = gel('dl-status');
+  if(btn) btn.disabled = true;
+  const zip = new JSZip();
+  const PAD = 20; // padding around master only
+
+  // ── Get page image ──────────────────────────────────────────────────────
+  const cache = {};
+  async function pageImg(pg){
+    if(pg===null) return {img:origImage, w:origW, h:origH};
+    if(!cache[pg]){
+      const page=await pdfDoc.getPage(pg), vp=page.getViewport({scale:3.5});
+      const t=document.createElement('canvas'); t.width=vp.width; t.height=vp.height;
+      await page.render({canvasContext:t.getContext('2d'),viewport:vp}).promise;
+      const pi=new Image(); await new Promise(r=>{pi.onload=r; pi.src=t.toDataURL('image/png');});
+      cache[pg]={img:pi,w:vp.width,h:vp.height};
+    }
+    return cache[pg];
+  }
+
+  // ── 1. Export master.png (with padding for visual context) ─────────────
+  let ox=0, oy=0, mw=0, mh=0, masterFile='master.png';
+  if(masterRoom && masterRoom.rect){
+    if(status) status.textContent='Exporting master…';
+    const {img,w,h} = await pageImg(masterPg);
+    const {x1,y1,x2,y2} = masterRoom.rect;
+    ox = Math.max(0, x1-PAD);   // master origin x in source image
+    oy = Math.max(0, y1-PAD);   // master origin y in source image
+    mw = Math.min(w, x2+PAD) - ox;
+    mh = Math.min(h, y2+PAD) - oy;
+    masterFile = 'master.png';
+
+    const mc=document.createElement('canvas'); mc.width=mw; mc.height=mh;
+    const mx=mc.getContext('2d');
+    mx.drawImage(img, ox, oy, mw, mh, 0, 0, mw, mh);
+    const mb=await new Promise(r=>mc.toBlob(r,'image/png'));
+    zip.file(masterFile, mb);
+  }
+
+  // ── 2. Export individual rooms as PNG ─────────────────────────────────
+  // Each room is a TIGHT crop (no padding) so rect.x1/y1 in JSON = exact
+  // draw position within master.png — no offset calculation needed in viewer.
+  const roomsMeta = [];
+
+  for(const {room, pg} of jobs){
+    if(!room.rect) continue;
+    if(status) status.textContent=`Exporting ${room.label}…`;
+    const {img,w,h} = await pageImg(pg);
+    const {x1,y1,x2,y2} = room.rect;
+
+    // Tight crop — exactly the room bounding box
+    const rx1=Math.max(0,x1), ry1=Math.max(0,y1);
+    const rx2=Math.min(w,x2),  ry2=Math.min(h,y2);
+    const cw=rx2-rx1, ch=ry2-ry1;
+    if(cw<=0||ch<=0) continue;
+
+    const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+    const ctx=cv.getContext('2d');
+
+    // Transparent background (PNG supports it)
+    ctx.clearRect(0,0,cw,ch);
+
+    if(room.polygon && room.polygon.length>=3){
+      // Clip to polygon — transparent outside
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(room.polygon[0].x-rx1, room.polygon[0].y-ry1);
+      for(let i=0;i<room.polygon.length;i++){
+        const A=room.polygon[i], B=room.polygon[(i+1)%room.polygon.length];
+        if(A.hOut){ctx.bezierCurveTo(A.x+A.hOut[0]-rx1,A.y+A.hOut[1]-ry1,B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4)-rx1,B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4)-ry1,B.x-rx1,B.y-ry1);}
+        else{ctx.lineTo(B.x-rx1, B.y-ry1);}
+      }
+      ctx.closePath(); ctx.clip();
+      ctx.drawImage(img, rx1, ry1, cw, ch, 0, 0, cw, ch);
+      ctx.restore();
+    } else if(room.rotation){
+      const rcx=(x1+x2)/2-rx1, rcy=(y1+y2)/2-ry1, rot=room.rotation;
+      const corners=[[x1-rx1,y1-ry1],[x2-rx1,y1-ry1],[x2-rx1,y2-ry1],[x1-rx1,y2-ry1]];
+      const rc2=corners.map(([px,py])=>{const dx=px-rcx,dy=py-rcy;return[rcx+dx*Math.cos(rot)-dy*Math.sin(rot),rcy+dx*Math.sin(rot)+dy*Math.cos(rot)];});
+      ctx.save(); ctx.beginPath(); rc2.forEach(([px,py],i)=>i===0?ctx.moveTo(px,py):ctx.lineTo(px,py)); ctx.closePath(); ctx.clip();
+      ctx.drawImage(img,rx1,ry1,cw,ch,0,0,cw,ch); ctx.restore();
+    } else {
+      ctx.drawImage(img, rx1, ry1, cw, ch, 0, 0, cw, ch);
+    }
+
+    const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+    const fname=(levelNum&&levelNum.trim())?`${levelNum}${room.label}.png`:(pg?`p${pg}_room_${room.label}.png`:`room_${room.label}.png`);
+    zip.file(fname, blob);
+
+    // ── Coordinates relative to master origin ───────────────────────────
+    // rect.x1/y1 = where to drawImage(roomPng, rect.x1, rect.y1) on master canvas
+    // polygon points also shifted to master space
+    const meta = {
+      label:        room.label,
+      displayLabel: levelNum ? `${levelNum}${room.label}` : room.label,
+      file:         fname,
+      fillColor:    room.fillColor || null,
+      type:         room.type || 'box',
+      rect: {
+        x1: Math.round(rx1 - ox),
+        y1: Math.round(ry1 - oy),
+        x2: Math.round(rx2 - ox),
+        y2: Math.round(ry2 - oy),
+      },
+    };
+
+    if(room.polygon && room.polygon.length>=3){
+      meta.polygon = room.polygon.map(pt=>({
+        x: Math.round(pt.x - ox),
+        y: Math.round(pt.y - oy),
+        ...(pt.hOut?{hOut:[Math.round(pt.hOut[0]),Math.round(pt.hOut[1])]}:{}),
+        ...(pt.hIn ?{hIn: [Math.round(pt.hIn[0]), Math.round(pt.hIn[1])]}:{}),
+      }));
+    }
+    if(room.rotation) meta.rotation = room.rotation;
+    roomsMeta.push(meta);
+    await new Promise(r=>setTimeout(r,0));
+  }
+
+  // ── 3. floorplan-data.json ─────────────────────────────────────────────
+  const data = {
+    version:    2,
+    exportedAt: new Date().toISOString(),
+    level:      levelNum || null,
+    master: masterRoom ? {
+      file:   masterFile,
+      width:  mw,
+      height: mh,
+      // origin = top-left of master.png in the original source image (px)
+      sourceOrigin: { x: Math.round(ox), y: Math.round(oy) },
+    } : null,
+    rooms: roomsMeta,
+    // HOW TO USE IN YOUR PRESENTATION TOOL:
+    // 1. Show master.png as background (size = master.width x master.height)
+    // 2. For each room, drawImage(roomPng, room.rect.x1, room.rect.y1)
+    //    — room PNG is a tight crop, rect gives its exact position in master space
+    // 3. For highlight overlay: fill room.rect or room.polygon with room.fillColor
+  };
+  zip.file('floorplan-data.json', JSON.stringify(data, null, 2));
+
+  // ── 4. viewer.html ────────────────────────────────────────────────────
+  const viewerHtml = VIEWER_TEMPLATE.replace('__FLOORPLAN_DATA__', JSON.stringify(data));
+  zip.file('viewer.html', viewerHtml);
+
+  const blob = await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='rooms.zip'; a.click();
+  if(btn) btn.disabled=false;
+  const n=jobs.length+(masterRoom?1:0);
+  if(status) status.textContent=`${n} PNG files + floorplan-data.json + viewer.html exported`;
+  setTimeout(()=>{ if(status) status.textContent=''; },5000);
 }
 
-// ── misc ───────────────────────────────────────────────────────────────────
+
 function gotoEditor(){
-  document.getElementById('step-upload').classList.remove('active');
-  document.getElementById('step-editor').classList.add('active');
-  gstyle('logo-badge-wrap','display','flex');
-  redrawRooms();renderList();updateBadge();updatePenBtn();
-  setStatus('Click a room to select · drag handles to resize · ✏ Refine for precise pen editing');
-  // apply any pending layout from Google Sheets
-  if(pendingLayout){
+  gel('step-upload')?.classList.remove('active');
+  gel('step-editor')?.classList.add('active');
+  redrawRooms(); renderList(); updateBadge(); updatePenBtn();
+  setStatus('Click a room to select · drag handles to resize · Refine for precise pen editing');
+
+  // Apply pending layout from Google Sheets
+  if(typeof pendingLayout!=='undefined' && pendingLayout){
     try{
       const data = pendingLayout; pendingLayout = null;
       if(data.version && data.pages){
-        // Restore rooms (same as loadLayout)
         if(pdfDoc){
           pageRooms={};
-          for(const[pg,rms]of Object.entries(data.pages)){
+          for(const[pg,rms] of Object.entries(data.pages)){
             const pgNum=parseInt(pg); pageRooms[pgNum]={};
             for(const rm of rms) pageRooms[pgNum][rm.label]=rm;
           }
@@ -1329,266 +1675,107 @@ function gotoEditor(){
           const idxs=Object.values(rooms).map(r=>r.colorIdx||0);
           colorCounter=idxs.length?Math.max(...idxs)+1:0;
         }
-
-        // Restore colour mode state — level, legend, logo badge
         if(data.colourMode){
           if(data.colourMode.levelNum!==undefined) levelNum=data.colourMode.levelNum;
           if(data.colourMode.legendItems) legendItems=data.colourMode.legendItems;
           if(data.colourMode.legendPos) legendPos=data.colourMode.legendPos;
           if(data.colourMode.legendScale) legendScale=data.colourMode.legendScale;
-          const li=document.getElementById('level-input');
-          if(li) li.value=levelNum;
-          const ls=document.getElementById('legend-scale-slider');
-          if(ls) ls.value=legendScale;
+          if(typeof data.colourMode.showRoomLabels==='boolean') showRoomLabels=data.colourMode.showRoomLabels;
+          const li=gel('level-input'); if(li) li.value=levelNum;
+          const ls=gel('legend-scale-slider'); if(ls) ls.value=legendScale;
+          syncLabelToggleBtn();
           renderLegendItemsList();
           if(appMode==='colour') redrawColourOverlay();
         }
-        // Restore logo badge scale
         if(typeof data.logoBadgeScale==='number') logoBadgeScale=data.logoBadgeScale;
-        const lbs=document.getElementById('logo-badge-slider');
-        if(lbs) lbs.value=logoBadgeScale;
+        const lbs=gel('logo-badge-slider'); if(lbs) lbs.value=logoBadgeScale;
         redrawLogoCanvas();
-
         selectedRoom=null;
-        redrawRooms();renderList();updateBadge();updatePenBtn();
+        redrawRooms(); renderList(); updateBadge(); updatePenBtn();
         setStatus(`Layout restored from sheet — ${Object.keys(rooms).length} rooms`);
         setTimeout(()=>setStatus(''),3000);
       }
     } catch(e){ console.warn('pendingLayout apply failed',e); }
   }
+
   // Init colour mode UI
   if(typeof buildSwatches==='function') buildSwatches();
   if(typeof renderLegendItemsList==='function') renderLegendItemsList();
+  gstyle('logo-badge-wrap','display','flex');
+  setMode('edit');
 }
 
 
-// ── room fill colour ───────────────────────────────────────────────────────
-// Colour mode legend colours (matches Apr/May/Jun/Jul/Pre-sold/NDD palette)
-const PRESET_COLORS = [
-  {color:'#4ade80', label:'Apr-2026'},
-  {color:'#facc15', label:'May-2026'},
-  {color:'#60a5fa', label:'Jun-2026'},
-  {color:'#fb923c', label:'Jul-2026'},
-  {color:'#f87171', label:'Pre sold'},
-  {color:'#a8956a', label:'NDD not due'},
-];
-
-function buildSwatches(){
-  const wrap = document.getElementById('color-swatches');
-  if(!wrap) return;
-  wrap.innerHTML = '';
-  const current = document.getElementById('custom-color')?.value || '';
-  for(const p of PRESET_COLORS){
-    const c = p.color || p;
-    const btn = document.createElement('div');
-    btn.className = 'cp-swatch' + (c===current?' active':'');
-    btn.style.background = c;
-    btn.title = p.label||c;
-    btn.onclick = () => {
-      document.getElementById('custom-color').value = c;
-      document.querySelectorAll('.cp-swatch').forEach(s=>s.classList.remove('active'));
-      btn.classList.add('active');
-      applyRoomColor(c);
-    };
-    wrap.appendChild(btn);
-  }
-}
-
-function applyRoomColor(hex){
-  if(!selectedRoom || !rooms[selectedRoom]) return;
-  rooms[selectedRoom].fillColor = hex;
-  if(pdfDoc) pageRooms[currentPage] = rooms;
-  redrawRooms(); renderList();
-}
-
-function clearRoomColor(){
-  if(!selectedRoom || !rooms[selectedRoom]) return;
-  delete rooms[selectedRoom].fillColor;
-  document.getElementById('custom-color').value = '#2563eb';
-  if(pdfDoc) pageRooms[currentPage] = rooms;
-  redrawRooms(); renderList();
-}
-
-function showColorPicker(){
-  const row = gel('color-picker-row');
-  if(!selectedRoom){if(row)row.style.display='none';return;}
-  if(!row) return;
-  row.style.display='flex';
-  buildSwatches();
-  const rm = rooms[selectedRoom];
-  document.getElementById('custom-color').value = (rm && rm.fillColor) ? rm.fillColor : '#2563eb';
-}
-
-// ── download full floorplan ────────────────────────────────────────────────
-async function downloadFloorplan(){
-  const btn = gel('fp-btn');
-  const status = gel('dl-status');
-  if(btn) btn.disabled = true;
-  if(status) status.textContent = 'Rendering full floorplan…';
-
-  // Get the high-res base image for current page
-  let img = origImage, w = origW, h = origH;
-  if(pdfDoc){
-    pageRooms[currentPage] = rooms;
-    status.textContent = 'Re-rendering PDF at high resolution…';
-    const page = await pdfDoc.getPage(currentPage);
-    const vp = page.getViewport({scale: 3.5});
-    const tmp = document.createElement('canvas');
-    tmp.width = vp.width; tmp.height = vp.height;
-    await page.render({canvasContext: tmp.getContext('2d'), viewport: vp}).promise;
-    const pi = new Image();
-    await new Promise(res => { pi.onload = res; pi.src = tmp.toDataURL('image/png'); });
-    img = pi; w = vp.width; h = vp.height;
-  }
-
-  const out = document.createElement('canvas');
-  out.width = w; out.height = h;
-  const ctx = out.getContext('2d');
-
-  // Draw base floorplan
-  ctx.drawImage(img, 0, 0);
-
-  // Draw all room colour overlays
-  const allRoomsObj = pdfDoc ? (pageRooms[currentPage] || {}) : rooms;
-  for(const [_mLbl, room] of Object.entries(allRoomsObj)){
-    if(!room.fillColor) continue;
-    if(_mLbl.toLowerCase().includes('master')) continue; // master: no fill
-    const r = parseInt(room.fillColor.slice(1,3),16);
-    const g = parseInt(room.fillColor.slice(3,5),16);
-    const b = parseInt(room.fillColor.slice(5,7),16);
-    ctx.save();
-    // Clip to polygon if exists, else box
-    if(room.polygon && room.polygon.length >= 3){
-      ctx.beginPath();
-      ctx.moveTo(room.polygon[0].x, room.polygon[0].y);
-      for(let i=0;i<room.polygon.length;i++){
-        const A=room.polygon[i], B=room.polygon[(i+1)%room.polygon.length];
-        if(A.hOut){ctx.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}
-        else if(B.hIn){ctx.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}
-        else{ctx.lineTo(B.x,B.y);}
-      }
-      ctx.closePath();
-    } else {
-      const{x1,y1,x2,y2}=room.rect;
-      ctx.beginPath(); ctx.rect(x1,y1,x2-x1,y2-y1); ctx.closePath();
-    }
-    ctx.fillStyle = `rgba(${r},${g},${b},0.55)`;
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Stamp logo badge
-  await drawCompassLogo(ctx, w, h);
-  // Export
-  const blob = await new Promise(res => out.toBlob(res, 'image/jpeg', 0.93));
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'floorplan-coloured.jpg';
-  a.click();
-  if(btn) btn.disabled = false;
-  if(status) status.textContent = `Floorplan exported (${w}×${h}px)`;
-  setTimeout(() => status.textContent = '', 4000);
-}
-
-// ── save / load edit layout ───────────────────────────────────────────────
 function saveLayout(){
   if(pdfDoc) pageRooms[currentPage] = rooms;
   const allRooms = pdfDoc
     ? Object.fromEntries(Object.entries(pageRooms).map(([pg,rm])=>[pg, Object.values(rm)]))
     : {1: Object.values(rooms)};
-
   const totalRooms = Object.values(allRooms).flat().length;
   if(!totalRooms){ alert('No rooms to save yet!'); return; }
-
   const payload = {
     version: 1,
     savedAt: new Date().toISOString(),
-    sourceFile: document.getElementById('fi').files[0]?.name || 'unknown',
+    sourceFile: gel('fi')?.files[0]?.name || 'unknown',
     isPDF: !!pdfDoc,
     totalPages,
     imageSize: { width: origW, height: origH },
     pages: allRooms,
     colourMode: { levelNum, legendItems, legendPos, legendScale, showRoomLabels },
-    logoBadgeScale
+    logoBadgeScale,
   };
-
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'floorplan-layout.json';
   a.click();
-  setStatus(`Layout saved — ${totalRooms} rooms`);
+  setStatus('Layout saved as floorplan-layout.json');
   setTimeout(()=>setStatus(''), 3000);
 }
 
 function loadLayout(input){
-  const file = input.files[0];
-  if(!file){ return; }
+  const file = input.files[0]; if(!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     try{
       const data = JSON.parse(e.target.result);
-      if(!data.version || !data.pages){ alert('Invalid layout file.'); return; }
-
-      // Check image dimensions match
-      if(origImage && (data.imageSize.width !== origW || data.imageSize.height !== origH)){
-        const ok = confirm(
-          `Warning: The saved layout was made for an image of ${data.imageSize.width}×${data.imageSize.height}px,
-` +
-          `but the current image is ${origW}×${origH}px.
-
-` +
-          `Room boxes may not align correctly. Load anyway?`
-        );
-        if(!ok){ input.value=''; return; }
-      }
-
-      // Restore rooms
+      if(!data.version || !data.pages) throw new Error('Invalid layout file');
       if(pdfDoc){
         pageRooms = {};
-        for(const [pg, rms] of Object.entries(data.pages)){
-          const pgNum = parseInt(pg);
-          pageRooms[pgNum] = {};
+        for(const [pg,rms] of Object.entries(data.pages)){
+          const pgNum = parseInt(pg); pageRooms[pgNum] = {};
           for(const rm of rms) pageRooms[pgNum][rm.label] = rm;
         }
         rooms = pageRooms[currentPage] || {};
-        const allIdxs = Object.values(pageRooms).flatMap(pr=>Object.values(pr).map(r=>r.colorIdx||0));
-        colorCounter = allIdxs.length ? Math.max(...allIdxs) + 1 : 0;
       } else {
         rooms = {};
         const firstPage = Object.values(data.pages)[0] || [];
         for(const rm of firstPage) rooms[rm.label] = rm;
-        // restore colorCounter
-        const idxs = Object.values(rooms).map(r=>r.colorIdx||0);
-        colorCounter = idxs.length ? Math.max(...idxs) + 1 : 0;
       }
-
-      selectedRoom = null;
-      // Restore colour mode state if present
+      const allIdxs = Object.values(rooms).map(r=>r.colorIdx||0);
+      colorCounter = allIdxs.length ? Math.max(...allIdxs)+1 : 0;
+      // Restore colour mode state
       if(data.colourMode){
         if(data.colourMode.levelNum !== undefined) levelNum = data.colourMode.levelNum;
         if(data.colourMode.legendItems) legendItems = data.colourMode.legendItems;
         if(data.colourMode.legendPos) legendPos = data.colourMode.legendPos;
         if(data.colourMode.legendScale) legendScale = data.colourMode.legendScale;
-        if(typeof data.colourMode.showRoomLabels==='boolean') showRoomLabels=data.colourMode.showRoomLabels;
+        if(typeof data.colourMode.showRoomLabels === 'boolean') showRoomLabels = data.colourMode.showRoomLabels;
+        const li = gel('level-input'); if(li) li.value = levelNum;
+        const ls = gel('legend-scale-slider'); if(ls) ls.value = legendScale;
         syncLabelToggleBtn();
-        const li = document.getElementById('level-input');
-        if(li) li.value = levelNum;
-        if(typeof data.logoBadgeScale==='number') logoBadgeScale = data.logoBadgeScale;
-        const lbs = document.getElementById('logo-badge-slider');
-        if(lbs) lbs.value = logoBadgeScale;
-        redrawLogoCanvas();
-        const ls = document.getElementById('legend-scale-slider');
-        if(ls) ls.value = legendScale;
         renderLegendItemsList();
-        if(appMode==='colour') redrawColourOverlay();
+        if(appMode === 'colour') redrawColourOverlay();
       }
+      if(typeof data.logoBadgeScale === 'number') logoBadgeScale = data.logoBadgeScale;
+      const lbs = gel('logo-badge-slider'); if(lbs) lbs.value = logoBadgeScale;
+      redrawLogoCanvas();
+      selectedRoom = null;
       redrawRooms(); renderList(); updateBadge(); updatePenBtn();
-      const total = Object.values(rooms).length;
-      setStatus(`Layout loaded — ${total} rooms restored`);
+      setStatus('Layout loaded — ' + Object.keys(rooms).length + ' rooms');
       setTimeout(()=>setStatus(''), 3000);
     } catch(err){
-      alert('Failed to parse layout file: ' + err.message);
+      alert('Error loading layout file: ' + err.message);
     }
     input.value = '';
   };
@@ -1640,7 +1827,7 @@ const COUNTRIES = [
   { code:'VN', flag:'🇻🇳', name:'Vietnam',     gid: 234333070  },
   { code:'SG', flag:'🇸🇬', name:'Singapore',   gid: 1294236502 },
   { code:'PH', flag:'🇵🇭', name:'Philippines', gid: 618007799  },
-  { code:'MY', flag:'🇲🇾', name:'Philippines', gid: 835069222  },
+  { code:'MY', flag:'🇲🇾', name:'Malaysia', gid: 835069222  },
 ];
 
 // Column mapping — which column in your sheet contains what
@@ -2434,7 +2621,6 @@ const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');const f=e.dataTransfer.files[0];if(f)handleFile(f);});
-</script>
 </script>
 </body>
 </html>
