@@ -5645,6 +5645,12 @@ async function queueUpdateCurrent(){
     const item=PDF_QUEUE[i];
     const name=getExportName()||item.name;
     gen._captureMode=true;gen();gen._captureMode=false;
+    // CRITICAL: wait for any in-flight highlight render to finish + all
+    // <img> elements on both slides to load. Without this, capturing
+    // immediately after a 2D→3D toggle freezes the stale 2D snapshot into
+    // the queue — that's why a re-edited card kept printing as 2D in the
+    // combined PDF even though the on-screen preview showed 3D.
+    await _waitForCardReady();
     const cv1=await slideToCanvas('slide');
     const cv2=await slideToCanvas('slide2');
     PDF_QUEUE[i]={
@@ -5686,6 +5692,8 @@ async function queueUpdateItem(i){
   try{
     const name=getExportName()||item.name;
     gen._captureMode=true;gen();gen._captureMode=false;
+    // Same wait-for-render gate as queueUpdateCurrent — see comment there.
+    await _waitForCardReady();
     const cv1=await slideToCanvas('slide');
     const cv2=await slideToCanvas('slide2');
     PDF_QUEUE[i]={
