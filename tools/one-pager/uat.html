@@ -4075,7 +4075,19 @@ function applyLocationData(p){
   // ── Restore PDF queue from saved card ─────────────────────────────────────
   // Saved queues carry only {name, thumb, state} per item; cv1/cv2 are
   // regenerated lazily at export time by the text-PDF re-render path.
-  if(Array.isArray(p.queue)){
+  //
+  // TWO GUARDS:
+  // 1. Skip if the saved queue is empty — an empty array here would WIPE the
+  //    user's current in-memory queue (the original bug: a library card saved
+  //    with no queue items had `queue: []` baked in, and picking an office in
+  //    Office Lookup auto-loaded that card and erased everything queued).
+  // 2. Skip if this load is an Office Lookup auto-load (the `_ausLoadingCard`
+  //    flag). When a user picks an office mid-workflow they want the office's
+  //    template data, not whoever's stale queue was saved with that card.
+  // Explicit clicks (Save Card → re-import; library panel click) without the
+  // auto-load flag still restore a populated queue, so the round-trip works.
+  const _isAutoLoad = (typeof _ausLoadingCard !== 'undefined') && _ausLoadingCard;
+  if(Array.isArray(p.queue) && p.queue.length && !_isAutoLoad){
     PDF_QUEUE = p.queue.map(item => ({
       name: item.name || '',
       thumb: item.thumb || '',
