@@ -77,7 +77,7 @@ body.ss .edit-badge{display:none!important}
 .t-tag{font-size:clamp(6px, calc(3.5cqi * var(--fs) * var(--ms-tag)), 16px);font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px;display:block}
 .t-title{font-weight:800;line-height:1.08;overflow-wrap:break-word;word-break:break-word}
 .t-title.xl{font-size:clamp(14px, calc(15cqi * var(--fs) * var(--ms-title)), 80px)}.t-title.lg{font-size:clamp(12px, calc(10cqi * var(--fs) * var(--ms-title)), 55px)}.t-title.md{font-size:clamp(10px, calc(7cqi * var(--fs) * var(--ms-title)), 38px)}.t-title.sm{font-size:clamp(9px, calc(5.5cqi * var(--fs) * var(--ms-title)), 30px)}
-.t-desc{font-size:clamp(7px, calc(4.5cqi * var(--fs) * var(--ms-desc)), 20px);line-height:1.55;margin-top:5px;display:block;font-weight:400;white-space:pre-line;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.t-desc{font-size:clamp(7px, calc(4.5cqi * var(--fs) * var(--ms-desc)), 20px);line-height:1.55;margin-top:5px;display:block;font-weight:400;white-space:pre-line;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
 .t-stat{font-size:clamp(16px, calc(21cqi * var(--fs) * var(--ms-title)), 100px);font-weight:800;line-height:1;margin-bottom:2px;display:block}
 .t-unit{font-size:clamp(8px, calc(5.5cqi * var(--fs)), 22px);font-weight:400;opacity:.65}
 .cw{color:#fff}.cb{color:var(--black)}.co{color:var(--orange)}.cg{color:var(--midgrey)}.cdw{color:rgba(255,255,255,.5)}.cdo{color:rgba(255,102,0,.9)}
@@ -353,6 +353,23 @@ body.ss #resize-overlay{display:none!important}
 }
 .tile.overlay-mode .t-cnt { text-align: center; }
 body.ss .tile.overlay-mode { pointer-events: none; }
+
+/* SMART REFLOW — when CTA overlaps Events, Events text stays left of the CTA */
+/* The poster gets class "has-cta-overlay" when this layout is active */
+#poster.has-cta-overlay [data-tile="events"] .t-cnt {
+  /* Right padding = CTA width (220px) + margin (14px) + gap (16px) */
+  max-width: calc(100% - 260px);
+  padding-right: 0;
+}
+#poster.has-cta-overlay [data-tile="events"] {
+  /* Ensure events content anchors bottom-left, CTA anchors bottom-right */
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+/* Also prevent t-desc from overflowing into CTA area */
+#poster.has-cta-overlay [data-tile="events"] .t-desc {
+  max-width: 100%;
+}
 .elem-row  { display:flex; align-items:center; gap:6px; }
 .elem-lbl  { font-size:9px; font-weight:700; color:#444; letter-spacing:.06em;
              text-transform:uppercase; min-width:38px; flex-shrink:0; }
@@ -1026,20 +1043,19 @@ function showTile(tid) {
 }
 
 function _applyOverlayTiles(idx) {
-  // Reset all overlay-mode tiles first
-  document.querySelectorAll('.tile.overlay-mode').forEach(t => {
-    t.classList.remove('overlay-mode');
-    t.style.removeProperty('--overlay-area');
-  });
-  const layout = LAYOUTS[idx];
-  if (!layout || !layout.overlayTiles) return;
-  Object.entries(layout.overlayTiles).forEach(([tid, targetArea]) => {
-    const tile = document.querySelector('[data-tile="'+tid+'"]');
-    if (!tile) return;
+  const poster=document.getElementById('poster');
+  document.querySelectorAll('.tile.overlay-mode').forEach(t=>{t.classList.remove('overlay-mode');t.style.removeProperty('--overlay-area');});
+  [...poster.classList].filter(c=>c.endsWith('-overlay')).forEach(c=>poster.classList.remove(c));
+  const layout=LAYOUTS[idx];
+  if(!layout||!layout.overlayTiles)return;
+  Object.entries(layout.overlayTiles).forEach(([tid,targetArea])=>{
+    const tile=document.querySelector('[data-tile="'+tid+'"]');
+    if(!tile)return;
     tile.classList.add('overlay-mode');
-    tile.style.setProperty('--overlay-area', targetArea);
-    tile.style.display = ''; // ensure visible even if auto-hidden
-    _hiddenTiles.delete(tid); // remove from hidden set
+    tile.style.setProperty('--overlay-area',targetArea);
+    tile.style.display='';
+    _hiddenTiles.delete(tid);
+    poster.classList.add('has-'+tid+'-overlay');
   });
 }
 
@@ -1789,7 +1805,7 @@ function swapTileAreas(tid1,tid2){const poster=document.getElementById('poster')
 /* LAYOUT */
 function renderLayoutPicker(){const thumbs=LAYOUTS.map((l,i)=>{const on=i===curLayout?'on':'';return`<div class="layout-btn ${on}" onclick="applyLayout(${i},true)">${layoutThumb(l.areas)}<span>${l.name}</span></div>`;}).join('');return`<span class="sb-section">Layout</span><div class="layout-controls"><div class="lc-btn" onclick="resetGridSizes()">⊞ Equal</div><div class="lc-btn" onclick="smartBalance()">⚡ Smart Balance</div></div><div class="fg" style="margin:6px 0 8px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><label class="fl" style="margin:0">Text Size</label><span id="fs-val" style="font-size:10px;font-weight:700;color:var(--orange)">125%</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:9px;color:#555;cursor:pointer;padding:1px 5px;border:1px solid #252525;border-radius:4px" onclick="setFontScale(1.0)">A</span><input type="range" id="fs-slider" min="80" max="160" value="125" step="5" oninput="setFontScale(this.value/100)" style="flex:1;accent-color:var(--orange)"><span style="font-size:13px;color:#555;cursor:pointer;padding:1px 5px;border:1px solid #252525;border-radius:4px" onclick="setFontScale(1.5)">A</span></div></div><div class="fg" style="margin:6px 0 10px"><label class="fl" style="font-size:9px;letter-spacing:.07em">MASTER ELEMENT SIZES</label><div style="display:flex;flex-direction:column;gap:5px;margin-top:6px"><div style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;font-weight:700;color:#444;text-transform:uppercase;min-width:30px">Icon</span><input type="range" min="50" max="200" step="5" value="100" oninput="setMasterSize('icon',this.value/100)" style="flex:1;accent-color:var(--orange)"><span id="ms-icon-lbl" style="font-size:9px;color:#555;min-width:28px;text-align:right">100%</span></div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;font-weight:700;color:#444;text-transform:uppercase;min-width:30px">Title</span><input type="range" min="50" max="200" step="5" value="100" oninput="setMasterSize('title',this.value/100)" style="flex:1;accent-color:var(--orange)"><span id="ms-title-lbl" style="font-size:9px;color:#555;min-width:28px;text-align:right">100%</span></div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;font-weight:700;color:#444;text-transform:uppercase;min-width:30px">Desc</span><input type="range" min="50" max="200" step="5" value="100" oninput="setMasterSize('desc',this.value/100)" style="flex:1;accent-color:var(--orange)"><span id="ms-desc-lbl" style="font-size:9px;color:#555;min-width:28px;text-align:right">100%</span></div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;font-weight:700;color:#444;text-transform:uppercase;min-width:30px">Tag</span><input type="range" min="50" max="200" step="5" value="100" oninput="setMasterSize('tag',this.value/100)" style="flex:1;accent-color:var(--orange)"><span id="ms-tag-lbl" style="font-size:9px;color:#555;min-width:28px;text-align:right">100%</span></div></div></div>${hiddenTilesIndicator()}><div class="layout-grid">${thumbs}</div>`;}
 function layoutThumb(areasStr,w=68,h=90){const rows=areasStr.match(/"([^"]+)"/g).map(r=>r.slice(1,-1).trim().split(' ').filter(Boolean));const nR=rows.length,nC=rows[0].length,headerH=12,contentH=(h-headerH)/(nR-1),cW=w/nC;const bounds={};rows.forEach((row,ri)=>{const y=ri===0?0:headerH+(ri-1)*contentH,cellH=ri===0?headerH:contentH;row.forEach((name,ci)=>{if(!bounds[name])bounds[name]={x1:ci*cW,y1:y,x2:(ci+1)*cW,y2:y+cellH};else{bounds[name].x1=Math.min(bounds[name].x1,ci*cW);bounds[name].y1=Math.min(bounds[name].y1,y);bounds[name].x2=Math.max(bounds[name].x2,(ci+1)*cW);bounds[name].y2=Math.max(bounds[name].y2,y+cellH);}});});const C={header:'#111',loc:'#f16522',office:'#d8d8d8',teams:'#252525',movein:'#e8e8e8',perks:'#f5f5f5',events:'#d0d0d0',amenity:'#1e1e1e',cta:'#f16522'};const g=1.5;return`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="${h}" rx="5" fill="#1c1c1c"/>${Object.entries(bounds).map(([n,b])=>`<rect x="${(b.x1+g).toFixed(1)}" y="${(b.y1+g).toFixed(1)}" width="${(b.x2-b.x1-g*2).toFixed(1)}" height="${(b.y2-b.y1-g*2).toFixed(1)}" rx="2.5" fill="${C[n]||'#ccc'}"/>`).join('')}</svg>`;}
-function applyLayout(idx,resetCustom){curLayout=idx;if(resetCustom){customAreas=null;colFrs=[1,1,1];rowFrs=[1,1,1,1];_hiddenTiles.clear();document.querySelectorAll('.tile.overlay-mode').forEach(t=>{t.classList.remove('overlay-mode');t.style.removeProperty('--overlay-area');});if(LAYOUTS[idx].autoHide){LAYOUTS[idx].autoHide.forEach(function(t){_hiddenTiles.add(t);});}if(LAYOUTS[idx].defaultRows&&LAYOUTS[idx].defaultRows.length===4){rowFrs=LAYOUTS[idx].defaultRows.slice();}
+function applyLayout(idx,resetCustom){curLayout=idx;if(resetCustom){customAreas=null;colFrs=[1,1,1];rowFrs=[1,1,1,1];_hiddenTiles.clear();document.querySelectorAll('.tile.overlay-mode').forEach(t=>{t.classList.remove('overlay-mode');t.style.removeProperty('--overlay-area');});const _poster=document.getElementById('poster');if(_poster)[..._poster.classList].filter(c=>c.endsWith('-overlay')).forEach(c=>_poster.classList.remove(c));if(LAYOUTS[idx].autoHide){LAYOUTS[idx].autoHide.forEach(function(t){_hiddenTiles.add(t);});}if(LAYOUTS[idx].defaultRows&&LAYOUTS[idx].defaultRows.length===4){rowFrs=LAYOUTS[idx].defaultRows.slice();}
   // Apply overlay tiles — they share a grid area but float on top
   _applyOverlayTiles(idx);}const poster=document.getElementById('poster');poster.style.gridTemplateAreas=customAreas||LAYOUTS[idx].areas;_applyHiddenTiles();TILE_IDS.forEach(id=>{const t=document.querySelector('[data-tile="'+id+'"]');if(t)t.style.gridArea=id;});document.querySelectorAll('.layout-btn').forEach((b,i)=>b.classList.toggle('on',i===idx));applyGridSizes();if(_overlayTid)requestAnimationFrame(updateResizeOverlay);}
 function applyGridSizes(){const poster=document.getElementById('poster');if(!poster)return;poster.style.gridTemplateColumns=colFrs.map(f=>f+'fr').join(' ');poster.style.gridTemplateRows=HEADER_H+'px '+rowFrs.map(f=>f+'fr').join(' ');requestAnimationFrame(updateResizeOverlay);if(typeof rescaleAllIcons==='function')requestAnimationFrame(rescaleAllIcons);}
@@ -2079,20 +2095,29 @@ async function downloadPDF() {
    SMART TILE HIDING
 ════════════════════ */
 function _applyOverlayTiles(idx) {
+  const poster = document.getElementById('poster');
   // Reset all overlay-mode tiles first
   document.querySelectorAll('.tile.overlay-mode').forEach(t => {
     t.classList.remove('overlay-mode');
     t.style.removeProperty('--overlay-area');
   });
+  // Remove all has-*-overlay classes from poster
+  [...poster.classList].filter(c => c.endsWith('-overlay')).forEach(c => poster.classList.remove(c));
+
   const layout = LAYOUTS[idx];
   if (!layout || !layout.overlayTiles) return;
+
   Object.entries(layout.overlayTiles).forEach(([tid, targetArea]) => {
     const tile = document.querySelector('[data-tile="'+tid+'"]');
     if (!tile) return;
     tile.classList.add('overlay-mode');
     tile.style.setProperty('--overlay-area', targetArea);
-    tile.style.display = ''; // ensure visible even if auto-hidden
-    _hiddenTiles.delete(tid); // remove from hidden set
+    tile.style.display = '';
+    _hiddenTiles.delete(tid);
+
+    // Add reflow class to poster so target tile text smart-adjusts
+    // e.g. cta overlays events → poster gets "has-cta-overlay"
+    poster.classList.add('has-'+tid+'-overlay');
   });
 }
 
