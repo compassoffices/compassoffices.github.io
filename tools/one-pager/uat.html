@@ -3946,19 +3946,29 @@ function applyLocationData(p){
     // If the region differs from what's currently loaded, fetch the region's
     // CSV (assuming the master sheet has already been loaded). Otherwise
     // just re-apply the centre filter to the current data.
+    // _savedSel mirrors restoreStateSnapshot — captured up front, applied
+    // in whichever branch fires so the office checkboxes always reflect
+    // the card's selection regardless of fetch timing.
+    const _savedSel = Array.isArray(p.aus_selected) ? p.aus_selected : [];
     if(p.office_lookup_region){
       if(AX_REGIONS_LOADED && AX_REGIONS[p.office_lookup_region] && p.office_lookup_region !== AX_REGION){
         setAxRegion(p.office_lookup_region, /*skipReset=*/true, /*skipPreset=*/true).then(()=>{
           AUS_CENTRE_FILTER = p.office_lookup_centre || '';
+          AUS_SELECTED = new Set(_savedSel);
           renderCentreChips();
           renderAusLookup();
         });
       } else {
         AX_REGION = p.office_lookup_region;
         AUS_CENTRE_FILTER = p.office_lookup_centre || '';
+        AUS_SELECTED = new Set(_savedSel);
         renderRegionChips();
         renderCentreChips();
+        renderAusLookup();
       }
+    } else {
+      AUS_SELECTED.clear();
+      renderAusLookup();
     }
     // Reset highlight state and re-fetch polygon data for the new base
     FP_MASTER_DATA = null;
@@ -5073,6 +5083,7 @@ function downloadCurrentJSON(){
     fp_highlights_manual: Array.from(FP_HIGHLIGHTS_MANUAL),
     office_lookup_region: AX_REGION,
     office_lookup_centre: AUS_CENTRE_FILTER,
+    aus_selected: Array.from(AUS_SELECTED),
     deposit_note_on: DEPOSIT_NOTE_ON,
     base_discount_on: BASE_DISCOUNT_ON,
     base_discount: AUS_DISCOUNT,
@@ -5346,7 +5357,7 @@ function buildStateSnapshot(){
     icon_overrides:window.ICON_OVERRIDES?{...window.ICON_OVERRIDES}:{},
     fp_plans:FP_PLANS.map(p=>({url:p.url,label:p.label})),
     fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_data_url:FP_DATA_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
-    office_lookup_region:AX_REGION,office_lookup_centre:AUS_CENTRE_FILTER,
+    office_lookup_region:AX_REGION,office_lookup_centre:AUS_CENTRE_FILTER,aus_selected:Array.from(AUS_SELECTED),
     deposit_note_on:DEPOSIT_NOTE_ON,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
@@ -5470,20 +5481,36 @@ function restoreStateSnapshot(state){
   if(typeof state.fp_use_3d === 'boolean') FP_USE_3D = state.fp_use_3d;
   // Restore manual highlight set + refetch polygon data
   FP_HIGHLIGHTS_MANUAL = new Set(Array.isArray(state.fp_highlights_manual) ? state.fp_highlights_manual : []);
-  // ── Restore Office Lookup region + centre filter ──
+  // ── Restore Office Lookup region + centre filter + selection ──
+  // AUS_SELECTED holds the office IDs whose pricing rows are on the slide.
+  // It must travel with the snapshot so a re-edit shows the same checkboxes
+  // ticked. Capture the saved IDs into a local now — they get applied
+  // EITHER after the new region's CSV fetches (different-region branch)
+  // OR synchronously when the region is already loaded (same-region branch).
+  const _savedSel = Array.isArray(state.aus_selected) ? state.aus_selected : [];
   if(state.office_lookup_region){
     if(AX_REGIONS_LOADED && AX_REGIONS[state.office_lookup_region] && state.office_lookup_region !== AX_REGION){
       setAxRegion(state.office_lookup_region, /*skipReset=*/true, /*skipPreset=*/true).then(()=>{
         AUS_CENTRE_FILTER = state.office_lookup_centre || '';
+        AUS_SELECTED = new Set(_savedSel);
         renderCentreChips();
         renderAusLookup();
       });
     } else {
       AX_REGION = state.office_lookup_region;
       AUS_CENTRE_FILTER = state.office_lookup_centre || '';
+      AUS_SELECTED = new Set(_savedSel);
       renderRegionChips();
       renderCentreChips();
+      // Missing before — same-region path never re-rendered the office
+      // table, so the previously-checked boxes from another proposal could
+      // stay visible. Now the table always re-renders against AUS_SELECTED.
+      renderAusLookup();
     }
+  } else {
+    // No region in snapshot — clear any stale selection from the prior card.
+    AUS_SELECTED.clear();
+    renderAusLookup();
   }
   FP_MASTER_DATA = null;
   FP_HAS_3D = false; FP_USE_3D = false;
