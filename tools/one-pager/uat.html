@@ -2446,7 +2446,73 @@ function renderRegionChips(){
 
 // Render the centre sub-filter chips dynamically from whatever centres are
 // present in the currently-loaded region's offices.
+// ── JS-positioned chip tooltip ────────────────────────────────────────────
+// Used for the multi-floor hint on active centre chips. A real DOM div on
+// document.body so no overflow:hidden container can ever clip it.
+// getBoundingClientRect lets us clamp horizontally to stay on screen.
+let _chipTipEl = null;
+function showChipTooltip(chip, text){
+  hideChipTooltip();
+  const el = document.createElement('div');
+  el.id = '_chip-tip';
+  el.textContent = text;
+  Object.assign(el.style, {
+    position:'fixed', zIndex:'99999',
+    background:'rgba(26,26,26,0.96)', color:'#fff',
+    padding:'7px 11px', borderRadius:'6px',
+    fontSize:'11.5px', fontWeight:'500', lineHeight:'1.45',
+    maxWidth:'260px', whiteSpace:'normal', textAlign:'left',
+    boxShadow:'0 6px 18px rgba(0,0,0,.22)',
+    pointerEvents:'none', opacity:'0',
+    transition:'opacity .12s ease-out',
+    fontFamily:'inherit',
+  });
+  document.body.appendChild(el);
+  _chipTipEl = el;
+
+  // Position: above the chip, clamped within the viewport
+  const r = chip.getBoundingClientRect();
+  const tw = el.offsetWidth || 260;
+  const th = el.offsetHeight || 40;
+  const margin = 8; // gap from chip + screen edges
+  const GAP = 10;   // space between chip and tooltip
+
+  // Preferred: align left edge of tooltip to left edge of chip
+  let left = r.left;
+  // Clamp: don't go off right edge
+  if(left + tw > window.innerWidth - margin) left = window.innerWidth - margin - tw;
+  // Clamp: don't go off left edge
+  if(left < margin) left = margin;
+
+  const top = r.top - th - GAP;
+
+  el.style.left = left + 'px';
+  el.style.top  = top  + 'px';
+
+  // Arrow: a small triangle pointing down toward the chip
+  const arrow = document.createElement('div');
+  // Arrow x: centre of chip, clamped inside tooltip box
+  const arrowX = Math.max(8, Math.min(tw - 16, r.left + r.width/2 - left));
+  Object.assign(arrow.style, {
+    position:'absolute', bottom:'-5px',
+    left: arrowX + 'px',
+    width:'0', height:'0',
+    borderLeft:'5px solid transparent',
+    borderRight:'5px solid transparent',
+    borderTop:'5px solid rgba(26,26,26,0.96)',
+    pointerEvents:'none',
+  });
+  el.appendChild(arrow);
+
+  // Fade in
+  requestAnimationFrame(() => { el.style.opacity = '1'; });
+}
+function hideChipTooltip(){
+  if(_chipTipEl){ _chipTipEl.remove(); _chipTipEl = null; }
+}
+
 function renderCentreChips(){
+  hideChipTooltip(); // clean up any lingering tip if chips re-render mid-hover
   const el = document.getElementById('aus-centre-chips');
   if(!el) return;
   const centres = new Set();
@@ -2469,7 +2535,9 @@ function renderCentreChips(){
     const cards = typeof ausLibCardsForCentre === 'function' ? ausLibCardsForCentre(c) : [];
     if(cards.length < 2) return '';
     const tip = ui('lookup_multifloor_hint');
-    return tip ? ` data-tooltip="${tip.replace(/"/g,'&quot;')}" data-tooltip-pos="above-start"` : '';
+    if(!tip) return '';
+    const tipEsc = tip.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return ` onmouseenter="showChipTooltip(this,'${tipEsc}')" onmouseleave="hideChipTooltip()"`;
   };
 
   if(list.length === 1){
