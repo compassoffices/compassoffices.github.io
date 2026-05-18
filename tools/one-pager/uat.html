@@ -3599,7 +3599,18 @@ function _ingestFiles(files){
     const reader=new FileReader();
     reader.onload=ev=>{
       try{
-        const data=JSON.parse(ev.target.result);if(!data.name)throw new Error('Missing name');
+        const data=JSON.parse(ev.target.result);
+        // Derive the effective name: prefer explicit name field, fall back to
+        // queue item names. This handles "queue-session" saves where the form
+        // was empty (cleared after + Queue) but the queue contains real work.
+        const explicitName = typeof data.name==='object' ? data.name.en : (data.name||'');
+        const queueNames = Array.isArray(data.queue)
+          ? data.queue.map(i => i.state?.langs?.en?.name || i.name || '').filter(Boolean)
+          : [];
+        const effectiveName = explicitName || queueNames.join(' + ');
+        if(!effectiveName) throw new Error('Missing name');
+        // Normalise the name field so library dedup and display work correctly
+        if(!explicitName && queueNames.length) data.name = effectiveName;
         data._source='local';  // mark as locally inserted
         data._filename=file.name;
         const n=typeof data.name==='object'?data.name.en:data.name;
@@ -4097,6 +4108,18 @@ function applyLocationData(p){
     }));
     updateQueueBadge();
     renderQueueList();
+    // Queue-session save: form is empty but queue has the real work.
+    // Auto-open the queue panel so the user immediately sees their proposals,
+    // and show a clear status so they know what was restored.
+    if(p._queue_session || !p.name){
+      const panel = document.getElementById('queue-panel');
+      if(panel) panel.style.display = 'flex';
+      const n = PDF_QUEUE.length;
+      showStatus(
+        `Loaded ${n} queued proposal${n!==1?'s':''} — click any thumbnail to re-edit, or Export All PDF to print.`,
+        's-ok'
+      );
+    }
   }
   // Save the loaded data into current lang slot so it persists on lang switch
   saveLangData(LANG);
@@ -5080,11 +5103,19 @@ function downloadCurrentJSON(){
     };
   });
 
+  // Effective location name — falls back to queue item names when form is
+  // empty (e.g. after + Queue auto-cleared the form). Without this the
+  // saved JSON has name:"" which _ingestFiles rejects as "Missing name".
+  const effectiveLocationName = g('n-main') ||
+    (PDF_QUEUE.length
+      ? PDF_QUEUE.map(i => i.state?.langs?.en?.name || i.name || '').filter(Boolean).join(' + ')
+      : '');
+
   const data = {
     // ── Multi-language content ──
     langs: langs_data,
     // ── Fallback single-lang fields (current lang, for backwards compat) ──
-    name:    g('n-main'), city: g('city'), floor: g('floor'),
+    name: effectiveLocationName, city: g('city'), floor: g('floor'),
     address: g('addr'),   page_url: g('purl'),
     virtual_tour: (document.getElementById('matterport')?.value||'').trim(),
     transport: TRANSPORT.map(t=>({iconId:t.iconId,text:t.text})),
@@ -5135,6 +5166,11 @@ function downloadCurrentJSON(){
     base_discount: AUS_DISCOUNT,
     fp_use_3d: FP_USE_3D,
     icon_overrides: window.ICON_OVERRIDES||{},
+    // ── Queue-session flag ──────────────────────────────────────────────
+    // Set when this JSON was saved while the form was empty (i.e. the user
+    // completed all proposals via + Queue and is saving the session).
+    // applyLocationData reads this to auto-open the queue panel on load.
+    _queue_session: !g('n-main') && PDF_QUEUE.length > 0,
     // ── PDF Queue ──────────────────────────────────────────
     // Save lightweight queue entries (name + thumb + state). The cv1/cv2
     // pre-captured JPEGs are skipped because the new text-PDF export path
@@ -7259,7 +7295,19 @@ function buildEmailPlainText(toName, fromName, company){
 function getExportName(){
   const enName = LANG_DATA['en']?.fields?.['n-main'] || '';
   const curName = document.getElementById('n-main')?.value || '';
-  const raw = enName || curName || 'one-pager';
+  let raw = enName || curName;
+  // When the form is empty (after + Queue auto-clear) fall back to the names
+  // of whatever's in the queue — so the filename stays meaningful.
+  if(!raw && PDF_QUEUE && PDF_QUEUE.length){
+    const names = PDF_QUEUE.map(i => {
+      // Prefer the human-readable location name stored in the state snapshot
+      return i.state?.langs?.en?.name || i.state?.langs?.['zh-hant']?.name || i.name || '';
+    }).filter(Boolean);
+    if(names.length === 1) raw = names[0];
+    else if(names.length === 2) raw = names.join('+');
+    else if(names.length > 2) raw = `${names[0]}+${names.length - 1}more`;
+  }
+  raw = raw || 'one-pager';
   return raw.toLowerCase().replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,'-').replace(/^-|-$/g,'') || 'one-pager';
 }
 
