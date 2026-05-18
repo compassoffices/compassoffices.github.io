@@ -2927,10 +2927,59 @@ function renderRows(){
 //  MEDIA UPLOADS
 // ══════════════════════════════════════════════════════════
 function phSlotClick(i){document.getElementById('ph-inp-'+i)?.click();}
+// ── Photo compression ──────────────────────────────────────────────────────
+// Resize + re-encode uploaded images before storing them as data URLs.
+// A 4K iPhone photo is ~4–8MB as a data URL; after compression it's 150–400KB
+// with no visible quality loss at A4 print size. Smaller data URLs mean:
+//   • Faster canvas captures for queue/print
+//   • Much smaller saved JSON files
+//   • Faster slideToCanvas (fewer bytes for the browser to decode)
+//
+// maxSide: longest dimension cap in pixels
+// quality: JPEG quality 0–1 (0.82 = excellent/imperceptible loss at A4)
+// Returns a Promise<string> that resolves to the compressed data URL.
+// Falls back to the original if anything goes wrong (e.g. SVG/GIF input).
+async function _compressPhoto(dataUrl, maxSide = 1600, quality = 0.82){
+  return new Promise(resolve => {
+    // Skip compression for very small inputs or non-photo formats
+    if(!dataUrl || !dataUrl.startsWith('data:image')) return resolve(dataUrl);
+    const img = new Image();
+    img.onload = () => {
+      const origW = img.naturalWidth, origH = img.naturalHeight;
+      // Already small enough — keep original to avoid a re-encode penalty
+      if(origW <= maxSide && origH <= maxSide) return resolve(dataUrl);
+      const scale = maxSide / Math.max(origW, origH);
+      const w = Math.round(origW * scale);
+      const h = Math.round(origH * scale);
+      try {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        const compressed = c.toDataURL('image/jpeg', quality);
+        // Safety: if something went wrong and result is larger, keep original
+        resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+      } catch(e) {
+        resolve(dataUrl); // tainted canvas etc. — keep original
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function onPhotoSlot(i,e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=ev=>{S.photos[i]=ev.target.result;renderPhotoSlots();gen();};
+  reader.onload=async ev=>{
+    const orig=ev.target.result;
+    const compressed=await _compressPhoto(orig,1600,0.82);
+    S.photos[i]=compressed;
+    renderPhotoSlots();gen();
+    // Brief status showing original vs compressed size
+    const origKB=Math.round(orig.length*0.75/1024);
+    const newKB=Math.round(compressed.length*0.75/1024);
+    if(origKB>newKB) showStatus(`Photo compressed: ${origKB}KB → ${newKB}KB`,'s-ok');
+  };
   reader.readAsDataURL(file);e.target.value='';
 }
 function rmPhotoSlot(i){S.photos[i]=null;renderPhotoSlots();gen();}
@@ -2968,7 +3017,16 @@ function mcApplyUrl(key){
     const bInp=document.getElementById('fp-base-url');if(bInp)bInp.value=FP_BASE_URL;
     renderFpList();gen();
   }
-  else if(key.startsWith('ph')){const i=parseInt(key.replace('ph',''));S.photos[i]=url;renderPhotoSlots();gen();}
+  else if(key.startsWith('ph')){
+    const i=parseInt(key.replace('ph',''));
+    // Compress data-URL photos; external http URLs are left as-is (they
+    // won't be stored in the JSON anyway, just referenced).
+    if(url.startsWith('data:')){
+      _compressPhoto(url,1600,0.82).then(c=>{S.photos[i]=c;renderPhotoSlots();gen();});
+    } else {
+      S.photos[i]=url;renderPhotoSlots();gen();
+    }
+  }
   const row=document.getElementById('mc-'+key+'-url-row');if(row)row.classList.remove('open');inp.value='';
 }
 function renderLogoCard(){
@@ -2983,7 +3041,23 @@ function renderFloorplanCard(){
   renderFpList();
 }
 function rmFloorplan(){FP_PLANS=[];S.floorplan=null;renderFpList();gen();}
-function onFloorplan(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{S.floorplan=ev.target.result;FP_PLANS=[{url:ev.target.result,label:'Master'}];renderFpList();gen();};r.readAsDataURL(f);}
+function onFloorplan(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=async ev=>{
+    // Floor plans need more detail than photos (room numbers, labels)
+    // so use a higher maxSide and quality.
+    const orig=ev.target.result;
+    const compressed=await _compressPhoto(orig,2400,0.88);
+    S.floorplan=compressed;
+    FP_PLANS=[{url:compressed,label:'Master'}];
+    renderFpList();gen();
+    const origKB=Math.round(orig.length*0.75/1024);
+    const newKB=Math.round(compressed.length*0.75/1024);
+    if(origKB>newKB) showStatus(`Floor plan compressed: ${origKB}KB → ${newKB}KB`,'s-ok');
+  };
+  r.readAsDataURL(f);
+}
 
 // ── MULTI-FLOORPLAN SYSTEM ────────────────────────────────
 // Setter functions — needed because let variables can't be assigned from inline onclick attributes
