@@ -228,6 +228,14 @@ header{background:var(--wh);border-bottom:1px solid var(--bd);height:54px;
 .tab:hover{color:var(--drk);}
 .tab.on{color:var(--o);border-bottom-color:var(--o);}
 .panels{flex:1;overflow-y:auto;}
+
+/* Flash animation for newly added pricing rows (#15) */
+@keyframes rowFlash{
+  0%  { background:rgba(255,102,0,.18); box-shadow:inset 0 0 0 2px rgba(255,102,0,.35); }
+  70% { background:rgba(255,102,0,.06); box-shadow:inset 0 0 0 1px rgba(255,102,0,.15); }
+  100%{ background:transparent; box-shadow:none; }
+}
+.pr-row-new{ animation:rowFlash 1.4s ease-out forwards; }
 .panel{display:none;padding:20px 18px 32px;}
 .panel.on{display:block;}
 .slabel{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
@@ -6461,6 +6469,29 @@ function ausCalc(marketPrice, discount){
   return {monthly, avg};
 }
 
+// Mini month-availability dot strip — shows up to 4 upcoming months as
+// coloured dots so users can instantly see when an office becomes free.
+//   ● green  = Y  (vacant / available)
+//   ● orange = O  (occupied, coming available)
+//   ● grey   = '' (no data)
+// Only rendered when _AUS_MONTHS has data (i.e. the sheet has month columns).
+function ausMonthDots(o){
+  if(!_AUS_MONTHS || !_AUS_MONTHS.length) return '';
+  const months = _AUS_MONTHS.slice(0, 4);
+  const ms = o.months || {};
+  const dots = months.map(m => {
+    const v = ms[m] || '';
+    const color = v==='Y' ? '#388e3c' : v==='O' ? '#f57c00' : '#d0d0d0';
+    const abbr  = m.replace(/-\d{4}$/,'').slice(0,3); // "May-2026" → "May"
+    const tip   = `${m}: ${v==='Y'?'Available':v==='O'?'Occupied':'Unknown'}`;
+    return `<span style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;" title="${tip}">
+      <span style="width:7px;height:7px;border-radius:50%;background:${color};display:block;flex-shrink:0;"></span>
+      <span style="font-size:6.5px;color:#aaa;line-height:1;letter-spacing:0;">${abbr}</span>
+    </span>`;
+  }).join('');
+  return `<div style="display:flex;align-items:flex-end;gap:3px;margin-top:4px;">${dots}</div>`;
+}
+
 function ausAvailLabel(o){
   const av=o.av||'', ce=o.ce||'', firstY=o.firstY||'', firstO=o.firstO||'';
   if(av==='Y') return `<span style="color:#388e3c;font-weight:700;">${firstY||'Vacant'}</span>`;
@@ -6568,7 +6599,7 @@ function renderAusLookup(){
         <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
         <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${monthly.toLocaleString()}</td>
         <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${avg.toLocaleString()}</td>
-        <td style="padding:5px 8px;">${ausAvailLabel(o)}</td>
+        <td style="padding:5px 8px;">${ausAvailLabel(o)}${ausMonthDots(o)}</td>
       </tr>`;
     };
 
@@ -6840,11 +6871,34 @@ function ausAddToRows(){
   gen();
   if(added){
     showStatus(`Added ${added} office${added!==1?'s':''} to pricing rows${(FP_MASTER_DATA||FP_BASE_URL)?' and floor plan':''}. Selections stay ticked — uncheck or click × on a row to remove.`,'s-ok');
+
+    // Flash the newly added rows so user sees where they landed
+    requestAnimationFrame(()=>{
+      const allRows = document.querySelectorAll('#pr-rows .pr-row');
+      // The last `added` rows are the new ones
+      const newRows = Array.from(allRows).slice(-added);
+      newRows.forEach(el => {
+        el.classList.remove('pr-row-new'); // reset if re-added
+        void el.offsetWidth;              // force reflow so animation restarts
+        el.classList.add('pr-row-new');
+        // Clean up class after animation so it doesn't persist in snapshots
+        el.addEventListener('animationend', ()=>el.classList.remove('pr-row-new'), {once:true});
+      });
+
+      // Scroll the .panels container so the first new row is visible
+      const firstNew = newRows[0];
+      const panels   = document.querySelector('.panels');
+      if(firstNew && panels){
+        const rowTop    = firstNew.getBoundingClientRect().top;
+        const panelsTop = panels.getBoundingClientRect().top;
+        const offset    = rowTop - panelsTop + panels.scrollTop - 16; // 16px breathing room
+        panels.scrollTo({top: offset, behavior:'smooth'});
+      }
+    });
   } else {
     showStatus('All selected offices are already in the pricing rows.','s-info');
   }
   renderAusLookup();
-  document.getElementById('pr-rows')?.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 
