@@ -6271,6 +6271,51 @@ function renderAusLookup(){
       list.innerHTML='<div style="padding:16px;text-align:center;color:var(--xlt);font-size:12px;">No offices match filters</div>';
     }
   } else {
+    // ── Sort: selected offices float to top (sorted by office number),
+    //         unselected follow in their original order.
+    const selEntries = entries
+      .filter(([oid]) => AUS_SELECTED.has(oid))
+      .sort(([a],[b]) => a.localeCompare(b, undefined, {numeric:true}));
+    const unselEntries = entries
+      .filter(([oid]) => !AUS_SELECTED.has(oid));
+
+    const buildRow = ([oid,o]) => {
+      const sel = AUS_SELECTED.has(oid);
+      const {monthly,avg} = ausCalc(o.mp,disc);
+      return `<tr onclick="ausToggle('${oid.replace(/'/g,"\\'")}')"
+        style="cursor:pointer;border-bottom:1px solid var(--bd);background:${sel?'var(--olt)':'var(--wh)'};transition:background .1s;"
+        onmouseover="if(!${sel})this.style.background='#fafafa'"
+        onmouseout="if(!${sel})this.style.background='var(--wh)'">
+        <td style="padding:5px 8px;text-align:center;">
+          <div style="width:16px;height:16px;border-radius:4px;border:2px solid ${sel?'var(--o)':'var(--bd)'};background:${sel?'var(--o)':'transparent'};display:flex;align-items:center;justify-content:center;margin:0 auto;">
+            ${sel?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>':''}
+          </div>
+        </td>
+        <td style="padding:5px 8px;font-weight:700;color:var(--drk);">${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></td>
+        <td style="padding:5px 8px;text-align:center;">${o.w}</td>
+        <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
+        <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${monthly.toLocaleString()}</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${avg.toLocaleString()}</td>
+        <td style="padding:5px 8px;">${ausAvailLabel(o)}</td>
+      </tr>`;
+    };
+
+    // Divider between selected group and unselected group — only shown when
+    // at least one office is selected AND there are also unselected rows.
+    const dividerRow = (selEntries.length && unselEntries.length) ? `
+      <tr style="pointer-events:none;">
+        <td colspan="8" style="padding:0;">
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--bg);">
+            <div style="flex:1;height:1px;background:var(--bd);"></div>
+            <span style="font-size:9.5px;font-weight:700;color:var(--xlt);letter-spacing:.04em;white-space:nowrap;">
+              ${selEntries.length} selected
+            </span>
+            <div style="flex:1;height:1px;background:var(--bd);"></div>
+          </div>
+        </td>
+      </tr>` : '';
+
     list.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:11.5px;">
       <thead style="position:sticky;top:0;background:var(--bg);z-index:1;">
         <tr style="border-bottom:1.5px solid var(--bd);">
@@ -6285,24 +6330,9 @@ function renderAusLookup(){
         </tr>
       </thead>
       <tbody>
-      ${entries.map(([oid,o])=>{
-        const sel=AUS_SELECTED.has(oid);
-        const {monthly,avg}=ausCalc(o.mp,disc);
-        return`<tr onclick="ausToggle('${oid.replace(/'/g,'\\\'')}')" style="cursor:pointer;border-bottom:1px solid var(--bd);background:${sel?'var(--olt)':'var(--wh)'};transition:background .1s;" onmouseover="this.style.background=this.style.background||'var(--bg)'" onmouseout="if(!${sel})this.style.background='var(--wh)'">
-          <td style="padding:5px 8px;text-align:center;">
-            <div style="width:16px;height:16px;border-radius:4px;border:2px solid ${sel?'var(--o)':'var(--bd)'};background:${sel?'var(--o)':'transparent'};display:flex;align-items:center;justify-content:center;margin:0 auto;">
-              ${sel?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>':''}
-            </div>
-          </td>
-          <td style="padding:5px 8px;font-weight:700;color:var(--drk);">${oid}<div style="font-size:9px;color:var(--xlt);font-weight:500;">${o.vt}·${o.v}</div></td>
-          <td style="padding:5px 8px;text-align:center;">${o.w}</td>
-          <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
-          <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
-          <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${monthly.toLocaleString()}</td>
-          <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${avg.toLocaleString()}</td>
-          <td style="padding:5px 8px;">${ausAvailLabel(o)}</td>
-        </tr>`;
-      }).join('')}
+        ${selEntries.map(buildRow).join('')}
+        ${dividerRow}
+        ${unselEntries.map(buildRow).join('')}
       </tbody>
     </table>`;
   }
