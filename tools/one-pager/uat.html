@@ -256,7 +256,15 @@ header{background:var(--wh);border-bottom:1px solid var(--bd);height:54px;
   margin:0 10px;flex-shrink:0;
 }
 
-/* Flash animation for newly added pricing rows (#15) */
+#aus-selected-sticky{
+  background:var(--olt);
+  border-bottom:2px solid rgba(255,102,0,.2);
+  display:none; /* hidden when no selection */
+}
+#aus-selected-sticky .aus-sticky-count{
+  font-size:9px;font-weight:800;color:var(--o);text-align:center;
+  padding:2px 0 3px;letter-spacing:.04em;text-transform:uppercase;
+}
 @keyframes rowFlash{
   0%  { background:rgba(255,102,0,.18); box-shadow:inset 0 0 0 2px rgba(255,102,0,.35); }
   70% { background:rgba(255,102,0,.06); box-shadow:inset 0 0 0 1px rgba(255,102,0,.15); }
@@ -1405,7 +1413,8 @@ img.co-icon-img{display:block;}
         <div id="aus-loading-bar" class="aus-loading-bar"></div>
 
         <!-- Office list -->
-        <div id="aus-office-list" style="max-height:260px;overflow-y:auto;"></div>
+        <div id="aus-selected-sticky"></div>
+        <div id="aus-office-list" style="max-height:220px;overflow-y:auto;"></div>
 
         <!-- Selected summary -->
         <div id="aus-selection-bar" style="display:none;padding:6px 10px;background:var(--olt);border-top:1px solid var(--o);display:flex;align-items:center;justify-content:space-between;gap:6px;">
@@ -2809,8 +2818,21 @@ async function setAxRegion(name, skipReset, skipPreset){
     applyRegionPreset(name);
     // Update the deposit-note input placeholder to reflect the new
     // region's default (existing user-set value, if any, is preserved).
-    const noteInput = document.getElementById('deposit-note');
-    if(noteInput) noteInput.placeholder = _depositNoteDefaultFor(LANG);
+    const noteInput = document.getElementById('deposit-note-input');
+    // For Hong Kong: auto-fill all language slots with the HK deposit terms
+    // if they're currently empty, so users see the text in the field and can
+    // edit it. For other regions: just update the placeholder.
+    if(name === 'Hong Kong'){
+      ['en','zh-hant','zh-hans','ja'].forEach(lc => {
+        if(!(DEPOSIT_NOTE[lc] || '').trim()){
+          DEPOSIT_NOTE[lc] = _HK_DEPOSIT_NOTE[lc] || _HK_DEPOSIT_NOTE.en;
+        }
+      });
+      if(noteInput) noteInput.value = DEPOSIT_NOTE[LANG] || '';
+      syncDepositNoteInput();
+    } else {
+      if(noteInput) noteInput.placeholder = _depositNoteDefaultFor(LANG);
+    }
   }
   renderRegionChips();
   const url = AX_REGIONS[name];
@@ -3003,7 +3025,17 @@ function isAusStyleRegion(){ return getRegionPreset().style === 'aus'; }
 // Region-aware deposit/tax note default — used when the user hasn't set
 // their own DEPOSIT_NOTE[LANG]. AUS regions keep the deposit-policy text;
 // simple regions show the tax disclaimer.
+// Hong Kong deposit terms default text — all 4 languages
+const _HK_DEPOSIT_NOTE = {
+  'en':      '(The meeting room hourly credit applies only to the specified room (others charged at standard rates). The agreement includes Wi-Fi, café beverages, weekday cleaning, mail handling, standard furniture, utilities, management fees, government rates; Business Continuity Package is optional.)',
+  'zh-hant': '（會議室每小時額度只適用於指定房間（其他房間按標準收費）。協議包含：Wi-Fi、咖啡/飲品、平日清潔、郵件處理、標準辦公傢具、水電費、管理費及政府差餉；業務連續性方案為可選項目。）',
+  'zh-hans': '（会议室每小时额度仅适用于指定房间（其他房间按标准收费）。协议包含：Wi-Fi、咖啡/饮品、工作日清洁、邮件处理、标准办公家具、水电费、管理费及政府差饷；业务连续性方案为可选项目。）',
+  'ja':      '（会議室のご利用時間枠は指定された部屋にのみ適用されます（その他は標準料金）。契約にはWi-Fi、コーヒー/ドリンク、平日清掃、郵便物対応、標準家具、光熱費、管理費、政府税が含まれます。業務継続プランはオプションです。）',
+};
+
 function _depositNoteDefaultFor(lang){
+  // Hong Kong has its own specific deposit terms — only applies when HK is selected
+  if(AX_REGION === 'Hong Kong') return _HK_DEPOSIT_NOTE[lang] || _HK_DEPOSIT_NOTE.en;
   const preset = getRegionPreset();
   if(preset.style === 'aus') return DEPOSIT_NOTE_DEFAULT[lang] || DEPOSIT_NOTE_DEFAULT.en;
   return preset.taxLabel || '*Prices exclude VAT.';
@@ -7328,6 +7360,7 @@ function renderAusLookup(){
     const unselEntries = entries
       .filter(([oid]) => !AUS_SELECTED.has(oid));
 
+    // Row builder — shared between sticky selected section and scrollable list
     const buildRow = ([oid,o]) => {
       const sel = AUS_SELECTED.has(oid);
       const {monthly,avg} = ausCalc(o.mp,disc);
@@ -7350,22 +7383,7 @@ function renderAusLookup(){
       </tr>`;
     };
 
-    // Divider between selected group and unselected group — only shown when
-    // at least one office is selected AND there are also unselected rows.
-    const dividerRow = (selEntries.length && unselEntries.length) ? `
-      <tr style="pointer-events:none;">
-        <td colspan="8" style="padding:0;">
-          <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--bg);">
-            <div style="flex:1;height:1px;background:var(--bd);"></div>
-            <span style="font-size:9.5px;font-weight:700;color:var(--xlt);letter-spacing:.04em;white-space:nowrap;">
-              ${selEntries.length} selected
-            </span>
-            <div style="flex:1;height:1px;background:var(--bd);"></div>
-          </div>
-        </td>
-      </tr>` : '';
-
-    list.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+    const tableHeader = `
       <thead style="position:sticky;top:0;background:var(--bg);z-index:1;">
         <tr style="border-bottom:1.5px solid var(--bd);">
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;width:28px;"></th>
@@ -7377,10 +7395,29 @@ function renderAusLookup(){
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Avg(12M)</th>
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Avail</th>
         </tr>
-      </thead>
+      </thead>`;
+
+    // ── Sticky selected section (always visible above the scroll) ──────────
+    const sticky = document.getElementById('aus-selected-sticky');
+    if(sticky){
+      if(selEntries.length){
+        sticky.style.display = 'block';
+        sticky.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+            ${tableHeader}
+            <tbody>${selEntries.map(buildRow).join('')}</tbody>
+          </table>
+          <div class="aus-sticky-count">${selEntries.length} selected</div>`;
+      } else {
+        sticky.style.display = 'none';
+        sticky.innerHTML = '';
+      }
+    }
+
+    // ── Scrollable unselected section ──────────────────────────────────────
+    list.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+      ${unselEntries.length ? tableHeader : ''}
       <tbody>
-        ${selEntries.map(buildRow).join('')}
-        ${dividerRow}
         ${unselEntries.map(buildRow).join('')}
       </tbody>
     </table>`;
@@ -7493,17 +7530,23 @@ function ausToggle(oid){
   const wasSelected = AUS_SELECTED.has(oid);
   if(wasSelected){
     AUS_SELECTED.delete(oid);
-    // Unchecking syncs back to Floor Plan Room # — if we auto-added this
-    // office's room earlier, take it back out so the chips track the
-    // selection state. Cards the user typed manually stay put.
     _ausRemoveOfficeFromFp(oid);
+    // Feature 3: also remove any pricing row that was added for this office
+    // (rows created via ausAddToRows store the office ID in the `seats` field)
+    const before = S.rows.length;
+    S.rows = S.rows.filter(r => String(r.seats) !== String(oid));
+    if(S.rows.length < before){ renderRows(); gen(); }
   } else {
     AUS_SELECTED.add(oid);
-    // Auto-add the office number to Floor Plan Room # so the user doesn't
-    // have to type it manually. Works whether they're in highlight mode
-    // (uses polygon data) or legacy collage mode (uses base URL + .png).
-    // Silently no-ops when no FP source is configured.
     _ausAddOfficeToFp(oid);
+    // Feature 1: retry the FP highlight render a few times to handle slow
+    // Cloudinary responses — fires even if the first render already succeeded
+    // (no-op if the render is already done and cached).
+    if(FP_MASTER_DATA || FP_BASE_URL){
+      [700, 2000, 4500].forEach(ms => setTimeout(() => {
+        if(AUS_SELECTED.has(oid)) ensureHighlightRender();
+      }, ms));
+    }
     // ── Auto-detect centre ──
     // If the user clicked an office while the centre filter is "All"
     // (empty), infer the centre from the office's own data and apply it.
