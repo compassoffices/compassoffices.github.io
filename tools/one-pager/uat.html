@@ -1961,6 +1961,10 @@ img.co-icon-img{display:block;}
       </div>
     </div>
     <div class="profile-modal-foot">
+      <button onclick="clearProfileFromModal()"
+        style="padding:10px 16px;border:1.5px solid var(--bd);border-radius:10px;background:transparent;color:var(--xlt);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;margin-right:auto;"
+        onmouseover="this.style.borderColor='#DC2626';this.style.color='#DC2626'"
+        onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">Clear Profile</button>
       <button onclick="closeProfileModal()" style="padding:10px 20px;border:1.5px solid var(--bd);border-radius:10px;background:transparent;color:var(--mid);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;flex:1;">Cancel</button>
       <button onclick="saveProfileFromModal()" style="padding:10px 24px;border:none;border-radius:10px;background:var(--o);color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;flex:2;">Save Profile</button>
     </div>
@@ -6882,10 +6886,14 @@ function saveStaffProfile(p){
 }
 
 function _profileReady(){
-  return !!(STAFF_PROFILE
-    && STAFF_PROFILE.showContactPage
-    && (STAFF_PROFILE.firstName || STAFF_PROFILE.lastName)
-    && (STAFF_PROFILE.phone || STAFF_PROFILE.email));
+  if(!STAFF_PROFILE || !STAFF_PROFILE.showContactPage) return false;
+  const p = STAFF_PROFILE;
+  // Page shows if there's ANY content — social links alone count
+  // (supports Compass-default profile with no personal name)
+  const soc = p.social || {};
+  const hasSocial  = Object.values(soc).some(v => v && String(v).trim());
+  const hasPersonal = !!(p.firstName || p.lastName || p.phone || p.email);
+  return hasSocial || hasPersonal;
 }
 
 // ── Profile modal ──────────────────────────────────────────────────────────
@@ -6921,6 +6929,25 @@ function closeProfileModal(){
   const modal = document.getElementById('profile-modal');
   if(modal) modal.style.display = 'none';
   _profilePhotoDataUrl = null;
+}
+
+function clearProfileFromModal(){
+  if(!confirm('Reset to Compass Offices defaults?\n\nYour personal details (name, photo, phone, email, title) will be cleared.\nSocial links will reset to the official Compass Offices accounts.\nThe "Include contact page" toggle stays ON.')) return;
+  // Clear personal fields
+  ['pf-firstname','pf-lastname','pf-title','pf-phone','pf-email'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  // Clear photo
+  _profilePhotoDataUrl = null;
+  _updateProfilePhotoUI(null);
+  // Reset social to Compass defaults
+  Object.entries(_DEFAULT_SOCIAL).forEach(([key,val])=>{
+    const el=document.getElementById('pf-'+key); if(el) el.value=val;
+  });
+  // Always keep toggle ON
+  const tog=document.getElementById('pf-show-toggle');
+  if(tog) tog.classList.add('on');
+  previewContactPage();
 }
 
 function toggleProfileShow(){
