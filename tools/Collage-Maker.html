@@ -400,42 +400,10 @@ function twoBoxRegion(boxIdx) {
 
 function clampPan(box, panVal, axis) {
   if (!box.image) return panVal;
-  const iw = box.image.naturalWidth  || box.image.width;
-  const ih = box.image.naturalHeight || box.image.height;
-  const imgAspect = iw / ih;
-
-  let effW, effH;
-  if (currentLayout === 'two') {
-    const region = twoBoxRegion(box.index);
-    effW = region.w; effH = region.h;
-  } else {
-    effW = box.width; effH = box.height;
-  }
-
-  const effAspect = effW / effH;
-  let drawW, drawH;
-  if (imgAspect > effAspect) { drawH = effH * box.zoom; drawW = drawH * imgAspect; }
-  else                       { drawW = effW * box.zoom; drawH = drawW / imgAspect; }
-
-  // CHANGED: when image is smaller than the region (zoomed out), allow free movement
-  // up to the size of the region itself. When larger, keep cover constraint.
-  if (axis === 'x') {
-    if (drawW >= effW) {
-      const maxPan = (drawW - effW) / 2;
-      return Math.max(-maxPan, Math.min(maxPan, panVal));
-    } else {
-      const maxPan = effW;
-      return Math.max(-maxPan, Math.min(maxPan, panVal));
-    }
-  } else {
-    if (drawH >= effH) {
-      const maxPan = (drawH - effH) / 2;
-      return Math.max(-maxPan, Math.min(maxPan, panVal));
-    } else {
-      const maxPan = effH;
-      return Math.max(-maxPan, Math.min(maxPan, panVal));
-    }
-  }
+  // FREE positioning — no snap-back to cover-fit. Only a soft outer bound at
+  // 1.5× the canvas dimension so the image can't be dragged completely lost.
+  const limit = (axis === 'x' ? canvas.width : canvas.height) * 1.5;
+  return Math.max(-limit, Math.min(limit, panVal));
 }
 
 // CHANGED: allow zoom-out below cover-fit baseline (was return 1)
@@ -671,11 +639,30 @@ function pickTwoBox(canvasX, canvasY) {
 }
 
 function createLayout() {
+  // CHANGED: snapshot existing box state by slot index so layout adjustments
+  // (split sliders, canvas resize, etc.) DON'T reset zoom/pan/rotation.
+  const prev = imageBoxes.map(b => ({
+    image: b.image,
+    zoom: b.zoom,
+    panX: b.panX,
+    panY: b.panY,
+    rotation: b.rotation
+  }));
+
   imageBoxes.forEach(b=>b.remove());
   imageBoxes=[];
   calcSlots().forEach((s,i)=>{
     const box=new ImageBox(s.x,s.y,s.w,s.h,i);
-    if(uploadedImages[i]) box.image=uploadedImages[i];
+    if (prev[i] && prev[i].image) {
+      // Restore image AND its adjustments
+      box.image    = prev[i].image;
+      box.zoom     = prev[i].zoom;
+      box.panX     = prev[i].panX;
+      box.panY     = prev[i].panY;
+      box.rotation = prev[i].rotation;
+    } else if (uploadedImages[i]) {
+      box.image = uploadedImages[i];
+    }
     imageBoxes.push(box);
   });
   updateCanvas();
