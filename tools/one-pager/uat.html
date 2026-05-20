@@ -2082,7 +2082,7 @@ img.co-icon-img{display:block;}
       <canvas id="fpe-canvas"></canvas>
     </div>
     <!-- Status -->
-    <div class="fpe-status" id="fpe-status">Click and drag to draw a box · Click a shape to select · Double-click a box to rename · Delete key to remove</div>
+    <div class="fpe-status" id="fpe-status">Click and drag to draw a box · Click a shape to select · Drag selected shape to move · Double-click a box to rename · Delete key to remove</div>
   </div>
 </div>
 
@@ -2771,7 +2771,7 @@ async function _fpeInitCanvas(){
   _fpe.canvas = canvas; _fpe.ctx = canvas.getContext('2d');
   canvas.width = FPE_W; canvas.height = FPE_H;
   canvas.onmousedown = _fpeMouseDown;
-  canvas.onmousemove = _fpeMouseMove;
+  canvas.onmousemove = e => { _fpeUpdateCursor(e); _fpeMouseMove(e); };
   canvas.onmouseup   = _fpeMouseUp;
   canvas.ondblclick  = _fpeDblClick;
   const url = _fpeGetRoomUrl(_fpe.roomId);
@@ -2811,7 +2811,13 @@ function _fpeRender(){
   const {ctx}=_fpe, W=FPE_W, H=FPE_H;
   ctx.clearRect(0,0,W,H);
   if(_fpe.bgImg){
-    ctx.drawImage(_fpe.bgImg,0,0,W,H);
+    // Draw with object-fit:contain — preserve aspect ratio, no distortion
+    const iw=_fpe.bgImg.width, ih=_fpe.bgImg.height;
+    const scale=Math.min(W/iw, H/ih);
+    const dw=iw*scale, dh=ih*scale;
+    const dx=(W-dw)/2, dy=(H-dh)/2;
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);          // white letterbox
+    ctx.drawImage(_fpe.bgImg, dx, dy, dw, dh);               // centred, no stretch
   } else {
     ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,0,W,H);
     ctx.fillStyle='#999'; ctx.font='bold 15px sans-serif';
@@ -2873,29 +2879,66 @@ function _fpeXY(e){
   const r=_fpe.canvas.getBoundingClientRect();
   return{x:((e.clientX-r.left)/r.width)*FPE_W, y:((e.clientY-r.top)/r.height)*FPE_H};
 }
+function _fpeUpdateCursor(e){
+  if(!_fpe?.canvas) return;
+  const {x,y}=_fpeXY(e);
+  const hit=_fpeFindShape(x,y);
+  _fpe.canvas.style.cursor = hit>=0 ? 'move' : 'crosshair';
+}
 function _fpeMouseDown(e){
   if(!_fpe) return;
   const {x,y}=_fpeXY(e), hit=_fpeFindShape(x,y);
   if(hit>=0){
-    _fpe.selected=hit; _fpe.dragging=false;
+    // Select existing shape AND prepare for potential drag-to-move
+    _fpe.selected=hit; _fpe.dragging=false; _fpe.moving=false;
+    _fpe.moveReady=true;           // will become a move if mouse moves enough
+    _fpe.moveAnchorX=x; _fpe.moveAnchorY=y;
+    _fpe.moveShapeStart=JSON.parse(JSON.stringify(_fpe.shapes[hit]));
     document.getElementById('fpe-delete-btn').disabled=false;
     const inp=document.getElementById('fpe-label-inp');
     if(inp) inp.value=_fpe.shapes[hit].type==='box'?(_fpe.shapes[hit].label||''):'';
     _fpeRender(); return;
   }
-  _fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true;
+  // No shape hit — start drawing a new shape
+  _fpe.selected=-1; _fpe.moveReady=false; _fpe.moving=false;
+  document.getElementById('fpe-delete-btn').disabled=true;
   _fpe.dragging=true; _fpe.startX=x; _fpe.startY=y; _fpe.draft=null;
 }
 function _fpeMouseMove(e){
-  if(!_fpe?.dragging) return;
+  if(!_fpe) return;
   const {x,y}=_fpeXY(e);
+  // ── Move mode: drag selected shape ──────────────────────────────
+  if(_fpe.moveReady||_fpe.moving){
+    const dx=x-_fpe.moveAnchorX, dy=y-_fpe.moveAnchorY;
+    if(!_fpe.moving && Math.hypot(dx,dy)<5) return; // threshold — ignore tiny jitter
+    if(!_fpe.moving){
+      // First significant movement — commit to move mode
+      _fpe.moving=true;
+      _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes))); // undo snapshot
+    }
+    const orig=_fpe.moveShapeStart, s=_fpe.shapes[_fpe.selected];
+    if(!s) return;
+    if(s.type==='box'){ s.x=orig.x+dx; s.y=orig.y+dy; }
+    else { s.x1=orig.x1+dx; s.y1=orig.y1+dy; s.x2=orig.x2+dx; s.y2=orig.y2+dy; }
+    _fpeRender(); return;
+  }
+  // ── Draw mode: show draft shape ──────────────────────────────────
+  if(!_fpe.dragging) return;
   _fpe.draft=_fpe.mode==='box'
     ?{type:'box',x:_fpe.startX,y:_fpe.startY,w:x-_fpe.startX,h:y-_fpe.startY,color:_fpe.color,label:''}
     :{type:'wall',x1:_fpe.startX,y1:_fpe.startY,x2:x,y2:y,color:_fpe.color};
   _fpeRender();
 }
 function _fpeMouseUp(e){
-  if(!_fpe?.dragging) return;
+  if(!_fpe) return;
+  // ── End move ────────────────────────────────────────────────────
+  if(_fpe.moveReady||_fpe.moving){
+    _fpe.moveReady=false; _fpe.moving=false;
+    _fpeStatus(`Room ${_fpe.roomId} · drag shapes to move · Apply saves to Page 1`);
+    _fpeRender(); return;
+  }
+  // ── End draw ────────────────────────────────────────────────────
+  if(!_fpe.dragging) return;
   _fpe.dragging=false;
   const s=_fpe.draft; _fpe.draft=null; if(!s) return;
   const sz=s.type==='box'?Math.abs(s.w)+Math.abs(s.h):Math.hypot(s.x2-s.x1,s.y2-s.y1);
