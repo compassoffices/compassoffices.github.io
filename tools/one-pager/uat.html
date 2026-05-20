@@ -2058,8 +2058,18 @@ img.co-icon-img{display:block;}
         <div class="fpe-swatch"    style="background:#757575;" onclick="_fpeSetColor('#757575',this)" title="Grey"></div>
         <div class="fpe-swatch"    style="background:#C62828;" onclick="_fpeSetColor('#C62828',this)" title="Red"></div>
       </div>
+      <!-- Font size control -->
       <div class="fpe-sep"></div>
-      <!-- Label input -->
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:10px;color:rgba(255,255,255,.3);">Size</span>
+        <button class="fpe-btn" style="padding:3px 7px;min-width:0;" onclick="_fpeFontStep(-1)" title="Smaller text">−</button>
+        <input id="fpe-font-size" type="number" min="8" max="36" value="13"
+          style="width:36px;padding:4px 4px;border:1.5px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(255,255,255,.07);color:#fff;font-size:12px;font-family:inherit;outline:none;text-align:center;"
+          oninput="_fpeSetFontSize(this.value)"
+          title="Label font size (8–36)">
+        <button class="fpe-btn" style="padding:3px 7px;min-width:0;" onclick="_fpeFontStep(1)" title="Larger text">+</button>
+      </div>
+      <div class="fpe-sep"></div>
       <input class="fpe-label-inp" id="fpe-label-inp" type="text"
         placeholder="Box label (type after drawing)…"
         oninput="_fpeOnLabelInput(this.value)"
@@ -2735,7 +2745,7 @@ let _fpe = null;                  // editor runtime state (null when closed)
 
 function openFpEditor(oid){
   _fpe = {
-    roomId: oid, mode: 'box', color: '#FF6600',
+    roomId: oid, mode: 'box', color: '#FF6600', fontSize: 13,
     shapes: JSON.parse(JSON.stringify(FP_ANNOTATIONS[oid]?.shapes || [])),
     history: [], selected: -1,
     dragging: false, startX: 0, startY: 0,
@@ -2811,13 +2821,14 @@ function _fpeRender(){
   const {ctx}=_fpe, W=FPE_W, H=FPE_H;
   ctx.clearRect(0,0,W,H);
   if(_fpe.bgImg){
-    // Draw with object-fit:contain — preserve aspect ratio, no distortion
+    // Draw with object-fit:contain inside an inset area (28px margin each side)
+    const PAD=28;
     const iw=_fpe.bgImg.width, ih=_fpe.bgImg.height;
-    const scale=Math.min(W/iw, H/ih);
+    const scale=Math.min((W-PAD*2)/iw, (H-PAD*2)/ih);
     const dw=iw*scale, dh=ih*scale;
     const dx=(W-dw)/2, dy=(H-dh)/2;
-    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);          // white letterbox
-    ctx.drawImage(_fpe.bgImg, dx, dy, dw, dh);               // centred, no stretch
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);   // white background + margin
+    ctx.drawImage(_fpe.bgImg, dx, dy, dw, dh);         // centred, no stretch
   } else {
     ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,0,W,H);
     ctx.fillStyle='#999'; ctx.font='bold 15px sans-serif';
@@ -2837,7 +2848,7 @@ function _fpeDrawShape(ctx,s,selected,isDraft){
     ctx.strokeStyle=s.color; ctx.lineWidth=selected?2.5:1.8;
     ctx.setLineDash(isDraft?[8,4]:[]); ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
     if(s.label&&!isDraft){
-      const fs=Math.max(10,Math.min(16,Math.abs(h)*0.26));
+      const fs=s.fontSize||_fpe?.fontSize||13;
       ctx.font=`bold ${fs}px Arial,sans-serif`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
       const tw=ctx.measureText(s.label).width, pad=6;
@@ -2897,6 +2908,12 @@ function _fpeMouseDown(e){
     document.getElementById('fpe-delete-btn').disabled=false;
     const inp=document.getElementById('fpe-label-inp');
     if(inp) inp.value=_fpe.shapes[hit].type==='box'?(_fpe.shapes[hit].label||''):'';
+    // Sync font size control to selected box
+    if(_fpe.shapes[hit].type==='box'){
+      const fs=_fpe.shapes[hit].fontSize||_fpe.fontSize||13;
+      _fpe.fontSize=fs;
+      const fi=document.getElementById('fpe-font-size'); if(fi) fi.value=fs;
+    }
     _fpeRender(); return;
   }
   // No shape hit — start drawing a new shape
@@ -2943,7 +2960,7 @@ function _fpeMouseUp(e){
   const s=_fpe.draft; _fpe.draft=null; if(!s) return;
   const sz=s.type==='box'?Math.abs(s.w)+Math.abs(s.h):Math.hypot(s.x2-s.x1,s.y2-s.y1);
   if(sz<12){ _fpeRender(); return; }
-  if(s.type==='box'){ s.x=Math.min(s.x,s.x+s.w); s.y=Math.min(s.y,s.y+s.h); s.w=Math.abs(s.w); s.h=Math.abs(s.h); }
+  if(s.type==='box'){ s.x=Math.min(s.x,s.x+s.w); s.y=Math.min(s.y,s.y+s.h); s.w=Math.abs(s.w); s.h=Math.abs(s.h); s.fontSize=_fpe.fontSize||13; }
   _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));
   _fpe.shapes.push(s); _fpe.selected=_fpe.shapes.length-1;
   document.getElementById('fpe-delete-btn').disabled=false;
@@ -2984,6 +3001,22 @@ function _fpeGlobalKey(e){
   if(document.activeElement?.id==='fpe-label-inp') return;
   if(e.key==='Delete'||e.key==='Backspace') _fpeDeleteSelected();
   if(e.key==='Escape'){_fpe.selected=-1;document.getElementById('fpe-delete-btn').disabled=true;_fpeRender();}
+}
+function _fpeSetFontSize(val){
+  if(!_fpe) return;
+  const fs = Math.max(8, Math.min(36, parseInt(val)||13));
+  _fpe.fontSize = fs;
+  const inp = document.getElementById('fpe-font-size');
+  if(inp) inp.value = fs;
+  // Apply to selected box immediately
+  if(_fpe.selected>=0 && _fpe.shapes[_fpe.selected]?.type==='box'){
+    _fpe.shapes[_fpe.selected].fontSize = fs;
+    _fpeRender();
+  }
+}
+function _fpeFontStep(delta){
+  if(!_fpe) return;
+  _fpeSetFontSize((_fpe.fontSize||13)+delta);
 }
 function _fpeSetMode(mode,init){ if(_fpe)_fpe.mode=mode; document.getElementById('fpe-btn-box')?.classList.toggle('on',mode==='box'); document.getElementById('fpe-btn-wall')?.classList.toggle('on',mode==='wall'); const inp=document.getElementById('fpe-label-inp'); if(inp)inp.style.opacity=mode==='box'?'1':'0.35'; }
 function _fpeSetColor(color,el){ if(!_fpe)return; _fpe.color=color; document.querySelectorAll('.fpe-swatch').forEach(s=>s.classList.remove('on')); if(el)el.classList.add('on'); if(_fpe.selected>=0){_fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));_fpe.shapes[_fpe.selected].color=color;_fpeRender();} }
