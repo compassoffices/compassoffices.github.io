@@ -908,6 +908,15 @@ img.co-icon-img{display:block;}
    and data is on its way (network latency can be 0.5–2 s).
 */
 /* Floor chip active: pop-scale on selection + persistent glow */
+
+/* ── Add Selected to Rows — pending-add pulse reminder ────────────────── */
+@keyframes ausAddPulse{
+  0%,100%{transform:scale(1);box-shadow:0 2px 8px rgba(255,102,0,.35);}
+  50%{transform:scale(1.045);box-shadow:0 2px 18px rgba(255,102,0,.65),0 0 0 5px rgba(255,102,0,.12);}
+}
+.aus-add-pending{
+  animation:ausAddPulse 1.8s ease-in-out infinite;
+}
 @keyframes floorBtnPop{
   0%  {transform:scale(1);}
   40% {transform:scale(1.2);box-shadow:0 0 12px rgba(255,102,0,.55);}
@@ -1600,7 +1609,7 @@ img.co-icon-img{display:block;}
             <span style="font-size:12px;font-weight:700;color:var(--o);">%</span>
           </div>
           <span id="aus-formula-hint" style="font-size:10px;color:var(--xlt);">Monthly = Market × (1 − disc%) &nbsp;|&nbsp; Avg = Monthly × 10/12</span>
-          <button onclick="ausAddToRows()" style="margin-left:auto;padding:5px 12px;background:var(--o);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;">
+          <button id="aus-add-btn" onclick="ausAddToRows()" style="margin-left:auto;padding:5px 12px;background:var(--o);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Selected to Rows
           </button>
@@ -3742,6 +3751,7 @@ function addPricingCol(){
   renderPricingColSettings();
   renderRows();
   gen();
+  _ausUpdateAddBtnPulse(); // selection may still be set, update button state
 }
 
 function removePricingCol(key){
@@ -8262,8 +8272,18 @@ function ausToggle(key){
     }
   }
   renderAusLookup();
+  _ausUpdateAddBtnPulse();
 }
 
+
+// ── Add-to-rows pulse reminder ────────────────────────────────────────────
+// Pulses when offices are selected but not yet added to pricing rows.
+// Clears on click (ausAddToRows) or when selection becomes empty.
+function _ausUpdateAddBtnPulse(){
+  const btn = document.getElementById('aus-add-btn');
+  if(!btn) return;
+  btn.classList.toggle('aus-add-pending', AUS_SELECTED.size > 0);
+}
 function ausAddToRows(){
   if(!AUS_SELECTED.size){showStatus('Select at least one office first.','s-info');return;}
   const disc=AUS_DISCOUNT;
@@ -8308,7 +8328,11 @@ function ausAddToRows(){
     const marketStr  = (typeof o.mp === 'number' && o.mp > 0) ? `${currency}${o.mp.toLocaleString()}` : '';
     const monthlyStr = `${currency}${monthly.toLocaleString()}`;
     const avgStr     = `${currency}${avg.toLocaleString()}`;
-    const sqmStr     = (o.sq != null && o.sq !== '') ? String(o.sq) : '';
+    // Append size unit (Sq.m / Sq.ft) so the pricing row cell is self-contained
+    const _sqUnit = (o.unit||'').replace(/\.\s+/g,'.').replace(/sq\./i,'Sq.') || (window._AUS_SQ_UNIT||'');
+    const sqmStr  = (o.sq != null && o.sq !== '')
+      ? (String(o.sq) + (_sqUnit ? ' '+_sqUnit : ''))
+      : '';
     const initStr    = isAus
       ? `16.6% Saving - 2 Months Free on 12! | Avg ${currency}${avg.toLocaleString()}`
       : '';
