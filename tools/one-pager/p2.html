@@ -1211,13 +1211,13 @@ img.co-icon-img{display:block;}
   </div>
 </header>
 
-<div class="app">
 <div id="autosave-banner">
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
   <span>Unsaved proposal found — last saved <span id="autosave-time" class="ab-time"></span></span>
   <button class="ab-restore" onclick="_autosaveRestore()">Restore</button>
   <button onclick="_autosaveDismiss()">Dismiss</button>
 </div>
+<div class="app">
 <div class="sidebar">
   <!-- Always-visible proposal info strip — above tabs, below header -->
   <div class="proposal-strip">
@@ -6010,17 +6010,7 @@ function gen(){
 //  Replace the existing printSlide() function with this one.
 // ══════════════════════════════════════════════════════════
 
-// Autosave hook — called after every gen() that isn't a capture run.
-// Defined here so it sits at the right scope, injected into gen() at
-// the call-site via the oninput / gen() wrapper in the init block.
-(function _hookAutosaveIntoGen(){
-  const _orig = gen;
-  window.gen = function gen(){
-    _orig.apply(this, arguments);
-    if(!gen._captureMode && typeof _autosaveSchedule === 'function') _autosaveSchedule();
-  };
-  gen._captureMode = _orig._captureMode || false;
-})();
+// Autosave is triggered via setInterval — see _autosaveSchedule below
 // ══════════════════════════════════════════════════════════
 //  PRINT QUEUE — Multi-location Print / Save PDF
 //  Opens a new window with every queued slide (using pre-captured
@@ -9983,18 +9973,26 @@ window.addEventListener('resize',()=>{
 
 
 // ══════════════════════════════════════════════════════════════════════════
-//  AUTOSAVE — saves proposal to localStorage every time gen() runs
-//  (debounced 4s). Strips raw photo binary data to stay within 5MB limit.
-//  On page load, detects a saved state and offers to restore it.
+//  AUTOSAVE — saves proposal every 30s via setInterval.
+//  Only saves when there's meaningful content (name, rows, or photos).
+//  On page load, only shows restore banner if saved state has real content.
 // ══════════════════════════════════════════════════════════════════════════
 const _AS_KEY = 'co_proposal_autosave';
-let _asTimer = null;
+
+function _autosaveHasMeaningfulContent(){
+  // Check if the current state is worth saving
+  const hasName   = !!(COMPANY_NAME || CLIENT_NAME ||
+    (LANG_DATA['en']?.fields?.['n-main']) ||
+    document.getElementById('n-main')?.value?.trim());
+  const hasRows   = S.rows && S.rows.length > 0;
+  const hasPhotos = S.photos && S.photos.some(p => p);
+  return hasName || hasRows || hasPhotos;
+}
 
 function _autosaveNow(){
   try{
+    if(!_autosaveHasMeaningfulContent()) return; // don't save blank states
     const state = buildStateSnapshot();
-    // Remove heavy binary photo uploads — Cloudinary URLs are already strings
-    // and cost almost nothing. Only raw data: uploads are large.
     const lite = JSON.parse(JSON.stringify(state));
     delete lite.photos_data;
     lite._as_ts = Date.now();
@@ -10004,10 +10002,8 @@ function _autosaveNow(){
   }catch(e){ /* quota exceeded or private browsing */ }
 }
 
-function _autosaveSchedule(){
-  clearTimeout(_asTimer);
-  _asTimer = setTimeout(_autosaveNow, 4000);
-}
+// Run autosave every 30 seconds — no need to hook gen()
+setInterval(_autosaveNow, 30000);
 
 function _autosaveCheck(){
   try{
@@ -10016,6 +10012,13 @@ function _autosaveCheck(){
     const state = JSON.parse(raw);
     const ts = state._as_ts;
     if(!ts) return;
+    // Only show restore banner if saved state has real content
+    const hasContent = !!(
+      state.company_name || state.client_name ||
+      (state.langs?.en?.fields?.['n-main']) ||
+      (state.langs?.en?.rows?.length > 0)
+    );
+    if(!hasContent) return;
     const mins = Math.round((Date.now()-ts)/60000);
     const label = mins<1?'just now': mins<60?`${mins} min ago`: mins<1440?`${Math.round(mins/60)}h ago`:'yesterday';
     const timeEl = document.getElementById('autosave-time');
