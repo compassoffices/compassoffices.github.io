@@ -232,33 +232,31 @@ header{background:var(--wh);border-bottom:1px solid var(--bd);height:54px;
 /* Proposal info strip — always-visible bar above the tabs */
 .proposal-strip{
   display:flex;align-items:center;gap:0;height:44px;
-  padding:0 16px;
+  padding:0 14px;
+  margin:6px 10px 0;
   background:var(--olt);
-  border-bottom:1px solid rgba(255,102,0,.12);
+  border:1px solid rgba(255,102,0,.18);
+  border-radius:10px;
   flex-shrink:0;
 }
 /* strip-fields must be flex so both field divs sit side-by-side on desktop */
 #strip-fields{display:flex;align-items:center;flex:1;min-width:0;}
 .proposal-strip-field{
-  display:flex;align-items:center;gap:8px;flex:1;min-width:0;
-}
-.proposal-strip-label{
-  font-size:10px;font-weight:800;color:var(--o);text-transform:uppercase;
-  letter-spacing:.08em;white-space:nowrap;flex-shrink:0;
+  display:flex;align-items:center;flex:1;min-width:0;
 }
 .proposal-strip input{
-  flex:1;min-width:0;max-width:160px;
-  border:1.5px solid rgba(255,102,0,.22);border-radius:20px;
-  background:rgba(255,255,255,.85);
+  flex:1;min-width:0;
+  border:none;border-radius:0;background:transparent;
   font-size:13px;font-weight:500;color:var(--drk);font-family:inherit;
-  outline:none;padding:5px 12px;
-  transition:border-color .15s,background .15s,box-shadow .15s;
+  outline:none;padding:0 10px;height:44px;
+  transition:color .15s;
 }
-.proposal-strip input::placeholder{color:rgba(255,102,0,.35);font-weight:400;}
-.proposal-strip input:focus{
-  border-color:var(--o);background:#fff;
-  box-shadow:0 0 0 3px rgba(255,102,0,.08);
+.proposal-strip input::placeholder{
+  color:var(--o);font-weight:700;font-size:11px;
+  text-transform:uppercase;letter-spacing:.07em;opacity:1;
 }
+.proposal-strip input:focus::placeholder{opacity:.4;}
+.proposal-strip input:focus{color:var(--drk);}
 .proposal-strip-div{
   width:1px;height:20px;background:rgba(255,102,0,.2);
   margin:0 10px;flex-shrink:0;
@@ -421,6 +419,14 @@ select{appearance:none;
 .mob-drawer-btn.primary{background:var(--o);color:#fff;border-color:var(--o);}
 .mob-drawer-btn.primary svg{opacity:1;}
 .mob-drawer-btn.primary:active{background:#e55a00;}
+/* Drawer proposal inputs */
+.mob-drawer-proposal{padding:4px 20px 12px;}
+.mob-drawer-prop-field{margin-bottom:10px;}
+.mob-drawer-prop-label{font-size:9.5px;font-weight:800;color:var(--o);text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:5px;}
+.mob-drawer-prop-input{width:100%;border:1.5px solid var(--bd);border-radius:10px;padding:11px 14px;font-size:15px;font-family:inherit;color:var(--drk);background:#fff;outline:none;box-sizing:border-box;transition:border-color .15s;}
+.mob-drawer-prop-input:focus{border-color:var(--o);}
+.mob-drawer-prop-input::placeholder{color:var(--o);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.07em;}
+.mob-drawer-prop-input:focus::placeholder{opacity:.35;}
 
 /* Desktop-only: strip toggle + summary never visible — mobile @media overrides below */
 #strip-toggle{display:none;}
@@ -447,10 +453,9 @@ select{appearance:none;
   .lang-sw{display:none;}
   /* ── App layout ── */
   .app{padding-top:52px;padding-bottom:72px;}
-  /* ── Proposal strip — mobile collapsible ── */
-  .proposal-strip{display:flex;flex-direction:column;gap:0;padding:0;position:relative;height:auto;}
+  /* ── Proposal strip — hidden on mobile (lives in hamburger drawer) ── */
+  .proposal-strip{display:none !important;}
   .proposal-strip-field{display:flex;flex-direction:column;gap:3px;padding:10px 16px 10px 16px;}
-  .proposal-strip-label{font-size:9.5px;}
   .proposal-strip-div{display:none;}
   .proposal-strip input{
     max-width:none;font-size:16px;padding:8px 12px;
@@ -496,6 +501,8 @@ select{appearance:none;
   #aus-office-list table{min-width:440px;}
   /* ── Preview ── */
   .preview .contact-slide{border-radius:0;}
+  /* ── Queue panel — full width on mobile ── */
+  #queue-panel{left:8px !important;right:8px !important;width:auto !important;bottom:80px !important;max-height:62vh !important;}
 }
 
 /* Only show hamburger + mob email on mobile */
@@ -1180,15 +1187,13 @@ img.co-icon-img{display:block;}
     <!-- Collapsible fields wrapper -->
     <div id="strip-fields">
       <div class="proposal-strip-field">
-        <span class="proposal-strip-label" data-i18n="lbl_company_name">Proposal For</span>
-        <input type="text" id="company-name" placeholder="e.g. Google, Apple Inc."
+        <input type="text" id="company-name" placeholder="Proposal For"
           oninput="COMPANY_NAME=this.value;_stripUpdatePreview()"
           autocomplete="organization">
       </div>
       <div class="proposal-strip-div"></div>
       <div class="proposal-strip-field">
-        <span class="proposal-strip-label" data-i18n="lbl_client_name">Client Name</span>
-        <input type="text" id="client-name" placeholder="e.g. John Smith"
+        <input type="text" id="client-name" placeholder="Client Name"
           oninput="CLIENT_NAME=this.value;_stripUpdatePreview()"
           autocomplete="name">
       </div>
@@ -9924,6 +9929,25 @@ function openMobMore(){
   document.getElementById('mob-more-overlay')?.classList.add('open');
   document.getElementById('mob-more-drawer')?.classList.add('open');
   _mobSyncDrawerLang();
+  // Populate proposal inputs from current globals
+  const dco = document.getElementById('mob-co-input');
+  const dcl = document.getElementById('mob-cl-input');
+  if(dco) dco.value = COMPANY_NAME||'';
+  if(dcl) dcl.value = CLIENT_NAME||'';
+}
+// Sync proposal field changes from drawer → globals → main strip inputs
+function _mobPropSync(field, val){
+  if(field==='co'){
+    COMPANY_NAME = val;
+    const el = document.getElementById('company-name');
+    if(el) el.value = val;
+  } else {
+    CLIENT_NAME = val;
+    const el = document.getElementById('client-name');
+    if(el) el.value = val;
+  }
+  if(typeof _stripUpdatePreview==='function') _stripUpdatePreview();
+  if(typeof gen==='function') clearTimeout(window._genTimer), window._genTimer=setTimeout(gen,800);
 }
 function closeMobMore(){
   document.getElementById('mob-more-overlay')?.classList.remove('open');
@@ -10018,13 +10042,7 @@ function _stripUpdatePreview(){
   const summary = document.getElementById('strip-summary');
   if(!summary) return;
   if(!co && !cl){
-    // Empty — show as a proper tap-target button (mobile only, desktop summary is hidden)
-    summary.innerHTML =
-      '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 16px;'+
-      'border:1.5px solid var(--o);border-radius:20px;background:transparent;'+
-      'color:var(--o);font-size:12px;font-weight:700;">'+
-      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'+
-      'Add client details</span>';
+    summary.innerHTML = '';
   } else {
     const parts = [co,cl].filter(Boolean);
     summary.innerHTML =
@@ -10032,6 +10050,11 @@ function _stripUpdatePreview(){
       parts.map(p=>`<strong style="color:var(--drk);font-size:12px;">${p}</strong>`)
            .join('<span style="color:var(--bd);margin:0 5px;">·</span>');
   }
+  // Also sync drawer inputs if drawer exists
+  const dco = document.getElementById('mob-co-input');
+  const dcl = document.getElementById('mob-cl-input');
+  if(dco) dco.value = co;
+  if(dcl) dcl.value = cl;
 }
 </script>
 
@@ -10039,6 +10062,8 @@ function _stripUpdatePreview(){
 <div id="mob-more-overlay" onclick="closeMobMore()"></div>
 <div id="mob-more-drawer">
   <div class="mob-drawer-handle"></div>
+
+  <!-- Language -->
   <div class="mob-drawer-title">Language</div>
   <div class="mob-drawer-lang">
     <button class="lbtn on" id="mob-d-en"   onclick="setLang('en');    _mobUpdateLang()">EN</button>
@@ -10046,12 +10071,27 @@ function _stripUpdatePreview(){
     <button class="lbtn"    id="mob-d-hans" onclick="setLang('zh-hans');_mobUpdateLang()">简体</button>
     <button class="lbtn"    id="mob-d-ja"   onclick="setLang('ja');    _mobUpdateLang()">日本語</button>
   </div>
+
+  <!-- Proposal details -->
+  <div class="mob-drawer-title">Proposal Details</div>
+  <div class="mob-drawer-proposal">
+    <div class="mob-drawer-prop-field">
+      <input id="mob-co-input" class="mob-drawer-prop-input" type="text"
+        placeholder="Proposal For"
+        autocomplete="organization"
+        oninput="_mobPropSync('co',this.value)">
+    </div>
+    <div class="mob-drawer-prop-field">
+      <input id="mob-cl-input" class="mob-drawer-prop-input" type="text"
+        placeholder="Client Name"
+        autocomplete="name"
+        oninput="_mobPropSync('cl',this.value)">
+    </div>
+  </div>
+
+  <!-- Actions -->
   <div class="mob-drawer-title">Actions</div>
   <div class="mob-drawer-grid">
-    <button class="mob-drawer-btn" onclick="openProfileModal();closeMobMore()">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      My Profile
-    </button>
     <button class="mob-drawer-btn" onclick="newCard();closeMobMore()">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
       New Proposal
@@ -10060,13 +10100,17 @@ function _stripUpdatePreview(){
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Save JSON
     </button>
-    <button class="mob-drawer-btn" onclick="openEmailModal();closeMobMore()">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
-      Email
-    </button>
     <button class="mob-drawer-btn primary" onclick="addToQueue();closeMobMore()">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-      + Queue
+      + Add to Queue
+    </button>
+    <button class="mob-drawer-btn" onclick="closeMobMore();toggleQueuePanel()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>
+      View Queue
+    </button>
+    <button class="mob-drawer-btn" onclick="openProfileModal();closeMobMore()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      My Profile
     </button>
     <button class="mob-drawer-btn primary" onclick="closeMobMore();printSlide()">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
