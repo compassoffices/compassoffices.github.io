@@ -387,8 +387,8 @@ select{appearance:none;
 .pr-row{border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:8px;background:var(--bg);transition:border-color .1s;}
 /* ── Collapsible pricing rows ──────────────────────────────────────────── */
 .pr-row-summary{
-  font-size:11.5px;color:var(--mid);padding:0 12px 10px;
-  display:none;line-height:1.4;
+  font-size:13px;color:var(--mid);padding:0 12px 10px;
+  display:none;line-height:1.45;
 }
 /* ── Inline price edit inside collapsed row summary ──────────────────── */
 .pr-inline-price{
@@ -405,13 +405,16 @@ select{appearance:none;
 .pr-row.pr-collapsed .pr-row-summary{display:block;}
 .pr-row.pr-collapsed .frow{display:none;}
 .pr-collapse-btn{
-  width:22px;height:22px;border:1px solid var(--bd);border-radius:4px;
-  background:var(--wh);color:var(--xlt);cursor:pointer;
+  width:22px;height:22px;border:1.5px solid var(--o);border-radius:5px;
+  background:var(--o);color:#fff;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;padding:0;font-size:11px;transition:all .12s;
+  flex-shrink:0;padding:0;transition:all .12s;
 }
-.pr-collapse-btn:hover{border-color:var(--o);color:var(--o);}
+.pr-collapse-btn:hover{background:#e55000;border-color:#e55000;}
 .pr-collapse-btn svg{transition:transform .18s;}
+/* Collapsed state — orange outline invites expansion */
+.pr-row.pr-collapsed .pr-collapse-btn{background:transparent;border-color:var(--o);color:var(--o);}
+.pr-row.pr-collapsed .pr-collapse-btn:hover{background:var(--olt);}
 .pr-row.pr-collapsed .pr-collapse-btn svg{transform:rotate(-90deg);}
 /* ── Autosave indicator & restore banner ─────────────────────────────── */
 #autosave-indicator{position:fixed;bottom:14px;right:18px;z-index:9999;font-size:10px;color:var(--o);background:rgba(255,255,255,.95);border:1px solid rgba(255,102,0,.25);border-radius:20px;padding:3px 11px;opacity:0;transition:opacity .4s;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.08);}
@@ -6006,6 +6009,18 @@ function gen(){
 //  PRINT — Cross-browser fix (Safari, Firefox, Chrome, Edge)
 //  Replace the existing printSlide() function with this one.
 // ══════════════════════════════════════════════════════════
+
+// Autosave hook — called after every gen() that isn't a capture run.
+// Defined here so it sits at the right scope, injected into gen() at
+// the call-site via the oninput / gen() wrapper in the init block.
+(function _hookAutosaveIntoGen(){
+  const _orig = gen;
+  window.gen = function gen(){
+    _orig.apply(this, arguments);
+    if(!gen._captureMode && typeof _autosaveSchedule === 'function') _autosaveSchedule();
+  };
+  gen._captureMode = _orig._captureMode || false;
+})();
 // ══════════════════════════════════════════════════════════
 //  PRINT QUEUE — Multi-location Print / Save PDF
 //  Opens a new window with every queued slide (using pre-captured
@@ -6071,7 +6086,8 @@ async function printQueue(){
       gen._captureMode = true;
       gen();
       gen._captureMode = false;
-      await new Promise(r => setTimeout(r, 80));
+      // _waitForCardReady already ends with an 80ms Phase 3 settle tick;
+      // no extra wait needed here — removing it saves 80ms × N cards.
       const page1El = document.getElementById('slide');
       const page2El = document.getElementById('slide2');
       if(page1El){
@@ -6343,8 +6359,6 @@ function printSlide(){
   // If queue has items, open a print preview that contains every queued
   // location's two pages — same behavior as Download PDF when the queue is in use.
   if(PDF_QUEUE.length) return printQueue();
-  // Ensure preview is up to date
-  gen();
 
   const page1El = document.getElementById('slide');
   const page2El = document.getElementById('slide2');
