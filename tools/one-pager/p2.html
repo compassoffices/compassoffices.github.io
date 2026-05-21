@@ -390,6 +390,16 @@ select{appearance:none;
   font-size:11.5px;color:var(--mid);padding:0 12px 10px;
   display:none;line-height:1.4;
 }
+/* ── Inline price edit inside collapsed row summary ──────────────────── */
+.pr-inline-price{
+  width:80px;border:1.5px solid rgba(255,102,0,.3);border-radius:6px;
+  padding:2px 7px;font-size:11.5px;font-weight:700;color:var(--o);
+  background:rgba(255,102,0,.05);font-family:inherit;outline:none;
+  text-align:center;cursor:text;vertical-align:middle;
+  transition:border-color .12s,background .12s;
+}
+.pr-inline-price:focus{border-color:var(--o);background:#fff;}
+.pr-inline-price::placeholder{color:rgba(255,102,0,.3);font-weight:400;}
 .pr-row-summary strong{color:var(--drk);font-weight:700;}
 .pr-row-summary .pr-sum-price{color:var(--o);font-weight:700;}
 .pr-row.pr-collapsed .pr-row-summary{display:block;}
@@ -1626,7 +1636,7 @@ img.co-icon-img{display:block;}
           <div style="display:flex;align-items:center;gap:4px;">
             <input type="number" id="aus-discount" value="30" min="0" max="60" step="1"
               style="width:54px;border:1.5px solid var(--o);border-radius:6px;padding:3px 7px;font-size:13px;font-weight:700;font-family:inherit;outline:none;text-align:center;color:var(--o);"
-              oninput="AUS_DISCOUNT=parseFloat(this.value)||0;renderAusLookup();gen()">
+              oninput="AUS_DISCOUNT=parseFloat(this.value)||0;renderAusLookup();_syncRowPrices()">
             <span style="font-size:12px;font-weight:700;color:var(--o);">%</span>
           </div>
           <span id="aus-formula-hint" style="font-size:10px;color:var(--xlt);">Monthly = Market × (1 − disc%) &nbsp;|&nbsp; Avg = Monthly × 10/12</span>
@@ -3696,6 +3706,8 @@ function toggleBaseDiscount(){
   BASE_DISCOUNT_ON = !BASE_DISCOUNT_ON;
   const btn = document.getElementById('base-discount-toggle');
   if(btn) btn.classList.toggle('on', BASE_DISCOUNT_ON);
+  // Recalculate any lookup-added rows with the new on/off state
+  if(typeof _syncRowPrices === 'function') _syncRowPrices();
   const inp = document.getElementById('aus-discount');
   if(inp){
     inp.style.opacity = BASE_DISCOUNT_ON ? '1' : '.4';
@@ -3960,15 +3972,19 @@ function renderRows(){
     const ridx = S.rows.indexOf(r);
     const isCollapsed = !!r.collapsed;
     // Compact summary shown when row is collapsed
+    // Inline editable price input for collapsed summary
+    const inlinePrice = `<input class="pr-inline-price"
+      value="${(r.mgmt||'').replace(/"/g,'&quot;')}"
+      placeholder="Monthly"
+      onclick="event.stopPropagation()"
+      oninput="upd(${r.id},'mgmt',this.value);clearTimeout(window._prInlineT);window._prInlineT=setTimeout(gen,420)">`;
     const sumParts = [
       r.seats ? `<strong>${r.seats}</strong>` : '',
       r.sqm   ? `<span>${r.sqm}</span>` : '',
-      r.mgmt  ? `<span class="pr-sum-price">${r.mgmt}</span>` : '',
-      r.avail ? `<span>${r.avail}</span>` : '',
+      inlinePrice,
+      r.avail ? `<span style="font-size:10.5px;color:var(--xlt);">${r.avail}</span>` : '',
     ].filter(Boolean);
-    const summary = sumParts.length
-      ? sumParts.join('<span style="color:var(--bd);margin:0 4px;">·</span>')
-      : '<span style="color:var(--xlt);font-style:italic;">Empty row</span>';
+    const summary = sumParts.join('<span style="color:var(--bd);margin:0 5px;">·</span>');
 
     return`<div class="pr-row${isCollapsed?' pr-collapsed':''}" draggable="true"
       ondragstart="_rowDragStart(event,${ridx})"
@@ -8351,6 +8367,28 @@ function _ausUpdateAddBtnPulse(){
   if(!btn) return;
   btn.classList.toggle('aus-add-pending', AUS_SELECTED.size > 0);
 }
+
+// ── Discount live-sync for lookup-added rows ──────────────────────────────
+// Called whenever AUS_DISCOUNT or BASE_DISCOUNT_ON changes. Recalculates
+// mgmt (monthly) + avail (avg/status) + init for every row that carries a
+// stored raw market price (_mp), then re-renders so the inline inputs and
+// expanded fields show the new values immediately.
+function _syncRowPrices(){
+  let changed = false;
+  S.rows.forEach(r => {
+    if(r._mp == null || r._mp <= 0) return;  // only rows from lookup
+    const cur = r._currency || 'A$';
+    const {monthly, avg} = ausCalc(r._mp, AUS_DISCOUNT);
+    r.mgmt  = `${cur}${monthly.toLocaleString()}`;
+    if(r._isAus){
+      // AUS format: avail = avg price, init = commitment string
+      r.avail = `${cur}${avg.toLocaleString()}`;
+      r.init  = `16.6% Saving - 2 Months Free on 12! | Avg ${cur}${avg.toLocaleString()}`;
+    }
+    changed = true;
+  });
+  if(changed){ renderRows(); gen(); }
+}
 function ausAddToRows(){
   if(!AUS_SELECTED.size){showStatus('Select at least one office first.','s-info');return;}
   const disc=AUS_DISCOUNT;
@@ -8418,7 +8456,11 @@ function ausAddToRows(){
       mgmt:   monthlyStr,
       init:   initStr,
       avail:  availStr,
-      collapsed: true,  // auto-collapsed — tap to expand and edit
+      collapsed: true,   // auto-collapsed — tap to expand and edit
+      // Internal fields for live discount sync (not shown on slide)
+      _mp:       o.mp,   // raw market price for ausCalc recalculation
+      _currency: currency,
+      _isAus:    isAus,
     });
     added++;
     _ausAddOfficeToFp(oid);
