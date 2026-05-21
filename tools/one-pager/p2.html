@@ -8039,7 +8039,7 @@ function renderAusLookup(){
             >${FP_ANNOTATIONS[oid]?.imageDataUrl?'Re-edit':'Edit Layout'}</button></div>`:''}
         </td>
         <td style="padding:5px 8px;text-align:center;">${o.w}</td>
-        <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}</td>
+        <td style="padding:5px 8px;text-align:center;color:var(--xlt);">${o.sq}${o.unit&&o.unit!==(window._AUS_SQ_UNIT||'')?`<span style="font-size:9px;opacity:.7;"> ${o.unit.replace(/\.\s+/g,'.').replace(/sq\./i,'Sq.')}</span>`:''}</td>
         <td style="padding:5px 8px;text-align:right;color:var(--xlt);">$${o.mp.toLocaleString()}</td>
         <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${monthly.toLocaleString()}</td>
         <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);">$${avg.toLocaleString()}</td>
@@ -8047,13 +8047,14 @@ function renderAusLookup(){
       </tr>`;
     };
 
+    const sqUnitLabel = window._AUS_SQ_UNIT || 'Sqm';
     const tableHeader = `
       <thead style="position:sticky;top:0;background:var(--bg);z-index:1;">
         <tr style="border-bottom:1.5px solid var(--bd);">
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;width:28px;"></th>
           <th style="padding:5px 8px;text-align:left;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Office #</th>
           <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">WS</th>
-          <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Sqm</th>
+          <th style="padding:5px 8px;text-align:center;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">${sqUnitLabel}</th>
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--xlt);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Market</th>
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Monthly</th>
           <th style="padding:5px 8px;text-align:right;font-weight:700;color:var(--o);font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Avg(12M)</th>
@@ -8220,6 +8221,23 @@ function ausToggle(key){
       }
     }
   }
+  // ── Auto-apply floor filter when checking a room ──────────────────────
+  // Mirrors exactly what the floor buttons do: set aus-search to the floor
+  // number so only rooms on that floor are shown.
+  // Only triggers on SELECT (not deselect), and only if search is empty or
+  // already a floor number (avoids clobbering a text search).
+  if(!wasSelected){
+    const cleanOid2 = oid.replace(/\s*-\s*C$/i,'').trim();
+    const fm2 = cleanOid2.match(/^(\d{1,2})\d{2}$/) || cleanOid2.match(/^(\d{1,2})/);
+    const floorNum2 = fm2 ? fm2[1].replace(/^0+/,'') : null;
+    if(floorNum2){
+      const searchInp = document.getElementById('aus-search');
+      const curSearch = (searchInp?.value||'').trim();
+      if(searchInp && (curSearch==='' || /^\d{1,2}$/.test(curSearch))){
+        searchInp.value = floorNum2;
+      }
+    }
+  }
   // ── Auto-load matching library card by floor ──
   // When user clicks an office (newly selecting it) and a centre filter is
   // active, detect the floor from the first 1-2 digits of the office ID and
@@ -8367,6 +8385,7 @@ function ausParseAndApplyCSV(text){
   const cCol=ciContains('centre'), oCol=ci('office')||ciContains('office');
   const vtCol=ciContains('view type'), vCol=ci('view');
   const wCol=ciContains('maximum config'), sqCol=ciContains('net office size');
+  const unitCol=ci('unit')>=0?ci('unit'):ciContains('sq unit')>=0?ciContains('sq unit'):ciContains('size unit');
   const mpCol=ciContains('market price');
   const ceCol=ciContains('contract end');
   const termCol=ciContains('terminated');
@@ -8429,6 +8448,7 @@ function ausParseAndApplyCSV(text){
       v:(vCol>=0&&vCol!==vtCol?row[vCol]:'').trim(),
       w:Math.round(parseFloat((wCol>=0?row[wCol]:'')||'0'))||0,
       sq:parseFloat((sqCol>=0?row[sqCol]:'')||'0')||0,
+      unit:(unitCol>=0?row[unitCol]:'').trim(),  // e.g. "Sq. m" or "Sq. ft"
       mp, av,
       ce:(ceCol>=0?row[ceCol]:'').trim(),
       months:monthMap,   // {May-2026:'Y', Jun-2026:'O', ...}
@@ -8443,6 +8463,18 @@ function ausParseAndApplyCSV(text){
     window._AUS_MONTHS=monthColLabels;
     _rebuildMonthFilter();
   }
+
+  // Detect predominant size unit (Sq. m / Sq. ft) from loaded offices
+  const unitCounts={};
+  Object.values(AUS_OFFICES).forEach(o=>{
+    if(o.unit){ unitCounts[o.unit]=(unitCounts[o.unit]||0)+1; }
+  });
+  const topUnit = Object.entries(unitCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+  // Normalise: "Sq. m" → "Sq.m", "Sq. ft" → "Sq.ft", fallback "Size"
+  window._AUS_SQ_UNIT = topUnit
+    ? topUnit.replace(/\.\s+/g,'.').replace(/sq\./i,'Sq.')
+    : 'Size';
+
   return count;
 }
 
