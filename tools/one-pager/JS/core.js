@@ -1086,25 +1086,9 @@ window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=se
 
 // ══════════════════════════════════════════════════════════
 //  MOBILE
+// Note: toggleMobilePreview() and mobBackToEdit() are defined
+// in extensions.js (complete versions with tab state handling)
 // ══════════════════════════════════════════════════════════
-function toggleMobilePreview(){
-  const preview=document.querySelector('.preview');
-  const sidebar=document.querySelector('.sidebar');
-  const btn=document.getElementById('mob-preview-btn');
-  if(!preview)return;
-  const isShowing=!preview.classList.contains('mob-hidden');
-  if(isShowing){preview.classList.add('mob-hidden');sidebar.style.display='';if(btn){btn.classList.remove('showing');btn.textContent='View Preview';}}
-  else{preview.classList.remove('mob-hidden');sidebar.style.display='none';if(btn){btn.classList.add('showing');btn.textContent='← Back to Edit';}}
-}
-function mobBackToEdit(){
-  const preview=document.querySelector('.preview');
-  const sidebar=document.querySelector('.sidebar');
-  const bar=document.getElementById('mob-preview-bar');
-  if(preview){preview.classList.add('mob-hidden');preview.style.display='';}
-  if(sidebar)sidebar.style.display='';
-  if(bar)bar.style.display='none';
-  setMobTab('loc');
-}
 // setMobTab replaced by mobOpenTab/mobShowPreview
 
 // ══════════════════════════════════════════════════════════

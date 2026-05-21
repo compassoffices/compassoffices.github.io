@@ -3224,7 +3224,6 @@ function _mobUpdateLang(){
 
 // ── Preview tab active state ──────────────────────────────────────────────
 // When the user taps Preview tab, highlight it; when they go back, restore
-const _origToggleMobilePreview = typeof toggleMobilePreview === 'function' ? toggleMobilePreview : null;
 function toggleMobilePreview(){
   const preview = document.querySelector('.preview');
   const sidebar = document.querySelector('.sidebar');
