@@ -386,11 +386,8 @@ select{appearance:none;
 .sep-opt.on{background:var(--o);border-color:var(--o);color:var(--wh);font-weight:700;}
 .pr-row{border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:8px;background:var(--bg);transition:border-color .1s;}
 /* ── Collapsible pricing rows ──────────────────────────────────────────── */
-.pr-row-summary{
-  font-size:13px;color:var(--mid);padding:0 12px 10px;
-  display:none;line-height:1.45;
-}
-/* ── Inline price edit inside collapsed row summary ──────────────────── */
+/* pr-row-summary removed — inline summary now lives directly in pr-head */
+/* ── Inline price edit inside collapsed row header ───────────────────── */
 .pr-inline-price{
   width:80px;border:1.5px solid rgba(255,102,0,.3);border-radius:6px;
   padding:2px 7px;font-size:11.5px;font-weight:700;color:var(--o);
@@ -400,9 +397,6 @@ select{appearance:none;
 }
 .pr-inline-price:focus{border-color:var(--o);background:#fff;}
 .pr-inline-price::placeholder{color:rgba(255,102,0,.3);font-weight:400;}
-.pr-row-summary strong{color:var(--drk);font-weight:700;}
-.pr-row-summary .pr-sum-price{color:var(--o);font-weight:700;}
-.pr-row.pr-collapsed .pr-row-summary{display:block;}
 .pr-row.pr-collapsed .frow{display:none;}
 .pr-collapse-btn{
   width:22px;height:22px;border:1.5px solid var(--o);border-radius:5px;
@@ -3974,20 +3968,21 @@ function renderRows(){
       </div>` : '';
     const ridx = S.rows.indexOf(r);
     const isCollapsed = !!r.collapsed;
-    // Compact summary shown when row is collapsed
-    // Inline editable price input for collapsed summary
-    const inlinePrice = `<input class="pr-inline-price"
-      value="${(r.mgmt||'').replace(/"/g,'&quot;')}"
-      placeholder="Monthly"
-      onclick="event.stopPropagation()"
-      oninput="upd(${r.id},'mgmt',this.value);clearTimeout(window._prInlineT);window._prInlineT=setTimeout(gen,420)">`;
-    const sumParts = [
-      r.seats ? `<strong>${r.seats}</strong>` : '',
-      r.sqm   ? `<span>${r.sqm}</span>` : '',
-      inlinePrice,
-      r.avail ? `<span style="font-size:10.5px;color:var(--xlt);">${r.avail}</span>` : '',
-    ].filter(Boolean);
-    const summary = sumParts.join('<span style="color:var(--bd);margin:0 5px;">·</span>');
+
+    // ── Collapsed: single-line header with inline summary + editable price ──
+    // ── Expanded:  standard "Pricing Row" label in header ───────────────────
+    const dot = '<span style="color:var(--bd);margin:0 4px;flex-shrink:0;">·</span>';
+    const leftContent = isCollapsed
+      ? `<span class="pr-drag-handle" title="Drag to reorder">⠿</span>
+         ${r.seats ? `<strong style="font-size:12px;color:var(--drk);white-space:nowrap;flex-shrink:0;">${r.seats}</strong>` : ''}
+         ${r.sqm   ? dot + `<span style="font-size:12px;color:var(--mid);white-space:nowrap;flex-shrink:0;">${r.sqm}</span>` : ''}
+         ${dot}<input class="pr-inline-price"
+           value="${(r.mgmt||'').replace(/"/g,'&quot;')}"
+           placeholder="Monthly"
+           onclick="event.stopPropagation()"
+           oninput="upd(${r.id},'mgmt',this.value);clearTimeout(window._prInlineT);window._prInlineT=setTimeout(gen,420)">`
+      : `<span class="pr-drag-handle" title="Drag to reorder">⠿</span>
+         <span class="pr-lbl">${ui('pr_row')}</span>`;
 
     return`<div class="pr-row${isCollapsed?' pr-collapsed':''}" draggable="true"
       ondragstart="_rowDragStart(event,${ridx})"
@@ -3996,11 +3991,10 @@ function renderRows(){
       ondrop="_rowDrop(event,${ridx})"
       ondragend="_rowDragEnd(event)">
       <div class="pr-head">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span class="pr-drag-handle" title="Drag to reorder">⠿</span>
-          <span class="pr-lbl">${r.seats||ui('pr_row')}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow:hidden;">
+          ${leftContent}
         </div>
-        <div style="display:flex;align-items:center;gap:3px;">
+        <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
           <button class="pr-collapse-btn" onclick="toggleRowCollapse(${r.id})" title="${isCollapsed?'Expand':'Collapse'} row">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
@@ -4009,7 +4003,6 @@ function renderRows(){
           <button class="del-btn" onclick="delRow(${r.id})"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
       </div>
-      <div class="pr-row-summary">${summary}</div>
       <div class="frow">
         ${colOn('seats')?`<div class="field"><label class="fl">${colLabel('seats')}</label><input type="text" value="${r.seats}" onchange="upd(${r.id},'seats',this.value)" placeholder="${ui('pr_seat_ph')}"></div>`:''}
         ${colOn('type')?`<div class="field"><label class="fl">${colLabel('type')}</label><input type="text" value="${r.type}" onchange="upd(${r.id},'type',this.value)" placeholder="${ui('pr_type_ph')}"></div>`:''}
