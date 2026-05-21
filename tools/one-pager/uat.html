@@ -7772,7 +7772,7 @@ function renderAusLookup(){
     if(o.sq && (o.sq < sqMin || o.sq > sqMax)) return false;
     // Office ID uses startsWith so "17" matches 1702, 1703... but NOT 517.
     // Centre name, view type, and suite type use includes() for flexible word search.
-    if(search && !oid.toLowerCase().startsWith(search) && !o.c.toLowerCase().includes(search) && !(o.vt||'').toLowerCase().includes(search) && !(o.v||'').toLowerCase().includes(search)) return false;
+    if(search && !o.oid.toLowerCase().startsWith(search) && !o.c.toLowerCase().includes(search) && !(o.vt||'').toLowerCase().includes(search) && !(o.v||'').toLowerCase().includes(search)) return false;
     return true;
   });
 
@@ -7795,16 +7795,17 @@ function renderAusLookup(){
     // ── Sort: selected offices float to top (sorted by office number),
     //         unselected follow in their original order.
     const selEntries = entries
-      .filter(([oid]) => AUS_SELECTED.has(oid))
-      .sort(([a],[b]) => a.localeCompare(b, undefined, {numeric:true}));
+      .filter(([key]) => AUS_SELECTED.has(key))
+      .sort(([,a],[,b]) => a.oid.localeCompare(b.oid, undefined, {numeric:true}));
     const unselEntries = entries
-      .filter(([oid]) => !AUS_SELECTED.has(oid));
+      .filter(([key]) => !AUS_SELECTED.has(key));
 
     // Row builder — shared between sticky selected section and scrollable list
-    const buildRow = ([oid,o]) => {
-      const sel = AUS_SELECTED.has(oid);
+    const buildRow = ([key,o]) => {
+      const oid = o.oid; // raw office# for display/FP (key is composite)
+      const sel = AUS_SELECTED.has(key);
       const {monthly,avg} = ausCalc(o.mp,disc);
-      return `<tr onclick="ausToggle('${oid.replace(/'/g,"\\'")}')"
+      return `<tr onclick="ausToggle('${key.replace(/'/g,"\\'")}')"
         style="cursor:pointer;border-bottom:1px solid var(--bd);background:${sel?'var(--olt)':'var(--wh)'};transition:background .1s;"
         onmouseover="if(!${sel})this.style.background='#fafafa'"
         onmouseout="if(!${sel})this.style.background='var(--wh)'">
@@ -7973,42 +7974,32 @@ function _ausRemoveOfficeFromFp(oid){
   gen();
 }
 
-function ausToggle(oid){
-  const wasSelected = AUS_SELECTED.has(oid);
+function ausToggle(key){
+  // key is composite "centre||rawOid". Extract the raw office number for
+  // floor-plan sync and pricing-row matching (which store only the raw number).
+  const _entryO = AUS_OFFICES[key];
+  const oid = _entryO?.oid || key.split('||').pop() || key;
+  const wasSelected = AUS_SELECTED.has(key);
   if(wasSelected){
-    AUS_SELECTED.delete(oid);
+    AUS_SELECTED.delete(key);
     _ausRemoveOfficeFromFp(oid);
-    // Feature 3: also remove any pricing row that was added for this office
-    // (rows created via ausAddToRows store the office ID in the `seats` field)
     const before = S.rows.length;
     S.rows = S.rows.filter(r => String(r.seats) !== String(oid));
     if(S.rows.length < before){ renderRows(); gen(); }
   } else {
-    AUS_SELECTED.add(oid);
+    AUS_SELECTED.add(key);
     _ausAddOfficeToFp(oid);
-    // Feature 1: retry the FP highlight render a few times to handle slow
-    // Cloudinary responses — fires even if the first render already succeeded
-    // (no-op if the render is already done and cached).
     if(FP_MASTER_DATA || FP_BASE_URL){
       [700, 2000, 4500].forEach(ms => setTimeout(() => {
-        if(AUS_SELECTED.has(oid)) ensureHighlightRender();
+        if(AUS_SELECTED.has(key)) ensureHighlightRender();
       }, ms));
     }
-    // ── Auto-detect centre ──
-    // If the user clicked an office while the centre filter is "All"
-    // (empty), infer the centre from the office's own data and apply it.
-    // That way one click selects the office AND focuses the right centre —
-    // chip highlights, dynamic centre-chip list updates, library card
-    // auto-load can run.
     if(!AUS_CENTRE_FILTER){
-      const o = AUS_OFFICES[oid];
+      const o = AUS_OFFICES[key];
       if(o && o.c){
         AUS_CENTRE_FILTER = o.c;
         renderCentreChips();
         renderAusLibSuggestions(o.c);
-        // Also try to load the matching library card (same logic as
-        // clicking the centre chip directly). Use the existing centre+floor
-        // matching path below to avoid double-loading.
       }
     }
   }
@@ -8065,9 +8056,10 @@ function ausAddToRows(){
   // selections-stay-ticked UX doesn't create duplicates on re-click.
   const existing = new Set((S.rows||[]).map(r => String(r.seats||'')));
   let added = 0;
-  AUS_SELECTED.forEach(oid=>{
+  AUS_SELECTED.forEach(key=>{
+    const o=AUS_OFFICES[key];if(!o)return;
+    const oid=o.oid;  // raw office number for display / row `seats` field
     if(existing.has(String(oid))) return;
-    const o=AUS_OFFICES[oid];if(!o)return;
     const {monthly,avg}=ausCalc(o.mp,disc);
     // ── Populate ALL 8 built-in columns, regardless of region style ──
     // This is the key fix: every Availability Report field gets a slot,
@@ -8213,7 +8205,8 @@ function ausParseAndApplyCSV(text){
     // Determine overall availability status
     const av=firstY?'Y':(firstO?'O':'N');
 
-    AUS_OFFICES[oid]={
+    AUS_OFFICES[raw_centre+'||'+oid]={
+      oid,          // raw office number for display/FP/row matching
       c:raw_centre,
       vt:(vtCol>=0?row[vtCol]:'').trim(),
       v:(vCol>=0&&vCol!==vtCol?row[vCol]:'').trim(),
