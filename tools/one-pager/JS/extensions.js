@@ -3063,30 +3063,45 @@ window.addEventListener('resize',()=>{
 // ══════════════════════════════════════════════════════════════════════════
 const _AS_KEY = 'co_proposal_autosave';
 
+// Restore-status messages in all 4 languages
+const _AS_RESTORE_MSG = {
+  'en':      (n) => n ? `Session restored — ${n} queued proposal${n!==1?'s':''} recovered. Tip: use Save Proposal to keep a permanent backup.` : `Proposal restored. Tip: use Save Proposal to keep a permanent backup.`,
+  'zh-hant': (n) => n ? `已還原 — 恢復 ${n} 個排隊提案。提示：請使用「儲存提案」保存永久備份。` : `提案已還原。提示：請使用「儲存提案」保存永久備份。`,
+  'zh-hans': (n) => n ? `已还原 — 恢复 ${n} 个排队提案。提示：请使用「保存提案」保存永久备份。` : `提案已还原。提示：请使用「保存提案」保存永久备份。`,
+  'ja':      (n) => n ? `セッションを復元しました — ${n}件のキュー済み提案を回復しました。ヒント：「提案を保存」で永久バックアップを保存してください。` : `提案を復元しました。ヒント：「提案を保存」で永久バックアップを保存してください。`,
+};
+
 function _autosaveHasMeaningfulContent(){
-  // Check if the current state is worth saving
   const hasName   = !!(COMPANY_NAME || CLIENT_NAME ||
     (LANG_DATA['en']?.fields?.['n-main']) ||
     document.getElementById('n-main')?.value?.trim());
   const hasRows   = S.rows && S.rows.length > 0;
   const hasPhotos = S.photos && S.photos.some(p => p);
-  return hasName || hasRows || hasPhotos;
+  const hasQueue  = PDF_QUEUE && PDF_QUEUE.length > 0;
+  return hasName || hasRows || hasPhotos || hasQueue;
 }
 
 function _autosaveNow(){
   try{
-    if(!_autosaveHasMeaningfulContent()) return; // don't save blank states
+    if(!_autosaveHasMeaningfulContent()) return;
     const state = buildStateSnapshot();
     const lite = JSON.parse(JSON.stringify(state));
     delete lite.photos_data;
     lite._as_ts = Date.now();
+    // Save queue items (name + state only — no thumbnails to stay within quota)
+    if(PDF_QUEUE && PDF_QUEUE.length){
+      lite._queue = PDF_QUEUE.map(item => ({
+        name:  item.name  || '',
+        state: item.state || {},
+      }));
+    }
     localStorage.setItem(_AS_KEY, JSON.stringify(lite));
     const el = document.getElementById('autosave-indicator');
     if(el){ el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200); }
   }catch(e){ /* quota exceeded or private browsing */ }
 }
 
-// Run autosave every 30 seconds — no need to hook gen()
+// Run autosave every 30 seconds
 setInterval(_autosaveNow, 30000);
 
 function _autosaveCheck(){
@@ -3096,19 +3111,20 @@ function _autosaveCheck(){
     const state = JSON.parse(raw);
     const ts = state._as_ts;
     if(!ts) return;
-    // Only show restore banner if saved state has real content
+    // Show banner if saved state has real content OR a non-empty queue
     const hasContent = !!(
       state.company_name || state.client_name ||
       (state.langs?.en?.fields?.['n-main']) ||
-      (state.langs?.en?.rows?.length > 0)
+      (state.langs?.en?.rows?.length > 0) ||
+      (Array.isArray(state._queue) && state._queue.length > 0)
     );
     if(!hasContent) return;
     const mins = Math.round((Date.now()-ts)/60000);
     const label = mins<1?'just now': mins<60?`${mins} min ago`: mins<1440?`${Math.round(mins/60)}h ago`:'yesterday';
     const timeEl = document.getElementById('autosave-time');
-    const banner = document.getElementById('autosave-banner');
+    const banner  = document.getElementById('autosave-banner');
     if(timeEl) timeEl.textContent = label;
-    if(banner) banner.style.display = 'flex';
+    if(banner)  banner.style.display = 'flex';
   }catch(e){}
 }
 
@@ -3117,10 +3133,30 @@ function _autosaveRestore(){
     const raw = localStorage.getItem(_AS_KEY);
     if(!raw) return;
     const state = JSON.parse(raw);
+    // Restore queue items if saved (thumbnails will be blank — regenerated on print)
+    let queueCount = 0;
+    if(Array.isArray(state._queue) && state._queue.length){
+      PDF_QUEUE = state._queue.map(item => ({
+        name:       item.name  || '',
+        thumb:      '',   // no thumbnail saved — blank until re-edited or printed
+        cv1DataUrl: '',
+        cv2DataUrl: '',
+        state:      item.state || {},
+      }));
+      queueCount = PDF_QUEUE.length;
+      if(typeof updateQueueBadge  === 'function') updateQueueBadge();
+      if(typeof renderQueueList   === 'function') renderQueueList();
+      // Open queue panel so user immediately sees recovered proposals
+      const panel = document.getElementById('queue-panel');
+      if(panel) panel.style.display = 'flex';
+    }
     delete state._as_ts;
+    delete state._queue;
     restoreStateSnapshot(state);
-    document.getElementById('autosave-banner').style.display='none';
-    showStatus('Proposal restored from autosave','s-ok');
+    document.getElementById('autosave-banner').style.display = 'none';
+    // Show localised restore message with queue count + save reminder
+    const msgFn = _AS_RESTORE_MSG[LANG] || _AS_RESTORE_MSG['en'];
+    showStatus(msgFn(queueCount), 's-ok');
   }catch(e){
     showStatus('Could not restore — autosave data may be corrupted','s-warn');
   }
