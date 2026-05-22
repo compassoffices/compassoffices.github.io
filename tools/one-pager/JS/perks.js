@@ -88,6 +88,7 @@ const _PT  = Math.round(_PB * 0.62); // top section  = 445px
 const _PBT = _PB - _PT;    // bottom section = 273px
 
 function buildPerksPageHtml(lang) {
+  try {
   const t  = PERKS_I18N[lang] || PERKS_I18N['en'];
   const im = _PERKS_IMGS;
   const ff = "font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;";
@@ -199,4 +200,8 @@ function buildPerksPageHtml(lang) {
 
   </div>
 </div>`;
+  } catch(e) {
+    console.error('[Perks page] render error:', e);
+    return ''; // return empty string — print continues without perks page
+  }
 }
