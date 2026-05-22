@@ -3,6 +3,22 @@
 
 // Boot sequence — loads LAST after all other JS files
 
+// ── URL language parameter ─────────────────────────────────────────────────
+// Set LANG before the boot IIFE so every init call (applyI18n, renderBenefits,
+// renderRows, etc.) uses the correct language from the very start.
+// ?lang=ja  →  Japanese     ?lang=zh-hant  →  Traditional Chinese
+// ?lang=zh-hans  →  Simplified Chinese     ?lang=en  →  English (default)
+(function _applyUrlLang(){
+  try {
+    const p   = new URLSearchParams(window.location.search);
+    const raw = (p.get('lang') || '').toLowerCase().trim();
+    const map = { 'ja':'ja', 'zh-hant':'zh-hant', 'zh-hans':'zh-hans', 'en':'en',
+                  'tc':'zh-hant', 'sc':'zh-hans', 'tw':'zh-hant', 'hk':'zh-hant' };
+    const resolved = map[raw];
+    if(resolved) LANG = resolved;
+  } catch(e){ /* URLSearchParams not supported — stay with default */ }
+})();
+
 (async function(){
   await loadCoIcons();
   initBenefits(LANG);
@@ -72,6 +88,11 @@
     if(preview)preview.classList.add('mob-hidden');
     setTimeout(()=>{ mobOpenTab('loc'); setTimeout(gen,300); },100);
   }
+
+  // ── Highlight the correct lang button to match URL / LANG setting ──────────
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('on', b.id==='lang-'+LANG);
+  });
 
   gen();
 })();
