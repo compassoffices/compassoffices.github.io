@@ -563,7 +563,7 @@ function applyLocationData(p){
       if(panel) panel.style.display = 'flex';
       const n = PDF_QUEUE.length;
       showStatus(
-        `Loaded ${n} queued proposal${n!==1?'s':''} — click any thumbnail to re-edit, or Export All PDF to print.`,
+        `Loaded ${n} queued proposal${n!==1?'s':''} — click any thumbnail to re-edit, or ${typeof ui==='function'?ui('queue_export_all'):'Export All PDF'} to print.`,
         's-ok'
       );
     }

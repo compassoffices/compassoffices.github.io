@@ -96,7 +96,7 @@ function openFpEditor(oid){
   if(!modal) return;
   modal.style.display = 'flex';
   const title = document.getElementById('fpe-title');
-  if(title) title.textContent = `Edit Room ${oid} Layout`;
+  if(title) title.textContent = `${typeof ui==='function'?ui('fp_edit_room_title'):'Edit Room Layout'} — ${oid}`;
   _fpeSetMode('box', true);
   document.querySelectorAll('.fpe-swatch').forEach((s,i)=>s.classList.toggle('on',i===0));
   _fpe.color = '#FF6600';
