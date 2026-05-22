@@ -4,19 +4,21 @@
 // Boot sequence — loads LAST after all other JS files
 
 // ── URL language parameter ─────────────────────────────────────────────────
-// Set LANG before the boot IIFE so every init call (applyI18n, renderBenefits,
-// renderRows, etc.) uses the correct language from the very start.
+// Store the URL lang without changing LANG yet — let the boot sequence
+// initialise with English defaults first, then call setLang() afterwards
+// so the full proper switch runs (transport lines, benefits, labels, etc.)
 // ?lang=ja  →  Japanese     ?lang=zh-hant  →  Traditional Chinese
 // ?lang=zh-hans  →  Simplified Chinese     ?lang=en  →  English (default)
-(function _applyUrlLang(){
+(function _detectUrlLang(){
   try {
     const p   = new URLSearchParams(window.location.search);
     const raw = (p.get('lang') || '').toLowerCase().trim();
     const map = { 'ja':'ja', 'zh-hant':'zh-hant', 'zh-hans':'zh-hans', 'en':'en',
                   'tc':'zh-hant', 'sc':'zh-hans', 'tw':'zh-hant', 'hk':'zh-hant' };
     const resolved = map[raw];
-    if(resolved) LANG = resolved;
-  } catch(e){ /* URLSearchParams not supported — stay with default */ }
+    // Only store — do NOT set LANG yet; init runs in English first
+    if(resolved && resolved !== 'en') window._urlLang = resolved;
+  } catch(e){}
 })();
 
 (async function(){
@@ -66,9 +68,14 @@
   // Add default transport lines with text
   addTransport('MTR Central Station — direct access','tr_metro');
   addTransport('Central Ferry Piers — 3 min walk','tr_ferry');
-  // Save initial EN state so switching back to EN restores it
-  // (done after a short delay so all DOM is ready)
-  setTimeout(()=>saveLangData('en'), 100);
+  // Save the English state — needed so switching back to EN restores it.
+  // If a URL lang was requested, call setLang() AFTER saving EN so the
+  // full proper switch runs: transport lines, benefits, labels all in the
+  // correct language. setLang() handles everything cleanly from here.
+  setTimeout(()=>{
+    saveLangData('en');
+    if(window._urlLang) setLang(window._urlLang);
+  }, 150);
 
   // Click-to-edit specs
   document.querySelectorAll('.spec-rich-editor').forEach(el=>{
@@ -88,11 +95,6 @@
     if(preview)preview.classList.add('mob-hidden');
     setTimeout(()=>{ mobOpenTab('loc'); setTimeout(gen,300); },100);
   }
-
-  // ── Highlight the correct lang button to match URL / LANG setting ──────────
-  document.querySelectorAll('.lang-btn').forEach(b=>{
-    b.classList.toggle('on', b.id==='lang-'+LANG);
-  });
 
   gen();
 })();
