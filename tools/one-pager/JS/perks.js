@@ -78,7 +78,7 @@ const _PERKS_IMGS = {
   logo_white: 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779196609/_CompassOffices/compass-logo-white.svg',
 };
 
-const _PERKS_PAGE_URL   = 'https://www.compassoffices.com/client-perks/';
+const _PERKS_GPTW = 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779459810/_CompassOffices/a-great-place-to-work.svg';
 const _PERKS_EVENTS_URL = 'https://www.compassoffices.com/events/';
 
 // Pixel-perfect split — same values used on BOTH left and right panels
@@ -133,7 +133,7 @@ function buildPerksPageHtml(lang) {
          font-size:13px;font-weight:700;letter-spacing:.1em;padding:5px 14px;border-radius:2px;">
       ${t.tagline}
     </div>
-    <span style="color:rgba(255,255,255,.5);font-size:13px;font-style:italic;">${t.a_great_place}</span>
+    <img src="${_PERKS_GPTW}" style="height:30px;object-fit:contain;" crossorigin="anonymous">
   </div>
 
   <!-- BODY ${_PB}px -->
