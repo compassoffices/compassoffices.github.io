@@ -135,7 +135,7 @@ function buildPerksPageHtml(lang) {
          font-size:13px;font-weight:700;letter-spacing:.1em;padding:5px 14px;border-radius:2px;">
       ${t.tagline}
     </div>
-    <img src="${_PERKS_GPTW}" style="height:30px;object-fit:contain;" crossorigin="anonymous">
+    <img src="${_PERKS_GPTW}" style="height:20px;object-fit:contain;" crossorigin="anonymous">
   </div>
 
   <!-- BODY ${_PB}px -->
