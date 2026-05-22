@@ -78,7 +78,8 @@ const _PERKS_IMGS = {
   logo_white: 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779196609/_CompassOffices/compass-logo-white.svg',
 };
 
-const _PERKS_GPTW = 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779459810/_CompassOffices/a-great-place-to-work.svg';
+const _PERKS_GPTW       = 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779459810/_CompassOffices/a-great-place-to-work.svg';
+const _PERKS_PAGE_URL   = 'https://www.compassoffices.com/client-perks/';
 const _PERKS_EVENTS_URL = 'https://www.compassoffices.com/events/';
 
 // Pixel-perfect split — same values used on BOTH left and right panels
