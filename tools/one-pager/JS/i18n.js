@@ -191,8 +191,9 @@ function setLang(lc){
   // 1. Save current language's form data before switching
   saveLangData(LANG);
 
-  // 2. Switch language
+  // 2. Switch language + sync URL so the page is shareable / refresh-safe
   LANG = lc;
+  try{ history.replaceState(null,'','?lang='+lc); }catch(e){}
   document.querySelectorAll('.lbtn').forEach((b,i)=>b.classList.toggle('on',['en','zh-hant','zh-hans','ja'][i]===lc));
 
   // 3. Update sidebar labels
