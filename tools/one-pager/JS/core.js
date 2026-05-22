@@ -438,11 +438,13 @@ function _openQueueTextPrintWindow(captured, existingWindow){
     .slice(0,80) || 'compass-offices-queue';
 
   const contactHtml = buildContactPageHtml();
+  const perksHtml = buildPerksPageHtml(LANG);
   const pagesHtml = captured.flatMap(c => {
     const arr = [`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`];
     if(c.slide2) arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide2}</div></div>`);
     return arr;
   }).join('\n')
+  + `\n<div class="page-wrap"><div class="page-clip">${perksHtml}</div></div>`
   + (contactHtml ? `\n<div class="page-wrap"><div class="page-clip">${contactHtml}</div></div>` : '');
 
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
@@ -863,6 +865,9 @@ body {
 
 <!-- Page 2 -->
 ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div></div>` : ''}
+
+<!-- Perks page — always before Let's Talk -->
+<div class="page-wrap"><div class="page-clip">${buildPerksPageHtml(LANG)}</div></div>
 
 <!-- Page 3 — Let's talk (contact page, only if staff profile is set) -->
 ${buildContactPageHtml() ? `<div class="page-wrap"><div class="page-clip">${buildContactPageHtml()}</div></div>` : ''}
