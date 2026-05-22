@@ -271,6 +271,13 @@ function loadFromLib(idx){
       setTimeout(()=>renderAusLookup(), 0);
     }
   }
+  // ── Queue file loaded → auto Start a New Proposal ────────────────────────
+  // The user's work is now in the queue panel. Reset the form to a blank slate
+  // so they're ready to build the next proposal.
+  // Single-proposal files: leave the form filled so the user can view/edit.
+  if(Array.isArray(p.queue) && p.queue.length && !_ausLoadingCard){
+    if(typeof _resetCardForNewProposal === 'function') _resetCardForNewProposal();
+  }
 }
 function applyLocationData(p){
   const r=v=>{if(v&&typeof v==='object'&&!Array.isArray(v)){return v[LANG]||v.en||v['zh-hant']||v['zh-hans']||v.ja||'';}return v||'';};
