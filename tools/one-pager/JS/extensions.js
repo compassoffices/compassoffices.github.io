@@ -900,8 +900,8 @@ function previewContactPage(){
 
 // ── Build contact page HTML ────────────────────────────────────────────────
 const _CONTACT_HEADINGS = {
-  'en': "Let's talk", 'zh-hant': '立即聯繫',
-  'zh-hans': '立即联系', 'ja': 'お問い合わせ',
+  'en': "Let's talk", 'zh-hant': '聯絡我們',
+  'zh-hans': '联系我们', 'ja': 'お問い合わせ',
 };
 
 // Social platform icons — Cloudinary hosted, print-safe
