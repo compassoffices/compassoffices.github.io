@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Event Data Form</title>
+    <link rel="icon" href="https://compassoffices.github.io/img/logo.ico" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        body { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; font-family: system-ui, -apple-system, sans-serif; }
+        .form-container { background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); min-height: 100vh; padding: 1rem; padding-bottom: 6rem; }
+        .form-card { backdrop-filter: blur(10px); background: rgba(255,255,255,0.98); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid #ff6600; }
+        .input-field { transition: all 0.3s ease; border: 2px solid #e5e7eb; background: white; width: 100%; box-sizing: border-box; -webkit-appearance: none; }
+        .input-field:focus { border-color: #ff6600; box-shadow: 0 0 0 3px rgba(255,102,0,0.1); transform: translateY(-1px); outline: none; }
+        .submit-btn { background: linear-gradient(135deg, #ff6600 0%, #e55a00 100%); transition: all 0.3s ease; }
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(255,102,0,0.4); }
+        .submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+        .success-message { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .error-message   { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .file-upload { position: relative; display: inline-block; width: 100%; }
+        .file-upload input[type="file"] { position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        .file-upload-label { display: block; padding: 0.75rem 1rem; background: #f9fafb; border: 2px dashed #d1d5db; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: all 0.3s ease; font-size: 0.875rem; color: #6b7280; }
+        .file-upload-label:hover { border-color: #ff6600; background: #fff7ed; }
+        .char-count { font-size: 0.75rem; color: #6b7280; text-align: right; margin-top: 0.25rem; }
+        .char-count.warning { color: #f59e0b; }
+        .char-count.error   { color: #ef4444; }
+        .required:after { content: " *"; color: #ef4444; font-weight: bold; }
+        .suggestions { font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; }
+        .suggestion-btn { display: inline-block; background: #f3f4f6; color: #374151; padding: 0.25rem 0.5rem; margin-right: 0.25rem; margin-bottom: 0.25rem; border-radius: 0.375rem; font-size: 0.75rem; cursor: pointer; }
+        .suggestion-btn:hover { background: #e5e7eb; }
+        .contact-feedback { font-size: 0.75rem; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.25rem; }
+        .contact-feedback svg { width: 1rem; height: 1rem; }
+        .image-preview { max-width: 200px; max-height: 200px; margin-top: 0.5rem; border: 1px solid #ddd; border-radius: 0.5rem; }
+        .key-image-item { border: 1px solid #ddd; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
+        .email-preview { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 0.75rem; margin-top: 0.75rem; font-family: monospace; font-size: 0.875rem; color: #1f2937; }
+        .event-id-display { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem; font-family: monospace; font-weight: bold; color: #1f2937; }
+        .webhook-link { background: #e0f2fe; border: 1px solid #0ea5e9; border-radius: 0.5rem; padding: 0.75rem; margin-top: 1rem; font-family: monospace; font-size: 0.875rem; color: #0c4a6e; word-break: break-all; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; color: white; font-size: 1.125rem; }
+        .loading-bar { width: 60%; max-width: 400px; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; margin-top: 1rem; overflow: hidden; }
+        .loading-fill { height: 100%; background: linear-gradient(90deg, #ff6600, #e55a00); width: 0%; border-radius: 4px; transition: width 0.3s ease; }
+        .duplicate-btn { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); transition: all 0.3s ease; }
+        .duplicate-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(59,130,246,0.4); }
+        /* Data source banner */
+        .data-banner { font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; }
+        .data-banner.loading { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+        .data-banner.live    { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .data-banner.fallback{ background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .data-banner .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .data-banner.loading .dot { background: #ca8a04; animation: pulse 1.2s ease-in-out infinite; }
+        .data-banner.live    .dot { background: #16a34a; }
+        .data-banner.fallback .dot { background: #dc2626; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        /* Smart Logo */
+        .logo-upload-area { border: 3px dashed #94a3b8; border-radius: 18px; padding: 45px 20px; text-align: center; cursor: pointer; transition: all 0.3s ease; background: #f8fafc; margin-top: 0.75rem; }
+        .logo-upload-area:hover { border-color: #ff6600; background: #fff7ed; }
+        .logo-upload-area.dragover { border-color: #ff6600; background: #fed7aa; }
+        .logo-upload-area i { font-size: 50px; color: #64748b; margin-bottom: 14px; display: block; }
+        .logo-upload-area input { display: none; }
+        .logo-status { font-size: 0.875rem; margin-top: 0.75rem; padding: 0.5rem; border-radius: 0.75rem; }
+        .logo-status.info    { background: #f0f9ff; color: #0c4a6e; border-left: 4px solid #0ea5e9; }
+        .logo-status.success { background: #ecfdf5; color: #166534; }
+        .logo-status.error   { background: #fee2e2; color: #991b1b; }
+        .logo-preview-box { margin: 1rem 0; text-align: center; }
+        .logo-preview-box p { font-weight: 600; margin-bottom: 0.75rem; color: #1f2937; }
+        .logo-preview-box img, .logo-preview-box canvas { max-width: 100%; max-height: 200px; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 768px) {
+            .form-container { padding: 0.5rem; padding-bottom: 8rem; }
+            .form-card { padding: 1.5rem; }
+            .input-field { padding: 0.75rem 1rem; font-size: 1rem; }
+            .max-w-2xl { max-width: 100%; padding: 0 0.5rem; }
+            .text-4xl { font-size: 1.875rem; line-height: 2.25rem; }
+            select.input-field { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234B5563'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em; padding-right: 2rem; }
+        }
+    </style>
+</head>
+<body class="form-container">
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="text-center">
+        <p class="font-semibold">Submitting your event data...</p>
+        <p class="text-sm mt-1 opacity-80">Please wait while we transfer your information.</p>
+        <div class="loading-bar mt-4"><div id="loadingFill" class="loading-fill"></div></div>
+    </div>
+</div>
+
+<div id="formPage" class="min-h-screen py-8 px-4">
+    <div class="max-w-2xl mx-auto">
+        <div class="text-center mb-8">
+            <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg"
+                 alt="Logo" class="h-16 mx-auto" onerror="this.style.display='none';">
+            <h1 class="text-4xl font-bold text-white mb-2">Event Registration</h1>
+            <p class="text-white/80 text-lg">Fill in the details for the new event</p>
+        </div>
+
+        <div class="form-card rounded-2xl p-8">
+            <form id="eventForm" class="space-y-6">
+
+                <!-- Event ID -->
+                <div class="mb-6 p-4 bg-gray-50 rounded-lg border">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Event ID (Auto-generated)</label>
+                    <div id="eventIdDisplay" class="event-id-display">Generating...</div>
+                </div>
+
+                <!-- Organizer -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 border-b border-gray-200 pb-6">
+                    <div>
+                        <label for="organizerName" class="block text-sm font-semibold text-gray-700 mb-2 required">Staff Name</label>
+                        <input type="text" id="organizerName" required placeholder="Full name" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="organizerEmail" class="block text-sm font-semibold text-gray-700 mb-2 required">Staff Email</label>
+                        <input type="email" id="organizerEmail" required placeholder="email@company.com" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Time -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="startTime" class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                        <input type="time" id="startTime" value="18:00" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="endTime" class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+                        <input type="time" id="endTime" value="21:00" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Date -->
+                <div>
+                    <label for="date" class="block text-sm font-semibold text-gray-700 mb-2 required">Date</label>
+                    <input type="date" id="date" required class="input-field px-4 py-3 rounded-lg">
+                </div>
+
+                <!-- Client Info -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="clientName" class="block text-sm font-semibold text-gray-700 mb-2">Client Name</label>
+                        <input type="text" id="clientName" placeholder="Client name" class="input-field px-4 py-3 rounded-lg">
+                    </div>
+                    <div>
+                        <label for="clientContact" class="block text-sm font-semibold text-gray-700 mb-2">Client Contact</label>
+                        <input type="text" id="clientContact" placeholder="email@domain.com or +852 1234 5678" class="input-field px-4 py-3 rounded-lg">
+                        <div id="contactFeedback" class="contact-feedback"></div>
+                    </div>
+                </div>
+                <div>
+                    <label for="companyName" class="block text-sm font-semibold text-gray-700 mb-2">Company Name</label>
+                    <input type="text" id="companyName" placeholder="Company name" class="input-field px-4 py-3 rounded-lg">
+                </div>
+                <div>
+                    <label for="eventName" class="block text-sm font-semibold text-gray-700 mb-2 required">Event Name</label>
+                    <input type="text" id="eventName" required placeholder="Event name" class="input-field px-4 py-3 rounded-lg">
+                </div>
+                <div>
+                    <label for="eventType" class="block text-sm font-semibold text-gray-700 mb-2 required">Event Type</label>
+                    <select id="eventType" required class="input-field px-4 py-3 rounded-lg">
+                        <option value="">Select Event Type</option>
+                        <option value="Seminar">Seminar</option>
+                        <option value="Workshop">Workshop</option>
+                        <option value="Networking">Networking</option>
+                        <option value="Party">Party</option>
+                        <option value="Conference">Conference</option>
+                        <option value="Event" selected>Event</option>
+                    </select>
+                </div>
+
+                <!-- Location -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+
+                    <!-- Data source banner -->
+                    <div id="dataBanner" class="data-banner loading">
+                        <div class="dot"></div>
+                        <span id="dataBannerText">Loading location data from Google Sheets...</span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="country" class="block text-xs font-medium text-gray-600 mb-2 required">Country</label>
+                        <select id="country" required class="input-field px-4 py-3 rounded-lg">
+                            <option value="">Select Country</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="building" class="block text-xs font-medium text-gray-600 mb-2 required">Building</label>
+                        <select id="building" required disabled class="input-field px-4 py-3 rounded-lg"><option value="">Select Building</option></select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="floor" class="block text-xs font-medium text-gray-600 mb-2 required">Floor</label>
+                        <select id="floor" required disabled class="input-field px-4 py-3 rounded-lg"><option value="">Select Floor</option></select>
+                    </div>
+
+                    <!-- Area Type -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-medium text-gray-600 mb-2">Area Type</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center"><input type="checkbox" id="loungeArea"  class="mr-2 text-orange-500"><span class="text-sm">Lounge area</span></label>
+                            <label class="flex items-center"><input type="checkbox" id="meetingRoom" class="mr-2 text-orange-500"><span class="text-sm">Meeting room</span></label>
+                            <label class="flex items-center"><input type="checkbox" id="room"        class="mr-2 text-orange-500"><span class="text-sm">Room</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Room names (shown conditionally) -->
+                    <div class="mb-4" id="roomNameSection" style="display:none;">
+                        <div id="regularRoomInput" style="display:none;" class="mb-3">
+                            <label for="regularRoomName" class="block text-xs font-medium text-gray-600 mb-2">Room Number</label>
+                            <input type="text" id="regularRoomName" placeholder="e.g., 1826" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div id="meetingRoomInput" style="display:none;">
+                            <label for="meetingRoomName" class="block text-xs font-medium text-gray-600 mb-2">Meeting Room Name</label>
+                            <input type="text" id="meetingRoomName" placeholder="e.g., ABC" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                    </div>
+
+                    <!-- Additional requirements -->
+                    <div class="mb-4">
+                        <label for="additionalRequirements" class="block text-xs font-medium text-gray-600 mb-2">Additional Requirements</label>
+                        <input type="text" id="additionalRequirements" placeholder="e.g., Movable TV, Speaker & Mic..." class="input-field px-4 py-3 rounded-lg">
+                        <div class="suggestions">
+                            <span class="suggestion-btn" onclick="addSuggestion('Movable TV')">Movable TV</span>
+                            <span class="suggestion-btn" onclick="addSuggestion('Speaker &amp; Mic')">Speaker & Mic</span>
+                            <span class="suggestion-btn" onclick="addSuggestion('Projector')">Projector</span>
+                            <span class="suggestion-btn" onclick="addSuggestion('Bar Table')">Bar Table</span>
+                            <span class="suggestion-btn" onclick="addSuggestion('Mini TV')">Mini TV</span>
+                            <span class="suggestion-btn" onclick="addSuggestion('Folded Chairs')">Folded Chairs</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="needExtraAircon" class="mr-2 text-orange-500">
+                            <span class="text-sm font-medium text-gray-700">Need extra aircon?</span>
+                        </label>
+                    </div>
+                    <div class="mb-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="venueSetup" class="mr-2 text-orange-500">
+                            <span class="text-sm font-medium text-gray-700">Venue setup?</span>
+                        </label>
+                    </div>
+
+                    <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Location Preview:</label>
+                        <div id="locationPreview" class="text-sm font-medium text-gray-800">Please select location details above</div>
+                    </div>
+                    <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <label class="block text-xs font-medium text-blue-700 mb-1">Contact Email (Auto-filled):</label>
+                        <div id="emailPreview" class="email-preview">Select building and floor to see email</div>
+                    </div>
+                </div>
+
+                <!-- POSTER -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Poster</label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="needPoster" class="mr-2 text-orange-500">
+                        <span class="text-sm">Need Poster?</span>
+                    </label>
+                    <div id="posterDetailsSection" class="ml-6 space-y-4 hidden mt-3">
+                        <div>
+                            <label for="posterTitle" class="block text-xs font-medium text-gray-600 mb-1 required">Title</label>
+                            <input type="text" id="posterTitle" maxlength="40" placeholder="Title" class="input-field px-4 py-3 rounded-lg">
+                            <div class="char-count" id="posterTitleCount">0 / 40 (0 non-blank)</div>
+                        </div>
+                        <div>
+                            <label class="flex items-center mb-2">
+                                <input type="checkbox" id="posterHasSubtitle" class="mr-2 text-orange-500">
+                                <span class="text-sm">Add Subtitle?</span>
+                            </label>
+                            <div id="posterSubtitleInput" class="hidden">
+                                <label for="posterSubtitle" class="block text-xs font-medium text-gray-600 mb-1">Subtitle</label>
+                                <input type="text" id="posterSubtitle" maxlength="40" placeholder="Subtitle" class="input-field px-4 py-3 rounded-lg">
+                                <div class="char-count" id="posterSubtitleCount">0 / 40 (0 non-blank)</div>
+                            </div>
+                            <div id="posterSubtitleAuto" class="text-sm text-gray-600 mt-1 hidden">(Exclusive event for clients of Compass Offices)</div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1 required">Description (3 bullet points)</label>
+                            <textarea id="posterBullet1" maxlength="120" rows="3" placeholder="Point 1..." class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                            <div class="char-count" id="posterBullet1Count">0 / 120</div>
+                            <textarea id="posterBullet2" maxlength="120" rows="3" placeholder="Point 2..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                            <div class="char-count" id="posterBullet2Count">0 / 120</div>
+                            <textarea id="posterBullet3" maxlength="120" rows="3" placeholder="Point 3..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                            <div class="char-count" id="posterBullet3Count">0 / 120</div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Upload Logo</label>
+                            <div class="logo-upload-area" id="logoDropZone">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p><strong>Click or drag & drop</strong> your logo</p>
+                                <p style="font-size:0.85rem;color:#64748b;margin-top:6px;">JPG, PNG, WebP, GIF – any size</p>
+                                <input type="file" id="posterLogoInput" accept="image/*"/>
+                            </div>
+                            <div id="logoStatus" class="logo-status info hidden"></div>
+                            <div class="logo-preview-box hidden" id="logoOriginalBox">
+                                <p>Original Image</p>
+                                <img id="logoOriginalImg" alt="Original"/>
+                            </div>
+                            <div class="logo-preview-box hidden" id="logoResultBox">
+                                <p>Final Transparent Logo</p>
+                                <canvas id="logoResultCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Key Images (Auto-converted to PNG)</label>
+                            <div class="file-upload">
+                                <input type="file" id="posterKeyImagesInput" accept="image/*" multiple>
+                                <label for="posterKeyImagesInput" class="file-upload-label">Click or drag images</label>
+                            </div>
+                            <div id="keyImagePreviews" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EDM -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">EDM</label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="needEDM" class="mr-2 text-orange-500">
+                        <span class="text-sm">Need EDM?</span>
+                    </label>
+                    <div id="edmDetailsSection" class="ml-6 mt-3 space-y-4 hidden">
+                        <div>
+                            <label for="edmTitle" class="block text-xs font-medium text-gray-600 mb-1 required">Title</label>
+                            <input type="text" id="edmTitle" maxlength="40" placeholder="Title" class="input-field px-4 py-3 rounded-lg">
+                            <div class="char-count" id="edmTitleCount">0 / 40 (0 non-blank)</div>
+                        </div>
+                        <div>
+                            <label class="flex items-center mb-2">
+                                <input type="checkbox" id="edmHasSubtitle" class="mr-2 text-orange-500">
+                                <span class="text-sm">Add Subtitle?</span>
+                            </label>
+                            <div id="edmSubtitleInput" class="hidden">
+                                <label for="edmSubtitle" class="block text-xs font-medium text-gray-600 mb-1">Subtitle</label>
+                                <input type="text" id="edmSubtitle" maxlength="40" placeholder="Subtitle" class="input-field px-4 py-3 rounded-lg">
+                                <div class="char-count" id="edmSubtitleCount">0 / 40 (0 non-blank)</div>
+                            </div>
+                            <div id="edmSubtitleAuto" class="text-sm text-gray-600 mt-1 hidden">(Exclusive event for clients of Compass Offices)</div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1 required">Description (3 bullet points)</label>
+                            <textarea id="edmBullet1" maxlength="120" rows="3" placeholder="Point 1..." class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                            <div class="char-count" id="edmBullet1Count">0 / 120</div>
+                            <textarea id="edmBullet2" maxlength="120" rows="3" placeholder="Point 2..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                            <div class="char-count" id="edmBullet2Count">0 / 120</div>
+                            <textarea id="edmBullet3" maxlength="120" rows="3" placeholder="Point 3..." class="input-field px-4 py-3 rounded-lg w-full mt-2"></textarea>
+                            <div class="char-count" id="edmBullet3Count">0 / 120</div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1 required">EDM Banner Image</label>
+                            <div class="flex items-center gap-3 mb-2">
+                                <select id="edmBannerSource" class="input-field px-3 py-2 rounded-lg text-sm">
+                                    <option value="upload">Upload new image</option>
+                                    <option value="copy">Same as Poster Key Image</option>
+                                </select>
+                                <span class="text-xs text-gray-500">(Copies first key image)</span>
+                            </div>
+                            <div id="edmBannerUploadSection">
+                                <div class="file-upload">
+                                    <input type="file" id="edmBannerInput" accept="image/*">
+                                    <label for="edmBannerInput" class="file-upload-label">Click or drag banner</label>
+                                </div>
+                            </div>
+                            <div id="edmBannerPreview" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thumbnail -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Thumbnail</label>
+                    <div class="file-upload" ondragover="event.preventDefault()" ondrop="handleThumbnailDrop(event)">
+                        <input type="file" id="thumbnailInput" accept="image/*">
+                        <label for="thumbnailInput" class="file-upload-label">
+                            <i class="fas fa-image mr-2"></i> Click or drag image — resized to 320×160px
+                        </label>
+                    </div>
+                    <div id="thumbnailStatus" class="hidden mt-2 text-xs text-gray-500"></div>
+                    <div id="thumbnailPreview" class="mt-3"></div>
+                </div>
+
+                <!-- Catering -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Catering</label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="haveCatering" class="mr-2 text-orange-500">
+                        <span class="text-sm">Have Catering?</span>
+                    </label>
+                    <div id="cateringDetailsSection" class="ml-6 mt-3 hidden">
+                        <textarea id="cateringDetails" placeholder="Menu, headcount, dietary restrictions..." rows="3" class="input-field px-4 py-3 rounded-lg w-full"></textarea>
+                    </div>
+                </div>
+
+                <!-- Registration Link -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Registration Link</label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="needRegisterLink" class="mr-2 text-orange-500">
+                        <span class="text-sm">Need Registration Link?</span>
+                    </label>
+                    <div id="registerLinkSection" class="ml-6 mt-3 space-y-4 hidden">
+                        <div class="flex gap-4 items-center">
+                            <label class="flex items-center">
+                                <input type="radio" name="linkSource" value="manual" checked class="mr-2">
+                                <span class="text-sm">Enter manually</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="linkSource" value="build" class="mr-2">
+                                <span class="text-sm">Build new registration link</span>
+                            </label>
+                        </div>
+                        <div id="manualLinkInput">
+                            <label for="registerLink" class="block text-xs font-medium text-gray-600 mb-1">Registration Link</label>
+                            <input type="url" id="registerLink" placeholder="https://example.com/register" class="input-field px-4 py-3 rounded-lg">
+                        </div>
+                        <div id="buildLinkSection" class="hidden space-y-3">
+                            <div class="p-3 bg-blue-50 border border-blue-200 rounded">
+                                <p class="text-sm font-medium text-blue-800">Link will be generated automatically after submission.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Details -->
+                <div>
+                    <label for="details" class="block text-sm font-semibold text-gray-700 mb-2">Additional Details</label>
+                    <textarea id="details" rows="4" placeholder="Other info..." class="input-field px-4 py-3 rounded-lg"></textarea>
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit" id="submitButton" class="submit-btn w-full py-4 px-6 text-white font-semibold rounded-lg">
+                        <span id="submitText">Submit Event Data</span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="successMessage" class="hidden mt-6 p-6 rounded-xl text-white success-message shadow-lg"></div>
+            <div id="errorMessage"   class="hidden mt-6 p-4 rounded-lg text-white error-message">
+                <span id="errorText">Error</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURATION
+// Google Sheet published as CSV (File → Share → Publish to web
+//   → Sheet "buildings" → CSV).  Paste the URL here.
+// ============================================================
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSSwo1RQy7GCPAprZ18iPuzZTmCK1e9gfuNFXY60otdANCGllJxXAedn4hG-TiQ_Q/pub?output=csv';
+const WEBHOOK_URL = 'https://hook.eu2.make.com/i2pvup7yc0fc8uj38wts4j2sqvsmty88';
+
+// ============================================================
+// BUILT-IN FALLBACK DATA
+// Used automatically if the Google Sheet fetch fails.
+// ============================================================
+const FALLBACK_DATA = {
+    "Hong Kong": {
+        "9 Queen's Road Central":        { levels:["10"],                  emails:["hkgqrc010@compassoffices.com"] },
+        "Admiralty Centre Tower 1":      { levels:["15"],                  emails:["hkg1adc015@compassoffices.com"] },
+        "Admiralty Centre Tower 2":      { levels:["8","11"],              emails:["hkg2adc008@compassoffices.com","hkg2adc011@compassoffices.com"] },
+        "AIA Tower":                     { levels:["43"],                  emails:["hkgaia043@compassoffices.com"] },
+        "Bank of Dongguan Tower":        { levels:["9","10","11","12"],    emails:["hkgbodg012@compassoffices.com","hkgbodg012@compassoffices.com","hkgbodg012@compassoffices.com","hkgbodg012@compassoffices.com"] },
+        "China Building":                { levels:["18","19"],             emails:["hkgchb018@compassoffices.com","hkgchb019@compassoffices.com"] },
+        "Infinitus Plaza":               { levels:["12","20","29","35","38"], emails:["hkgip012@compassoffices.com","hkgip020@compassoffices.com","hkgip029@compassoffices.com","hkgip035@compassoffices.com","hkgip038@compassoffices.com"] },
+        "Lee Garden One":                { levels:["24"],                  emails:["hkglg024@compassoffices.com"] },
+        "Lee Garden Two":                { levels:["15","16","28"],        emails:["hkg2lg015@compassoffices.com","hkg2lg016@compassoffices.com","hkg2lg028@compassoffices.com"] },
+        "Silvercord Tower 1":            { levels:["8"],                   emails:["hkg1sc008@compassoffices.com"] },
+        "Silvercord Tower 2":            { levels:["5","11","17"],         emails:["hkg2sc005@compassoffices.com","hkg2sc011@compassoffices.com","hkg2sc017@compassoffices.com"] },
+        "Wing On Centre":                { levels:["27"],                  emails:["hkgwoc027@compassoffices.com"] }
+    },
+    "Tokyo": {
+        "Ebisu Green Glass":             { levels:["6","7","8","9"], emails:["tyoebs006@compassoffices.com","tyoebs007@compassoffices.com","tyoebs008@compassoffices.com","tyoebs009@compassoffices.com"] },
+        "ouno八重洲 x Compass Offices":  { levels:["3"],             emails:["tyoysd003@compassoffices.com"] },
+        "Toranomon 40 MT":               { levels:["7"],             emails:["tyo40mt007@compassoffices.com"] },
+        "WTC annex":                     { levels:["11","12"],       emails:["tyowtca011@compassoffices.com","tyowtca012@compassoffices.com"] }
+    },
+    "Osaka": {
+        "INOGATE OSAKA": { levels:["9","10"], emails:["osaing009@compassoffices.com","osaing010@compassoffices.com"] }
+    },
+    "Singapore": {
+        "Samsung Hub":           { levels:["29"],     emails:["sinshc029@compassoffices.com"] },
+        "Singapore Land Tower":  { levels:["19","30"],emails:["sinslt019@compassoffices.com","sinslt030@compassoffices.com"] }
+    },
+    "Melbourne": {
+        "360 Collins Street": { levels:["26"],     emails:["mel360c026@compassoffices.com"] },
+        "459 Collins Street": { levels:["21"],     emails:["mel459c021@compassoffices.com"] },
+        "570 Bourke Street":  { levels:["17","24"],emails:["mel570b017@compassoffices.com","mel570b024@compassoffices.com"] }
+    },
+    "Sydney": {
+        "141 Walker Street":    { levels:["12"],     emails:["syd141w012@compassoffices.com"] },
+        "207 Kent Street":      { levels:["21"],     emails:["syd207k021@compassoffices.com"] },
+        "9 Castlereagh Street": { levels:["16","17"],emails:["syd9cas016@compassoffices.com","syd9cas017@compassoffices.com"] }
+    },
+    "Philippines": {
+        "Arthaland Century Pacific Tower": { levels:["9"],  emails:["mnlart009@compassoffices.com"] },
+        "BGC Corporate Center":            { levels:["24"], emails:["mnlbgc024@compassoffices.com"] },
+        "Tower 6789":                      { levels:["16"], emails:["mnlaya016@compassoffices.com"] }
+    },
+    "Ho Chi Minh City": {
+        "Bitexco Financial Tower":       { levels:["16","46","56"], emails:["sgnbft016@compassoffices.com","sgnbft046@compassoffices.com","sgnbft056@compassoffices.com"] },
+        "Compass Offices Landmark 81":   { levels:["72"],           emails:["sgnlm81072@compassoffices.com"] }
+    },
+    "Kuala Lumpur": {
+        "Menara AIA Sentral": { levels:["3","4","5"], emails:["kulmsc003@compassoffices.com","kulmsc004@compassoffices.com","kulmsc005@compassoffices.com"] }
+    }
+};
+
+// ============================================================
+// MAIN
+// ============================================================
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Event ID ──────────────────────────────────────────────
+    function generateEventId() {
+        const now     = new Date();
+        const dateStr = now.toISOString().slice(0,10).replace(/-/g,'');
+        const timeStr = now.toTimeString().slice(0,8).replace(/:/g,'');
+        const rand    = Math.floor(Math.random()*1000).toString().padStart(3,'0');
+        return `EVT${dateStr}${timeStr}${rand}`;
+    }
+    const eventIdDisplay = document.getElementById('eventIdDisplay');
+    eventIdDisplay.textContent = generateEventId();
+
+    // ── Formatted time ────────────────────────────────────────
+    let formattedTime = '6:00 PM - 9:00 PM';
+    function formatTime12(h, m) {
+        const p = h >= 12 ? 'PM' : 'AM';
+        return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${p}`;
+    }
+    function updateFormattedTime() {
+        const s = document.getElementById('startTime').value;
+        const e = document.getElementById('endTime').value;
+        if (s && e) {
+            const [sh,sm] = s.split(':').map(Number);
+            const [eh,em] = e.split(':').map(Number);
+            formattedTime = `${formatTime12(sh,sm)} - ${formatTime12(eh,em)}`;
+        }
+    }
+    ['startTime','endTime'].forEach(id => {
+        document.getElementById(id).addEventListener('change', updateFormattedTime);
+        document.getElementById(id).addEventListener('input',  updateFormattedTime);
+    });
+    updateFormattedTime();
+
+    // ── Location dropdowns ────────────────────────────────────
+    let buildingData = {};
+    const countrySelect  = document.getElementById('country');
+    const buildingSelect = document.getElementById('building');
+    const floorSelect    = document.getElementById('floor');
+    const emailPreview   = document.getElementById('emailPreview');
+    const banner         = document.getElementById('dataBanner');
+    const bannerText     = document.getElementById('dataBannerText');
+
+    function setBanner(state, msg) {
+        banner.className = `data-banner ${state}`;
+        bannerText.textContent = msg;
+    }
+
+    // Convert flat sheet rows → nested buildingData object
+    function rowsToData(rows) {
+        const result = {};
+        rows.forEach(({ country, building, floor, email }) => {
+            if (!country || !building || !floor) return;
+            if (!result[country])           result[country] = {};
+            if (!result[country][building]) result[country][building] = { levels:[], emails:[] };
+            result[country][building].levels.push(String(floor).trim());
+            result[country][building].emails.push(String(email).trim().toLowerCase());
+        });
+        return result;
+    }
+
+    // Populate country dropdown from whatever data is loaded
+    function populateCountries() {
+        const current = countrySelect.value;
+        countrySelect.innerHTML = '<option value="">Select Country</option>';
+        Object.keys(buildingData).sort().forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c; opt.textContent = c;
+            countrySelect.appendChild(opt);
+        });
+        if (current && buildingData[current]) countrySelect.value = current;
+    }
+
+    function updateBuildingOptions() {
+        const c = countrySelect.value;
+        buildingSelect.innerHTML = '<option value="">Select Building</option>';
+        floorSelect.innerHTML    = '<option value="">Select Floor</option>';
+        buildingSelect.disabled  = true;
+        floorSelect.disabled     = true;
+        emailPreview.textContent = 'Select building and floor to see email';
+        updateLocationPreview();
+        if (c && buildingData[c]) {
+            buildingSelect.disabled = false;
+            Object.keys(buildingData[c]).sort().forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b; opt.textContent = b;
+                buildingSelect.appendChild(opt);
+            });
+        }
+    }
+
+    function updateFloorOptions() {
+        const c = countrySelect.value, b = buildingSelect.value;
+        floorSelect.innerHTML   = '<option value="">Select Floor</option>';
+        floorSelect.disabled    = true;
+        emailPreview.textContent = 'Select floor to see email';
+        updateLocationPreview();
+        if (c && b && buildingData[c]?.[b]) {
+            floorSelect.disabled = false;
+            buildingData[c][b].levels.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l; opt.textContent = l + '/F';
+                floorSelect.appendChild(opt);
+            });
+        }
+    }
+
+    function updateEmail() {
+        const c = countrySelect.value, b = buildingSelect.value, f = floorSelect.value;
+        if (c && b && f && buildingData[c]?.[b]) {
+            const d   = buildingData[c][b];
+            const idx = d.levels.indexOf(f);
+            emailPreview.textContent = (idx >= 0 ? d.emails[idx] : d.emails[0]) || '';
+        } else {
+            emailPreview.textContent = 'Select building and floor to see email';
+        }
+    }
+
+    function getAreaTypes() {
+        return ['loungeArea','meetingRoom','room']
+            .filter(id => document.getElementById(id).checked)
+            .map(id => ({ loungeArea:'Lounge area', meetingRoom:'Meeting room', room:'Room' }[id]))
+            .join(', ');
+    }
+
+    function getRoomName() {
+        const parts = [];
+        const reg = document.getElementById('regularRoomName').value.trim();
+        const mtg = document.getElementById('meetingRoomName').value.trim();
+        if (reg) parts.push(`Room ${reg}`);
+        if (mtg) parts.push(`MR ${mtg}`);
+        return parts.join(', ');
+    }
+
+    function updateLocationPreview() {
+        const c = countrySelect.value, b = buildingSelect.value, f = floorSelect.value;
+        const area = getAreaTypes(), room = getRoomName();
+        const parts = [];
+        if (b)    parts.push(b);
+        if (f)    parts.push(`${f}/F`);
+        if (c)    parts.push(c);
+        if (area) parts.push(`– ${area}`);
+        if (room) parts.push(`(${room})`);
+        const txt = parts.length ? parts.join(', ') : 'Please select location details above';
+        document.getElementById('locationPreview').textContent = txt;
+        return txt;
+    }
+
+    countrySelect.addEventListener('change',  updateBuildingOptions);
+    buildingSelect.addEventListener('change', updateFloorOptions);
+    floorSelect.addEventListener('change',   () => { updateEmail(); updateLocationPreview(); });
+    ['loungeArea','meetingRoom','room'].forEach(id =>
+        document.getElementById(id).addEventListener('change', () => { toggleRoomInputs(); updateLocationPreview(); })
+    );
+    ['regularRoomName','meetingRoomName','additionalRequirements'].forEach(id =>
+        document.getElementById(id)?.addEventListener('input', updateLocationPreview)
+    );
+
+    function toggleRoomInputs() {
+        const isRoom    = document.getElementById('room').checked;
+        const isMeeting = document.getElementById('meetingRoom').checked;
+        document.getElementById('roomNameSection').style.display  = (isRoom||isMeeting) ? 'block' : 'none';
+        document.getElementById('regularRoomInput').style.display = isRoom    ? 'block' : 'none';
+        document.getElementById('meetingRoomInput').style.display = isMeeting ? 'block' : 'none';
+    }
+
+    window.addSuggestion = function(text) {
+        const el = document.getElementById('additionalRequirements');
+        el.value = el.value.trim() ? el.value.trim() + ', ' + text : text;
+        updateLocationPreview();
+    };
+
+    // ── Parse CSV (handles quoted fields with commas inside) ──
+    function parseCSV(text) {
+        const rows = [];
+        // Normalise line endings
+        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            const cols = [];
+            let cur = '', inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') {
+                    // Escaped quote inside quoted field: ""
+                    if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
+                    else inQuotes = !inQuotes;
+                } else if (ch === ',' && !inQuotes) {
+                    cols.push(cur.trim()); cur = '';
+                } else {
+                    cur += ch;
+                }
+            }
+            cols.push(cur.trim());
+            rows.push(cols);
+        }
+        return rows;
+    }
+
+    // ── Fetch from Google Sheets published CSV ────────────────
+    async function loadBuildingData() {
+        setBanner('loading', 'Loading location data from Google Sheets…');
+        try {
+            const res = await fetch(CSV_URL, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const text = await res.text();
+            if (!text || text.length < 10) throw new Error('Empty CSV');
+
+            const rows    = parseCSV(text);
+            const headers = rows[0].map(h => h.toLowerCase().trim()); // country,building,floor,email
+            const ci = headers.indexOf('country');
+            const bi = headers.indexOf('building');
+            const fi = headers.indexOf('floor');
+            const ei = headers.indexOf('email');
+            if ([ci,bi,fi,ei].includes(-1)) throw new Error('Missing expected column headers (country / building / floor / email)');
+
+            const result = {};
+            for (let r = 1; r < rows.length; r++) {
+                const row     = rows[r];
+                const country  = row[ci]?.trim();
+                const building = row[bi]?.trim();
+                const floor    = row[fi]?.trim();
+                const email    = row[ei]?.trim().toLowerCase();
+                if (!country || !building || !floor) continue;
+                if (!result[country])           result[country] = {};
+                if (!result[country][building]) result[country][building] = { levels:[], emails:[] };
+                result[country][building].levels.push(floor);
+                result[country][building].emails.push(email);
+            }
+            if (!Object.keys(result).length) throw new Error('No data rows found');
+
+            buildingData = result;
+            populateCountries();
+            setBanner('live', `✓ Live from Google Sheets — ${rows.length - 1} locations loaded`);
+            reApplyLocationFromURL();
+        } catch (err) {
+            console.warn('Google Sheets CSV fetch failed, using fallback:', err.message);
+            buildingData = FALLBACK_DATA;
+            populateCountries();
+            setBanner('fallback', `⚠ Could not reach Google Sheets — using built-in data. (${err.message})`);
+            reApplyLocationFromURL();
+        }
+    }
+
+    // ── Char counters ─────────────────────────────────────────
+    function setupCharCount(id, countId, max, warnAt) {
+        const input = document.getElementById(id);
+        const count = document.getElementById(countId);
+        if (!input || !count) return;
+        function update() {
+            const len      = input.value.length;
+            const nonBlank = input.value.replace(/\s/g,'').length;
+            count.textContent = `${len} / ${max} (${nonBlank} non-blank)`;
+            count.className   = 'char-count' + (len > max ? ' error' : len > warnAt ? ' warning' : '');
+        }
+        input.addEventListener('input', update);
+        update();
+    }
+    setupCharCount('posterTitle',    'posterTitleCount',    40, 37);
+    setupCharCount('posterSubtitle', 'posterSubtitleCount', 40, 37);
+    setupCharCount('edmTitle',       'edmTitleCount',       40, 37);
+    setupCharCount('edmSubtitle',    'edmSubtitleCount',    40, 37);
+    ['posterBullet1','posterBullet2','posterBullet3','edmBullet1','edmBullet2','edmBullet3'].forEach(id => {
+        const input = document.getElementById(id);
+        const count = document.getElementById(id+'Count');
+        function update() {
+            const len = input.value.length;
+            count.textContent = `${len} / 120`;
+            count.className   = 'char-count' + (len > 120 ? ' error' : '');
+        }
+        input.addEventListener('input', update);
+        update();
+    });
+
+    // ── Client contact validation ─────────────────────────────
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/;
+    document.getElementById('clientContact').addEventListener('input', function() {
+        const val = this.value.trim();
+        const fb  = document.getElementById('contactFeedback');
+        if (!val) { fb.innerHTML=''; return; }
+        if (emailRegex.test(val))
+            fb.innerHTML = `<svg class="text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07z"/></svg><span class="text-green-600">Valid Email</span>`;
+        else if (phoneRegex.test(val))
+            fb.innerHTML = `<svg class="text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg><span class="text-green-600">Valid Phone</span>`;
+        else
+            fb.innerHTML = `<svg class="text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg><span class="text-red-600">Enter valid email or phone</span>`;
+    });
+
+    // ── Poster / EDM toggle & sync ────────────────────────────
+    const needPoster    = document.getElementById('needPoster');
+    const posterDetails = document.getElementById('posterDetailsSection');
+    const needEDM       = document.getElementById('needEDM');
+    const edmDetails    = document.getElementById('edmDetailsSection');
+    needPoster.addEventListener('change', () => { posterDetails.classList.toggle('hidden', !needPoster.checked); syncContent(); });
+    needEDM.addEventListener('change',   () => {
+        edmDetails.classList.toggle('hidden', !needEDM.checked);
+        if (needEDM.checked) setTimeout(() => edmDetails.scrollIntoView({ behavior:'smooth' }), 100);
+        syncContent();
+    });
+    document.getElementById('posterHasSubtitle').addEventListener('change', function() {
+        document.getElementById('posterSubtitleInput').classList.toggle('hidden', !this.checked);
+        document.getElementById('posterSubtitleAuto').classList.toggle('hidden', this.checked);
+        syncContent();
+    });
+    document.getElementById('edmHasSubtitle').addEventListener('change', function() {
+        document.getElementById('edmSubtitleInput').classList.toggle('hidden', !this.checked);
+        document.getElementById('edmSubtitleAuto').classList.toggle('hidden', this.checked);
+        syncContent();
+    });
+    let syncTO;
+    function syncContent() {
+        clearTimeout(syncTO);
+        syncTO = setTimeout(() => {
+            if (!needPoster.checked || !needEDM.checked) return;
+            const pT = document.getElementById('posterTitle').value;
+            const eT = document.getElementById('edmTitle').value;
+            if (pT && !eT) document.getElementById('edmTitle').value    = pT;
+            if (eT && !pT) document.getElementById('posterTitle').value = eT;
+            const pSub = document.getElementById('posterHasSubtitle').checked;
+            const eSub = document.getElementById('edmHasSubtitle').checked;
+            if (pSub !== eSub) {
+                document.getElementById('edmHasSubtitle').checked = pSub;
+                document.getElementById('edmSubtitleInput').classList.toggle('hidden', !pSub);
+                document.getElementById('edmSubtitleAuto').classList.toggle('hidden', pSub);
+            }
+            ['1','2','3'].forEach(i => {
+                const pv = document.getElementById('posterBullet'+i).value;
+                const ev = document.getElementById('edmBullet'+i).value;
+                if (pv && !ev) document.getElementById('edmBullet'+i).value    = pv;
+                if (ev && !pv) document.getElementById('posterBullet'+i).value = ev;
+            });
+            ['posterTitle','posterSubtitle','edmTitle','edmSubtitle',
+             'posterBullet1','posterBullet2','posterBullet3',
+             'edmBullet1','edmBullet2','edmBullet3'].forEach(id =>
+                document.getElementById(id).dispatchEvent(new Event('input')));
+        }, 300);
+    }
+    ['posterTitle','posterSubtitle','posterBullet1','posterBullet2','posterBullet3',
+     'edmTitle','edmSubtitle','edmBullet1','edmBullet2','edmBullet3'].forEach(id =>
+        document.getElementById(id).addEventListener('input', syncContent));
+
+    // ── Smart logo upload ─────────────────────────────────────
+    const logoDropZone     = document.getElementById('logoDropZone');
+    const logoInput        = document.getElementById('posterLogoInput');
+    const logoStatus       = document.getElementById('logoStatus');
+    const logoOriginalBox  = document.getElementById('logoOriginalBox');
+    const logoOriginalImg  = document.getElementById('logoOriginalImg');
+    const logoResultBox    = document.getElementById('logoResultBox');
+    const logoResultCanvas = document.getElementById('logoResultCanvas');
+    let   processedLogoFile = null;
+
+    ['dragenter','dragover','dragleave','drop'].forEach(ev =>
+        logoDropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }));
+    ['dragenter','dragover'].forEach(ev =>
+        logoDropZone.addEventListener(ev, () => logoDropZone.classList.add('dragover')));
+    ['dragleave','drop'].forEach(ev =>
+        logoDropZone.addEventListener(ev, () => logoDropZone.classList.remove('dragover')));
+    logoDropZone.addEventListener('drop', e => { if (e.dataTransfer.files[0]) processLogoFile(e.dataTransfer.files[0]); });
+    logoDropZone.addEventListener('click', () => logoInput.click());
+    logoInput.addEventListener('change', () => { if (logoInput.files[0]) processLogoFile(logoInput.files[0]); });
+
+    function resetLogoUI() {
+        [logoOriginalBox,logoResultBox,logoStatus].forEach(el => el.classList.add('hidden'));
+        processedLogoFile = null;
+    }
+    function showLogoStatus(msg, type) {
+        logoStatus.innerHTML = msg; logoStatus.className = `logo-status ${type}`; logoStatus.classList.remove('hidden');
+    }
+    async function processLogoFile(file) {
+        resetLogoUI();
+        showLogoStatus('Analysing image…','info');
+        const img = new Image(), url = URL.createObjectURL(file);
+        img.onload = async () => {
+            URL.revokeObjectURL(url);
+            logoOriginalImg.src = img.src;
+            logoOriginalBox.classList.remove('hidden');
+            await fitLogoAndConvert(img, file);
+        };
+        img.onerror = () => showLogoStatus('Failed to load image.','error');
+        img.src = url;
+    }
+    async function fitLogoAndConvert(img, originalFile) {
+        showLogoStatus('Removing background…','info');
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img,0,0);
+        const id = ctx.getImageData(0,0,canvas.width,canvas.height);
+        for (let i=0;i<id.data.length;i+=4) {
+            if (id.data[i+3]>200 && id.data[i]>220 && id.data[i+1]>220 && id.data[i+2]>220) id.data[i+3]=0;
+        }
+        ctx.putImageData(id,0,0);
+        const box = getBoundingBox(ctx, canvas.width, canvas.height);
+        if (!box||box.w<30||box.h<30) { showLogoStatus('No logo detected.','error'); return; }
+        const isSquare = (box.w/box.h)>=0.75 && (box.w/box.h)<=1.4;
+        const tw=1080, th=isSquare?1080:500;
+        showLogoStatus(`Detected <strong>${isSquare?'square':'horizontal'}</strong> logo → ${tw}×${th} PNG`,'success');
+        logoResultCanvas.width=tw; logoResultCanvas.height=th;
+        const rc=logoResultCanvas.getContext('2d'); rc.clearRect(0,0,tw,th);
+        const sc=Math.min(tw/box.w,th/box.h);
+        rc.drawImage(canvas,box.x,box.y,box.w,box.h,(tw-box.w*sc)/2,(th-box.h*sc)/2,box.w*sc,box.h*sc);
+        logoResultBox.classList.remove('hidden');
+        logoResultCanvas.toBlob(blob => {
+            processedLogoFile = new File([blob], originalFile.name.replace(/\.[^/.]+$/,'.png'), {type:'image/png'});
+        }, 'image/png');
+    }
+    function getBoundingBox(ctx,w,h) {
+        const d=ctx.getImageData(0,0,w,h).data;
+        let mx=w,my=h,xx=0,xy=0,f=false;
+        for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(d[(y*w+x)*4+3]>60){mx=Math.min(mx,x);my=Math.min(my,y);xx=Math.max(xx,x);xy=Math.max(xy,y);f=true;}
+        return f?{x:mx,y:my,w:xx-mx+1,h:xy-my+1}:null;
+    }
+
+    // ── Key images ────────────────────────────────────────────
+    let autoCroppedKeyImages = [];
+    document.getElementById('posterKeyImagesInput').addEventListener('change', function() {
+        const previews = document.getElementById('keyImagePreviews');
+        previews.innerHTML = ''; autoCroppedKeyImages = [];
+        Array.from(this.files).forEach((file,idx) => {
+            const div = document.createElement('div');
+            div.className='key-image-item';
+            div.innerHTML=`<p class="text-sm">Processing <strong>${file.name}</strong>…</p>`;
+            previews.appendChild(div);
+            autoCropAndConvertToPng(file,(pngFile,url)=>{
+                if(pngFile&&url){
+                    autoCroppedKeyImages[idx]=pngFile;
+                    div.innerHTML=`<img src="${url}" class="image-preview"><p class="text-xs text-green-600 mt-1">Converted to PNG</p>`;
+                    updateEdmBannerFromKeyImage();
+                } else { div.innerHTML=`<p class="text-xs text-red-600">Failed to process</p>`; }
+            });
+        });
+    });
+    function autoCropAndConvertToPng(file,cb) {
+        const img=new Image();
+        img.onload=()=>{
+            const c=document.createElement('canvas'); c.width=1080; c.height=1080;
+            const ctx=c.getContext('2d');
+            const sc=Math.max(1080/img.width,1080/img.height);
+            ctx.drawImage(img,(1080-img.width*sc)/2,(1080-img.height*sc)/2,img.width*sc,img.height*sc);
+            c.toBlob(blob=>{
+                const f=new File([blob],file.name.replace(/\.[^/.]+$/,'.png'),{type:'image/png'});
+                cb(f,URL.createObjectURL(f));
+            },'image/png',0.9);
+        };
+        img.onerror=()=>cb(null,null);
+        img.src=URL.createObjectURL(file);
+    }
+
+    // ── EDM banner ────────────────────────────────────────────
+    let autoCroppedEdmBanner = null;
+    const edmBannerSource = document.getElementById('edmBannerSource');
+    function updateEdmBannerFromKeyImage() {
+        if (edmBannerSource.value!=='copy') return;
+        const preview = document.getElementById('edmBannerPreview');
+        if (autoCroppedKeyImages[0]) {
+            autoCroppedEdmBanner = autoCroppedKeyImages[0];
+            preview.innerHTML = `<img src="${URL.createObjectURL(autoCroppedEdmBanner)}" class="image-preview"><p class="text-xs text-blue-600 mt-1">Copied from first Poster Key Image</p>`;
+        } else { preview.innerHTML=`<p class="text-xs text-gray-500">Upload a key image first</p>`; }
+    }
+    edmBannerSource.addEventListener('change', () => {
+        const isCopy = edmBannerSource.value==='copy';
+        document.getElementById('edmBannerUploadSection').style.display = isCopy?'none':'block';
+        document.getElementById('edmBannerPreview').innerHTML='';
+        autoCroppedEdmBanner=null;
+        if(isCopy) updateEdmBannerFromKeyImage();
+    });
+    document.getElementById('edmBannerInput').addEventListener('change', function() {
+        if(!this.files[0]) return;
+        document.getElementById('edmBannerPreview').innerHTML=`<p class="text-sm">Processing…</p>`;
+        autoCropAndConvertToPng(this.files[0],(pngFile,url)=>{
+            if(pngFile&&url){
+                autoCroppedEdmBanner=pngFile;
+                document.getElementById('edmBannerPreview').innerHTML=`<img src="${url}" class="image-preview"><p class="text-xs text-green-600 mt-1">Converted to PNG</p>`;
+            }
+        });
+    });
+
+    // ── Thumbnail (320×160) ───────────────────────────────────
+    let processedThumbnailFile = null;
+    window.handleThumbnailDrop = function(e) { e.preventDefault(); if(e.dataTransfer.files[0]) processThumbnail(e.dataTransfer.files[0]); };
+    document.getElementById('thumbnailInput').addEventListener('change', function() { if(this.files[0]) processThumbnail(this.files[0]); });
+    function processThumbnail(file) {
+        processedThumbnailFile=null;
+        document.getElementById('thumbnailPreview').innerHTML='<p class="text-xs text-gray-500">Processing…</p>';
+        const img=new Image();
+        img.onload=()=>{
+            const c=document.createElement('canvas'); c.width=320; c.height=160;
+            const ctx=c.getContext('2d');
+            const sc=Math.max(320/img.width,160/img.height);
+            ctx.drawImage(img,(320-img.width*sc)/2,(160-img.height*sc)/2,img.width*sc,img.height*sc);
+            c.toBlob(blob=>{
+                processedThumbnailFile=new File([blob],file.name.replace(/\.[^/.]+$/,'_thumb.png'),{type:'image/png'});
+                document.getElementById('thumbnailPreview').innerHTML=`
+                    <div class="inline-block border-2 border-dashed border-orange-400 rounded-lg p-2 bg-gray-50">
+                        <img src="${URL.createObjectURL(processedThumbnailFile)}" width="320" height="160" style="display:block;">
+                        <p class="text-xs text-green-600 mt-1 text-center">✓ 320×160px PNG ready</p>
+                    </div>`;
+                document.getElementById('thumbnailStatus').textContent=`Source: ${file.name}`;
+                document.getElementById('thumbnailStatus').classList.remove('hidden');
+            },'image/png');
+        };
+        img.onerror=()=>{ document.getElementById('thumbnailPreview').innerHTML='<p class="text-xs text-red-600">Failed.</p>'; };
+        img.src=URL.createObjectURL(file);
+    }
+
+    // ── Catering & registration link ──────────────────────────
+    document.getElementById('haveCatering').addEventListener('change', function() {
+        document.getElementById('cateringDetailsSection').classList.toggle('hidden', !this.checked);
+    });
+    document.getElementById('needRegisterLink').addEventListener('change', function() {
+        document.getElementById('registerLinkSection').classList.toggle('hidden', !this.checked);
+    });
+    document.querySelectorAll('input[name="linkSource"]').forEach(r => r.addEventListener('change', () => {
+        document.getElementById('manualLinkInput').classList.toggle('hidden', r.value!=='manual');
+        document.getElementById('buildLinkSection').classList.toggle('hidden', r.value!=='build');
+    }));
+
+    // ── Load from URL (pre-fill / duplicate) ──────────────────
+    function loadFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.toString()) return;
+        params.forEach((value,key) => {
+            const el = document.getElementById(key);
+            if (!el) return;
+            if (el.type==='checkbox') {
+                el.checked = value==='true';
+                if(['needPoster','needEDM','haveCatering','needRegisterLink','posterHasSubtitle','edmHasSubtitle'].includes(el.id))
+                    el.dispatchEvent(new Event('change'));
+            } else if (el.tagName==='SELECT') {
+                el.value=value; el.dispatchEvent(new Event('change'));
+            } else if (el.type!=='file') {
+                el.value=value; el.dispatchEvent(new Event('input'));
+            }
+        });
+        const ls = params.get('linkSource');
+        if (ls) { const r=document.querySelector(`input[name="linkSource"][value="${ls}"]`); if(r){r.checked=true;r.dispatchEvent(new Event('change'));} }
+        if (params.has('eventId')) eventIdDisplay.textContent = params.get('eventId');
+        updateFormattedTime();
+    }
+
+    // Re-apply country/building/floor after async data load
+    function reApplyLocationFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        ['country','building','floor'].forEach(id => {
+            const val = params.get(id);
+            const el  = document.getElementById(id);
+            if (val && el) { el.value=val; el.dispatchEvent(new Event('change')); }
+        });
+    }
+
+    // ── Form submission ───────────────────────────────────────
+    document.getElementById('eventForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        document.getElementById('errorMessage').classList.add('hidden');
+        document.getElementById('successMessage').classList.add('hidden');
+
+        const formData  = new FormData();
+        const urlParams = new URLSearchParams();
+
+        const textFields = [
+            'organizerName','organizerEmail','startTime','endTime','date',
+            'clientName','clientContact','companyName','eventName','eventType',
+            'country','building','floor',
+            'loungeArea','meetingRoom','room','regularRoomName','meetingRoomName',
+            'additionalRequirements','needExtraAircon','venueSetup',
+            'needPoster','needEDM','haveCatering','cateringDetails','details',
+            'posterTitle','posterHasSubtitle','posterSubtitle',
+            'posterBullet1','posterBullet2','posterBullet3',
+            'edmTitle','edmHasSubtitle','edmSubtitle',
+            'edmBullet1','edmBullet2','edmBullet3',
+            'needRegisterLink','registerLink'
+        ];
+
+        formData.append('eventId', eventIdDisplay.textContent);
+        urlParams.append('eventId', eventIdDisplay.textContent);
+        formData.append('formattedTime', formattedTime);
+        urlParams.append('formattedTime', formattedTime);
+        formData.append('formattedlocation', updateLocationPreview());
+        urlParams.append('formattedlocation', updateLocationPreview());
+        formData.append('contactEmail', emailPreview.textContent);
+        urlParams.append('contactEmail', emailPreview.textContent);
+
+        textFields.forEach(key => {
+            const el    = document.getElementById(key);
+            const value = el ? (el.type==='checkbox' ? el.checked : el.value) : '';
+            formData.append(key, value);
+            urlParams.append(key, value);
+        });
+        const lsv = document.querySelector('input[name="linkSource"]:checked')?.value || '';
+        formData.append('linkSource', lsv); urlParams.append('linkSource', lsv);
+
+        let pSub = document.getElementById('posterSubtitle').value;
+        if (needPoster.checked && !document.getElementById('posterHasSubtitle').checked)
+            pSub = '(Exclusive event for clients of Compass Offices)';
+        formData.set('posterSubtitle', pSub); urlParams.set('posterSubtitle', pSub);
+
+        let eSub = document.getElementById('edmSubtitle').value;
+        if (needEDM.checked && !document.getElementById('edmHasSubtitle').checked)
+            eSub = '(Exclusive event for clients of Compass Offices)';
+        formData.set('edmSubtitle', eSub); urlParams.set('edmSubtitle', eSub);
+
+        if (processedLogoFile)      formData.append('posterLogo', processedLogoFile);
+        autoCroppedKeyImages.forEach((f,i) => { if(f) formData.append(`posterKeyImage${i+1}`, f); });
+        if (autoCroppedEdmBanner)   formData.append('edmBanner', autoCroppedEdmBanner);
+        if (processedThumbnailFile) formData.append('thumbnail', processedThumbnailFile);
+
+        const overlay = document.getElementById('loadingOverlay');
+        const fill    = document.getElementById('loadingFill');
+        overlay.classList.remove('hidden');
+        document.getElementById('submitButton').disabled = true;
+        document.getElementById('submitText').textContent = 'Submitting…';
+        let prog=0, iv=setInterval(()=>{ prog=Math.min(prog+12,92); fill.style.width=prog+'%'; },280);
+
+        try {
+            const reopenUrl = `${location.origin}${location.pathname}?${urlParams.toString()}`;
+            formData.append('reopenLink', reopenUrl);
+            const res = await fetch(WEBHOOK_URL, { method:'POST', body:formData });
+            clearInterval(iv); fill.style.width='100%';
+            await new Promise(r=>setTimeout(r,600));
+
+            if (res.ok) {
+                const suc = document.getElementById('successMessage');
+                suc.innerHTML = `
+                    <div class="text-center p-4">
+                        <p class="text-2xl font-bold mb-5 text-white">Event Submitted Successfully! 🎉</p>
+                        <p class="text-base mb-6 opacity-90">What would you like to do next?</p>
+                        <button id="duplicateEventBtn" class="duplicate-btn w-full max-w-md mx-auto py-4 px-8 text-lg font-semibold rounded-xl shadow-lg mb-6">
+                            <i class="fas fa-copy mr-3"></i> Duplicate This Event (New ID)
+                        </button>
+                        <div class="mt-2 mb-3 text-sm opacity-90">Or save this link to come back later:</div>
+                        <div class="webhook-link p-4 text-sm break-all bg-blue-900/30 border border-blue-300/40 rounded-lg mb-4">${reopenUrl}</div>
+                        <button id="copyReopenLinkBtn" class="px-6 py-2.5 bg-white text-orange-600 border-2 border-orange-500 rounded-lg hover:bg-orange-50 font-medium">
+                            Copy Re-Open Link
+                        </button>
+                    </div>`;
+                suc.classList.remove('hidden');
+                document.getElementById('copyReopenLinkBtn').onclick = () =>
+                    navigator.clipboard.writeText(reopenUrl).then(()=>alert('Copied! ✓')).catch(()=>alert('Copy failed'));
+                document.getElementById('duplicateEventBtn').onclick = () => {
+                    const dp = new URLSearchParams(urlParams);
+                    dp.set('eventId', generateEventId());
+                    ['posterLogo','posterKeyImage1','posterKeyImage2','posterKeyImage3','edmBanner','thumbnail'].forEach(k=>dp.delete(k));
+                    location.href = `${location.origin}${location.pathname}?${dp.toString()}`;
+                };
+                history.replaceState({}, '', `?${urlParams.toString()}`);
+                localStorage.removeItem('eventFormDraft');
+            } else { throw new Error(`Server responded ${res.status}`); }
+        } catch(err) {
+            document.getElementById('errorText').textContent = `Submission failed: ${err.message}. Please try again.`;
+            document.getElementById('errorMessage').classList.remove('hidden');
+        } finally {
+            overlay.classList.add('hidden');
+            document.getElementById('submitButton').disabled = false;
+            document.getElementById('submitText').textContent = 'Submit Event Data';
+            clearInterval(iv);
+        }
+    });
+
+    // ── Local draft ───────────────────────────────────────────
+    document.getElementById('eventForm').addEventListener('input', () => {
+        const obj={};
+        new FormData(document.getElementById('eventForm')).forEach((v,k)=>{ if(!(v instanceof File)||v.size>0) obj[k]=v.name||v; });
+        localStorage.setItem('eventFormDraft', JSON.stringify(obj));
+    });
+    try {
+        const draft = JSON.parse(localStorage.getItem('eventFormDraft')||'{}');
+        Object.entries(draft).forEach(([k,v])=>{ const el=document.getElementById(k); if(el&&el.type!=='file') el.value=v; });
+        updateFormattedTime();
+    } catch(e){}
+
+    // ── Mobile helpers ────────────────────────────────────────
+    document.querySelectorAll('input[type="time"], input[type="date"]').forEach(el =>
+        el.addEventListener('focus', function() { this.showPicker?.(); }));
+    document.querySelectorAll('input,select,textarea').forEach(el =>
+        el.addEventListener('touchstart', ()=>{}, { passive:true }));
+
+    // ── Init ──────────────────────────────────────────────────
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+    window.scrollTo(0,0);
+    loadFromURL();          // text fields first (instant)
+    loadBuildingData();     // then async fetch — re-applies location after done
+});
+</script>
+
+</body>
+</html>
