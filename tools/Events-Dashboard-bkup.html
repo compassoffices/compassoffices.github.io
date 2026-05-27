@@ -58,8 +58,8 @@ body {
   text-align: right; flex-shrink: 0;
 }
 #event-count {
-  font-size: .82rem; color: rgba(255,255,255,.4);
-  font-weight: 400; line-height: 1.4;
+  font-size: 1.05rem; color: rgba(255,255,255,.6);
+  font-weight: 600; line-height: 1.4;
 }
 
 /* Controls row: filters + actions */
@@ -81,6 +81,101 @@ body {
 .selector-group select:focus { background: #ff6600; color: #fff; }
 .selector-group select option { background: #222; color: #fff; }
 .selector-group select optgroup { background: #111; color: #ff6600; font-style: normal; font-weight: 700; }
+
+/* ── CUSTOM LOCATION DROPDOWN ── */
+.loc-filter-group { display: flex; align-items: center; gap: 6px; position: relative; }
+.loc-filter-group label { font-weight: 600; font-size: 1rem; color: #fff; white-space: nowrap; }
+
+.loc-dropdown-wrap {
+  position: relative; width: 168px;
+}
+
+/* The trigger button */
+.loc-trigger {
+  width: 100%; height: 42px;
+  background: #111; border: 2px solid #ff6600; color: #ff6600;
+  border-radius: 25px; font-size: 1rem; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  display: flex; align-items: center;
+  padding: 0 32px 0 14px;
+  overflow: hidden; position: relative;
+  transition: background .25s, color .25s;
+}
+.loc-trigger:hover, .loc-trigger.open {
+  background: #ff6600; color: #fff;
+}
+/* Chevron arrow */
+.loc-trigger::after {
+  content: '';
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid currentColor;
+  transition: transform .2s;
+  pointer-events: none;
+}
+.loc-trigger.open::after { transform: translateY(-50%) rotate(180deg); }
+
+/* Scrolling text inside trigger */
+.loc-scroll-mask {
+  overflow: hidden; flex: 1;
+  position: relative;
+}
+.loc-scroll-text {
+  display: block; white-space: nowrap;
+  /* Rolling animation applied by JS when text overflows */
+}
+@keyframes loc-roll {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(0); }
+  55%  { transform: translateX(var(--roll-dist, 0px)); }
+  70%  { transform: translateX(var(--roll-dist, 0px)); }
+  95%  { transform: translateX(0); }
+  100% { transform: translateX(0); }
+}
+.loc-scroll-text.rolling {
+  animation: loc-roll 4s ease-in-out infinite;
+}
+
+/* Dropdown list */
+.loc-list {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0;
+  background: #1a1a1a; border: 2px solid #ff6600; border-radius: 14px;
+  width: 260px; max-height: 260px; overflow-y: auto;
+  z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  padding: 6px 0;
+}
+.loc-list.open { display: block; }
+.loc-list::-webkit-scrollbar { width: 6px; }
+.loc-list::-webkit-scrollbar-track { background: transparent; }
+.loc-list::-webkit-scrollbar-thumb { background: #ff6600; border-radius: 3px; }
+
+.loc-group-label {
+  font-size: .7rem; font-weight: 800; color: #ff6600;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: 8px 16px 4px; opacity: .7; pointer-events: none;
+}
+.loc-option {
+  padding: 9px 16px; cursor: pointer;
+  font-size: .92rem; color: rgba(255,255,255,.8);
+  overflow: hidden; white-space: nowrap;
+  position: relative;
+  transition: background .15s, color .15s;
+  border-radius: 0;
+}
+.loc-option:hover {
+  background: rgba(255,102,0,.15); color: #fff;
+}
+.loc-option:hover .loc-opt-text {
+  animation: loc-roll 3.5s ease-in-out infinite;
+}
+.loc-option.selected {
+  background: rgba(255,102,0,.2); color: #ff6600; font-weight: 600;
+}
+.loc-opt-text {
+  display: block; white-space: nowrap;
+}
 
 /* ── ACTION ROW ── */
 .action-row {
@@ -280,7 +375,7 @@ body {
 /* ── Calendar grid ── */
 .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); }
 .cal-cell {
-  min-height: 130px; padding: 8px 10px 6px;
+  min-height: 148px; padding: 8px 10px 6px;
   border-right: 1px solid #efefef; border-bottom: 1px solid #efefef;
   cursor: pointer; transition: background .12s; position: relative;
   overflow: hidden; vertical-align: top;
@@ -319,43 +414,67 @@ body {
 
 /* ── Event blocks — Teams-style ── */
 .event-block {
-  display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 6px;
   background: #ff6600; color: #fff;
-  border-radius: 4px; padding: 4px 8px;
-  margin-bottom: 3px; font-size: .78rem; font-weight: 600;
+  border-radius: 5px; padding: 5px 10px;
+  margin-bottom: 4px; font-size: .88rem; font-weight: 600;
   cursor: pointer; transition: filter .15s, transform .1s;
   overflow: hidden; position: relative;
 }
-.event-block:hover { filter: brightness(.92); transform: translateX(1px); }
-.event-block.ev-past { background: #e0e0e0; color: #999; }
-.event-block.ev-past:hover { filter: brightness(.96); }
-.ev-dot  { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.6); flex-shrink: 0; }
-.ev-time { font-size: .7rem; opacity: .88; white-space: nowrap; flex-shrink: 0; }
+.event-block:hover { filter: brightness(.88); transform: translateX(2px); }
+.event-block.ev-past { background: #ddd; color: #888; }
+.event-block.ev-past:hover { filter: brightness(.95); }
+.ev-dot  { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.65); flex-shrink: 0; }
+.ev-time { font-size: .76rem; opacity: .9; white-space: nowrap; flex-shrink: 0; font-weight: 500; }
 .ev-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .more-count {
-  font-size: .73rem; color: #ff6600; font-weight: 700;
-  padding: 2px 0 0 4px; cursor: pointer;
+  font-size: .8rem; color: #ff6600; font-weight: 700;
+  padding: 3px 0 0 4px; cursor: pointer;
 }
 .more-count:hover { text-decoration: underline; }
 
-/* ── Day detail panel — Teams card style ── */
-.day-panel { display: none; border-top: 1px solid #efefef; }
-.day-panel.open { display: block; }
-.day-panel-inner { padding: 0 24px 24px; }
-.day-panel-header {
+/* ── Calendar event popup modal ── */
+.cal-popup-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 400;
+  backdrop-filter: blur(2px);
+}
+.cal-popup-overlay.open { display: flex; align-items: center; justify-content: center; }
+
+.cal-popup {
+  background: #fff; border-radius: 16px;
+  width: 92%; max-width: 520px; max-height: 80vh;
+  overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,.24);
+  animation: popIn .22s ease;
+}
+@keyframes popIn {
+  from { opacity:0; transform: scale(.94) translateY(10px); }
+  to   { opacity:1; transform: scale(1) translateY(0); }
+}
+
+.cal-popup-head {
+  position: sticky; top: 0; background: #fff;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 0 14px; border-bottom: 1px solid #efefef; margin-bottom: 16px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid #efefef; z-index: 1;
 }
-.day-panel-date { font-size: 1.05rem; font-weight: 700; color: #111; }
-.day-panel-sub  { font-size: .82rem; color: #999; font-weight: 400; margin-left: 8px; }
-.day-panel-close {
-  background: none; border: none; color: #aaa; cursor: pointer;
-  width: 28px; height: 28px; border-radius: 6px;
+.cal-popup-date {
+  font-size: 1.1rem; font-weight: 700; color: #111; line-height: 1.2;
+}
+.cal-popup-count {
+  font-size: .8rem; color: #999; font-weight: 400; margin-top: 2px;
+}
+.cal-popup-close {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid #e8e8e8; background: #fafafa;
+  color: #666; cursor: pointer; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  transition: background .15s, color .15s;
+  transition: all .15s;
 }
-.day-panel-close:hover { background: #f0f0f0; color: #333; }
-.day-panel-close svg { width: 14px; height: 14px; }
+.cal-popup-close:hover { background: #111; border-color: #111; color: #fff; }
+.cal-popup-close svg { width: 13px; height: 13px; }
+
+.cal-popup-body { padding: 16px 22px 22px; display: flex; flex-direction: column; gap: 10px; }
 
 .dp-events { display: flex; flex-direction: column; gap: 10px; }
 .dp-card {
@@ -483,9 +602,17 @@ body {
           <label for="region-select">Region:</label>
           <select id="region-select"><option value="all">All Regions</option></select>
         </div>
-        <div>
-          <label for="location-select">Location:</label>
-          <select id="location-select"><option value="all">All Locations</option></select>
+        <!-- Custom location dropdown with rolling text -->
+        <div class="loc-filter-group">
+          <label>Location:</label>
+          <div class="loc-dropdown-wrap" id="loc-dropdown-wrap">
+            <button class="loc-trigger" id="loc-trigger" type="button">
+              <span class="loc-scroll-mask">
+                <span class="loc-scroll-text" id="loc-scroll-text">All Locations</span>
+              </span>
+            </button>
+            <div class="loc-list" id="loc-list"></div>
+          </div>
         </div>
         <div>
           <label for="view-select">View:</label>
@@ -556,23 +683,24 @@ body {
       </div>
       <!-- Grid -->
       <div class="cal-grid" id="cal-grid"></div>
-      <!-- Selected day detail panel -->
-      <div class="day-panel" id="day-panel">
-        <div class="day-panel-inner">
-          <div class="day-panel-header">
-            <div>
-              <span class="day-panel-date" id="day-panel-title"></span>
-              <span class="day-panel-sub" id="day-panel-sub"></span>
-            </div>
-            <button class="day-panel-close" id="day-panel-close">
-              <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path d="M18 6 6 18M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-          <div class="dp-events" id="day-panel-events"></div>
+    </div>
+  </div>
+
+  <!-- Calendar event popup (centred modal) -->
+  <div class="cal-popup-overlay" id="cal-popup-overlay">
+    <div class="cal-popup" id="cal-popup">
+      <div class="cal-popup-head">
+        <div>
+          <div class="cal-popup-date" id="cal-popup-date"></div>
+          <div class="cal-popup-count" id="cal-popup-count"></div>
         </div>
+        <button class="cal-popup-close" id="cal-popup-close">
+          <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
+      <div class="cal-popup-body" id="cal-popup-body"></div>
     </div>
   </div>
 
@@ -697,7 +825,7 @@ function getFiltered() {
   const y   = document.getElementById('year-select').value;
   const m   = document.getElementById('month-select').value;
   const reg = document.getElementById('region-select').value;
-  const loc = document.getElementById('location-select').value;
+  const loc = locDropdown.value; // custom dropdown
   let f = allEvents;
   if (y   !== 'all') f = f.filter(e => e._date.getFullYear()===+y);
   if (m   !== 'all') f = f.filter(e => e._date.getMonth()===+m);
@@ -791,7 +919,7 @@ function updateLocationFilter() {
     }
   }
 
-  // Group locations by country for optgroup
+  // Group locations by country
   const countryLocs = {};
   f.forEach(e => {
     if (!e.Location) return;
@@ -800,39 +928,24 @@ function updateLocationFilter() {
     countryLocs[country].add(e.Location);
   });
 
-  const sel = document.getElementById('location-select');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="all">All Locations</option>';
-
+  const prevVal = locDropdown.value;
+  // Build flat list of {value, label, country} for custom dropdown
+  const options = [{ value:'all', label:'All Locations', country:null }];
   Object.keys(countryLocs).sort().forEach(country => {
     const locs = [...countryLocs[country]].sort();
-    if (Object.keys(countryLocs).length === 1) {
-      locs.forEach(l => {
-        const o = document.createElement('option');
-        o.value = l; o.textContent = l; sel.appendChild(o);
-      });
-    } else {
-      const grp = document.createElement('optgroup');
-      grp.label = country;
-      locs.forEach(l => {
-        const o = document.createElement('option');
-        o.value = l; o.textContent = l; grp.appendChild(o);
-      });
-      sel.appendChild(grp);
-    }
+    locs.forEach(l => options.push({ value:l, label:l, country }));
   });
-
-  if ([...sel.options].some(o => o.value===cur)) sel.value=cur;
+  locDropdown.setOptions(options, prevVal);
 }
 
 function updateCount(n) {
   const y=document.getElementById('year-select').value;
   const m=document.getElementById('month-select').value;
   const reg=document.getElementById('region-select').value;
-  const loc=document.getElementById('location-select').value;
+  const loc=locDropdown.value;
   const yN=y==='all'?'all years':y;
   const mN=m==='all'?'all months':new Date(0,+m).toLocaleString('en-US',{month:'long'});
-  const rN=reg==='all'?'all regions':reg;
+  const rN=reg==='all'?'all regions':reg.startsWith('_country_')?reg.slice(9)+' (All)':reg;
   const lN=loc==='all'?'all locations':loc;
   document.getElementById('event-count').textContent=`${n} event${n===1?'':'s'} · ${yN}, ${mN} · ${rN}, ${lN}`;
 }
@@ -980,7 +1093,7 @@ function toggleSection(bodyId,chevId){
 ══════════════════════ */
 function renderCalendar() {
   const reg = document.getElementById('region-select').value;
-  const loc = document.getElementById('location-select').value;
+  const loc = locDropdown.value;
 
   const evts = allEvents.filter(ev => {
     if (ev._date.getFullYear()!==calYear || ev._date.getMonth()!==calMonth) return false;
@@ -1052,46 +1165,36 @@ function renderCalendar() {
 
   document.getElementById('cal-grid').innerHTML = html;
 
-  // Re-open panel if a date was already selected
+  // Re-open popup if date still valid after nav
   if (selectedDate) {
     const list = evts.filter(ev=>ev._date.toDateString()===selectedDate);
-    openDayPanel(selectedDate, list);
+    if (list.length || evts.some(()=>true)) openCalendarPopup(selectedDate, list);
   }
 
-  // Cell click → open/toggle day panel
+  // Cell click → open centred popup
   document.querySelectorAll('.cal-cell[data-date]').forEach(cell => {
-    cell.addEventListener('click', e => {
+    cell.addEventListener('click', () => {
       const ds   = cell.getAttribute('data-date');
       const list = evts.filter(ev=>ev._date.toDateString()===ds);
-      // If clicking the number area of an already-selected day, close it
-      if (selectedDate===ds && !e.target.closest('.event-block') && !e.target.closest('.more-count')) {
-        selectedDate=null;
-        cell.classList.remove('is-selected');
-        document.getElementById('day-panel').classList.remove('open');
-      } else {
-        document.querySelectorAll('.cal-cell.is-selected').forEach(c=>c.classList.remove('is-selected'));
-        cell.classList.add('is-selected');
-        selectedDate=ds;
-        openDayPanel(ds, list);
-      }
+      document.querySelectorAll('.cal-cell.is-selected').forEach(c=>c.classList.remove('is-selected'));
+      cell.classList.add('is-selected');
+      selectedDate = ds;
+      openCalendarPopup(ds, list);
     });
   });
 }
 
-function openDayPanel(dateStr, events) {
-  const panel  = document.getElementById('day-panel');
-  const title  = document.getElementById('day-panel-title');
-  const sub    = document.getElementById('day-panel-sub');
-  const body   = document.getElementById('day-panel-events');
-
+function openCalendarPopup(dateStr, events) {
   const d = new Date(dateStr);
-  title.textContent = d.toLocaleDateString('en-US',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
-  sub.textContent   = events.length
-    ? `${events.length} event${events.length===1?'':'s'}`
-    : '';
+  document.getElementById('cal-popup-date').textContent =
+    d.toLocaleDateString('en-US',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  document.getElementById('cal-popup-count').textContent = events.length
+    ? `${events.length} event${events.length===1?'':'s'} scheduled`
+    : 'No events scheduled';
 
+  const body = document.getElementById('cal-popup-body');
   if (!events.length) {
-    body.innerHTML = `<div class="dp-empty">No events scheduled for this day.</div>`;
+    body.innerHTML = `<p style="color:#bbb;font-size:.92rem;text-align:center;padding:20px 0;">No events on this day.</p>`;
   } else {
     body.innerHTML = events.map(ev => {
       const past = isPast(ev._date) && !isToday(ev._date);
@@ -1099,26 +1202,22 @@ function openDayPanel(dateStr, events) {
       return `<div class="dp-card">
         <div class="dp-stripe${past?' dp-past':''}"></div>
         <div class="dp-body">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;">
             <div class="dp-title">${ev['Event-Name']||'Untitled Event'}</div>
-            <span class="dp-badge ${conf?'dp-badge-confirm':'dp-badge-pending'}">${conf?'Confirmed':'Pending'}</span>
+            <span class="dp-badge ${conf?'dp-badge-confirm':'dp-badge-pending'}" style="flex-shrink:0;">${conf?'Confirmed':'Pending'}</span>
           </div>
           <div class="dp-meta">
             ${ev.Time?`<span class="dp-meta-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              ${ev.Time}
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>${ev.Time}
             </span>`:''}
             ${ev['Client-Name']?`<span class="dp-meta-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              ${ev['Client-Name']}
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${ev['Client-Name']}
             </span>`:''}
             ${ev.Location?`<span class="dp-meta-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-              ${ev.Location}
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>${ev.Location}
             </span>`:''}
             ${ev.Reception?`<span class="dp-meta-item">
-              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-              ${ev.Reception}
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>${ev.Reception}
             </span>`:''}
           </div>
         </div>
@@ -1126,8 +1225,13 @@ function openDayPanel(dateStr, events) {
     }).join('');
   }
 
-  panel.classList.add('open');
-  setTimeout(() => panel.scrollIntoView({ behavior:'smooth', block:'nearest' }), 50);
+  document.getElementById('cal-popup-overlay').classList.add('open');
+}
+
+function closeCalendarPopup() {
+  document.getElementById('cal-popup-overlay').classList.remove('open');
+  document.querySelectorAll('.cal-cell.is-selected').forEach(c=>c.classList.remove('is-selected'));
+  selectedDate = null;
 }
 
 /* ══════════════════════
@@ -1218,15 +1322,115 @@ function showToast(msg){
 }
 
 /* ══════════════════════
+   CUSTOM LOCATION DROPDOWN
+══════════════════════ */
+const locDropdown = (() => {
+  let _value = 'all';
+  let _options = [];
+  let _isOpen = false;
+
+  const trigger  = () => document.getElementById('loc-trigger');
+  const list     = () => document.getElementById('loc-list');
+  const scrollTx = () => document.getElementById('loc-scroll-text');
+  const mask     = () => scrollTx().parentElement;
+
+  function setDisplay(label) {
+    const tx   = scrollTx();
+    tx.textContent = label;
+    tx.classList.remove('rolling');
+    tx.style.removeProperty('--roll-dist');
+    // Measure after paint to see if text overflows
+    requestAnimationFrame(() => {
+      const overflow = tx.scrollWidth - mask().clientWidth;
+      if (overflow > 4) {
+        tx.style.setProperty('--roll-dist', `-${overflow + 8}px`);
+        tx.classList.add('rolling');
+      }
+    });
+  }
+
+  function open() {
+    list().classList.add('open');
+    trigger().classList.add('open');
+    _isOpen = true;
+  }
+  function close() {
+    list().classList.remove('open');
+    trigger().classList.remove('open');
+    _isOpen = false;
+  }
+
+  function buildList(options) {
+    const el = list();
+    el.innerHTML = '';
+    let lastCountry = null;
+    options.forEach(opt => {
+      if (opt.value !== 'all' && opt.country && opt.country !== lastCountry) {
+        lastCountry = opt.country;
+        const grpEl = document.createElement('div');
+        grpEl.className = 'loc-group-label';
+        grpEl.textContent = opt.country;
+        el.appendChild(grpEl);
+      }
+      const item = document.createElement('div');
+      item.className = 'loc-option' + (opt.value === _value ? ' selected' : '');
+      item.dataset.value = opt.value;
+      const tx = document.createElement('span');
+      tx.className = 'loc-opt-text';
+      tx.textContent = opt.label;
+      item.appendChild(tx);
+      item.addEventListener('mouseenter', () => {
+        // Roll option text if it overflows
+        const overflow = tx.scrollWidth - item.clientWidth - 32;
+        if (overflow > 4) {
+          tx.style.setProperty('--roll-dist', `-${overflow + 8}px`);
+        }
+      });
+      item.addEventListener('click', () => {
+        _value = opt.value;
+        setDisplay(opt.label);
+        close();
+        render(); // trigger filter
+      });
+      el.appendChild(item);
+    });
+  }
+
+  // Public API
+  return {
+    get value() { return _value; },
+    init() {
+      trigger().addEventListener('click', e => {
+        e.stopPropagation();
+        _isOpen ? close() : open();
+      });
+      document.addEventListener('click', e => {
+        if (!document.getElementById('loc-dropdown-wrap').contains(e.target)) close();
+      });
+      document.addEventListener('keydown', e => { if(e.key==='Escape') close(); });
+    },
+    setOptions(options, preserveValue) {
+      _options = options;
+      const stillValid = options.some(o => o.value === preserveValue);
+      if (!stillValid) {
+        _value = 'all';
+        setDisplay('All Locations');
+      }
+      buildList(options);
+    }
+  };
+})();
+
+/* ══════════════════════
    WIRE UP
 ══════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
+  locDropdown.init();
   loadEvents();
 
   ['year-select','month-select'].forEach(id=>
     document.getElementById(id).addEventListener('change',()=>{updateRegionFilter();updateLocationFilter();render();}));
   document.getElementById('region-select').addEventListener('change',()=>{updateLocationFilter();render();});
-  document.getElementById('location-select').addEventListener('change',render);
   document.getElementById('view-select').addEventListener('change',render);
 
   document.getElementById('refresh-btn').addEventListener('click',()=>loadEvents(true));
@@ -1243,15 +1447,16 @@ document.addEventListener('DOMContentLoaded', () => {
     calYear=new Date().getFullYear(); calMonth=new Date().getMonth();
     selectedDate=null; renderCalendar();
   });
-  document.getElementById('day-panel-close').addEventListener('click',()=>{
-    selectedDate=null;
-    document.querySelectorAll('.cal-cell.is-selected').forEach(c=>c.classList.remove('is-selected'));
-    document.getElementById('day-panel').classList.remove('open');
+
+  // Calendar popup close
+  document.getElementById('cal-popup-close').addEventListener('click', closeCalendarPopup);
+  document.getElementById('cal-popup-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('cal-popup-overlay')) closeCalendarPopup();
   });
 
-  // Jump to Today in header
-  document.getElementById('refresh-btn');
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.getElementById('day-panel').classList.remove('open');selectedDate=null;}});
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape') closeCalendarPopup();
+  });
 });
 </script>
 </body>
