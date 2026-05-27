@@ -1,1010 +1,1488 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
-<title>Compass Events Dashboard</title>
+<title>Compass Events</title>
 <style>
+*, *::before, *::after { box-sizing: border-box; }
 body {
-box-sizing: border-box;
-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-margin: 0;
-padding: 20px;
-background: #000;
-min-height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0; padding: 20px;
+  background: #000; min-height: 100vh;
 }
 .container {
-max-width: 1200px;
-margin: 0 auto;
-box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-overflow: hidden;
-padding-bottom: 40px;
+  max-width: 1200px; margin: 0 auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,.4);
+  overflow: hidden; padding-bottom: 50px;
 }
-.logo-banner {
-width: 100%;
-background: #000;
-display: flex;
-justify-content: center;
-align-items: center;
-padding: 16px 0 10px 0;
+
+/* ══════════════════════════════════
+   HEADER — Unified branded header
+══════════════════════════════════ */
+.site-header {
+  background: #0d0d0d;
+  position: sticky; top: 0; z-index: 100;
+  border-bottom: 2px solid #ff6600;
 }
-.logo-banner img {
-height: 50px;
-width: auto;
-filter: brightness(100%) contrast(110%);
-max-width: 260px;
+
+/* Thin orange gradient accent at very top */
+.header-accent {
+  height: 3px;
+  background: linear-gradient(90deg, #cc4400, #ff6600 40%, #ff9900 70%, #ff6600);
 }
-.header {
-background: #000;
-color: #fff;
-padding: 30px 30px 15px 30px;
-text-align: center;
-position: relative;
+
+/* Brand row: logo | divider | title | event count */
+.header-brand {
+  display: flex; align-items: center;
+  padding: 16px 32px; gap: 20px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
 }
-.header h1 {
-margin: 0 0 5px 0;
-font-size: 2.3rem;
-font-weight: 700;
-color: #fff;
+.brand-logo { display: flex; align-items: center; flex-shrink: 0; }
+.brand-logo img { height: 42px; width: auto; display: block; }
+.brand-divider {
+  width: 1px; height: 36px;
+  background: rgba(255,255,255,.15); flex-shrink: 0;
 }
-.header p {
-margin: 5px 0 0 0;
-font-size: 1.1rem;
-opacity: 0.9;
-color: #ff6600;
-font-weight: 600;
-letter-spacing: 0.02em;
+.brand-text { flex: 1; min-width: 0; }
+.brand-text h1 {
+  font-size: 1.45rem; font-weight: 700; color: #fff;
+  margin: 0 0 2px; letter-spacing: -.01em; line-height: 1.1;
 }
-.event-count {
-margin: 12px 0 0 0;
-font-size: 1.05rem;
-color: #fff;
-opacity: 0.85;
-font-weight: 500;
+.brand-text p {
+  font-size: .75rem; color: #ff6600; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; margin: 0;
 }
+.brand-count {
+  text-align: right; flex-shrink: 0;
+}
+#event-count {
+  font-size: 1.05rem; color: rgba(255,255,255,.6);
+  font-weight: 600; line-height: 1.4;
+}
+/* Refresh icon button — sits in brand row top-right */
+.btn-refresh {
+  width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.55); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.btn-refresh svg { width: 16px; height: 16px; display: block; }
+.btn-refresh:hover { border-color: #ff6600; color: #ff6600; background: rgba(255,102,0,.1); }
+.btn-refresh.spinning svg { animation: spin .7s linear infinite; }
+
+/* Controls row: filters + actions */
+.header-controls { padding: 14px 32px 18px; }
+
+/* ── SELECTORS ── */
 .selector-group {
-margin: 22px 0 0 0;
-display: flex;
-justify-content: center;
-align-items: center;
-gap: 15px;
-flex-wrap: wrap;
+  display: flex; justify-content: center;
+  align-items: center; gap: 14px; flex-wrap: wrap;
 }
-.selector-group label {
-font-weight: 600;
-font-size: 1rem;
-color: #fff;
-}
+.selector-group label { font-weight: 600; font-size: 1rem; color: #fff; }
 .selector-group select {
-background: #111;
-border: 2px solid #ff6600;
-color: #ff6600;
-padding: 10px 15px;
-border-radius: 25px;
-font-size: 1rem;
-font-weight: 500;
-cursor: pointer;
-transition: all 0.3s ease;
-outline: none;
+  background: #111; border: 2px solid #ff6600; color: #ff6600;
+  padding: 10px 16px; border-radius: 25px; font-size: 1rem;
+  font-weight: 500; cursor: pointer; outline: none;
+  font-family: inherit; transition: all .25s;
 }
-.selector-group select:focus,
-.selector-group select:hover {
-background: #ff6600;
-color: #fff;
-border-color: #ff6600;
+.selector-group select:hover,
+.selector-group select:focus { background: #ff6600; color: #fff; }
+.selector-group select option { background: #222; color: #fff; }
+.selector-group select optgroup { background: #111; color: #ff6600; font-style: normal; font-weight: 700; }
+
+/* ── CUSTOM LOCATION DROPDOWN ── */
+.loc-filter-group { display: flex; align-items: center; gap: 6px; position: relative; }
+.loc-filter-group label { font-weight: 600; font-size: 1rem; color: #fff; white-space: nowrap; }
+
+.loc-dropdown-wrap {
+  position: relative; width: 168px;
 }
-.selector-group select option {
-background: #fff;
-color: #222;
-padding: 10px;
+
+/* The trigger button */
+.loc-trigger {
+  width: 100%; height: 42px;
+  background: #111; border: 2px solid #ff6600; color: #ff6600;
+  border-radius: 25px; font-size: 1rem; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  display: flex; align-items: center;
+  padding: 0 32px 0 14px;
+  overflow: hidden; position: relative;
+  transition: background .25s, color .25s;
 }
-.loading,
-.no-events {
-text-align: center;
-padding: 60px 20px;
-color: #333;
-font-size: 1.2rem;
+.loc-trigger:hover, .loc-trigger.open {
+  background: #ff6600; color: #fff;
 }
+/* Chevron arrow */
+.loc-trigger::after {
+  content: '';
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid currentColor;
+  transition: transform .2s;
+  pointer-events: none;
+}
+.loc-trigger.open::after { transform: translateY(-50%) rotate(180deg); }
+
+/* Scrolling text inside trigger */
+.loc-scroll-mask {
+  overflow: hidden; flex: 1;
+  position: relative;
+}
+.loc-scroll-text {
+  display: block; white-space: nowrap;
+  /* Rolling animation applied by JS when text overflows */
+}
+@keyframes loc-roll {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(0); }
+  55%  { transform: translateX(var(--roll-dist, 0px)); }
+  70%  { transform: translateX(var(--roll-dist, 0px)); }
+  95%  { transform: translateX(0); }
+  100% { transform: translateX(0); }
+}
+.loc-scroll-text.rolling {
+  animation: loc-roll 4s ease-in-out infinite;
+}
+
+/* Dropdown list */
+.loc-list {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0;
+  background: #1a1a1a; border: 2px solid #ff6600; border-radius: 14px;
+  width: 260px; max-height: 260px; overflow-y: auto;
+  z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  padding: 6px 0;
+}
+.loc-list.open { display: block; }
+.loc-list::-webkit-scrollbar { width: 6px; }
+.loc-list::-webkit-scrollbar-track { background: transparent; }
+.loc-list::-webkit-scrollbar-thumb { background: #ff6600; border-radius: 3px; }
+
+.loc-group-label {
+  font-size: .7rem; font-weight: 800; color: #ff6600;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: 8px 16px 4px; opacity: .7; pointer-events: none;
+}
+.loc-option {
+  padding: 9px 16px; cursor: pointer;
+  font-size: .92rem; color: rgba(255,255,255,.8);
+  overflow: hidden; white-space: nowrap;
+  position: relative;
+  transition: background .15s, color .15s;
+  border-radius: 0;
+}
+.loc-option:hover {
+  background: rgba(255,102,0,.15); color: #fff;
+}
+.loc-option:hover .loc-opt-text {
+  animation: loc-roll 3.5s ease-in-out infinite;
+}
+.loc-option.selected {
+  background: rgba(255,102,0,.2); color: #ff6600; font-weight: 600;
+}
+.loc-opt-text {
+  display: block; white-space: nowrap;
+}
+
+/* ── ACTION ROW ── */
+.action-row {
+  margin: 14px 0 0; display: flex; justify-content: center;
+  align-items: center; gap: 12px; flex-wrap: wrap;
+  min-height: 0;
+}
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 20px; border-radius: 25px; font-size: .95rem;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+  border: 2px solid rgba(255,255,255,.22); background: transparent;
+  color: rgba(255,255,255,.65); transition: all .2s;
+}
+.btn-ghost svg { width: 15px; height: 15px; flex-shrink: 0; }
+.btn-ghost:hover { border-color: #ff6600; color: #ff6600; }
+.btn-orange {
+  display: none; align-items: center; gap: 8px;
+  padding: 10px 24px; border-radius: 25px; font-size: 1rem;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+  background: #ff6600; border: 2px solid #ff6600; color: #fff;
+  transition: all .2s;
+}
+.btn-orange svg { width: 16px; height: 16px; flex-shrink: 0; }
+.btn-orange:hover   { background: #e05a00; border-color: #e05a00; }
+.btn-orange.show    { display: inline-flex; }
+.btn-orange.copied  { background: #51cf66; border-color: #51cf66; pointer-events: none; }
+
+/* ── RESPONSIVE header ── */
+@media (max-width: 700px) {
+  .header-brand { padding: 14px 20px; gap: 14px; }
+  .brand-logo img { height: 32px; }
+  .brand-text h1  { font-size: 1.15rem; }
+  .brand-count    { display: none; }
+  .header-controls { padding: 12px 16px 16px; }
+}
+@media (max-width: 480px) {
+  .brand-divider  { display: none; }
+  .brand-text p   { display: none; }
+}
+
+/* ── LOADING / ERROR ── */
+.loading-state { text-align: center; padding: 80px 20px; background: #f5f5f5; }
 .spinner {
-border: 4px solid #eee;
-border-top: 4px solid #ff6600;
-border-radius: 50%;
-width: 40px;
-height: 40px;
-animation: spin 1s linear infinite;
-margin: 0 auto 20px;
+  border: 4px solid #ddd; border-top-color: #ff6600;
+  border-radius: 50%; width: 44px; height: 44px;
+  animation: spin .9s linear infinite; margin: 0 auto 20px;
 }
-@keyframes spin {
-0% { transform: rotate(0deg); }
-100% { transform: rotate(360deg); }
-}
-.events-container {
-padding: 36px;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-state p { color: #888; font-size: 1.05rem; }
+.error-box { padding: 36px; background: #f5f5f5; }
+.error-inner { background: #ffe6e6; border-left: 4px solid #dc2626; border-radius: 8px; padding: 20px 24px; }
+.error-inner h3 { font-size: 1.1rem; color: #dc2626; margin-bottom: 6px; }
+
+/* ── EMPTY STATE ── */
+.empty-state { text-align: center; padding: 70px 20px; background: #fff; border-radius: 12px; }
+.empty-state svg { width: 50px; height: 50px; color: #ddd; margin-bottom: 16px; }
+.empty-state h3 { font-size: 1.1rem; color: #999; margin-bottom: 6px; }
+.empty-state p  { font-size: .95rem; color: #bbb; }
+
+/* ════════════════════════════════════
+   LIST VIEW
+════════════════════════════════════ */
+.list-view { padding: 36px; background: #f0f0f0; display: flex; flex-direction: column; gap: 18px; }
 .event-card {
-background: #f7f7f7;
-border-radius: 14px;
-padding: 25px;
-margin-bottom: 24px;
-border-left: 5px solid #222;
-transition: all 0.3s ease;
-position: relative;
-box-shadow: 0 3px 16px rgba(0,0,0,0.06);
+  background: #fff; border-radius: 14px; padding: 24px 26px;
+  border-left: 5px solid #ccc;
+  box-shadow: 0 3px 14px rgba(0,0,0,.07);
+  transition: box-shadow .2s, transform .2s, opacity .2s;
+  animation: fadeUp .3s ease both;
 }
-.event-card.today {
-border-left-color: #ff6b6b;
-background: #fff6f6;
-border: 2px solid #ff6b6b;
-box-shadow: 0 4px 16px rgba(255, 107, 107, 0.08);
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.event-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.11); transform: translateY(-1px); }
+.event-card.is-past     { opacity: .45; }
+.event-card.is-past:hover { opacity: .75; }
+.event-card.is-today    { border-left-color: #ff6b6b; background: #fff6f6; border: 2px solid #ff6b6b; }
+.event-card.is-upcoming { border-left-color: #51cf66; }
+.event-card.is-today .event-title { color: #ff6b6b; }
+
+.card-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 20px;
+  font-size: .88rem; font-weight: 700; white-space: nowrap;
 }
-.event-card.today .event-title {
-color: #ff6b6b;
+.badge svg { width: 13px; height: 13px; }
+.badge-today    { background: #ff6b6b; color: #fff; }
+.badge-upcoming { background: #51cf66; color: #fff; }
+.badge-past     { background: #e5e5e5; color: #888; }
+.badge-time     { background: #ff6600; color: #fff; }
+.badge-confirm  { background: #dcfce7; color: #16a34a; margin-left: auto; }
+.badge-pending  { background: #f0f0f0; color: #999; margin-left: auto; }
+
+.event-title { font-size: 1.32rem; font-weight: 700; color: #1a1a1a; margin-bottom: 12px; line-height: 1.3; }
+.event-meta  { display: flex; gap: 22px; flex-wrap: wrap; }
+.meta-item   { display: flex; align-items: center; gap: 8px; font-size: .95rem; color: #555; font-weight: 500; }
+.meta-item svg { width: 16px; height: 16px; color: #ff6600; flex-shrink: 0; }
+
+/* ════════════════════════════════════
+   TABLE VIEW
+════════════════════════════════════ */
+.table-view { padding: 36px; background: #f0f0f0; display: flex; flex-direction: column; gap: 24px; }
+.country-section { border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.country-header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 22px; background: #111;
+  cursor: pointer; user-select: none; transition: background .2s;
 }
-.event-card.upcoming {
-border-left-color: #51cf66;
-}
-.event-date {
-display: flex;
-align-items: center;
-margin-bottom: 15px;
-}
-.date-badge {
-background: #222;
-color: #fff;
-padding: 8px 16px;
-border-radius: 20px;
-font-weight: 600;
-font-size: 0.95rem;
-margin-right: 15px;
-letter-spacing: 0.03em;
-}
-.today .date-badge { background: #ff6b6b; }
-.upcoming .date-badge { background: #51cf66; }
-.event-card .date-badge { border: 2px solid #ff6600; }
-.time-badge {
-background: #ff6600;
-color: #fff;
-padding: 7px 14px;
-border-radius: 15px;
-font-size: 0.99rem;
-font-weight: 600;
-margin-left: 4px;
-letter-spacing: 0.02em;
-}
-.event-title {
-font-size: 1.36rem;
-font-weight: 700;
-color: #1d1d1d;
-margin-bottom: 10px;
-line-height: 1.22;
-}
-.event-details {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-gap: 15px;
-margin-top: 12px;
-}
-.detail-item {
-display: flex;
-align-items: center;
-min-width: 0;
-}
-.detail-icon {
-width: 20px;
-height: 20px;
-margin-right: 10px;
-opacity: 0.8;
-color: #ff6600;
-flex-shrink: 0;
-}
-.detail-text {
-color: #222;
-font-weight: 600;
-word-break: break-word;
-}
-.calendar-container {
-padding: 36px;
-background: #f7f7f7;
-border-radius: 14px;
-margin: 0 36px;
-}
-.calendar-header {
-display: grid;
-grid-template-columns: repeat(7, 1fr);
-gap: 5px;
-text-align: center;
-font-weight: 600;
-color: #222;
-padding: 10px 0;
-border-bottom: 2px solid #ff6600;
-}
-.calendar-grid {
-display: grid;
-grid-template-columns: repeat(7, 1fr);
-gap: 5px;
-margin-top: 10px;
-}
-.calendar-day {
-background: #fff;
-border: 1px solid #ddd;
-border-radius: 8px;
-min-height: 100px;
-padding: 10px;
-position: relative;
-cursor: pointer;
-transition: all 0.3s ease;
-overflow-y: auto;
-}
-.calendar-day:hover {
-background: #f0f0f0;
-box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-.calendar-day.today {
-border: 2px solid #ff6b6b;
-background: #fff6f6;
-}
-.calendar-day.has-events {
-background: #e6f3ff;
-border-color: #51cf66;
-}
-.day-number {
-font-weight: 600;
-color: #222;
-margin-bottom: 5px;
-}
-.event-indicator {
-background: #ff6600;
-color: #fff;
-border-radius: 12px;
-padding: 2px 8px;
-font-size: 0.8rem;
-margin: 2px 0;
-display: inline-block;
-}
-.event-modal {
-display: none;
-position: fixed;
-top: 50%;
-left: 50%;
-transform: translate(-50%, -50%);
-background: #fff;
-border-radius: 14px;
-padding: 25px;
-box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-z-index: 1000;
-max-width: 500px;
-width: 90%;
-max-height: 80vh;
-overflow-y: auto;
-}
-.event-modal-header {
-display: flex;
-justify-content: space-between;
-align-items: center;
-margin-bottom: 20px;
-}
-.event-modal-header h3 {
-margin: 0;
-font-size: 1.5rem;
-color: #222;
-}
-.close-modal {
-background: none;
-border: none;
-font-size: 1.2rem;
-cursor: pointer;
-color: #ff6600;
-}
-.modal-overlay {
-display: none;
-position: fixed;
-top: 0;
-left: 0;
-width: 100%;
-height: 100%;
-background: rgba(0,0,0,0.5);
-z-index: 999;
-}
-.error-message {
-background: #ffe6e6;
-color: #d63031;
-padding: 20px;
-margin: 20px;
-border-radius: 8px;
-border-left: 4px solid #d63031;
-}
-.no-events h3 {
-color: #999;
-margin-bottom: 10px;
-}
-.copy-button {
-background: transparent;
-color: #ff6600;
-padding: 10px 22px;
-border: 2px solid #ff6600;
-border-radius: 25px;
-font-size: 1rem;
-font-weight: 600;
-cursor: pointer;
-transition: all 0.3s ease;
-display: none;
-align-items: center;
-gap: 8px;
-white-space: nowrap;
-margin: 16px auto 0 auto;
-}
-.copy-button:hover {
-background: #ff6600;
-color: #fff;
-}
-.copy-button.copied {
-background: #51cf66;
-border-color: #51cf66;
-color: #fff;
-pointer-events: none;
-}
-.location-group {
-margin-bottom: 30px;
-border: 1px solid #ddd;
-border-radius: 10px;
-overflow: hidden;
-}
+.country-header:hover { background: #222; }
+.country-label { font-size: .85rem; font-weight: 700; color: rgba(255,255,255,.88); letter-spacing: .07em; text-transform: uppercase; flex: 1; }
+.country-count { font-size: .82rem; font-weight: 600; color: #ff6600; }
+.chev { width: 15px; height: 15px; color: rgba(255,255,255,.4); transition: transform .25s; flex-shrink: 0; }
+.chev.open { transform: rotate(180deg); }
+.country-body { overflow: hidden; transition: max-height .3s ease; }
+.country-body.closed { max-height: 0 !important; }
+
+.location-group { border-top: 1px solid #e0e0e0; }
+.location-group:first-child { border-top: none; }
 .location-header {
-background: #ff6600;
-color: #fff;
-padding: 12px 16px;
-font-weight: 600;
-font-size: 1.1rem;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 11px 22px; background: #ff6600;
+  cursor: pointer; user-select: none; transition: background .2s;
 }
-.location-table {
-width: 100%;
-border-collapse: collapse;
-background: white;
+.location-header:hover { background: #e05a00; }
+.loc-name  { font-size: .95rem; font-weight: 700; color: #fff; flex: 1; }
+.loc-email { font-size: .82rem; color: rgba(255,255,255,.88); display: inline-flex; align-items: center; gap: 5px; }
+.loc-email svg { width: 12px; height: 12px; }
+.loc-count { font-size: .78rem; font-weight: 700; background: rgba(0,0,0,.2); color: rgba(255,255,255,.9); border-radius: 20px; padding: 2px 10px; }
+.loc-chev  { width: 14px; height: 14px; color: rgba(255,255,255,.5); transition: transform .25s; flex-shrink: 0; }
+.loc-chev.open { transform: rotate(180deg); }
+.loc-body  { overflow: hidden; transition: max-height .3s ease; }
+.loc-body.closed { max-height: 0 !important; }
+.table-scroll { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; min-width: 580px; background: #fff; }
+.data-table th {
+  background: #f5f5f5; color: #555; padding: 10px 16px;
+  text-align: left; font-size: .78rem; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase;
+  border-bottom: 2px solid #e0e0e0;
 }
-.location-table th,
-.location-table td {
-border: 1px solid #ddd;
-padding: 10px 12px;
-text-align: left;
+.data-table td { padding: 11px 16px; border-bottom: 1px solid #eee; font-size: .93rem; color: #222; vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #fff8f3; }
+.data-table tr.row-past td { color: #bbb; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #51cf66; }
+.dot.no { background: #ddd; }
+
+/* ════════════════════════════════════
+   CALENDAR VIEW — Teams-inspired
+════════════════════════════════════ */
+.calendar-view { padding: 30px; background: #f0f0f0; }
+
+.cal-shell {
+  background: #fff; border-radius: 12px;
+  box-shadow: 0 2px 20px rgba(0,0,0,.08); overflow: hidden;
 }
-.location-table th {
-background: #f0f0f0;
-font-weight: 600;
+
+/* ── Navigation bar ── */
+.cal-nav {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 24px 14px;
+  background: #fff; border-bottom: 1px solid #efefef;
 }
-.location-table tr:nth-child(even) {
-background: #f9f9f9;
+.cal-month-title {
+  font-size: 1.4rem; font-weight: 700; color: #111;
+  letter-spacing: -.01em; flex: 1;
 }
-@media (max-width: 900px) {
-.container { padding-bottom: 15px; }
-.events-container { padding: 16px; }
-.calendar-container { padding: 16px; margin: 0 16px; }
-.calendar-day { min-height: 80px; }
+.cal-nav-btn {
+  width: 34px; height: 34px; border-radius: 50%; border: none;
+  background: transparent; color: #555; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.cal-nav-btn svg { width: 16px; height: 16px; }
+.cal-nav-btn:hover { background: #f0f0f0; color: #111; }
+.cal-today-btn {
+  padding: 6px 16px; border-radius: 6px;
+  border: 1px solid #d0d0d0; background: #fff;
+  color: #333; font-size: .88rem; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .15s;
+  white-space: nowrap;
+}
+.cal-today-btn:hover { background: #f5f5f5; border-color: #bbb; }
+
+/* ── Day names header ── */
+.cal-day-names {
+  display: grid; grid-template-columns: repeat(7,1fr);
+  border-bottom: 1px solid #efefef;
+}
+.cal-day-name {
+  text-align: center; padding: 10px 0;
+  font-size: .72rem; font-weight: 700; color: #999;
+  letter-spacing: .07em; text-transform: uppercase;
+}
+.cal-day-name:first-child,
+.cal-day-name:last-child { color: #e07070; }
+
+/* ── Calendar grid ── */
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); }
+.cal-cell {
+  min-height: 158px; padding: 8px 10px 6px;
+  border-right: 1px solid #efefef; border-bottom: 1px solid #efefef;
+  cursor: pointer; transition: background .12s; position: relative;
+  overflow: hidden; vertical-align: top;
+}
+.cal-cell:nth-child(7n) { border-right: none; }
+.cal-cell:hover         { background: #fafafa; }
+.cal-cell.is-empty      { background: #f7f7f7; cursor: default; min-height: 0; border-color: #f0f0f0; }
+.cal-cell.is-empty:hover { background: #f7f7f7; }
+.cal-cell.is-past       { background: #f9f9f9; }
+.cal-cell.is-sunday,
+.cal-cell.is-saturday   { background: #fafafa; }
+.cal-cell.is-today      { background: #fff8f4; }
+.cal-cell.is-selected   { background: #fff3eb; outline: 2px solid #ff6600; outline-offset: -2px; }
+
+/* ── Date number ── */
+.day-num-wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.day-num {
+  font-size: .88rem; font-weight: 700; color: #444;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; line-height: 1;
+}
+.cal-cell.is-today .day-num {
+  background: #ff6600; color: #fff;
+}
+.cal-cell.is-past .day-num { color: #ccc; }
+.cal-cell.is-sunday  .day-num:not(.no-wk) { color: #cc4444; }
+.cal-cell.is-saturday .day-num:not(.no-wk) { color: #cc4444; }
+.cal-cell.is-today .day-num { color: #fff; } /* override weekend */
+.event-count-badge {
+  font-size: .68rem; font-weight: 700; color: #bbb;
+}
+
+/* ── Event blocks — Teams-style ── */
+.event-block {
+  display: block;
+  background: #ff6600; color: #fff;
+  border-radius: 5px; padding: 5px 9px 6px;
+  margin-bottom: 4px;
+  cursor: pointer; transition: filter .15s, box-shadow .15s;
+  overflow: hidden; position: relative;
+}
+.event-block:hover { filter: brightness(.88); box-shadow: 0 2px 8px rgba(255,102,0,.35); }
+.event-block.ev-past { background: #e0e0e0; color: #888; }
+.event-block.ev-past:hover { filter: brightness(.96); box-shadow: none; }
+.ev-time {
+  display: block;
+  font-size: .72rem; font-weight: 600;
+  opacity: .88; white-space: nowrap;
+  line-height: 1.2; margin-bottom: 2px;
+  letter-spacing: .02em;
+}
+.ev-name {
+  display: block;
+  font-size: .84rem; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.25;
+}
+.more-count {
+  font-size: .8rem; color: #ff6600; font-weight: 700;
+  padding: 3px 0 0 2px; cursor: pointer;
+}
+.more-count:hover { text-decoration: underline; }
+
+/* ── Calendar event popup modal ── */
+.cal-popup-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 400;
+  backdrop-filter: blur(2px);
+}
+.cal-popup-overlay.open { display: flex; align-items: center; justify-content: center; }
+
+.cal-popup {
+  background: #fff; border-radius: 16px;
+  width: 92%; max-width: 520px; max-height: 80vh;
+  overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,.24);
+  animation: popIn .22s ease;
+}
+@keyframes popIn {
+  from { opacity:0; transform: scale(.94) translateY(10px); }
+  to   { opacity:1; transform: scale(1) translateY(0); }
+}
+
+.cal-popup-head {
+  position: sticky; top: 0; background: #fff;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid #efefef; z-index: 1;
+}
+.cal-popup-date {
+  font-size: 1.1rem; font-weight: 700; color: #111; line-height: 1.2;
+}
+.cal-popup-count {
+  font-size: .8rem; color: #999; font-weight: 400; margin-top: 2px;
+}
+.cal-popup-close {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid #e8e8e8; background: #fafafa;
+  color: #666; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.cal-popup-close:hover { background: #111; border-color: #111; color: #fff; }
+.cal-popup-close svg { width: 13px; height: 13px; }
+
+.cal-popup-body { padding: 16px 22px 22px; display: flex; flex-direction: column; gap: 10px; }
+
+.dp-events { display: flex; flex-direction: column; gap: 10px; }
+.dp-card {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 14px 16px; border-radius: 8px;
+  background: #fafafa; border: 1px solid #efefef;
+  transition: border-color .15s, box-shadow .15s;
+}
+.dp-card:hover { border-color: #ff6600; box-shadow: 0 2px 10px rgba(255,102,0,.08); }
+.dp-stripe {
+  width: 4px; border-radius: 4px; background: #ff6600;
+  flex-shrink: 0; align-self: stretch; min-height: 40px;
+}
+.dp-stripe.dp-past { background: #ddd; }
+.dp-body { flex: 1; min-width: 0; }
+.dp-title { font-size: 1rem; font-weight: 700; color: #111; margin-bottom: 6px; line-height: 1.3; }
+.dp-meta  { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+.dp-meta-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .83rem; color: #666;
+}
+.dp-meta-item svg { width: 13px; height: 13px; color: #ff6600; flex-shrink: 0; }
+.dp-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 12px; font-size: .72rem; font-weight: 700;
+}
+.dp-badge-confirm { background: #dcfce7; color: #16a34a; }
+.dp-badge-pending { background: #f0f0f0; color: #999; }
+.dp-empty {
+  text-align: center; padding: 30px 20px; color: #bbb; font-size: .9rem;
+}
+
+/* ── MODAL ── */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300; }
+.overlay.open { display: block; }
+.modal {
+  display: none; position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  background: #fff; border-radius: 16px; padding: 28px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.22); z-index: 400;
+  max-width: 540px; width: 92%; max-height: 82vh; overflow-y: auto;
+}
+.modal.open { display: block; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-head h3 { font-size: 1.1rem; font-weight: 700; color: #222; }
+.modal-close {
+  background: none; border: 1px solid #ddd; border-radius: 6px;
+  color: #888; cursor: pointer; padding: 5px 10px; font-size: .9rem; transition: all .2s;
+}
+.modal-close:hover { border-color: #ff6600; color: #ff6600; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 28px; left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: #111; color: #fff; padding: 12px 28px;
+  border-radius: 8px; font-size: .95rem; font-weight: 600;
+  border-left: 3px solid #ff6600;
+  box-shadow: 0 4px 24px rgba(0,0,0,.2); z-index: 500;
+  opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 860px) {
+  .list-view, .table-view, .calendar-view { padding: 16px; }
+  .cal-cell { min-height: 96px; }
+  .cal-month-title { font-size: 1.15rem; }
 }
 @media (max-width: 600px) {
-.container { border-radius: 0; }
-.events-container { padding: 8px 2px; }
-.calendar-container { padding: 8px; margin: 0 8px; }
-.header { padding: 18px 6px 8px 6px; }
-.event-card { padding: 16px; }
-.logo-banner { padding: 11px 0 6px 0; }
-.logo-banner img { height: 35px; }
-.calendar-day { min-height: 60px; padding: 5px; overflow-y: auto; }
-.day-number { font-size: 0.9rem; }
-.event-indicator { font-size: 0.7rem; padding: 2px 6px; }
+  body { padding: 0; }
+  .header { padding: 20px 16px 16px; }
+  .header h1 { font-size: 1.7rem; }
+  .list-view, .table-view, .calendar-view { padding: 10px; }
+  .cal-cell { min-height: 62px; padding: 5px 6px 4px; }
+  .day-num  { width: 22px; height: 22px; font-size: .78rem; }
+  .event-block { font-size: .68rem; padding: 3px 5px; }
+  .ev-time { display: none; }
+  .day-panel-inner { padding: 0 14px 18px; }
 }
 </style>
 </head>
 <body>
-<main class="container">
-<div class="logo-banner">
-<img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg"
-alt="Compass Offices Logo" />
-</div>
-<header class="header">
-<h1>Compass Events</h1>
-<p>Upcoming events and today's schedule</p>
-<div id="event-count" class="event-count">Loading events...</div>
-<div class="selector-group">
-<div class="year-selector">
-<label for="year-select">Filter by Year:</label>
-<select id="year-select">
-<option value="all">All Years</option>
-</select>
-</div>
-<div class="month-selector">
-<label for="month-select">Filter by Month:</label>
-<select id="month-select">
-<option value="all">All Months</option>
-<option value="0">January</option>
-<option value="1">February</option>
-<option value="2">March</option>
-<option value="3">April</option>
-<option value="4">May</option>
-<option value="5">June</option>
-<option value="6">July</option>
-<option value="7">August</option>
-<option value="8">September</option>
-<option value="9">October</option>
-<option value="10">November</option>
-<option value="11">December</option>
-</select>
-</div>
-<div class="region-selector">
-<label for="region-select">Filter by Region:</label>
-<select id="region-select">
-<option value="all">All Regions</option>
-</select>
-</div>
-<div class="location-selector">
-<label for="location-select">Filter by Location:</label>
-<select id="location-select">
-<option value="all">All Locations</option>
-</select>
-</div>
-<div class="view-selector">
-<label for="view-select">View:</label>
-<select id="view-select">
-<option value="list">List View</option>
-<option value="calendar">Calendar View</option>
-<option value="table">Table View</option>
-</select>
-</div>
-</div>
-<button id="copy-button" class="copy-button">📋 Copy Table to Clipboard</button>
-</header>
-<div id="loading" class="loading">
-<div class="spinner"></div>
-<p>Loading events...</p>
-</div>
-<div id="events-container" class="events-container" style="display: none;">
-<div id="events-list"></div>
-</div>
-<div id="calendar-container" class="calendar-container" style="display: none;">
-<div class="calendar-header">
-<div>Sun</div>
-<div>Mon</div>
-<div>Tue</div>
-<div>Wed</div>
-<div>Thu</div>
-<div>Fri</div>
-<div>Sat</div>
-</div>
-<div id="calendar-grid" class="calendar-grid"></div>
-</div>
-<div id="error-container" style="display: none;">
-<div class="error-message">
-<h3>Unable to load events</h3>
-<p>There was an issue fetching data from the Google Sheet. Please ensure the sheet is published and accessible.</p>
-</div>
-</div>
-<div id="modal-overlay" class="modal-overlay"></div>
-<div id="event-modal" class="event-modal">
-<div class="event-modal-header">
-<h3 id="modal-date"></h3>
-<button class="close-modal" id="close-modal-btn">✕</button>
-</div>
-<div id="modal-events"></div>
-</div>
-</main>
-<script>
-// ✅ FIX 1: Use the correct published CSV URL directly
-function getCSVUrl() {
-  return 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
-}
+<div class="container">
 
-// ✅ FIX 2: Handle \r\n Windows line endings from Google Sheets
-function parseCSV(csvText) {
-  const lines = csvText.split(/\r?\n/); // was split('\n') — caused \r in field values
-  const headers = parseCSVLine(lines[0]).map(h => h.trim());
-  const data = [];
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim()) {
-      const values = parseCSVLine(lines[i]);
-      const row = {};
-      headers.forEach((header, index) => {
-        row[header] = (values[index] || '').trim();
-      });
-      data.push(row);
-    }
-  }
-  return data;
-}
+  <!-- UNIFIED HEADER -->
+  <header class="site-header">
 
-// ✅ FIX 3: Handle escaped quotes ("") inside quoted CSV fields
-function parseCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'; // escaped quote: "" → "
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
+    <!-- Orange gradient accent line -->
+    <div class="header-accent"></div>
 
-function parseDate(dateStr) {
-  if (!dateStr) return null;
-  const formats = [
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
-    /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
-    /^(\d{1,2})-(\d{1,2})-(\d{4})$/
-  ];
-  for (let idx = 0; idx < formats.length; idx++) {
-    const match = dateStr.match(formats[idx]);
-    if (match) {
-      if (idx === 0) return new Date(match[3], match[2] - 1, match[1]);
-      if (idx === 1) return new Date(match[1], match[2] - 1, match[3]);
-      if (idx === 2) return new Date(match[3], match[1] - 1, match[2]);
-    }
-  }
-  const date = new Date(dateStr);
-  return isNaN(date.getTime()) ? null : date;
-}
-
-function isToday(date) {
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
-}
-
-function isUpcoming(date) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const eventDate = new Date(date); eventDate.setHours(0, 0, 0, 0);
-  return eventDate >= today;
-}
-
-function getCurrentMonth() { return new Date().getMonth(); }
-function getCurrentYear()  { return new Date().getFullYear(); }
-
-function formatDate(date) {
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
-  });
-}
-
-function extractBaseLocation(location) {
-  if (!location) return 'Unknown';
-  return location.split(',')[0].trim();
-}
-
-function createEventCard(event, eventDate) {
-  const todayClass = isToday(eventDate) ? 'today' : (isUpcoming(eventDate) ? 'upcoming' : '');
-  const dateLabel = isToday(eventDate) ? 'Today' : formatDate(eventDate);
-  return `
-    <div class="event-card ${todayClass}">
-      <div class="event-date">
-        <span class="date-badge">${dateLabel}</span>
-        ${event.Time ? `<span class="time-badge">${event.Time}</span>` : ''}
+    <!-- Brand row: logo | divider | title | event count -->
+    <div class="header-brand">
+      <div class="brand-logo">
+        <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ow.svg" alt="Compass Offices" />
       </div>
-      <div class="event-title">${event['Event-Name'] || 'Untitled Event'}</div>
-      <div class="event-details">
-        ${event['Client-Name'] ? `
-          <div class="detail-item">
-            <svg class="detail-icon" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
-            </svg>
-            <span class="detail-text">${event['Client-Name']}</span>
-          </div>` : ''}
-        ${event.Location ? `
-          <div class="detail-item">
-            <svg class="detail-icon" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
-            </svg>
-            <span class="detail-text">${event.Location}</span>
-          </div>` : ''}
+      <div class="brand-divider"></div>
+      <div class="brand-text">
+        <h1>Events Dashboard</h1>
+        <p>Upcoming Events &amp; Today's Schedule</p>
+      </div>
+      <div class="brand-count">
+        <div id="event-count">Loading…</div>
+      </div>
+      <button class="btn-refresh" id="refresh-btn" title="Refresh data">
+        <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/>
+          <path d="M17 8h4V4M7 16H3v4"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Controls row: filters + actions -->
+    <div class="header-controls">
+      <div class="selector-group">
+        <div>
+          <label for="year-select">Year:</label>
+          <select id="year-select"><option value="all">All Years</option></select>
+        </div>
+        <div>
+          <label for="month-select">Month:</label>
+          <select id="month-select">
+            <option value="all">All Months</option>
+            <option value="0">January</option><option value="1">February</option>
+            <option value="2">March</option><option value="3">April</option>
+            <option value="4">May</option><option value="5">June</option>
+            <option value="6">July</option><option value="7">August</option>
+            <option value="8">September</option><option value="9">October</option>
+            <option value="10">November</option><option value="11">December</option>
+          </select>
+        </div>
+        <div>
+          <label for="region-select">Region:</label>
+          <select id="region-select"><option value="all">All Regions</option></select>
+        </div>
+        <!-- Custom location dropdown with rolling text -->
+        <div class="loc-filter-group">
+          <label>Location:</label>
+          <div class="loc-dropdown-wrap" id="loc-dropdown-wrap">
+            <button class="loc-trigger" id="loc-trigger" type="button">
+              <span class="loc-scroll-mask">
+                <span class="loc-scroll-text" id="loc-scroll-text">All Locations</span>
+              </span>
+            </button>
+            <div class="loc-list" id="loc-list"></div>
+          </div>
+        </div>
+        <div>
+          <label for="view-select">View:</label>
+          <select id="view-select">
+            <option value="calendar">Calendar</option>
+            <option value="list">List</option>
+            <option value="table">Table</option>
+          </select>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn-orange" id="copy-button">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy Table to Clipboard
+        </button>
       </div>
     </div>
-  `;
-}
 
-function generateCalendar(year, month, events) {
-  const firstDay = new Date(year, month, 1);
-  const lastDay  = new Date(year, month + 1, 0);
-  const startDay = firstDay.getDay();
-  const daysInMonth = lastDay.getDate();
-  const today = new Date();
-  let calendarHTML = '';
-  let dayCount = 1;
-  const totalCells = Math.ceil((daysInMonth + startDay) / 7) * 7;
-  for (let i = 0; i < totalCells; i++) {
-    if (i < startDay || dayCount > daysInMonth) {
-      calendarHTML += `<div class="calendar-day"></div>`;
-    } else {
-      const currentDate = new Date(year, month, dayCount);
-      const dateStr = currentDate.toDateString();
-      const dayEvents = events.filter(e => e.parsedDate.toDateString() === dateStr);
-      const isTodayClass   = isToday(currentDate) ? 'today' : '';
-      const hasEventsClass = dayEvents.length > 0 ? 'has-events' : '';
-      calendarHTML += `
-        <div class="calendar-day ${isTodayClass} ${hasEventsClass}" data-date="${dateStr}">
-          <div class="day-number">${dayCount}</div>
-          ${dayEvents.map(e => `<div class="event-indicator">${e['Event-Name'] || 'Event'}</div>`).join('')}
-        </div>`;
-      dayCount++;
-    }
-  }
-  return calendarHTML;
-}
+  </header>
 
-async function loadEvents() {
+  <!-- CONTENT -->
+  <div id="loading-state" class="loading-state">
+    <div class="spinner"></div><p>Loading events…</p>
+  </div>
+  <div id="error-box" class="error-box" style="display:none">
+    <div class="error-inner">
+      <h3>Unable to load events</h3>
+      <p>Could not fetch data. Please ensure the Google Sheet is published and accessible.</p>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div id="list-view" class="list-view" style="display:none"></div>
+
+  <!-- Table -->
+  <div id="table-view" class="table-view" style="display:none"></div>
+
+  <!-- Calendar -->
+  <div id="calendar-view" class="calendar-view" style="display:none">
+    <div class="cal-shell">
+      <!-- Nav -->
+      <div class="cal-nav">
+        <button class="cal-nav-btn" id="cal-prev">
+          <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <span class="cal-month-title" id="cal-title"></span>
+        <button class="cal-nav-btn" id="cal-next">
+          <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button class="cal-today-btn" id="cal-goto-today">Today</button>
+      </div>
+      <!-- Day names -->
+      <div class="cal-day-names">
+        <div class="cal-day-name">Sun</div><div class="cal-day-name">Mon</div>
+        <div class="cal-day-name">Tue</div><div class="cal-day-name">Wed</div>
+        <div class="cal-day-name">Thu</div><div class="cal-day-name">Fri</div>
+        <div class="cal-day-name">Sat</div>
+      </div>
+      <!-- Grid -->
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+  </div>
+
+  <!-- Calendar event popup (centred modal) -->
+  <div class="cal-popup-overlay" id="cal-popup-overlay">
+    <div class="cal-popup" id="cal-popup">
+      <div class="cal-popup-head">
+        <div>
+          <div class="cal-popup-date" id="cal-popup-date"></div>
+          <div class="cal-popup-count" id="cal-popup-count"></div>
+        </div>
+        <button class="cal-popup-close" id="cal-popup-close">
+          <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="cal-popup-body" id="cal-popup-body"></div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- Modal (for list/table card clicks) -->
+<div class="overlay" id="overlay"></div>
+<div class="modal" id="modal">
+  <div class="modal-head">
+    <h3 id="modal-title"></h3>
+    <button class="modal-close" id="modal-close">&#10005;</button>
+  </div>
+  <div id="modal-body"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════
+   STATE
+══════════════════════ */
+let allEvents = [];
+let calYear   = new Date().getFullYear();
+let calMonth  = new Date().getMonth();
+let selectedDate = null;  // currently selected calendar day
+
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTazGFKOEPVQu77BpCHV9rTo8odUfVeH7_k0xLjio7V4bUXw__hk14JMBJu0iDC3MewNy8Hw3kowOJt/pub?gid=1632866699&single=true&output=csv';
+
+/* ══════════════════════
+   DATA
+══════════════════════ */
+async function loadEvents(silent = false) {
+  if (!silent) { showEl('loading-state'); hideViews(); }
   try {
-    let csvText = '';
-    let success  = false;
-
-    // Primary: correct published CSV URL
-    try {
-      const response = await fetch(getCSVUrl(), { mode: 'cors' });
-      if (response.ok) {
-        csvText = await response.text();
-        success  = true;
-      }
-    } catch (e) { console.warn('Primary fetch failed:', e); }
-
-    if (!success) {
-      showError();
-      return;
+    const res = await fetch(CSV_URL, { mode: 'cors' });
+    if (!res.ok) throw new Error();
+    allEvents = processCSV(await res.text());
+    populateYears();
+    if (!silent) {
+      document.getElementById('year-select').value  = new Date().getFullYear();
+      document.getElementById('month-select').value = new Date().getMonth().toString();
     }
-
-    const allEvents = parseCSV(csvText);
-
-    const eventsWithDates = allEvents
-      .map(event => ({ ...event, parsedDate: parseDate(event.Date) }))
-      .filter(event => event.parsedDate !== null);
-
-    // Deduplicate — Location included so same event at different offices both appear
-    const uniqueEvents = eventsWithDates.filter((event, index, array) =>
-      index === array.findIndex(e =>
-        e['Event-Name']  === event['Event-Name'] &&
-        e.Date           === event.Date &&
-        e.Time           === event.Time &&
-        e['Client-Name'] === event['Client-Name'] &&
-        e.Location       === event.Location        // ✅ added
-      )
-    );
-
-    const sortedEvents = uniqueEvents.sort((a, b) => a.parsedDate - b.parsedDate);
-    allEventsData = sortedEvents;
-
-    // Populate year dropdown
-    const uniqueYears = [...new Set(sortedEvents.map(e => e.parsedDate.getFullYear()).filter(y => !isNaN(y)))].sort((a, b) => a - b);
-    const yearSelect = document.getElementById('year-select');
-    uniqueYears.forEach(year => {
-      const opt = document.createElement('option');
-      opt.value = year;
-      opt.textContent = year;
-      yearSelect.appendChild(opt);
-    });
-
-    // Default to current year/month
-    yearSelect.value = getCurrentYear();
-    document.getElementById('month-select').value = getCurrentMonth().toString();
-
     updateRegionFilter();
     updateLocationFilter();
-    filterEvents();
-
-    document.getElementById('year-select').addEventListener('change', () => {
-      updateRegionFilter(); updateLocationFilter(); filterEvents();
-    });
-    document.getElementById('month-select').addEventListener('change', () => {
-      updateRegionFilter(); updateLocationFilter(); filterEvents();
-    });
-    document.getElementById('region-select').addEventListener('change', () => {
-      updateLocationFilter(); filterEvents();
-    });
-    document.getElementById('location-select').addEventListener('change', filterEvents);
-    document.getElementById('view-select').addEventListener('change', filterEvents);
-    document.getElementById('copy-button').addEventListener('click', copyTableToClipboard);
-
-    // ✅ FIX 4: Modal close listeners attached once here, not re-added every modal open
-    document.getElementById('close-modal-btn').addEventListener('click', closeModal);
-    document.getElementById('modal-overlay').addEventListener('click', closeModal);
-
-  } catch (error) {
-    console.error('loadEvents error:', error);
-    showError();
+    render();
+    if (silent) showToast('Data refreshed');
+  } catch(e) {
+    hideEl('loading-state');
+    if (silent) { showToast('Refresh failed'); return; }
+    showEl('error-box');
   }
 }
 
-// ✅ FIX 4 (cont.): Separate close function, no stacking listeners
-function closeModal() {
-  document.getElementById('event-modal').style.display  = 'none';
-  document.getElementById('modal-overlay').style.display = 'none';
+function processCSV(text) {
+  const lines   = text.split(/\r?\n/);
+  const headers = parseCSVLine(lines[0]).map(h => h.trim());
+  const seen    = new Set();
+  return lines.slice(1).filter(l => l.trim()).map(l => {
+    const vals = parseCSVLine(l), row = {};
+    headers.forEach((h,i) => row[h] = (vals[i]||'').trim());
+    row._date = parseDate(row.Date);
+    return row;
+  }).filter(r => r._date).filter(r => {
+    const k = `${r['Event-Name']}|${r.Date}|${r.Time}|${r['Client-Name']}|${r.Location}`;
+    if (seen.has(k)) return false; seen.add(k); return true;
+  }).sort((a,b) => a._date - b._date);
 }
 
-let allEventsData = [];
-
-function getFilteredBase() {
-  const selectedYear   = document.getElementById('year-select').value;
-  const selectedMonth  = document.getElementById('month-select').value;
-  let filtered = allEventsData;
-  if (selectedYear  !== 'all') filtered = filtered.filter(e => e.parsedDate.getFullYear() === parseInt(selectedYear));
-  if (selectedMonth !== 'all') filtered = filtered.filter(e => e.parsedDate.getMonth()    === parseInt(selectedMonth));
-  return filtered;
+function parseCSVLine(line) {
+  const res = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c==='"') { if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ; }
+    else if (c===','&&!inQ) { res.push(cur.trim()); cur=''; }
+    else cur += c;
+  }
+  res.push(cur.trim()); return res;
 }
 
-function updateRegionFilter() {
-  const filtered = getFilteredBase();
-  const uniqueRegions = [...new Set(filtered.map(e => e.Region).filter(r => r))].sort();
-  const regionSelect = document.getElementById('region-select');
-  regionSelect.innerHTML = '<option value="all">All Regions</option>';
-  uniqueRegions.forEach(reg => {
-    const opt = document.createElement('option');
-    opt.value = reg; opt.textContent = reg;
-    regionSelect.appendChild(opt);
+function parseDate(s) {
+  if (!s) return null;
+  const fmts = [
+    [/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, m=>new Date(+m[3],+m[2]-1,+m[1])],
+    [/^(\d{4})-(\d{1,2})-(\d{1,2})$/,   m=>new Date(+m[1],+m[2]-1,+m[3])],
+    [/^(\d{1,2})-(\d{1,2})-(\d{4})$/,   m=>new Date(+m[3],+m[1]-1,+m[2])],
+  ];
+  for (const [re,fn] of fmts) { const m=s.match(re); if(m) return fn(m); }
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+
+/* ══════════════════════
+   HELPERS
+══════════════════════ */
+const todayStart = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
+const isToday    = d => d.toDateString()===new Date().toDateString();
+const isPast     = d => { const e=new Date(d); e.setHours(0,0,0,0); return e<todayStart(); };
+const isUpcoming = d => { const e=new Date(d); e.setHours(0,0,0,0); return e>=todayStart(); };
+const fmtDate    = d => d.toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+const fmtMonth   = (y,m) => new Date(y,m).toLocaleString('en-US',{month:'long',year:'numeric'});
+const baseLoc    = loc => (loc||'').split(',')[0].trim()||'Unknown';
+
+/* Country detection — used for Region optgroup grouping AND Table grouping */
+function detectCountry(ev) {
+  const t = ((ev.Region||'')+' '+(ev.Location||'')).toLowerCase();
+  if (/japan|tokyo|osaka|kyoto|nagoya|fukuoka/.test(t))                          return 'Japan';
+  if (/hong kong|hk |admiralty|causeway|tsim sha tsui|wanchai|mong kok/.test(t)) return 'Hong Kong';
+  if (/singapore|raffles|orchard|marina bay/.test(t))                            return 'Singapore';
+  if (/china|shanghai|beijing|shenzhen|guangzhou/.test(t))                       return 'China';
+  if (/korea|seoul|busan/.test(t))                                               return 'South Korea';
+  if (/australia|sydney|melbourne|brisbane|perth/.test(t))                       return 'Australia';
+  if (/taiwan|taipei/.test(t))                                                   return 'Taiwan';
+  if (/malaysia|kuala lumpur|\bkl\b/.test(t))                                    return 'Malaysia';
+  if (/philippines|manila/.test(t))                                              return 'Philippines';
+  if (/thailand|bangkok/.test(t))                                                return 'Thailand';
+  if (/india|mumbai|delhi|bangalore/.test(t))                                    return 'India';
+  return ev.Region || 'Other';
+}
+
+/* ══════════════════════
+   FILTERS
+══════════════════════ */
+function getFiltered() {
+  const y   = document.getElementById('year-select').value;
+  const m   = document.getElementById('month-select').value;
+  const reg = document.getElementById('region-select').value;
+  const loc = locDropdown.value; // custom dropdown
+  let f = allEvents;
+  if (y   !== 'all') f = f.filter(e => e._date.getFullYear()===+y);
+  if (m   !== 'all') f = f.filter(e => e._date.getMonth()===+m);
+  if (reg !== 'all') {
+    if (reg.startsWith('_country_')) {
+      const country = reg.slice(9);
+      f = f.filter(e => detectCountry(e)===country);
+    } else {
+      f = f.filter(e => e.Region===reg);
+    }
+  }
+  if (loc !== 'all') f = f.filter(e => e.Location===loc);
+  return [...f].sort((a,b) => {
+    const [at,bt]=[isToday(a._date),isToday(b._date)];
+    const [au,bu]=[isUpcoming(a._date),isUpcoming(b._date)];
+    if(at&&!bt)return -1; if(!at&&bt)return 1;
+    if(au&&!bu)return -1; if(!au&&bu)return 1;
+    return a._date - b._date;
   });
+}
+
+function populateYears() {
+  const years=[...new Set(allEvents.map(e=>e._date.getFullYear()))].sort();
+  const sel=document.getElementById('year-select');
+  sel.innerHTML='<option value="all">All Years</option>';
+  years.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y;sel.appendChild(o);});
+  sel.value=new Date().getFullYear();
+}
+
+/* Region filter — grouped by country using <optgroup> */
+function updateRegionFilter() {
+  const y=document.getElementById('year-select').value;
+  const m=document.getElementById('month-select').value;
+  let f=allEvents;
+  if(y!=='all') f=f.filter(e=>e._date.getFullYear()===+y);
+  if(m!=='all') f=f.filter(e=>e._date.getMonth()===+m);
+
+  // Build country → regions map
+  const countryRegions = {};
+  f.forEach(e => {
+    if (!e.Region) return;
+    const country = detectCountry(e);
+    if (!countryRegions[country]) countryRegions[country] = new Set();
+    countryRegions[country].add(e.Region);
+  });
+
+  const sel = document.getElementById('region-select');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">All Regions</option>';
+
+  Object.keys(countryRegions).sort().forEach(country => {
+    const regions = [...countryRegions[country]].sort();
+    if (regions.length === 1) {
+      // Only one region — just show it directly, no group needed
+      const o = document.createElement('option');
+      o.value = regions[0]; o.textContent = regions[0];
+      sel.appendChild(o);
+    } else {
+      // Multiple regions — add country as a selectable "All" option, then individual regions in optgroup
+      const countryOpt = document.createElement('option');
+      countryOpt.value = `_country_${country}`;
+      countryOpt.textContent = `${country} — All`;
+      sel.appendChild(countryOpt);
+      const grp = document.createElement('optgroup');
+      grp.label = `  ${country}`;
+      regions.forEach(r => {
+        const o = document.createElement('option');
+        o.value = r; o.textContent = `  ${r}`;
+        grp.appendChild(o);
+      });
+      sel.appendChild(grp);
+    }
+  });
+
+  if ([...sel.options].some(o => o.value===cur)) sel.value=cur;
 }
 
 function updateLocationFilter() {
-  const selectedRegion = document.getElementById('region-select').value;
-  let filtered = getFilteredBase();
-  if (selectedRegion !== 'all') filtered = filtered.filter(e => e.Region === selectedRegion);
-  const uniqueLocations = [...new Set(filtered.map(e => e.Location).filter(l => l))].sort();
-  const locationSelect = document.getElementById('location-select');
-  locationSelect.innerHTML = '<option value="all">All Locations</option>';
-  uniqueLocations.forEach(loc => {
-    const opt = document.createElement('option');
-    opt.value = loc; opt.textContent = loc;
-    locationSelect.appendChild(opt);
-  });
-}
-
-function updateEventCount(events) {
-  const countEl = document.getElementById('event-count');
-  if (events.length === 0) {
-    countEl.textContent = 'No events found for the selected filters.';
-    return;
-  }
-  const yearName     = document.getElementById('year-select').value === 'all'
-    ? 'all years' : document.getElementById('year-select').value;
-  const monthVal     = document.getElementById('month-select').value;
-  const monthName    = monthVal === 'all' ? 'all months'
-    : new Date(0, parseInt(monthVal)).toLocaleString('en-US', { month: 'long' });
-  const regionName   = document.getElementById('region-select').value === 'all'
-    ? 'all regions' : document.getElementById('region-select').value;
-  const locationName = document.getElementById('location-select').value === 'all'
-    ? 'all locations' : document.getElementById('location-select').value;
-  countEl.textContent = `${events.length} event${events.length === 1 ? '' : 's'} in ${yearName}, ${monthName} at ${regionName}, ${locationName}`;
-}
-
-function displayEvents(events) {
-  document.getElementById('loading').style.display           = 'none';
-  document.getElementById('events-container').style.display  = 'block';
-  document.getElementById('calendar-container').style.display = 'none';
-  document.getElementById('copy-button').style.display       = 'none';
-  const listEl = document.getElementById('events-list');
-  updateEventCount(events);
-  if (events.length === 0) {
-    listEl.innerHTML = `<div class="no-events"><h3>No events found</h3><p>There are no events for the selected filters.</p></div>`;
-    return;
-  }
-  listEl.innerHTML = events.map(e => createEventCard(e, e.parsedDate)).join('');
-}
-
-function displayTable(events) {
-  document.getElementById('loading').style.display           = 'none';
-  document.getElementById('events-container').style.display  = 'block';
-  document.getElementById('calendar-container').style.display = 'none';
-  const copyBtn = document.getElementById('copy-button');
-  copyBtn.style.display = events.length > 0 ? 'inline-flex' : 'none';
-  const listEl = document.getElementById('events-list');
-  updateEventCount(events);
-  if (events.length === 0) {
-    listEl.innerHTML = `<div class="no-events"><h3>No events found</h3><p>There are no events for the selected filters.</p></div>`;
-    return;
-  }
-  const grouped = {};
-  events.forEach(event => {
-    const baseLoc = extractBaseLocation(event.Location);
-    if (!grouped[baseLoc]) grouped[baseLoc] = [];
-    grouped[baseLoc].push(event);
-  });
-  let tableHTML = '';
-  Object.keys(grouped).sort().forEach(baseLoc => {
-    const groupEvents = grouped[baseLoc];
-    tableHTML += `
-      <div class="location-group">
-        <div class="location-header">${baseLoc}</div>
-        <table class="location-table">
-          <thead><tr>
-            <th>Date</th><th>Time</th><th>Event Name</th><th>Client Name</th><th>Full Location</th>
-          </tr></thead>
-          <tbody>
-            ${groupEvents.map(e => `
-              <tr>
-                <td>${formatDate(e.parsedDate)}</td>
-                <td>${e.Time || ''}</td>
-                <td>${e['Event-Name'] || ''}</td>
-                <td>${e['Client-Name'] || ''}</td>
-                <td>${e.Location || ''}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  });
-  listEl.innerHTML = tableHTML;
-}
-
-async function copyTableToClipboard() {
-  const selectedYear     = document.getElementById('year-select').value;
-  const selectedMonth    = document.getElementById('month-select').value;
-  const selectedRegion   = document.getElementById('region-select').value;
-  const selectedLocation = document.getElementById('location-select').value;
-
-  let filtered = allEventsData;
-  if (selectedYear     !== 'all') filtered = filtered.filter(e => e.parsedDate.getFullYear() === parseInt(selectedYear));
-  if (selectedMonth    !== 'all') filtered = filtered.filter(e => e.parsedDate.getMonth()    === parseInt(selectedMonth));
-  if (selectedRegion   !== 'all') filtered = filtered.filter(e => e.Region   === selectedRegion);
-  if (selectedLocation !== 'all') filtered = filtered.filter(e => e.Location === selectedLocation);
-
-  const yearName  = selectedYear  === 'all' ? 'All Years'  : selectedYear;
-  const monthName = selectedMonth === 'all' ? 'All Months' : new Date(0, parseInt(selectedMonth)).toLocaleString('en-US', { month: 'long' });
-
-  const grouped = {};
-  filtered.forEach(event => {
-    const baseLoc = extractBaseLocation(event.Location);
-    if (!grouped[baseLoc]) grouped[baseLoc] = [];
-    grouped[baseLoc].push(event);
-  });
-
-  // Build rich HTML table (pastes formatted into Outlook / Gmail)
-  let htmlContent = `
-    <h2 style="font-family:Segoe UI,Arial,sans-serif;color:#222;margin-bottom:4px;">
-      Compass Events — ${yearName}, ${monthName}
-    </h2>`;
-
-  Object.keys(grouped).sort().forEach(baseLoc => {
-    htmlContent += `
-      <h3 style="font-family:Segoe UI,Arial,sans-serif;color:#ff6600;margin:18px 0 6px 0;">${baseLoc}</h3>
-      <table style="border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;font-size:13px;margin-bottom:20px;">
-        <thead>
-          <tr style="background:#ff6600;color:#fff;">
-            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Date</th>
-            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Time</th>
-            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Event Name</th>
-            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Client Name</th>
-            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Full Location</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${grouped[baseLoc].map((e, i) => `
-            <tr style="background:${i % 2 === 0 ? '#fff' : '#f9f9f9'};">
-              <td style="border:1px solid #ddd;padding:10px 12px;">${formatDate(e.parsedDate)}</td>
-              <td style="border:1px solid #ddd;padding:10px 12px;">${e.Time || ''}</td>
-              <td style="border:1px solid #ddd;padding:10px 12px;">${e['Event-Name'] || ''}</td>
-              <td style="border:1px solid #ddd;padding:10px 12px;">${e['Client-Name'] || ''}</td>
-              <td style="border:1px solid #ddd;padding:10px 12px;">${e.Location || ''}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
-  });
-
-  // Plain-text fallback (for plain-text email clients)
-  let plainText = `Compass Events — ${yearName}, ${monthName}\n\n`;
-  Object.keys(grouped).sort().forEach(baseLoc => {
-    plainText += `${baseLoc}\n`;
-    plainText += `Date\tTime\tEvent Name\tClient Name\tFull Location\n`;
-    grouped[baseLoc].forEach(e => {
-      plainText += `${formatDate(e.parsedDate)}\t${e.Time || ''}\t${e['Event-Name'] || ''}\t${e['Client-Name'] || ''}\t${e.Location || ''}\n`;
-    });
-    plainText += '\n';
-  });
-
-  const btn = document.getElementById('copy-button');
-  try {
-    // Try rich HTML copy first (works in Chrome/Edge — pastes as formatted table in Outlook/Gmail)
-    const htmlBlob  = new Blob([htmlContent], { type: 'text/html' });
-    const textBlob  = new Blob([plainText],   { type: 'text/plain' });
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })
-    ]);
-  } catch (e) {
-    // Fallback: plain text copy (Safari / Firefox)
-    try {
-      await navigator.clipboard.writeText(plainText);
-    } catch (e2) {
-      alert('Copy failed. Please select and copy the table manually.');
-      return;
+  const y=document.getElementById('year-select').value;
+  const m=document.getElementById('month-select').value;
+  const reg=document.getElementById('region-select').value;
+  let f=allEvents;
+  if(y!=='all')   f=f.filter(e=>e._date.getFullYear()===+y);
+  if(m!=='all')   f=f.filter(e=>e._date.getMonth()===+m);
+  if(reg!=='all') {
+    if(reg.startsWith('_country_')) {
+      const country=reg.slice(9);
+      f=f.filter(e=>detectCountry(e)===country);
+    } else {
+      f=f.filter(e=>e.Region===reg);
     }
   }
 
-  // Visual feedback — button turns green briefly
-  btn.textContent = '✅ Copied!';
-  btn.classList.add('copied');
-  setTimeout(() => {
-    btn.textContent = '📋 Copy Table to Clipboard';
-    btn.classList.remove('copied');
-  }, 2500);
+  // Group locations by country
+  const countryLocs = {};
+  f.forEach(e => {
+    if (!e.Location) return;
+    const country = detectCountry(e);
+    if (!countryLocs[country]) countryLocs[country] = new Set();
+    countryLocs[country].add(e.Location);
+  });
+
+  const prevVal = locDropdown.value;
+  // Build flat list of {value, label, country} for custom dropdown
+  const options = [{ value:'all', label:'All Locations', country:null }];
+  Object.keys(countryLocs).sort().forEach(country => {
+    const locs = [...countryLocs[country]].sort();
+    locs.forEach(l => options.push({ value:l, label:l, country }));
+  });
+  locDropdown.setOptions(options, prevVal);
 }
 
-function displayCalendar(events, month, year) {
-  document.getElementById('loading').style.display           = 'none';
-  document.getElementById('calendar-container').style.display = 'block';
-  document.getElementById('events-container').style.display  = 'none';
-  document.getElementById('copy-button').style.display       = 'none';
-  const gridEl = document.getElementById('calendar-grid');
-  updateEventCount(events);
-  gridEl.innerHTML = generateCalendar(year, month, events);
-  document.querySelectorAll('.calendar-day[data-date]').forEach(day => {
-    day.addEventListener('click', () => {
-      const dateStr  = day.getAttribute('data-date');
-      const dayEvents = events.filter(e => e.parsedDate.toDateString() === dateStr);
-      showEventModal(dayEvents, dateStr);
+function updateCount(n) {
+  const y=document.getElementById('year-select').value;
+  const m=document.getElementById('month-select').value;
+  const reg=document.getElementById('region-select').value;
+  const loc=locDropdown.value;
+  const yN=y==='all'?'all years':y;
+  const mN=m==='all'?'all months':new Date(0,+m).toLocaleString('en-US',{month:'long'});
+  const rN=reg==='all'?'all regions':reg.startsWith('_country_')?reg.slice(9)+' (All)':reg;
+  const lN=loc==='all'?'all locations':loc;
+  document.getElementById('event-count').textContent=`${n} event${n===1?'':'s'} · ${yN}, ${mN} · ${rN}, ${lN}`;
+}
+
+/* ══════════════════════
+   RENDER
+══════════════════════ */
+function render() {
+  const view     = document.getElementById('view-select').value;
+  const filtered = getFiltered();
+  updateCount(filtered.length);
+  hideViews();
+  hideEl('loading-state');
+  document.getElementById('copy-button').classList.remove('show');
+
+  if      (view==='list')     { showEl('list-view');     renderList(filtered); }
+  else if (view==='table')    { showEl('table-view');    renderTable(filtered); if(filtered.length) document.getElementById('copy-button').classList.add('show'); }
+  else if (view==='calendar') {
+    showEl('calendar-view');
+    const sy=document.getElementById('year-select').value;
+    const sm=document.getElementById('month-select').value;
+    if(sy!=='all') calYear=+sy;
+    if(sm!=='all') calMonth=+sm;
+    selectedDate=null;
+    renderCalendar();
+  }
+}
+
+/* ══════════════════════
+   LIST VIEW
+══════════════════════ */
+function renderList(events) {
+  const el=document.getElementById('list-view');
+  if(!events.length){el.innerHTML=emptyHTML();return;}
+  el.innerHTML=events.map(ev=>{
+    const d=ev._date;
+    const past=isPast(d)&&!isToday(d);
+    const tod=isToday(d); const up=isUpcoming(d)&&!tod;
+    const cls=tod?'is-today':(up?'is-upcoming':(past?'is-past':''));
+    const dateBadge=tod
+      ?`<span class="badge badge-today">Today</span>`
+      :past
+        ?`<span class="badge badge-past">${fmtDate(d)}</span>`
+        :`<span class="badge badge-upcoming">${fmtDate(d)}</span>`;
+    const conf=(ev.Confirmed||'').toLowerCase();
+    const confBadge=conf==='yes'
+      ?`<span class="badge badge-confirm">Confirmed</span>`
+      :(conf?`<span class="badge badge-pending">Pending</span>`:'');
+    return `<div class="event-card ${cls}">
+      <div class="card-top">
+        ${dateBadge}
+        ${ev.Time?`<span class="badge badge-time"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>${ev.Time}</span>`:''}
+        ${confBadge}
+      </div>
+      <div class="event-title">${ev['Event-Name']||'Untitled Event'}</div>
+      <div class="event-meta">
+        ${ev['Client-Name']?`<div class="meta-item"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${ev['Client-Name']}</div>`:''}
+        ${ev.Location?`<div class="meta-item"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>${ev.Location}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════
+   TABLE VIEW
+══════════════════════ */
+function renderTable(events) {
+  const el=document.getElementById('table-view');
+  if(!events.length){el.innerHTML=emptyHTML();return;}
+  const tree={};
+  events.forEach(ev=>{
+    const c=detectCountry(ev); const l=baseLoc(ev.Location);
+    if(!tree[c])tree[c]={};
+    if(!tree[c][l])tree[c][l]=[];
+    tree[c][l].push(ev);
+  });
+  let html='';
+  Object.keys(tree).sort().forEach((country,ci)=>{
+    const locs=tree[country];
+    const total=Object.values(locs).reduce((s,a)=>s+a.length,0);
+    const cId=`cb${ci}`;
+    html+=`<div class="country-section">
+      <div class="country-header" onclick="toggleSection('${cId}','cc${ci}')">
+        <span class="country-label">${country}</span>
+        <span class="country-count">${total} event${total===1?'':'s'}</span>
+        <svg class="chev open" id="cc${ci}" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="country-body" id="${cId}">`;
+    Object.keys(locs).sort().forEach((loc,li)=>{
+      const rows=locs[loc];
+      const emails=[...new Set(rows.map(e=>e.Reception).filter(Boolean))];
+      const lId=`lb${ci}_${li}`;
+      const emailHtml=emails.map(em=>`<span class="loc-email"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>${em}</span>`).join('');
+      html+=`<div class="location-group">
+        <div class="location-header" onclick="toggleSection('${lId}','lc${ci}_${li}');event.stopPropagation()">
+          <span class="loc-name">${loc}</span>
+          ${emailHtml}
+          <span class="loc-count">${rows.length}</span>
+          <svg class="loc-chev open" id="lc${ci}_${li}" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="loc-body" id="${lId}">
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr>
+                <th>Date</th><th>Time</th><th>Event Name</th>
+                <th>Client Name</th><th>Full Location</th>
+              </tr></thead>
+              <tbody>${rows.map(ev=>{
+                const past=isPast(ev._date)&&!isToday(ev._date);
+                return `<tr class="${past?'row-past':''}">
+                  <td>${fmtDate(ev._date)}</td>
+                  <td>${ev.Time||'—'}</td>
+                  <td style="font-weight:600">${ev['Event-Name']||''}</td>
+                  <td>${ev['Client-Name']||''}</td>
+                  <td style="font-size:.85rem;color:#666">${ev.Location||''}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+  el.innerHTML=html;
+  el.querySelectorAll('.country-body,.loc-body').forEach(b=>{b.style.maxHeight=b.scrollHeight+'px';});
+}
+
+function toggleSection(bodyId,chevId){
+  const body=document.getElementById(bodyId);
+  const chev=document.getElementById(chevId);
+  if(!body)return;
+  if(!body.classList.contains('closed')){
+    body.style.maxHeight=body.scrollHeight+'px';
+    requestAnimationFrame(()=>{body.classList.add('closed');if(chev)chev.classList.remove('open');});
+  } else {
+    body.classList.remove('closed');
+    body.style.maxHeight=body.scrollHeight+'px';
+    if(chev)chev.classList.add('open');
+  }
+}
+
+/* ══════════════════════
+   CALENDAR VIEW
+══════════════════════ */
+function renderCalendar() {
+  const reg = document.getElementById('region-select').value;
+  const loc = locDropdown.value;
+
+  const evts = allEvents.filter(ev => {
+    if (ev._date.getFullYear()!==calYear || ev._date.getMonth()!==calMonth) return false;
+    if (reg!=='all') {
+      if (reg.startsWith('_country_')) { if(detectCountry(ev)!==reg.slice(9)) return false; }
+      else { if(ev.Region!==reg) return false; }
+    }
+    if (loc!=='all' && ev.Location!==loc) return false;
+    return true;
+  });
+
+  document.getElementById('cal-title').textContent = fmtMonth(calYear, calMonth);
+
+  const firstDay    = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const total       = Math.ceil((daysInMonth+firstDay)/7)*7;
+  const todayStr    = new Date().toDateString();
+  const ts          = todayStart();
+
+  let html='';
+  for (let i=0; i<total; i++) {
+    const day = i - firstDay + 1;
+    if (day<1||day>daysInMonth) {
+      html+=`<div class="cal-cell is-empty"></div>`; continue;
+    }
+    const d       = new Date(calYear, calMonth, day);
+    const dStr    = d.toDateString();
+    const dow     = d.getDay();
+    const isTod   = dStr===todayStr;
+    const past    = d<ts && !isTod;
+    const isSel   = selectedDate===dStr;
+    const dayEvts = evts.filter(ev=>ev._date.toDateString()===dStr);
+
+    const cls = [
+      isTod        ? 'is-today'    : '',
+      past         ? 'is-past'     : '',
+      isSel        ? 'is-selected' : '',
+      dow===0      ? 'is-sunday'   : '',
+      dow===6      ? 'is-saturday' : '',
+    ].filter(Boolean).join(' ');
+
+    // Date number row — show event count badge if > 3 events
+    const countBadge = dayEvts.length > 3
+      ? `<span class="event-count-badge">${dayEvts.length}</span>` : '';
+
+    // Event blocks — max 3 visible, then "+N more"
+    const MAX = 3;
+    const blocks = dayEvts.slice(0, MAX).map(ev => {
+      const evPast = isPast(ev._date) && !isToday(ev._date);
+      const timeStr = ev.Time
+        ? `<span class="ev-time">${ev.Time.replace(/\s?(AM|PM)/i,'$1')}</span>`
+        : '<span class="ev-time" style="opacity:.45;">No time set</span>';
+      return `<div class="event-block${evPast?' ev-past':''}" data-date="${dStr}">
+        ${timeStr}
+        <span class="ev-name">${ev['Event-Name']||'Event'}</span>
+      </div>`;
+    }).join('');
+    const more = dayEvts.length > MAX
+      ? `<div class="more-count" data-date="${dStr}">+${dayEvts.length-MAX} more</div>` : '';
+
+    html+=`<div class="cal-cell ${cls}" data-date="${dStr}">
+      <div class="day-num-wrap">
+        <span class="day-num">${day}</span>
+        ${countBadge}
+      </div>
+      ${blocks}${more}
+    </div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
+
+  // Re-open popup if date still valid after nav
+  if (selectedDate) {
+    const list = evts.filter(ev=>ev._date.toDateString()===selectedDate);
+    if (list.length || evts.some(()=>true)) openCalendarPopup(selectedDate, list);
+  }
+
+  // Cell click → open centred popup
+  document.querySelectorAll('.cal-cell[data-date]').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const ds   = cell.getAttribute('data-date');
+      const list = evts.filter(ev=>ev._date.toDateString()===ds);
+      document.querySelectorAll('.cal-cell.is-selected').forEach(c=>c.classList.remove('is-selected'));
+      cell.classList.add('is-selected');
+      selectedDate = ds;
+      openCalendarPopup(ds, list);
     });
   });
 }
 
-function showEventModal(events, dateStr) {
-  const modal       = document.getElementById('event-modal');
-  const overlay     = document.getElementById('modal-overlay');
-  const modalEvents = document.getElementById('modal-events');
-  const modalDate   = document.getElementById('modal-date');
-  modalDate.textContent = formatDate(new Date(dateStr));
-  modalEvents.innerHTML = events.length > 0
-    ? events.map(e => createEventCard(e, e.parsedDate)).join('')
-    : '<p>No events for this day.</p>';
-  modal.style.display   = 'block';
-  overlay.style.display = 'block';
-}
+function openCalendarPopup(dateStr, events) {
+  const d = new Date(dateStr);
+  document.getElementById('cal-popup-date').textContent =
+    d.toLocaleDateString('en-US',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  document.getElementById('cal-popup-count').textContent = events.length
+    ? `${events.length} event${events.length===1?'':'s'} scheduled`
+    : 'No events scheduled';
 
-function filterEvents() {
-  const selectedYear     = document.getElementById('year-select').value;
-  const selectedMonth    = document.getElementById('month-select').value;
-  const selectedRegion   = document.getElementById('region-select').value;
-  const selectedLocation = document.getElementById('location-select').value;
-  const view             = document.getElementById('view-select').value;
-  let filtered = allEventsData;
-  if (selectedYear     !== 'all') filtered = filtered.filter(e => e.parsedDate.getFullYear() === parseInt(selectedYear));
-  if (selectedMonth    !== 'all') filtered = filtered.filter(e => e.parsedDate.getMonth()    === parseInt(selectedMonth));
-  if (selectedRegion   !== 'all') filtered = filtered.filter(e => e.Region   === selectedRegion);
-  if (selectedLocation !== 'all') filtered = filtered.filter(e => e.Location === selectedLocation);
-  filtered.sort((a, b) => {
-    const aTod = isToday(a.parsedDate), bTod = isToday(b.parsedDate);
-    const aUp  = isUpcoming(a.parsedDate), bUp = isUpcoming(b.parsedDate);
-    if (aTod && !bTod) return -1;
-    if (!aTod && bTod) return 1;
-    if (aUp  && !bUp)  return -1;
-    if (!aUp  && bUp)  return 1;
-    return a.parsedDate - b.parsedDate;
-  });
-  if (view === 'list') {
-    displayEvents(filtered);
-  } else if (view === 'table') {
-    displayTable(filtered);
-  } else if (view === 'calendar') {
-    let calYear  = selectedYear  !== 'all' ? parseInt(selectedYear)  : getCurrentYear();
-    let calMonth = selectedMonth !== 'all' ? parseInt(selectedMonth) : getCurrentMonth();
-    const calEvents = allEventsData.filter(e =>
-      e.parsedDate.getFullYear() === calYear &&
-      e.parsedDate.getMonth()    === calMonth &&
-      (selectedRegion   === 'all' || e.Region   === selectedRegion) &&
-      (selectedLocation === 'all' || e.Location === selectedLocation)
-    );
-    displayCalendar(calEvents, calMonth, calYear);
+  const body = document.getElementById('cal-popup-body');
+  if (!events.length) {
+    body.innerHTML = `<p style="color:#bbb;font-size:.92rem;text-align:center;padding:20px 0;">No events on this day.</p>`;
+  } else {
+    body.innerHTML = events.map(ev => {
+      const past = isPast(ev._date) && !isToday(ev._date);
+      const conf = (ev.Confirmed||'').toLowerCase()==='yes';
+      return `<div class="dp-card">
+        <div class="dp-stripe${past?' dp-past':''}"></div>
+        <div class="dp-body">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;">
+            <div class="dp-title">${ev['Event-Name']||'Untitled Event'}</div>
+            <span class="dp-badge ${conf?'dp-badge-confirm':'dp-badge-pending'}" style="flex-shrink:0;">${conf?'Confirmed':'Pending'}</span>
+          </div>
+          <div class="dp-meta">
+            ${ev.Time?`<span class="dp-meta-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>${ev.Time}
+            </span>`:''}
+            ${ev['Client-Name']?`<span class="dp-meta-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${ev['Client-Name']}
+            </span>`:''}
+            ${ev.Location?`<span class="dp-meta-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>${ev.Location}
+            </span>`:''}
+            ${ev.Reception?`<span class="dp-meta-item">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>${ev.Reception}
+            </span>`:''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   }
+
+  document.getElementById('cal-popup-overlay').classList.add('open');
 }
 
-function showError() {
-  document.getElementById('loading').style.display           = 'none';
-  document.getElementById('error-container').style.display   = 'block';
-  document.getElementById('events-container').style.display  = 'none';
-  document.getElementById('calendar-container').style.display = 'none';
-  document.getElementById('copy-button').style.display       = 'none';
+function closeCalendarPopup() {
+  document.getElementById('cal-popup-overlay').classList.remove('open');
+  document.querySelectorAll('.cal-cell.is-selected').forEach(c=>c.classList.remove('is-selected'));
+  selectedDate = null;
 }
 
-document.addEventListener('DOMContentLoaded', loadEvents);
+/* ══════════════════════
+   COPY TABLE
+══════════════════════ */
+async function copyTable() {
+  const filtered=getFiltered();
+  const y=document.getElementById('year-select').value;
+  const m=document.getElementById('month-select').value;
+  const yn=y==='all'?'All Years':y;
+  const mn=m==='all'?'All Months':new Date(0,+m).toLocaleString('en-US',{month:'long'});
+  const tree={};
+  filtered.forEach(ev=>{
+    const c=detectCountry(ev),l=baseLoc(ev.Location);
+    if(!tree[c])tree[c]={};
+    if(!tree[c][l])tree[c][l]=[];
+    tree[c][l].push(ev);
+  });
+  let html=`<div style="font-family:Segoe UI,Arial,sans-serif;"><h2 style="color:#111;font-size:16px;margin:0 0 16px;font-weight:700;">Compass Events — ${yn}, ${mn}</h2>`;
+  let txt=`Compass Events — ${yn}, ${mn}\n\n`;
+  Object.keys(tree).sort().forEach(country=>{
+    html+=`<h3 style="font-size:11px;font-weight:700;color:#555;letter-spacing:.06em;text-transform:uppercase;margin:20px 0 8px;">${country}</h3>`;
+    txt+=`${country}\n`;
+    Object.keys(tree[country]).sort().forEach(loc=>{
+      const rows=tree[country][loc];
+      const emails=[...new Set(rows.map(e=>e.Reception).filter(Boolean))];
+      const emHtml=emails.length?` | ${emails.join(', ')}`:'';
+      const emTxt=emails.length?` [${emails.join(', ')}]`:'';
+      html+=`<table style="border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;margin-bottom:18px;font-size:12.5px;">
+        <thead>
+          <tr><td colspan="5" style="background:#ff6600;color:#fff;padding:9px 13px;font-weight:700;border-radius:6px 6px 0 0;">${loc}${emHtml}</td></tr>
+          <tr style="background:#f5f5f5;">
+            ${['Date','Time','Event Name','Client','Location'].map(h=>`<th style="border:1px solid #e0e0e0;padding:8px 12px;text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#555;">${h}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${rows.map((ev,i)=>`
+          <tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+            <td style="border:1px solid #e0e0e0;padding:9px 12px;">${fmtDate(ev._date)}</td>
+            <td style="border:1px solid #e0e0e0;padding:9px 12px;">${ev.Time||''}</td>
+            <td style="border:1px solid #e0e0e0;padding:9px 12px;font-weight:600;">${ev['Event-Name']||''}</td>
+            <td style="border:1px solid #e0e0e0;padding:9px 12px;">${ev['Client-Name']||''}</td>
+            <td style="border:1px solid #e0e0e0;padding:9px 12px;color:#666;">${ev.Location||''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+      txt+=`  ${loc}${emTxt}\n  Date\tTime\tEvent Name\tClient\tLocation\n`;
+      rows.forEach(ev=>{txt+=`  ${fmtDate(ev._date)}\t${ev.Time||''}\t${ev['Event-Name']||''}\t${ev['Client-Name']||''}\t${ev.Location||''}\n`;});
+      txt+='\n';
+    });
+  });
+  html+='</div>';
+  const btn=document.getElementById('copy-button');
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})})
+    ]);
+  } catch {
+    try{await navigator.clipboard.writeText(txt);}
+    catch{showToast('Copy failed — please try again');return;}
+  }
+  showToast('Table copied to clipboard');
+  btn.classList.add('copied');
+  const orig=btn.innerHTML;
+  btn.textContent='Copied!';
+  setTimeout(()=>{btn.innerHTML=orig;btn.classList.remove('copied');},2500);
+}
+
+/* ══════════════════════
+   UTILITIES
+══════════════════════ */
+function showEl(id){document.getElementById(id).style.display='';}
+function hideEl(id){document.getElementById(id).style.display='none';}
+function hideViews(){['list-view','table-view','calendar-view','error-box','loading-state'].forEach(hideEl);}
+function emptyHTML(){
+  return`<div class="empty-state">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+      <rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/>
+    </svg>
+    <h3>No events found</h3>
+    <p>Try adjusting your filters.</p>
+  </div>`;
+}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+/* ══════════════════════
+   CUSTOM LOCATION DROPDOWN
+══════════════════════ */
+const locDropdown = (() => {
+  let _value = 'all';
+  let _options = [];
+  let _isOpen = false;
+
+  const trigger  = () => document.getElementById('loc-trigger');
+  const list     = () => document.getElementById('loc-list');
+  const scrollTx = () => document.getElementById('loc-scroll-text');
+  const mask     = () => scrollTx().parentElement;
+
+  function setDisplay(label) {
+    const tx   = scrollTx();
+    tx.textContent = label;
+    tx.classList.remove('rolling');
+    tx.style.removeProperty('--roll-dist');
+    // Measure after paint to see if text overflows
+    requestAnimationFrame(() => {
+      const overflow = tx.scrollWidth - mask().clientWidth;
+      if (overflow > 4) {
+        tx.style.setProperty('--roll-dist', `-${overflow + 8}px`);
+        tx.classList.add('rolling');
+      }
+    });
+  }
+
+  function open() {
+    list().classList.add('open');
+    trigger().classList.add('open');
+    _isOpen = true;
+  }
+  function close() {
+    list().classList.remove('open');
+    trigger().classList.remove('open');
+    _isOpen = false;
+  }
+
+  function buildList(options) {
+    const el = list();
+    el.innerHTML = '';
+    let lastCountry = null;
+    options.forEach(opt => {
+      if (opt.value !== 'all' && opt.country && opt.country !== lastCountry) {
+        lastCountry = opt.country;
+        const grpEl = document.createElement('div');
+        grpEl.className = 'loc-group-label';
+        grpEl.textContent = opt.country;
+        el.appendChild(grpEl);
+      }
+      const item = document.createElement('div');
+      item.className = 'loc-option' + (opt.value === _value ? ' selected' : '');
+      item.dataset.value = opt.value;
+      const tx = document.createElement('span');
+      tx.className = 'loc-opt-text';
+      tx.textContent = opt.label;
+      item.appendChild(tx);
+      item.addEventListener('mouseenter', () => {
+        // Roll option text if it overflows
+        const overflow = tx.scrollWidth - item.clientWidth - 32;
+        if (overflow > 4) {
+          tx.style.setProperty('--roll-dist', `-${overflow + 8}px`);
+        }
+      });
+      item.addEventListener('click', () => {
+        _value = opt.value;
+        setDisplay(opt.label);
+        close();
+        render(); // trigger filter
+      });
+      el.appendChild(item);
+    });
+  }
+
+  // Public API
+  return {
+    get value() { return _value; },
+    init() {
+      trigger().addEventListener('click', e => {
+        e.stopPropagation();
+        _isOpen ? close() : open();
+      });
+      document.addEventListener('click', e => {
+        if (!document.getElementById('loc-dropdown-wrap').contains(e.target)) close();
+      });
+      document.addEventListener('keydown', e => { if(e.key==='Escape') close(); });
+    },
+    setOptions(options, preserveValue) {
+      _options = options;
+      const stillValid = options.some(o => o.value === preserveValue);
+      if (!stillValid) {
+        _value = 'all';
+        setDisplay('All Locations');
+      }
+      buildList(options);
+    }
+  };
+})();
+
+/* ══════════════════════
+   WIRE UP
+══════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  locDropdown.init();
+  loadEvents();
+
+  ['year-select','month-select'].forEach(id=>
+    document.getElementById(id).addEventListener('change',()=>{updateRegionFilter();updateLocationFilter();render();}));
+  document.getElementById('region-select').addEventListener('change',()=>{updateLocationFilter();render();});
+  document.getElementById('view-select').addEventListener('change',render);
+
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+    loadEvents(true).finally(() => btn.classList.remove('spinning'));
+  });
+  document.getElementById('copy-button').addEventListener('click',copyTable);
+
+  // Calendar nav
+  document.getElementById('cal-prev').addEventListener('click',()=>{
+    if(--calMonth<0){calMonth=11;calYear--;} selectedDate=null; renderCalendar();
+  });
+  document.getElementById('cal-next').addEventListener('click',()=>{
+    if(++calMonth>11){calMonth=0;calYear++;} selectedDate=null; renderCalendar();
+  });
+  document.getElementById('cal-goto-today').addEventListener('click',()=>{
+    calYear=new Date().getFullYear(); calMonth=new Date().getMonth();
+    selectedDate=null; renderCalendar();
+  });
+
+  // Calendar popup close
+  document.getElementById('cal-popup-close').addEventListener('click', closeCalendarPopup);
+  document.getElementById('cal-popup-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('cal-popup-overlay')) closeCalendarPopup();
+  });
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape') closeCalendarPopup();
+  });
+});
 </script>
 </body>
 </html>
