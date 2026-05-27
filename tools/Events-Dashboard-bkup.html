@@ -317,21 +317,31 @@ border-left: 4px solid #d63031;
 color: #999;
 margin-bottom: 10px;
 }
-.export-button {
-background: #ff6600;
-color: #fff;
-padding: 10px 20px;
-border: none;
+.copy-button {
+background: transparent;
+color: #ff6600;
+padding: 10px 22px;
+border: 2px solid #ff6600;
 border-radius: 25px;
 font-size: 1rem;
 font-weight: 600;
 cursor: pointer;
 transition: all 0.3s ease;
-margin: 20px auto;
-display: block;
+display: none;
+align-items: center;
+gap: 8px;
+white-space: nowrap;
+margin: 16px auto 0 auto;
 }
-.export-button:hover {
-background: #e65c00;
+.copy-button:hover {
+background: #ff6600;
+color: #fff;
+}
+.copy-button.copied {
+background: #51cf66;
+border-color: #51cf66;
+color: #fff;
+pointer-events: none;
 }
 .location-group {
 margin-bottom: 30px;
@@ -440,6 +450,7 @@ alt="Compass Offices Logo" />
 </select>
 </div>
 </div>
+<button id="copy-button" class="copy-button">📋 Copy Table to Clipboard</button>
 </header>
 <div id="loading" class="loading">
 <div class="spinner"></div>
@@ -447,7 +458,6 @@ alt="Compass Offices Logo" />
 </div>
 <div id="events-container" class="events-container" style="display: none;">
 <div id="events-list"></div>
-<button id="export-button" class="export-button" style="display: none;">Export to Email</button>
 </div>
 <div id="calendar-container" class="calendar-container" style="display: none;">
 <div class="calendar-header">
@@ -696,7 +706,7 @@ async function loadEvents() {
     });
     document.getElementById('location-select').addEventListener('change', filterEvents);
     document.getElementById('view-select').addEventListener('change', filterEvents);
-    document.getElementById('export-button').addEventListener('click', exportToEmail);
+    document.getElementById('copy-button').addEventListener('click', copyTableToClipboard);
 
     // ✅ FIX 4: Modal close listeners attached once here, not re-added every modal open
     document.getElementById('close-modal-btn').addEventListener('click', closeModal);
@@ -773,7 +783,7 @@ function displayEvents(events) {
   document.getElementById('loading').style.display           = 'none';
   document.getElementById('events-container').style.display  = 'block';
   document.getElementById('calendar-container').style.display = 'none';
-  document.getElementById('export-button').style.display     = 'none';
+  document.getElementById('copy-button').style.display       = 'none';
   const listEl = document.getElementById('events-list');
   updateEventCount(events);
   if (events.length === 0) {
@@ -787,7 +797,8 @@ function displayTable(events) {
   document.getElementById('loading').style.display           = 'none';
   document.getElementById('events-container').style.display  = 'block';
   document.getElementById('calendar-container').style.display = 'none';
-  document.getElementById('export-button').style.display     = events.length > 0 ? 'block' : 'none';
+  const copyBtn = document.getElementById('copy-button');
+  copyBtn.style.display = events.length > 0 ? 'inline-flex' : 'none';
   const listEl = document.getElementById('events-list');
   updateEventCount(events);
   if (events.length === 0) {
@@ -826,42 +837,103 @@ function displayTable(events) {
   listEl.innerHTML = tableHTML;
 }
 
-function exportToEmail() {
+async function copyTableToClipboard() {
   const selectedYear     = document.getElementById('year-select').value;
   const selectedMonth    = document.getElementById('month-select').value;
   const selectedRegion   = document.getElementById('region-select').value;
   const selectedLocation = document.getElementById('location-select').value;
+
   let filtered = allEventsData;
   if (selectedYear     !== 'all') filtered = filtered.filter(e => e.parsedDate.getFullYear() === parseInt(selectedYear));
   if (selectedMonth    !== 'all') filtered = filtered.filter(e => e.parsedDate.getMonth()    === parseInt(selectedMonth));
   if (selectedRegion   !== 'all') filtered = filtered.filter(e => e.Region   === selectedRegion);
   if (selectedLocation !== 'all') filtered = filtered.filter(e => e.Location === selectedLocation);
+
   const yearName  = selectedYear  === 'all' ? 'All Years'  : selectedYear;
   const monthName = selectedMonth === 'all' ? 'All Months' : new Date(0, parseInt(selectedMonth)).toLocaleString('en-US', { month: 'long' });
-  const grouped   = {};
+
+  const grouped = {};
   filtered.forEach(event => {
     const baseLoc = extractBaseLocation(event.Location);
     if (!grouped[baseLoc]) grouped[baseLoc] = [];
     grouped[baseLoc].push(event);
   });
-  let emailContent = `Events for ${yearName}, ${monthName}\n\n`;
+
+  // Build rich HTML table (pastes formatted into Outlook / Gmail)
+  let htmlContent = `
+    <h2 style="font-family:Segoe UI,Arial,sans-serif;color:#222;margin-bottom:4px;">
+      Compass Events — ${yearName}, ${monthName}
+    </h2>`;
+
   Object.keys(grouped).sort().forEach(baseLoc => {
-    emailContent += `${baseLoc}\n`;
-    emailContent += `Date\tTime\tEvent Name\tClient Name\tFull Location\n`;
-    grouped[baseLoc].forEach(e => {
-      emailContent += `${formatDate(e.parsedDate)}\t${e.Time || ''}\t${e['Event-Name'] || ''}\t${e['Client-Name'] || ''}\t${e.Location || ''}\n`;
-    });
-    emailContent += '\n';
+    htmlContent += `
+      <h3 style="font-family:Segoe UI,Arial,sans-serif;color:#ff6600;margin:18px 0 6px 0;">${baseLoc}</h3>
+      <table style="border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;font-size:13px;margin-bottom:20px;">
+        <thead>
+          <tr style="background:#ff6600;color:#fff;">
+            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Date</th>
+            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Time</th>
+            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Event Name</th>
+            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Client Name</th>
+            <th style="border:1px solid #ddd;padding:10px 12px;text-align:left;">Full Location</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${grouped[baseLoc].map((e, i) => `
+            <tr style="background:${i % 2 === 0 ? '#fff' : '#f9f9f9'};">
+              <td style="border:1px solid #ddd;padding:10px 12px;">${formatDate(e.parsedDate)}</td>
+              <td style="border:1px solid #ddd;padding:10px 12px;">${e.Time || ''}</td>
+              <td style="border:1px solid #ddd;padding:10px 12px;">${e['Event-Name'] || ''}</td>
+              <td style="border:1px solid #ddd;padding:10px 12px;">${e['Client-Name'] || ''}</td>
+              <td style="border:1px solid #ddd;padding:10px 12px;">${e.Location || ''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
   });
-  const mailtoLink = `mailto:?subject=Events - ${yearName}, ${monthName}&body=${encodeURIComponent(emailContent)}`;
-  window.location.href = mailtoLink;
+
+  // Plain-text fallback (for plain-text email clients)
+  let plainText = `Compass Events — ${yearName}, ${monthName}\n\n`;
+  Object.keys(grouped).sort().forEach(baseLoc => {
+    plainText += `${baseLoc}\n`;
+    plainText += `Date\tTime\tEvent Name\tClient Name\tFull Location\n`;
+    grouped[baseLoc].forEach(e => {
+      plainText += `${formatDate(e.parsedDate)}\t${e.Time || ''}\t${e['Event-Name'] || ''}\t${e['Client-Name'] || ''}\t${e.Location || ''}\n`;
+    });
+    plainText += '\n';
+  });
+
+  const btn = document.getElementById('copy-button');
+  try {
+    // Try rich HTML copy first (works in Chrome/Edge — pastes as formatted table in Outlook/Gmail)
+    const htmlBlob  = new Blob([htmlContent], { type: 'text/html' });
+    const textBlob  = new Blob([plainText],   { type: 'text/plain' });
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })
+    ]);
+  } catch (e) {
+    // Fallback: plain text copy (Safari / Firefox)
+    try {
+      await navigator.clipboard.writeText(plainText);
+    } catch (e2) {
+      alert('Copy failed. Please select and copy the table manually.');
+      return;
+    }
+  }
+
+  // Visual feedback — button turns green briefly
+  btn.textContent = '✅ Copied!';
+  btn.classList.add('copied');
+  setTimeout(() => {
+    btn.textContent = '📋 Copy Table to Clipboard';
+    btn.classList.remove('copied');
+  }, 2500);
 }
 
 function displayCalendar(events, month, year) {
   document.getElementById('loading').style.display           = 'none';
   document.getElementById('calendar-container').style.display = 'block';
   document.getElementById('events-container').style.display  = 'none';
-  document.getElementById('export-button').style.display     = 'none';
+  document.getElementById('copy-button').style.display       = 'none';
   const gridEl = document.getElementById('calendar-grid');
   updateEventCount(events);
   gridEl.innerHTML = generateCalendar(year, month, events);
@@ -929,7 +1001,7 @@ function showError() {
   document.getElementById('error-container').style.display   = 'block';
   document.getElementById('events-container').style.display  = 'none';
   document.getElementById('calendar-container').style.display = 'none';
-  document.getElementById('export-button').style.display     = 'none';
+  document.getElementById('copy-button').style.display       = 'none';
 }
 
 document.addEventListener('DOMContentLoaded', loadEvents);
