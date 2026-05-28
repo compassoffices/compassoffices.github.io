@@ -684,7 +684,14 @@ async function _preRenderFloorHighlights(floors, rows){
       .filter(r=>_detectFloorNum(r.seats)===floor)
       .map(r=>(r.seats||'').trim()).filter(Boolean);
     if(!roomIds.length){ urls[floor]=null; continue; }
-    const roomObjs=roomIds.map(id=>fpFindRoom(id)).filter(Boolean);
+    // Find room polygon objects — try original ID, then hyphen-stripped ("15-06" → "1506")
+    const seen=new Set();
+    const roomObjs=roomIds.flatMap(id=>{
+      let r=fpFindRoom(id);
+      if(!r) r=fpFindRoom(id.replace(/-/g,''));   // "15-06" → "1506"
+      if(r && !seen.has(r.displayLabel)){ seen.add(r.displayLabel); return [r]; }
+      return [];
+    });
     if(!roomObjs.length){ urls[floor]=null; continue; }
     const cacheKey=typeof fpHighlightCacheKey==='function'?fpHighlightCacheKey(roomObjs):roomIds.join(',');
     if(FP_HIGHLIGHT_CACHE&&FP_HIGHLIGHT_CACHE[cacheKey]){
@@ -701,41 +708,33 @@ async function _preRenderFloorHighlights(floors, rows){
 
 // ── Called when user clicks "⚡ Combined Proposal" in the selection bar ───
 // Adds selected rooms to rows, pre-renders per-floor highlights, sets state.
-async function _ausMultiFloorCombined(){
-  ausAddToRows();
-  window._AUS_MF_MODE=false;
-  const b=document.getElementById('aus-mf-active-banner'); if(b) b.style.display='none';
-  const floors=_detectFloorsFromRows(S.rows);
-  if(floors.length<2){ S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null; return; }
-  S._isMultiFloor=true;
-  S._multiFloorNums=floors;
-  S._multiFloorFpUrls={};
-  gen();
-  showStatus(ui('aus_mf_rendering'),'s-info');
-  S._multiFloorFpUrls=await _preRenderFloorHighlights(floors,S.rows);
-  gen();
-  showStatus(ui('aus_mf_ready'),'s-ok');
-}
-
-// ── Called when user clicks "Keep Separate" ───────────────────────────────
-function _ausMultiFloorSeparate(){
-  S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null;
-  window._AUS_MF_MODE=false;
-  const b=document.getElementById('aus-mf-active-banner'); if(b) b.style.display='none';
-  ausAddToRows();
-}
+// _ausMultiFloorCombined and _ausMultiFloorSeparate are no longer needed —
+// addToQueue() auto-combines when window._AUS_MF_MODE is true.
 
 async function addToQueue(){
-  // Multi-floor state is set by _ausMultiFloorCombined() in the Office Lookup.
-  // If current rows are single-floor or no longer span 2+ floors, clear stale flags.
-  if(S._isMultiFloor){
-    const currentFloors=_detectFloorsFromRows(S.rows);
-    if(currentFloors.length<2){ S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null; }
-  }
   const btn=document.getElementById('queue-btn');
   const origHTML=btn?btn.innerHTML:'';
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(0,0,0,.2);border-top-color:var(--o);border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Adding…</span>';btn.disabled=true;}
   try{
+    // ── Auto-combine when Multi-floor mode is ON ─────────────────────────
+    if(window._AUS_MF_MODE){
+      window._AUS_MF_MODE=false;
+      const banner=document.getElementById('aus-mf-active-banner'); if(banner) banner.style.display='none';
+      if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
+      const floors=_detectFloorsFromRows(S.rows);
+      if(floors.length>=2){
+        S._isMultiFloor=true;
+        S._multiFloorNums=floors;
+        S._multiFloorFpUrls={};
+        showStatus(ui('aus_mf_rendering'),'s-info');
+        S._multiFloorFpUrls=await _preRenderFloorHighlights(floors,S.rows);
+        gen();
+      }
+    } else if(S._isMultiFloor){
+      // Clear stale combined state if no longer multi-floor
+      const currentFloors=_detectFloorsFromRows(S.rows);
+      if(currentFloors.length<2){ S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null; }
+    }
     const name=getExportName()||'Location';
     gen._captureMode=true;gen();gen._captureMode=false;
     // If highlight mode is active and a render is pending, wait for it to
@@ -1372,38 +1371,24 @@ function renderAusLookup(){
     </table>`;
   }
 
-  // Update selection bar — multi-floor notice when 2+ floors, plain count otherwise
+  // Update selection bar — floor breakdown when multi-floor, plain count otherwise
   const bar=document.getElementById('aus-selection-bar');
   if(bar){
     if(AUS_SELECTED.size){
       bar.style.display='flex';
-      // AUS_SELECTED keys are composite "centre||oid" — extract raw oid first
       const selFloors=[...new Set([...AUS_SELECTED].map(k=>{
-        const oid=k.split('||').pop()||k;
-        return _detectFloorNum(oid);
+        const oid=k.split('||').pop()||k; return _detectFloorNum(oid);
       }).filter(f=>f!==null))].sort((a,b)=>a-b);
+      const mfActive=window._AUS_MF_MODE;
       if(selFloors.length>=2){
-        const floorLabel=selFloors.map(f=>`FL.${f}`).join(' & ');
+        const floorLabel=selFloors.map(f=>`${f}F`).join(' & ');
+        const mfNote=mfActive?` <span style="font-size:10px;color:#FF6600;font-weight:600;">(Multi-floor ON — click + Queue to combine)</span>`:'';
         bar.innerHTML=`
-          <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;">
-            <span style="font-size:11px;font-weight:700;color:var(--o);">${AUS_SELECTED.size} ${ui('aus_mf_floors')} · ${floorLabel}</span>
-            <div style="display:flex;gap:5px;margin-left:auto;align-items:center;flex-wrap:wrap;">
-              <button onclick="_ausMultiFloorCombined()"
-                style="padding:5px 11px;background:var(--o);color:#fff;border:none;border-radius:6px;
-                       font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
-                ${ui('aus_mf_combined')}
-              </button>
-              <button onclick="_ausMultiFloorSeparate()"
-                style="padding:5px 11px;background:transparent;color:var(--o);border:1.5px solid var(--o);
-                       border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
-                ${ui('aus_mf_separate')}
-              </button>
-              <button onclick="AUS_SELECTED.clear();renderAusLookup()"
-                style="font-size:10px;color:var(--xlt);border:none;background:transparent;cursor:pointer;font-family:inherit;">
-                ${ui('aus_clear_sel')}
-              </button>
-            </div>
-          </div>`;
+          <span style="font-size:11px;font-weight:700;color:var(--o);">${AUS_SELECTED.size} ${ui('aus_mf_floors')} · ${floorLabel}${mfNote}</span>
+          <button onclick="AUS_SELECTED.clear();renderAusLookup()"
+            style="margin-left:auto;font-size:10px;color:var(--xlt);border:none;background:transparent;cursor:pointer;font-family:inherit;">
+            ${ui('aus_clear_sel')}
+          </button>`;
       } else {
         bar.innerHTML=`
           <span id="aus-sel-count" style="font-size:11px;font-weight:700;color:var(--o);">

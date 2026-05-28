@@ -80,7 +80,7 @@ function gen(){
     <div class="sl-title-block">
       <div class="sl-title">${name}${
         S._isMultiFloor && S._multiFloorNums && S._multiFloorNums.length>1
-          ? ' '+S._multiFloorNums.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.18em">FL.${f}</span>`).join('')
+          ? ' '+S._multiFloorNums.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.18em">${f}F</span>`).join('')
           : floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''
       }</div>
       ${addr?`<div class="sl-addr-row"><div class="sl-addr">${addr}</div></div>`:''}
@@ -266,7 +266,7 @@ function gen(){
           <line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
         </svg>
         <span style="font-size:calc(var(--fs)*0.52);color:#bbb;text-align:center;line-height:1.4;">
-          FL.${floor}<br>Upload in Media tab
+          ${floor}F<br>Upload in Media tab
         </span>
       </div>`;
     return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);
@@ -290,7 +290,7 @@ function gen(){
           <div style="position:absolute;bottom:0;left:0;right:0;
               background:rgba(255,102,0,.9);color:#fff;
               padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:calc(var(--fs)*0.62);font-weight:800;letter-spacing:.04em;">FL.${floor}</span>
+            <span style="font-size:calc(var(--fs)*0.62);font-weight:800;letter-spacing:.04em;">${floor}F</span>
             ${floorRooms?`<span style="font-size:calc(var(--fs)*0.55);opacity:.9;">${floorRooms}</span>`:''}
           </div>
         </div>`;
