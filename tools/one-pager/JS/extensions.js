@@ -703,6 +703,7 @@ async function _preRenderFloorHighlights(floors, rows){
 // Adds selected rooms to rows, pre-renders per-floor highlights, sets state.
 async function _ausMultiFloorCombined(){
   ausAddToRows();
+  _AUS_MF_MODE=false;
   const floors=_detectFloorsFromRows(S.rows);
   if(floors.length<2){ S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null; return; }
   S._isMultiFloor=true;
@@ -718,6 +719,7 @@ async function _ausMultiFloorCombined(){
 // ── Called when user clicks "Keep Separate" ───────────────────────────────
 function _ausMultiFloorSeparate(){
   S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null;
+  _AUS_MF_MODE=false;
   ausAddToRows();
 }
 
@@ -1203,6 +1205,10 @@ function ausAvailLabel(o){
 
 let _ausLookupRendering=false;
 let _ausLoadingCard=false;
+// When true, floor chip clicks only filter the office list — they do NOT
+// reload the library card or clear AUS_SELECTED. Activated by ⊕ Multi-floor.
+let _AUS_MF_MODE=false;
+
 function _ausLoadCard(idx){
   // Load a lib card without triggering AUS centre re-filter
   _ausLoadingCard=true;
@@ -1211,21 +1217,33 @@ function _ausLoadCard(idx){
 }
 
 function _ausLoadCardAndFilter(idx, floorNum){
-  // Load lib card AND filter AUS office list to that floor's offices
+  if(_AUS_MF_MODE){
+    // Multi-floor mode: just update floor filter — keep card + selections intact
+    const searchInp=document.getElementById('aus-search');
+    if(searchInp&&floorNum) searchInp.value=floorNum;
+    setTimeout(()=>{ renderAusLookup(); if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER); },0);
+    return;
+  }
+  // Normal mode: load lib card AND filter office list to that floor
   _ausLoadCard(idx);
   if(floorNum){
-    const searchInp = document.getElementById('aus-search');
-    if(searchInp){
-      searchInp.value = floorNum;
-    }
+    const searchInp=document.getElementById('aus-search');
+    if(searchInp) searchInp.value=floorNum;
   }
-  // Defer so loadFromLib completes first, then refresh both the office list
-  // and the floor-chip bar (the chip for the just-loaded floor should turn
-  // solid to indicate it's the active card).
   setTimeout(()=>{
     renderAusLookup();
     if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
   }, 0);
+}
+
+// Toggle multi-floor mode — activated by ⊕ Multi-floor button.
+// When ON: floor chip clicks only filter the list, never clear selections.
+function _ausToggleMfMode(){
+  _AUS_MF_MODE=!_AUS_MF_MODE;
+  if(_AUS_MF_MODE){
+    showStatus(ui('aus_mf_hint'),'s-info');
+  }
+  if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
 }
 function renderAusLookup(){
   if(_ausLookupRendering) return;
@@ -2049,10 +2067,12 @@ function renderAusLibSuggestions(centre){
       return `<button class="${cls}" onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:${bg};color:${fg};font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}${badge}</button>`;
     }).join('')
   +(multiFloorAvail?`
-    <button onclick="showStatus(ui('aus_mf_hint'),'s-info')"
-      style="padding:2px 10px;border:1.5px solid var(--xlt);border-radius:20px;background:transparent;
-             color:var(--xlt);font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
-      ${ui('aus_mf_btn')}
+    <button onclick="_ausToggleMfMode()"
+      style="padding:2px 10px;border:1.5px solid ${_AUS_MF_MODE?'var(--o)':'var(--xlt)'};border-radius:20px;
+             background:${_AUS_MF_MODE?'var(--olt)':'transparent'};
+             color:${_AUS_MF_MODE?'var(--o)':'var(--xlt)'};
+             font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
+      ${_AUS_MF_MODE?'✓ '+ui('aus_mf_btn'):ui('aus_mf_btn')}
     </button>`:'');
 }
 
