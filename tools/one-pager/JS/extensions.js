@@ -721,6 +721,8 @@ async function addToQueue(){
       window._AUS_MF_MODE=false;
       const banner=document.getElementById('aus-mf-active-banner'); if(banner) banner.style.display='none';
       if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
+      // Add selected rooms to rows FIRST (they may still be in AUS_SELECTED only)
+      if(typeof ausAddToRows==='function' && AUS_SELECTED && AUS_SELECTED.size>0) ausAddToRows();
       const floors=_detectFloorsFromRows(S.rows);
       if(floors.length>=2){
         S._isMultiFloor=true;

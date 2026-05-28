@@ -249,11 +249,23 @@ function gen(){
   const page2El=document.getElementById('slide2');
   page2El.style.setProperty('--fs',fsVal);
 
+  // ── Detect multi-floor state for Page 2 ─────────────────────────────────
+  // Priority 1: queued combined state (S._isMultiFloor set after + Queue)
+  // Priority 2: live MF mode preview (window._AUS_MF_MODE + AUS_SELECTED)
+  let _mfFloors=null,_mfUrls={};
+  if(S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2){
+    _mfFloors=S._multiFloorNums; _mfUrls=S._multiFloorFpUrls||{};
+  } else if(window._AUS_MF_MODE&&typeof AUS_SELECTED!=='undefined'&&AUS_SELECTED.size>0){
+    const lf=[...new Set([...AUS_SELECTED].map(k=>{
+      const oid=k.split('||').pop()||k;
+      return typeof _detectFloorNum==='function'?_detectFloorNum(oid):null;
+    }).filter(f=>f!==null))].sort((a,b)=>a-b);
+    if(lf.length>=2) _mfFloors=lf;
+  }
+
   // ── Multi-floor grid for Page 2 ────────────────────────────────────────
-  // Shows each floor's plan with: pre-rendered highlight master (preferred),
-  // OR matched uploaded FP_PLAN, OR dashed placeholder. Orange label bar per cell.
   const buildMultiFloorFpGrid=()=>{
-    const floors=S._multiFloorNums||[];
+    const floors=_mfFloors||[];
     if(!floors.length) return buildFpHtml(fp2Idx,fp2All,true);
     const cols=floors.length<=3?floors.length:2;
     const phCell=(floor)=>`
@@ -273,15 +285,21 @@ function gen(){
         gap:3px;width:100%;height:100%;">
       ${floors.map(floor=>{
         // 1. Pre-rendered highlighted master for this floor
-        const hlUrl=S._multiFloorFpUrls?.[floor];
+        const hlUrl=_mfUrls?.[floor];
         // 2. Uploaded FP_PLAN whose label matches this floor number
         const matchedFp=(typeof _detectFloorNum==='function')
           ?FP_PLANS.find(p=>_detectFloorNum(p.label)===floor&&p.url):null;
         const imgUrl=hlUrl||matchedFp?.url||null;
-        // 3. Room IDs on this floor for label bar
-        const floorRooms=(S.rows||[])
+        // 3. Room IDs: from rows (queued) or AUS_SELECTED (live preview)
+        let floorRooms=(S.rows||[])
           .filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor)
           .map(r=>r.seats).join(' · ');
+        if(!floorRooms&&typeof AUS_SELECTED!=='undefined'){
+          floorRooms=[...AUS_SELECTED].filter(k=>{
+            const oid=k.split('||').pop()||k;
+            return typeof _detectFloorNum==='function'&&_detectFloorNum(oid)===floor;
+          }).map(k=>k.split('||').pop()||k).join(' · ');
+        }
         return `<div style="position:relative;overflow:hidden;background:#f5f5f5;
             border-radius:3px;border:1px solid #e8e8e8;box-sizing:border-box;">
           ${imgUrl
@@ -302,7 +320,7 @@ function gen(){
   ${topBarHTML(2)}
   <div class="p2-body">
     <div class="p2-fp-area">
-      ${S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2
+      ${_mfFloors&&_mfFloors.length>=2
         ?buildMultiFloorFpGrid()
         :(FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
       ${COMPASS_ON ? `<div class="sl-compass"><img src="${COMPASS_IMG_URL}" alt="N" style="transform:rotate(${COMPASS_ANGLE}deg);transform-origin:center center;"><span class="sl-compass-dir">${_compassCardinal(COMPASS_ANGLE)}</span></div>` : ''}
