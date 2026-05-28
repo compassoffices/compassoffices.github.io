@@ -703,7 +703,8 @@ async function _preRenderFloorHighlights(floors, rows){
 // Adds selected rooms to rows, pre-renders per-floor highlights, sets state.
 async function _ausMultiFloorCombined(){
   ausAddToRows();
-  _AUS_MF_MODE=false;
+  window._AUS_MF_MODE=false;
+  const b=document.getElementById('aus-mf-active-banner'); if(b) b.style.display='none';
   const floors=_detectFloorsFromRows(S.rows);
   if(floors.length<2){ S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null; return; }
   S._isMultiFloor=true;
@@ -719,7 +720,8 @@ async function _ausMultiFloorCombined(){
 // ── Called when user clicks "Keep Separate" ───────────────────────────────
 function _ausMultiFloorSeparate(){
   S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null;
-  _AUS_MF_MODE=false;
+  window._AUS_MF_MODE=false;
+  const b=document.getElementById('aus-mf-active-banner'); if(b) b.style.display='none';
   ausAddToRows();
 }
 
@@ -1205,26 +1207,23 @@ function ausAvailLabel(o){
 
 let _ausLookupRendering=false;
 let _ausLoadingCard=false;
-// When true, floor chip clicks only filter the office list — they do NOT
-// reload the library card or clear AUS_SELECTED. Activated by ⊕ Multi-floor.
-let _AUS_MF_MODE=false;
+// Multi-floor mode flag — must be on window so onclick attribute handlers can read it
+window._AUS_MF_MODE = false;
 
 function _ausLoadCard(idx){
-  // Load a lib card without triggering AUS centre re-filter
   _ausLoadingCard=true;
   loadFromLib(idx);
   _ausLoadingCard=false;
 }
 
 function _ausLoadCardAndFilter(idx, floorNum){
-  if(_AUS_MF_MODE){
-    // Multi-floor mode: just update floor filter — keep card + selections intact
+  if(window._AUS_MF_MODE){
+    // Multi-floor mode: just change the floor filter — DO NOT reload card or clear selection
     const searchInp=document.getElementById('aus-search');
     if(searchInp&&floorNum) searchInp.value=floorNum;
     setTimeout(()=>{ renderAusLookup(); if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER); },0);
     return;
   }
-  // Normal mode: load lib card AND filter office list to that floor
   _ausLoadCard(idx);
   if(floorNum){
     const searchInp=document.getElementById('aus-search');
@@ -1236,13 +1235,13 @@ function _ausLoadCardAndFilter(idx, floorNum){
   }, 0);
 }
 
-// Toggle multi-floor mode — activated by ⊕ Multi-floor button.
-// When ON: floor chip clicks only filter the list, never clear selections.
+// Toggle multi-floor mode — called by ⊕ Multi-floor button
 function _ausToggleMfMode(){
-  _AUS_MF_MODE=!_AUS_MF_MODE;
-  if(_AUS_MF_MODE){
-    showStatus(ui('aus_mf_hint'),'s-info');
-  }
+  window._AUS_MF_MODE = !window._AUS_MF_MODE;
+  const banner = document.getElementById('aus-mf-active-banner');
+  const hintEl = document.getElementById('aus-mf-hint-text');
+  if(banner) banner.style.display = window._AUS_MF_MODE ? 'flex' : 'none';
+  if(hintEl) hintEl.textContent = window._AUS_MF_MODE ? ui('aus_mf_hint') : '';
   if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
 }
 function renderAusLookup(){
@@ -2068,11 +2067,11 @@ function renderAusLibSuggestions(centre){
     }).join('')
   +(multiFloorAvail?`
     <button onclick="_ausToggleMfMode()"
-      style="padding:2px 10px;border:1.5px solid ${_AUS_MF_MODE?'var(--o)':'var(--xlt)'};border-radius:20px;
-             background:${_AUS_MF_MODE?'var(--olt)':'transparent'};
-             color:${_AUS_MF_MODE?'var(--o)':'var(--xlt)'};
+      style="padding:2px 10px;border:1.5px solid ${window._AUS_MF_MODE?'var(--o)':'var(--xlt)'};border-radius:20px;
+             background:${window._AUS_MF_MODE?'var(--olt)':'transparent'};
+             color:${window._AUS_MF_MODE?'var(--o)':'var(--xlt)'};
              font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
-      ${_AUS_MF_MODE?'✓ '+ui('aus_mf_btn'):ui('aus_mf_btn')}
+      ${window._AUS_MF_MODE?'✓ '+ui('aus_mf_btn'):ui('aus_mf_btn')}
     </button>`:'');
 }
 
