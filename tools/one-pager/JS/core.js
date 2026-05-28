@@ -79,8 +79,8 @@ function gen(){
     </div>
     <div class="sl-title-block">
       <div class="sl-title">${name}${
-        S._isMultiFloor && S._multiFloorNums && S._multiFloorNums.length > 1
-          ? ' ' + S._multiFloorNums.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.2em">FL.${f}</span>`).join('')
+        S._isMultiFloor && S._multiFloorNums && S._multiFloorNums.length>1
+          ? ' '+S._multiFloorNums.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.18em">FL.${f}</span>`).join('')
           : floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''
       }</div>
       ${addr?`<div class="sl-addr-row"><div class="sl-addr">${addr}</div></div>`:''}
@@ -246,69 +246,65 @@ function gen(){
     ${purl?`<div class="sl-url">${purl}</div>`:''}
   </div>`;
 
-  // ── Multi-floor grid for Page 2 ─────────────────────────────────────────
-  // Each floor gets its own cell showing:
-  //  1. Pre-rendered highlighted master (S._multiFloorFpUrls[floor]) — preferred
-  //  2. Uploaded FP_PLAN whose Room # label matches the floor number — fallback
-  //  3. Dashed placeholder if neither is available
-  const buildMultiFloorFpGrid = () => {
-    const floors = S._multiFloorNums || [];
-    if(!floors.length) return buildFpHtml(fp2Idx, fp2All, true);
-    // Column count: 2 floors = 2-col, 3 = 3-col, 4+ = 2×2
-    const cols = floors.length <= 3 ? floors.length : 2;
-    const placeholder = (floor) =>
-      `<div style="width:100%;height:100%;display:flex;flex-direction:column;
-         align-items:center;justify-content:center;padding:12px;box-sizing:border-box;">
+  const page2El=document.getElementById('slide2');
+  page2El.style.setProperty('--fs',fsVal);
+
+  // ── Multi-floor grid for Page 2 ────────────────────────────────────────
+  // Shows each floor's plan with: pre-rendered highlight master (preferred),
+  // OR matched uploaded FP_PLAN, OR dashed placeholder. Orange label bar per cell.
+  const buildMultiFloorFpGrid=()=>{
+    const floors=S._multiFloorNums||[];
+    if(!floors.length) return buildFpHtml(fp2Idx,fp2All,true);
+    const cols=floors.length<=3?floors.length:2;
+    const phCell=(floor)=>`
+      <div style="width:100%;height:100%;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;padding:10px;box-sizing:border-box;">
         <svg viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width=".8"
-          style="width:30%;max-width:48px;opacity:.5;margin-bottom:calc(var(--fs)*0.4);">
+          style="width:28%;max-width:44px;opacity:.5;margin-bottom:calc(var(--fs)*0.35);">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
           <line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/>
           <line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
         </svg>
-        <span style="font-size:calc(var(--fs)*0.55);color:#bbb;text-align:center;line-height:1.4;">
-          Floor ${floor}<br>Upload floor plan<br>in Media tab
+        <span style="font-size:calc(var(--fs)*0.52);color:#bbb;text-align:center;line-height:1.4;">
+          FL.${floor}<br>Upload in Media tab
         </span>
       </div>`;
     return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);
         gap:3px;width:100%;height:100%;">
-      ${floors.map(floor => {
+      ${floors.map(floor=>{
         // 1. Pre-rendered highlighted master for this floor
-        const highlightUrl = S._multiFloorFpUrls?.[floor];
-        // 2. Uploaded FP_PLAN matching this floor (Room # label → floor number)
-        const matchedFp = (typeof _detectFloorNum==='function')
-          ? FP_PLANS.find(p=>_detectFloorNum(p.label)===floor && p.url)
-          : null;
-        const imgUrl = highlightUrl || matchedFp?.url || null;
-        // 3. Room IDs on this floor for the orange label bar
-        const floorRooms = (S.rows||[])
-          .filter(r=>typeof _detectFloorNum==='function' && _detectFloorNum(r.seats)===floor)
+        const hlUrl=S._multiFloorFpUrls?.[floor];
+        // 2. Uploaded FP_PLAN whose label matches this floor number
+        const matchedFp=(typeof _detectFloorNum==='function')
+          ?FP_PLANS.find(p=>_detectFloorNum(p.label)===floor&&p.url):null;
+        const imgUrl=hlUrl||matchedFp?.url||null;
+        // 3. Room IDs on this floor for label bar
+        const floorRooms=(S.rows||[])
+          .filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor)
           .map(r=>r.seats).join(' · ');
         return `<div style="position:relative;overflow:hidden;background:#f5f5f5;
             border-radius:3px;border:1px solid #e8e8e8;box-sizing:border-box;">
           ${imgUrl
-            ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
-            : placeholder(floor)}
+            ?`<img src="${imgUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
+            :phCell(floor)}
           <div style="position:absolute;bottom:0;left:0;right:0;
               background:rgba(255,102,0,.9);color:#fff;
               padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:calc(var(--fs)*0.62);font-weight:800;letter-spacing:.04em;">FL.${floor}</span>
-            ${floorRooms?`<span style="font-size:calc(var(--fs)*0.55);opacity:.9;letter-spacing:.02em;">${floorRooms}</span>`:''}
+            ${floorRooms?`<span style="font-size:calc(var(--fs)*0.55);opacity:.9;">${floorRooms}</span>`:''}
           </div>
         </div>`;
       }).join('')}
     </div>`;
   };
-
-  const page2El=document.getElementById('slide2');
-  page2El.style.setProperty('--fs',fsVal);
   const noph2=(bg='#E8E8E8')=>`<div class="p2-noph" style="background:${bg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
   page2El.innerHTML=`
   ${topBarHTML(2)}
   <div class="p2-body">
     <div class="p2-fp-area">
-      ${S._isMultiFloor && FP_PLANS.length >= 2
-        ? buildMultiFloorFpGrid()
-        : (FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
+      ${S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2
+        ?buildMultiFloorFpGrid()
+        :(FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
       ${COMPASS_ON ? `<div class="sl-compass"><img src="${COMPASS_IMG_URL}" alt="N" style="transform:rotate(${COMPASS_ANGLE}deg);transform-origin:center center;"><span class="sl-compass-dir">${_compassCardinal(COMPASS_ANGLE)}</span></div>` : ''}
     </div>
     <div class="p2-right">

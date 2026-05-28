@@ -641,150 +641,100 @@ function _resetCardForNewProposal(){
   gen();
 }
 
-// ── Multi-floor detection ────────────────────────────────────────────────────
-// Parse floor number from room ID (e.g. '501' → 5, '1501' → 15, '103' → 1)
+// ══════════════════════════════════════════════════════════════════════════
+//  MULTI-FLOOR COMBINED PROPOSAL
+//  Detects when selected/added rooms span multiple floors of the same centre,
+//  shows a "⊕ Multi-floor" button next to the floor chips + a count badge
+//  on each chip, and lets the user choose Combined or Separate in the
+//  selection bar — all before ever touching + Queue.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Parse floor number from room ID — handles both formats:
+//   "16-01"  → 16  (hyphenated: floor is prefix before first hyphen)
+//   "1601"   → 16  (compact 4-digit: Math.floor(1601/100))
 function _detectFloorNum(roomId){
   const id=(roomId||'').trim();
   if(!id) return null;
-  // Format A: hyphenated "16-01", "15-01-C" → floor is the number before the first hyphen
   const parts=id.split('-');
   if(parts.length>=2){
-    const floor=parseInt(parts[0]);
-    if(!isNaN(floor)&&floor>=1&&floor<=99) return floor;
+    const f=parseInt(parts[0]);
+    if(!isNaN(f)&&f>=1&&f<=99) return f;
   }
-  // Format B: compact "1601" → floor 16 via Math.floor(1601/100)
   const n=parseInt(id);
   if(!isNaN(n)&&n>=100) return Math.floor(n/100);
   return null;
 }
+
+// Return sorted unique floor numbers present in a rows array
 function _detectFloorsFromRows(rows){
   const floors=new Set();
   (rows||[]).forEach(r=>{ const f=_detectFloorNum(r.seats); if(f!==null) floors.add(f); });
   return [...floors].sort((a,b)=>a-b);
 }
 
-// Show multi-floor choice prompt — returns Promise<'combined'|'separate'|'cancel'>
-function _showMultiFloorPrompt(floors){
-  return new Promise(resolve=>{
-    const existing=document.getElementById('_mf-prompt-overlay');
-    if(existing) existing.remove();
-    const floorList=floors.map(f=>`Floor ${f}`).join(', ');
-    const overlay=document.createElement('div');
-    overlay.id='_mf-prompt-overlay';
-    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML=`
-      <div style="background:#fff;border-radius:12px;padding:28px 28px 22px;max-width:380px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.22);font-family:inherit;">
-        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:8px;">${ui('mf_title')}</div>
-        <div style="font-size:12px;color:#666;line-height:1.55;margin-bottom:6px;">${ui('mf_desc')}</div>
-        <div style="font-size:11px;color:#FF6600;font-weight:600;margin-bottom:18px;">${floorList}</div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <button id="_mf-combined" style="background:#FF6600;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;">
-            🏢 ${ui('mf_combined')}
-            <div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px;">One proposal · multi-floor grid on Page 2</div>
-          </button>
-          <button id="_mf-separate" style="background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:8px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;">
-            📋 ${ui('mf_separate')}
-            <div style="font-size:10px;font-weight:400;color:#888;margin-top:2px;">One queue item per floor</div>
-          </button>
-          <button id="_mf-cancel" style="background:transparent;color:#999;border:none;padding:6px;font-size:11px;cursor:pointer;">${ui('mf_cancel')}</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    const cleanup=(choice)=>{ overlay.remove(); resolve(choice); };
-    document.getElementById('_mf-combined').onclick=()=>cleanup('combined');
-    document.getElementById('_mf-separate').onclick=()=>cleanup('separate');
-    document.getElementById('_mf-cancel').onclick=()=>cleanup('cancel');
-    overlay.addEventListener('click',e=>{ if(e.target===overlay) cleanup('cancel'); });
-  });
-}
-
-// Add each floor as a separate queue item (auto-split by floor)
-async function _addToQueueSeparate(floors, origRows){
-  const savedRows=JSON.parse(JSON.stringify(S.rows));
-  let addedCount=0;
-  for(const f of floors){
-    const floorRows=origRows.filter(r=>_detectFloorNum(r.seats)===f);
-    if(!floorRows.length) continue;
-    S.rows=floorRows;
-    S._isMultiFloor=false;
-    S._multiFloorNums=null;
-    gen._captureMode=true; gen(); gen._captureMode=false;
-    await new Promise(r=>setTimeout(r,80));
-    const cv1=await slideToCanvas('slide');
-    const cv2=await slideToCanvas('slide2');
-    const thumb=cv1?cv1.toDataURL('image/jpeg',0.5):'';
-    const cv1Data=cv1?cv1.toDataURL('image/jpeg',0.92):'';
-    const cv2Data=cv2?cv2.toDataURL('image/jpeg',0.92):'';
-    const state=buildStateSnapshot();
-    const floorName=(getExportName()||'Location')+` – Floor ${f}`;
-    PDF_QUEUE.push({name:floorName,thumb,cv1DataUrl:cv1Data,cv2DataUrl:cv2Data,state});
-    addedCount++;
-  }
-  S.rows=savedRows;
-  S._isMultiFloor=false;
-  S._multiFloorNums=null;
-  renderQueueList(); updateQueueBadge();
-  const panel=document.getElementById('queue-panel');
-  if(panel) panel.style.display='flex';
-  _resetCardForNewProposal();
-  showStatus(`${addedCount} floor${addedCount!==1?'s':''} added as separate proposals.`,'s-ok');
-}
-
-// Pre-render the highlighted master floor plan for each floor in a
-// multi-floor combined proposal. Uses renderHighlightedMaster() directly
-// with a per-floor subset of rooms — no global state mutation needed.
-// Returns {15: 'data:...', 16: 'data:...', 28: null} where null means
-// no matching room data found (placeholder shown on Page 2 grid).
+// Pre-render the highlighted master floor plan for each floor.
+// Calls renderHighlightedMaster() directly with each floor's room subset —
+// no global state mutation. Caches results in FP_HIGHLIGHT_CACHE.
+// Returns { 15: 'data:…', 16: 'data:…', 28: null } (null = no room data found).
 async function _preRenderFloorHighlights(floors, rows){
   if(!FP_MASTER_DATA) return {};
-  const urls = {};
+  const urls={};
   for(const floor of floors){
-    const roomIds = (rows||[])
-      .filter(r => _detectFloorNum(r.seats) === floor)
-      .map(r => (r.seats||'').trim()).filter(Boolean);
+    const roomIds=(rows||[])
+      .filter(r=>_detectFloorNum(r.seats)===floor)
+      .map(r=>(r.seats||'').trim()).filter(Boolean);
     if(!roomIds.length){ urls[floor]=null; continue; }
-    // Find room polygon objects in FP_MASTER_DATA
-    const roomObjs = roomIds.map(id=>fpFindRoom(id)).filter(Boolean);
+    const roomObjs=roomIds.map(id=>fpFindRoom(id)).filter(Boolean);
     if(!roomObjs.length){ urls[floor]=null; continue; }
-    // Check the highlight cache first (avoids re-rendering)
-    const cacheKey = typeof fpHighlightCacheKey==='function' ? fpHighlightCacheKey(roomObjs) : roomIds.join(',');
-    if(FP_HIGHLIGHT_CACHE && FP_HIGHLIGHT_CACHE[cacheKey]){
+    const cacheKey=typeof fpHighlightCacheKey==='function'?fpHighlightCacheKey(roomObjs):roomIds.join(',');
+    if(FP_HIGHLIGHT_CACHE&&FP_HIGHLIGHT_CACHE[cacheKey]){
       urls[floor]=FP_HIGHLIGHT_CACHE[cacheKey]; continue;
     }
     try{
-      const url = await renderHighlightedMaster(roomObjs);
-      if(url){
-        if(FP_HIGHLIGHT_CACHE) FP_HIGHLIGHT_CACHE[cacheKey]=url;
-        urls[floor]=url;
-      } else { urls[floor]=null; }
-    }catch(e){
-      console.warn('Multi-floor pre-render failed for floor',floor,e);
-      urls[floor]=null;
-    }
+      const url=await renderHighlightedMaster(roomObjs);
+      if(url){ if(FP_HIGHLIGHT_CACHE) FP_HIGHLIGHT_CACHE[cacheKey]=url; urls[floor]=url; }
+      else urls[floor]=null;
+    }catch(e){ console.warn('Multi-floor pre-render failed for floor',floor,e); urls[floor]=null; }
   }
   return urls;
 }
 
+// ── Called when user clicks "⚡ Combined Proposal" in the selection bar ───
+// Adds selected rooms to rows, pre-renders per-floor highlights, sets state.
+async function _ausMultiFloorCombined(){
+  ausAddToRows();
+  const floors=_detectFloorsFromRows(S.rows);
+  if(floors.length<2){ S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null; return; }
+  S._isMultiFloor=true;
+  S._multiFloorNums=floors;
+  S._multiFloorFpUrls={};
+  gen();
+  showStatus(ui('aus_mf_rendering'),'s-info');
+  S._multiFloorFpUrls=await _preRenderFloorHighlights(floors,S.rows);
+  gen();
+  showStatus(ui('aus_mf_ready'),'s-ok');
+}
+
+// ── Called when user clicks "Keep Separate" ───────────────────────────────
+function _ausMultiFloorSeparate(){
+  S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null;
+  ausAddToRows();
+}
+
+// ── Show / hide the educational multi-floor hint banner ───────────────────
+function _ausShowMfHint(){
+  const el=document.getElementById('aus-mf-hint-banner');
+  if(!el) return;
+  el.style.display=(el.style.display==='none')?'block':'none';
+}
+
 async function addToQueue(){
-  // ── Multi-floor check ────────────────────────────────────────────────────
-  const _floors = _detectFloorsFromRows(S.rows);
-  if(_floors.length > 1){
-    const choice = await _showMultiFloorPrompt(_floors);
-    if(choice === 'cancel') return;
-    if(choice === 'separate'){
-      await _addToQueueSeparate(_floors, JSON.parse(JSON.stringify(S.rows)));
-      return;
-    }
-    // 'combined' — pre-render per-floor highlights then fall through
-    S._multiFloorFpUrls = await _preRenderFloorHighlights(_floors, S.rows);
-    S._isMultiFloor = true;
-    S._multiFloorNums = _floors;
-  } else {
-    // Single floor or non-numeric rooms — clear any stale multi-floor state
-    S._isMultiFloor = false;
-    S._multiFloorNums = null;
+  // Multi-floor state is set by _ausMultiFloorCombined() in the Office Lookup.
+  // If current rows are single-floor or no longer span 2+ floors, clear stale flags.
+  if(S._isMultiFloor){
+    const currentFloors=_detectFloorsFromRows(S.rows);
+    if(currentFloors.length<2){ S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null; }
   }
-  // ── Normal queue capture ─────────────────────────────────────────────────
   const btn=document.getElementById('queue-btn');
   const origHTML=btn?btn.innerHTML:'';
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(0,0,0,.2);border-top-color:var(--o);border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Adding…</span>';btn.disabled=true;}
@@ -1412,11 +1362,48 @@ function renderAusLookup(){
     </table>`;
   }
 
-  // Update selection bar
+  // Update selection bar — multi-floor notice when 2+ floors, plain count otherwise
   const bar=document.getElementById('aus-selection-bar');
-  const selCnt=document.getElementById('aus-sel-count');
-  if(bar){bar.style.display=AUS_SELECTED.size?'flex':'none';}
-  if(selCnt){selCnt.textContent=`${AUS_SELECTED.size} office${AUS_SELECTED.size!==1?'s':''} selected`;}
+  if(bar){
+    if(AUS_SELECTED.size){
+      bar.style.display='flex';
+      const selFloors=[...new Set([...AUS_SELECTED].map(_detectFloorNum).filter(f=>f!==null))].sort((a,b)=>a-b);
+      if(selFloors.length>=2){
+        const floorLabel=selFloors.map(f=>`FL.${f}`).join(' & ');
+        bar.innerHTML=`
+          <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:700;color:var(--o);">${AUS_SELECTED.size} ${ui('aus_mf_floors')} · ${floorLabel}</span>
+            <div style="display:flex;gap:5px;margin-left:auto;align-items:center;flex-wrap:wrap;">
+              <button onclick="_ausMultiFloorCombined()"
+                style="padding:5px 11px;background:var(--o);color:#fff;border:none;border-radius:6px;
+                       font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
+                ${ui('aus_mf_combined')}
+              </button>
+              <button onclick="_ausMultiFloorSeparate()"
+                style="padding:5px 11px;background:transparent;color:var(--o);border:1.5px solid var(--o);
+                       border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
+                ${ui('aus_mf_separate')}
+              </button>
+              <button onclick="AUS_SELECTED.clear();renderAusLookup()"
+                style="font-size:10px;color:var(--xlt);border:none;background:transparent;cursor:pointer;font-family:inherit;">
+                ${ui('aus_clear_sel')}
+              </button>
+            </div>
+          </div>`;
+      } else {
+        bar.innerHTML=`
+          <span id="aus-sel-count" style="font-size:11px;font-weight:700;color:var(--o);">
+            ${AUS_SELECTED.size} office${AUS_SELECTED.size!==1?'s':''} selected
+          </span>
+          <button onclick="AUS_SELECTED.clear();renderAusLookup()"
+            style="font-size:10px;color:var(--xlt);border:none;background:transparent;cursor:pointer;font-family:inherit;">
+            ${ui('aus_clear_sel')}
+          </button>`;
+      }
+    } else {
+      bar.style.display='none';
+    }
+  }
   _ausLookupRendering=false;
 }
 
@@ -2041,17 +2028,38 @@ function renderAusLibSuggestions(centre){
   const activeFloor = (typeof ausGetCurrentLoadedFloor === 'function')
     ? (ausGetCurrentLoadedFloor() || '')
     : '';
+  // Count selected offices per floor for badge display
+  const selByFloor={};
+  [...AUS_SELECTED].forEach(key=>{
+    const f=_detectFloorNum(key); if(f!==null) selByFloor[f]=(selByFloor[f]||0)+1;
+  });
+  // Check if multiple floors have offices available (for ⊕ Multi-floor button)
+  const multiFloorAvail=matches.length>=2;
   bar.innerHTML='<span style="font-size:9.5px;font-weight:700;color:var(--o);white-space:nowrap;">Select floor:</span>'
     +matches.map(({l,i})=>{
       const floor=getFloor({l});
-      // Extract numeric floor for office # filtering (e.g. "21F" → "21")
       const floorNum=(floor.match(/^(\d+)[Ff]/)||[])[1]||'';
       const isActive = floorNum && floorNum.replace(/^0+/,'') === activeFloor;
       const bg = isActive ? 'var(--o)' : 'var(--olt)';
       const fg = isActive ? '#fff' : 'var(--o)';
       const cls = isActive ? 'floor-btn-active' : '';
-      return `<button class="${cls}" onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:${bg};color:${fg};font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}</button>`;
-    }).join('');
+      // Count badge: how many rooms from this floor are in AUS_SELECTED
+      const fNum=parseInt(floorNum)||0;
+      const cnt=selByFloor[fNum]||0;
+      const badge=cnt>0?` <span style="background:${isActive?'rgba(255,255,255,.3)':'var(--o)'};color:${isActive?'#fff':'#fff'};border-radius:8px;font-size:9px;font-weight:800;padding:0 4px;margin-left:1px;">·${cnt}✓</span>`:'';
+      return `<button class="${cls}" onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:${bg};color:${fg};font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}${badge}</button>`;
+    }).join('')
+  +(multiFloorAvail?`
+    <button onclick="_ausShowMfHint()" title="${ui('aus_mf_hint')}"
+      style="padding:2px 10px;border:1.5px solid var(--xlt);border-radius:20px;background:transparent;
+             color:var(--xlt);font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
+      ${ui('aus_mf_btn')}
+    </button>
+    <div id="aus-mf-hint-banner" style="display:none;position:absolute;left:0;right:0;top:100%;
+         background:#fff8f3;border:1.5px solid var(--o);border-radius:8px;padding:9px 13px;
+         font-size:11.5px;color:#555;line-height:1.5;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.1);margin-top:4px;">
+      💡 ${ui('aus_mf_hint')}
+    </div>`:'');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2287,9 +2295,6 @@ function _emailGetLocations(){
         rows,
         benefits,
         depositNote,
-        // Multi-floor combined proposal support
-        _isMultiFloor:   st._isMultiFloor || false,
-        _multiFloorNums: st._multiFloorNums || null,
       };
     });
   }
@@ -2472,10 +2477,7 @@ function buildEmailHTML(toName, fromName, company){
     <tr>
       <td style="background:#fff3ec;border-left:4px solid #FF6600;padding:14px 20px;${li>0?'border-top:2px solid #ffe4d0;':''}">
         <span style="font-family:${FF};font-size:15px;font-weight:800;color:#FF6600;">${loc.locName}</span>
-        ${(loc._isMultiFloor && loc._multiFloorNums?.length)
-          ? loc._multiFloorNums.map(f=>`<span style="display:inline-block;margin-left:6px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">FL.${f}</span>`).join('')
-          : loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`
-          :''}
+        ${loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`:''}
         ${loc.city||loc.addr?`<div style="font-family:${FF};font-size:12px;color:#999;margin-top:3px;">${[loc.addr,loc.city].filter(Boolean).join(' · ')}</div>`:''}
       </td>
     </tr>
@@ -2496,8 +2498,8 @@ function buildEmailHTML(toName, fromName, company){
     : T.default_benefits.map(t=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${t}</li>`).join('');
 
   const locTitle = isMulti
-    ? locations.map(l=>l.locName+(l._isMultiFloor&&l._multiFloorNums?.length?' Floors '+l._multiFloorNums.join('&'):l.floor?' '+l.floor:'')).join(' · ')
-    : [firstLoc.locName, firstLoc._isMultiFloor&&firstLoc._multiFloorNums?.length?'Floors '+firstLoc._multiFloorNums.join(' & '):firstLoc.floor].filter(Boolean).join(' – ');
+    ? locations.map(l=>l.locName+(l.floor?' '+l.floor:'')).join(' · ')
+    : [firstLoc.locName, firstLoc.floor].filter(Boolean).join(' – ');
 
   return `<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="${lc}">
