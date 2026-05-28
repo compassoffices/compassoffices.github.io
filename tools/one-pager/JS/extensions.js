@@ -720,6 +720,41 @@ async function _addToQueueSeparate(floors, origRows){
   showStatus(`${addedCount} floor${addedCount!==1?'s':''} added as separate proposals.`,'s-ok');
 }
 
+// Pre-render the highlighted master floor plan for each floor in a
+// multi-floor combined proposal. Uses renderHighlightedMaster() directly
+// with a per-floor subset of rooms — no global state mutation needed.
+// Returns {15: 'data:...', 16: 'data:...', 28: null} where null means
+// no matching room data found (placeholder shown on Page 2 grid).
+async function _preRenderFloorHighlights(floors, rows){
+  if(!FP_MASTER_DATA) return {};
+  const urls = {};
+  for(const floor of floors){
+    const roomIds = (rows||[])
+      .filter(r => _detectFloorNum(r.seats) === floor)
+      .map(r => (r.seats||'').trim()).filter(Boolean);
+    if(!roomIds.length){ urls[floor]=null; continue; }
+    // Find room polygon objects in FP_MASTER_DATA
+    const roomObjs = roomIds.map(id=>fpFindRoom(id)).filter(Boolean);
+    if(!roomObjs.length){ urls[floor]=null; continue; }
+    // Check the highlight cache first (avoids re-rendering)
+    const cacheKey = typeof fpHighlightCacheKey==='function' ? fpHighlightCacheKey(roomObjs) : roomIds.join(',');
+    if(FP_HIGHLIGHT_CACHE && FP_HIGHLIGHT_CACHE[cacheKey]){
+      urls[floor]=FP_HIGHLIGHT_CACHE[cacheKey]; continue;
+    }
+    try{
+      const url = await renderHighlightedMaster(roomObjs);
+      if(url){
+        if(FP_HIGHLIGHT_CACHE) FP_HIGHLIGHT_CACHE[cacheKey]=url;
+        urls[floor]=url;
+      } else { urls[floor]=null; }
+    }catch(e){
+      console.warn('Multi-floor pre-render failed for floor',floor,e);
+      urls[floor]=null;
+    }
+  }
+  return urls;
+}
+
 async function addToQueue(){
   // ── Multi-floor check ────────────────────────────────────────────────────
   const _floors = _detectFloorsFromRows(S.rows);
@@ -730,7 +765,8 @@ async function addToQueue(){
       await _addToQueueSeparate(_floors, JSON.parse(JSON.stringify(S.rows)));
       return;
     }
-    // 'combined' — set multi-floor state then fall through to normal addToQueue
+    // 'combined' — pre-render per-floor highlights then fall through
+    S._multiFloorFpUrls = await _preRenderFloorHighlights(_floors, S.rows);
     S._isMultiFloor = true;
     S._multiFloorNums = _floors;
   } else {

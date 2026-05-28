@@ -247,25 +247,53 @@ function gen(){
   </div>`;
 
   // ── Multi-floor grid for Page 2 ─────────────────────────────────────────
-  // Shows each floor plan side by side with its floor label and room list.
-  // Used when S._isMultiFloor = true AND multiple FP_PLANS are loaded.
+  // Each floor gets its own cell showing:
+  //  1. Pre-rendered highlighted master (S._multiFloorFpUrls[floor]) — preferred
+  //  2. Uploaded FP_PLAN whose Room # label matches the floor number — fallback
+  //  3. Dashed placeholder if neither is available
   const buildMultiFloorFpGrid = () => {
-    const plans = FP_PLANS.slice(0, 4);
-    if(plans.length < 2) return buildFpHtml(fp2Idx, fp2All, true); // fallback
-    const cols = plans.length === 2 ? 2 : 3;
-    return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px;width:100%;height:100%;">
-      ${plans.map((plan, pi) => {
-        const floorNum = S._multiFloorNums?.[pi];
-        // Get rooms on this floor from pricing rows
-        const floorRooms = S.rows
-          .filter(r => { const n=parseInt(r.seats||''); return !isNaN(n) && Math.floor(n/100) === floorNum; })
-          .map(r => r.seats).join(' · ');
-        return `<div style="position:relative;overflow:hidden;background:#f5f5f5;border-radius:4px;">
-          <img src="${plan.url}" style="width:100%;height:100%;object-fit:contain;display:block;">
-          ${floorNum?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(255,102,0,.9);color:#fff;font-size:calc(var(--fs)*0.6);font-weight:700;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
-            <span>FLOOR ${floorNum}</span>
-            ${floorRooms?`<span style="font-weight:500;font-size:calc(var(--fs)*0.55);opacity:.9;">${floorRooms}</span>`:''}
-          </div>`:''}
+    const floors = S._multiFloorNums || [];
+    if(!floors.length) return buildFpHtml(fp2Idx, fp2All, true);
+    // Column count: 2 floors = 2-col, 3 = 3-col, 4+ = 2×2
+    const cols = floors.length <= 3 ? floors.length : 2;
+    const placeholder = (floor) =>
+      `<div style="width:100%;height:100%;display:flex;flex-direction:column;
+         align-items:center;justify-content:center;padding:12px;box-sizing:border-box;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width=".8"
+          style="width:30%;max-width:48px;opacity:.5;margin-bottom:calc(var(--fs)*0.4);">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/>
+          <line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
+        </svg>
+        <span style="font-size:calc(var(--fs)*0.55);color:#bbb;text-align:center;line-height:1.4;">
+          Floor ${floor}<br>Upload floor plan<br>in Media tab
+        </span>
+      </div>`;
+    return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);
+        gap:3px;width:100%;height:100%;">
+      ${floors.map(floor => {
+        // 1. Pre-rendered highlighted master for this floor
+        const highlightUrl = S._multiFloorFpUrls?.[floor];
+        // 2. Uploaded FP_PLAN matching this floor (Room # label → floor number)
+        const matchedFp = (typeof _detectFloorNum==='function')
+          ? FP_PLANS.find(p=>_detectFloorNum(p.label)===floor && p.url)
+          : null;
+        const imgUrl = highlightUrl || matchedFp?.url || null;
+        // 3. Room IDs on this floor for the orange label bar
+        const floorRooms = (S.rows||[])
+          .filter(r=>typeof _detectFloorNum==='function' && _detectFloorNum(r.seats)===floor)
+          .map(r=>r.seats).join(' · ');
+        return `<div style="position:relative;overflow:hidden;background:#f5f5f5;
+            border-radius:3px;border:1px solid #e8e8e8;box-sizing:border-box;">
+          ${imgUrl
+            ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
+            : placeholder(floor)}
+          <div style="position:absolute;bottom:0;left:0;right:0;
+              background:rgba(255,102,0,.9);color:#fff;
+              padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:calc(var(--fs)*0.62);font-weight:800;letter-spacing:.04em;">FL.${floor}</span>
+            ${floorRooms?`<span style="font-size:calc(var(--fs)*0.55);opacity:.9;letter-spacing:.02em;">${floorRooms}</span>`:''}
+          </div>
         </div>`;
       }).join('')}
     </div>`;
