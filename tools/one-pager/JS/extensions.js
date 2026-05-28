@@ -721,13 +721,6 @@ function _ausMultiFloorSeparate(){
   ausAddToRows();
 }
 
-// ── Show / hide the educational multi-floor hint banner ───────────────────
-function _ausShowMfHint(){
-  const el=document.getElementById('aus-mf-hint-banner');
-  if(!el) return;
-  el.style.display=(el.style.display==='none')?'block':'none';
-}
-
 async function addToQueue(){
   // Multi-floor state is set by _ausMultiFloorCombined() in the Office Lookup.
   // If current rows are single-floor or no longer span 2+ floors, clear stale flags.
@@ -1367,7 +1360,11 @@ function renderAusLookup(){
   if(bar){
     if(AUS_SELECTED.size){
       bar.style.display='flex';
-      const selFloors=[...new Set([...AUS_SELECTED].map(_detectFloorNum).filter(f=>f!==null))].sort((a,b)=>a-b);
+      // AUS_SELECTED keys are composite "centre||oid" — extract raw oid first
+      const selFloors=[...new Set([...AUS_SELECTED].map(k=>{
+        const oid=k.split('||').pop()||k;
+        return _detectFloorNum(oid);
+      }).filter(f=>f!==null))].sort((a,b)=>a-b);
       if(selFloors.length>=2){
         const floorLabel=selFloors.map(f=>`FL.${f}`).join(' & ');
         bar.innerHTML=`
@@ -2029,9 +2026,11 @@ function renderAusLibSuggestions(centre){
     ? (ausGetCurrentLoadedFloor() || '')
     : '';
   // Count selected offices per floor for badge display
+  // AUS_SELECTED keys are composite "centre||oid" — extract the raw oid first
   const selByFloor={};
   [...AUS_SELECTED].forEach(key=>{
-    const f=_detectFloorNum(key); if(f!==null) selByFloor[f]=(selByFloor[f]||0)+1;
+    const oid=key.split('||').pop()||key;
+    const f=_detectFloorNum(oid); if(f!==null) selByFloor[f]=(selByFloor[f]||0)+1;
   });
   // Check if multiple floors have offices available (for ⊕ Multi-floor button)
   const multiFloorAvail=matches.length>=2;
@@ -2043,23 +2042,18 @@ function renderAusLibSuggestions(centre){
       const bg = isActive ? 'var(--o)' : 'var(--olt)';
       const fg = isActive ? '#fff' : 'var(--o)';
       const cls = isActive ? 'floor-btn-active' : '';
-      // Count badge: how many rooms from this floor are in AUS_SELECTED
+      // Count badge: rooms selected on this floor
       const fNum=parseInt(floorNum)||0;
       const cnt=selByFloor[fNum]||0;
-      const badge=cnt>0?` <span style="background:${isActive?'rgba(255,255,255,.3)':'var(--o)'};color:${isActive?'#fff':'#fff'};border-radius:8px;font-size:9px;font-weight:800;padding:0 4px;margin-left:1px;">·${cnt}✓</span>`:'';
+      const badge=cnt>0?` <span style="background:rgba(255,255,255,.28);color:#fff;border-radius:8px;font-size:9px;font-weight:800;padding:0 4px;margin-left:1px;">·${cnt}✓</span>`:'';
       return `<button class="${cls}" onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:${bg};color:${fg};font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}${badge}</button>`;
     }).join('')
   +(multiFloorAvail?`
-    <button onclick="_ausShowMfHint()" title="${ui('aus_mf_hint')}"
+    <button onclick="showStatus(ui('aus_mf_hint'),'s-info')"
       style="padding:2px 10px;border:1.5px solid var(--xlt);border-radius:20px;background:transparent;
              color:var(--xlt);font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">
       ${ui('aus_mf_btn')}
-    </button>
-    <div id="aus-mf-hint-banner" style="display:none;position:absolute;left:0;right:0;top:100%;
-         background:#fff8f3;border:1.5px solid var(--o);border-radius:8px;padding:9px 13px;
-         font-size:11.5px;color:#555;line-height:1.5;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.1);margin-top:4px;">
-      💡 ${ui('aus_mf_hint')}
-    </div>`:'');
+    </button>`:'');
 }
 
 // ══════════════════════════════════════════════════════════
