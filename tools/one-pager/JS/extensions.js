@@ -644,8 +644,18 @@ function _resetCardForNewProposal(){
 // ── Multi-floor detection ────────────────────────────────────────────────────
 // Parse floor number from room ID (e.g. '501' → 5, '1501' → 15, '103' → 1)
 function _detectFloorNum(roomId){
-  const n=parseInt((roomId||'').trim());
-  return (!isNaN(n)&&n>=100) ? Math.floor(n/100) : null;
+  const id=(roomId||'').trim();
+  if(!id) return null;
+  // Format A: hyphenated "16-01", "15-01-C" → floor is the number before the first hyphen
+  const parts=id.split('-');
+  if(parts.length>=2){
+    const floor=parseInt(parts[0]);
+    if(!isNaN(floor)&&floor>=1&&floor<=99) return floor;
+  }
+  // Format B: compact "1601" → floor 16 via Math.floor(1601/100)
+  const n=parseInt(id);
+  if(!isNaN(n)&&n>=100) return Math.floor(n/100);
+  return null;
 }
 function _detectFloorsFromRows(rows){
   const floors=new Set();
