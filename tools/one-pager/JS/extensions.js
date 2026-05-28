@@ -641,7 +641,104 @@ function _resetCardForNewProposal(){
   gen();
 }
 
+// ── Multi-floor detection ────────────────────────────────────────────────────
+// Parse floor number from room ID (e.g. '501' → 5, '1501' → 15, '103' → 1)
+function _detectFloorNum(roomId){
+  const n=parseInt((roomId||'').trim());
+  return (!isNaN(n)&&n>=100) ? Math.floor(n/100) : null;
+}
+function _detectFloorsFromRows(rows){
+  const floors=new Set();
+  (rows||[]).forEach(r=>{ const f=_detectFloorNum(r.seats); if(f!==null) floors.add(f); });
+  return [...floors].sort((a,b)=>a-b);
+}
+
+// Show multi-floor choice prompt — returns Promise<'combined'|'separate'|'cancel'>
+function _showMultiFloorPrompt(floors){
+  return new Promise(resolve=>{
+    const existing=document.getElementById('_mf-prompt-overlay');
+    if(existing) existing.remove();
+    const floorList=floors.map(f=>`Floor ${f}`).join(', ');
+    const overlay=document.createElement('div');
+    overlay.id='_mf-prompt-overlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML=`
+      <div style="background:#fff;border-radius:12px;padding:28px 28px 22px;max-width:380px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.22);font-family:inherit;">
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:8px;">${ui('mf_title')}</div>
+        <div style="font-size:12px;color:#666;line-height:1.55;margin-bottom:6px;">${ui('mf_desc')}</div>
+        <div style="font-size:11px;color:#FF6600;font-weight:600;margin-bottom:18px;">${floorList}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button id="_mf-combined" style="background:#FF6600;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;">
+            🏢 ${ui('mf_combined')}
+            <div style="font-size:10px;font-weight:400;opacity:.85;margin-top:2px;">One proposal · multi-floor grid on Page 2</div>
+          </button>
+          <button id="_mf-separate" style="background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:8px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;">
+            📋 ${ui('mf_separate')}
+            <div style="font-size:10px;font-weight:400;color:#888;margin-top:2px;">One queue item per floor</div>
+          </button>
+          <button id="_mf-cancel" style="background:transparent;color:#999;border:none;padding:6px;font-size:11px;cursor:pointer;">${ui('mf_cancel')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const cleanup=(choice)=>{ overlay.remove(); resolve(choice); };
+    document.getElementById('_mf-combined').onclick=()=>cleanup('combined');
+    document.getElementById('_mf-separate').onclick=()=>cleanup('separate');
+    document.getElementById('_mf-cancel').onclick=()=>cleanup('cancel');
+    overlay.addEventListener('click',e=>{ if(e.target===overlay) cleanup('cancel'); });
+  });
+}
+
+// Add each floor as a separate queue item (auto-split by floor)
+async function _addToQueueSeparate(floors, origRows){
+  const savedRows=JSON.parse(JSON.stringify(S.rows));
+  let addedCount=0;
+  for(const f of floors){
+    const floorRows=origRows.filter(r=>_detectFloorNum(r.seats)===f);
+    if(!floorRows.length) continue;
+    S.rows=floorRows;
+    S._isMultiFloor=false;
+    S._multiFloorNums=null;
+    gen._captureMode=true; gen(); gen._captureMode=false;
+    await new Promise(r=>setTimeout(r,80));
+    const cv1=await slideToCanvas('slide');
+    const cv2=await slideToCanvas('slide2');
+    const thumb=cv1?cv1.toDataURL('image/jpeg',0.5):'';
+    const cv1Data=cv1?cv1.toDataURL('image/jpeg',0.92):'';
+    const cv2Data=cv2?cv2.toDataURL('image/jpeg',0.92):'';
+    const state=buildStateSnapshot();
+    const floorName=(getExportName()||'Location')+` – Floor ${f}`;
+    PDF_QUEUE.push({name:floorName,thumb,cv1DataUrl:cv1Data,cv2DataUrl:cv2Data,state});
+    addedCount++;
+  }
+  S.rows=savedRows;
+  S._isMultiFloor=false;
+  S._multiFloorNums=null;
+  renderQueueList(); updateQueueBadge();
+  const panel=document.getElementById('queue-panel');
+  if(panel) panel.style.display='flex';
+  _resetCardForNewProposal();
+  showStatus(`${addedCount} floor${addedCount!==1?'s':''} added as separate proposals.`,'s-ok');
+}
+
 async function addToQueue(){
+  // ── Multi-floor check ────────────────────────────────────────────────────
+  const _floors = _detectFloorsFromRows(S.rows);
+  if(_floors.length > 1){
+    const choice = await _showMultiFloorPrompt(_floors);
+    if(choice === 'cancel') return;
+    if(choice === 'separate'){
+      await _addToQueueSeparate(_floors, JSON.parse(JSON.stringify(S.rows)));
+      return;
+    }
+    // 'combined' — set multi-floor state then fall through to normal addToQueue
+    S._isMultiFloor = true;
+    S._multiFloorNums = _floors;
+  } else {
+    // Single floor or non-numeric rooms — clear any stale multi-floor state
+    S._isMultiFloor = false;
+    S._multiFloorNums = null;
+  }
+  // ── Normal queue capture ─────────────────────────────────────────────────
   const btn=document.getElementById('queue-btn');
   const origHTML=btn?btn.innerHTML:'';
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(0,0,0,.2);border-top-color:var(--o);border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Adding…</span>';btn.disabled=true;}
@@ -2144,6 +2241,9 @@ function _emailGetLocations(){
         rows,
         benefits,
         depositNote,
+        // Multi-floor combined proposal support
+        _isMultiFloor:   st._isMultiFloor || false,
+        _multiFloorNums: st._multiFloorNums || null,
       };
     });
   }
@@ -2326,7 +2426,10 @@ function buildEmailHTML(toName, fromName, company){
     <tr>
       <td style="background:#fff3ec;border-left:4px solid #FF6600;padding:14px 20px;${li>0?'border-top:2px solid #ffe4d0;':''}">
         <span style="font-family:${FF};font-size:15px;font-weight:800;color:#FF6600;">${loc.locName}</span>
-        ${loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`:''}
+        ${(loc._isMultiFloor && loc._multiFloorNums?.length)
+          ? loc._multiFloorNums.map(f=>`<span style="display:inline-block;margin-left:6px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">FL.${f}</span>`).join('')
+          : loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`
+          :''}
         ${loc.city||loc.addr?`<div style="font-family:${FF};font-size:12px;color:#999;margin-top:3px;">${[loc.addr,loc.city].filter(Boolean).join(' · ')}</div>`:''}
       </td>
     </tr>
@@ -2347,8 +2450,8 @@ function buildEmailHTML(toName, fromName, company){
     : T.default_benefits.map(t=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${t}</li>`).join('');
 
   const locTitle = isMulti
-    ? locations.map(l=>l.locName+(l.floor?' '+l.floor:'')).join(' · ')
-    : [firstLoc.locName, firstLoc.floor].filter(Boolean).join(' – ');
+    ? locations.map(l=>l.locName+(l._isMultiFloor&&l._multiFloorNums?.length?' Floors '+l._multiFloorNums.join('&'):l.floor?' '+l.floor:'')).join(' · ')
+    : [firstLoc.locName, firstLoc._isMultiFloor&&firstLoc._multiFloorNums?.length?'Floors '+firstLoc._multiFloorNums.join(' & '):firstLoc.floor].filter(Boolean).join(' – ');
 
   return `<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="${lc}">

@@ -78,7 +78,11 @@ function gen(){
       ${S.partnerLogo?`${sepHtml}<div class="sl-partner"><img src="${S.partnerLogo}"></div>`:''}
     </div>
     <div class="sl-title-block">
-      <div class="sl-title">${name}${floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''}</div>
+      <div class="sl-title">${name}${
+        S._isMultiFloor && S._multiFloorNums && S._multiFloorNums.length > 1
+          ? ' ' + S._multiFloorNums.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.2em">FL.${f}</span>`).join('')
+          : floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''
+      }</div>
       ${addr?`<div class="sl-addr-row"><div class="sl-addr">${addr}</div></div>`:''}
     </div>
     <div class="sl-meta"><div class="sl-city">${city}</div></div>
@@ -242,6 +246,31 @@ function gen(){
     ${purl?`<div class="sl-url">${purl}</div>`:''}
   </div>`;
 
+  // ── Multi-floor grid for Page 2 ─────────────────────────────────────────
+  // Shows each floor plan side by side with its floor label and room list.
+  // Used when S._isMultiFloor = true AND multiple FP_PLANS are loaded.
+  const buildMultiFloorFpGrid = () => {
+    const plans = FP_PLANS.slice(0, 4);
+    if(plans.length < 2) return buildFpHtml(fp2Idx, fp2All, true); // fallback
+    const cols = plans.length === 2 ? 2 : 3;
+    return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:3px;width:100%;height:100%;">
+      ${plans.map((plan, pi) => {
+        const floorNum = S._multiFloorNums?.[pi];
+        // Get rooms on this floor from pricing rows
+        const floorRooms = S.rows
+          .filter(r => { const n=parseInt(r.seats||''); return !isNaN(n) && Math.floor(n/100) === floorNum; })
+          .map(r => r.seats).join(' · ');
+        return `<div style="position:relative;overflow:hidden;background:#f5f5f5;border-radius:4px;">
+          <img src="${plan.url}" style="width:100%;height:100%;object-fit:contain;display:block;">
+          ${floorNum?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(255,102,0,.9);color:#fff;font-size:calc(var(--fs)*0.6);font-weight:700;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+            <span>FLOOR ${floorNum}</span>
+            ${floorRooms?`<span style="font-weight:500;font-size:calc(var(--fs)*0.55);opacity:.9;">${floorRooms}</span>`:''}
+          </div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
   const page2El=document.getElementById('slide2');
   page2El.style.setProperty('--fs',fsVal);
   const noph2=(bg='#E8E8E8')=>`<div class="p2-noph" style="background:${bg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
@@ -249,7 +278,9 @@ function gen(){
   ${topBarHTML(2)}
   <div class="p2-body">
     <div class="p2-fp-area">
-      ${(FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
+      ${S._isMultiFloor && FP_PLANS.length >= 2
+        ? buildMultiFloorFpGrid()
+        : (FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
       ${COMPASS_ON ? `<div class="sl-compass"><img src="${COMPASS_IMG_URL}" alt="N" style="transform:rotate(${COMPASS_ANGLE}deg);transform-origin:center center;"><span class="sl-compass-dir">${_compassCardinal(COMPASS_ANGLE)}</span></div>` : ''}
     </div>
     <div class="p2-right">
