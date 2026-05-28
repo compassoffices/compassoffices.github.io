@@ -71,6 +71,19 @@ function gen(){
   const dScale=totalPressure<=6?1.10:totalPressure<=9?1.00:totalPressure<=12?0.92:totalPressure<=15?0.84:totalPressure<=18?0.76:totalPressure<=22?0.68:0.60;
   const fsNum=Math.max(8,Math.min(18,rawFs*dScale));const fsVal=fsNum.toFixed(1)+'px';
 
+  // ── Multi-floor detection — computed early so BOTH topBarHTML (Page 1)
+  //    and buildMultiFloorFpGrid (Page 2) can use it ──────────────────────
+  let _mfFloors=null,_mfUrls={};
+  if(S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2){
+    _mfFloors=S._multiFloorNums; _mfUrls=S._multiFloorFpUrls||{};
+  } else if(window._AUS_MF_MODE&&typeof AUS_SELECTED!=='undefined'&&AUS_SELECTED.size>0){
+    const _lf=[...new Set([...AUS_SELECTED].map(k=>{
+      const oid=k.split('||').pop()||k;
+      return typeof _detectFloorNum==='function'?_detectFloorNum(oid):null;
+    }).filter(f=>f!==null))].sort((a,b)=>a-b);
+    if(_lf.length>=2) _mfFloors=_lf;
+  }
+
   const topBarHTML=(pg)=>`
   <div class="${pg===2?'p2-top':'sl-top'}">
     <div class="sl-logos">
@@ -79,8 +92,8 @@ function gen(){
     </div>
     <div class="sl-title-block">
       <div class="sl-title">${name}${
-        S._isMultiFloor && S._multiFloorNums && S._multiFloorNums.length>1
-          ? ' '+S._multiFloorNums.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.18em">${f}F</span>`).join('')
+        _mfFloors && _mfFloors.length>=2
+          ? ' '+_mfFloors.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.18em">${f}F</span>`).join('')
           : floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''
       }</div>
       ${addr?`<div class="sl-addr-row"><div class="sl-addr">${addr}</div></div>`:''}
@@ -251,19 +264,7 @@ function gen(){
 
   // ── Detect multi-floor state for Page 2 ─────────────────────────────────
   // Priority 1: queued combined state (S._isMultiFloor set after + Queue)
-  // Priority 2: live MF mode preview (window._AUS_MF_MODE + AUS_SELECTED)
-  let _mfFloors=null,_mfUrls={};
-  if(S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2){
-    _mfFloors=S._multiFloorNums; _mfUrls=S._multiFloorFpUrls||{};
-  } else if(window._AUS_MF_MODE&&typeof AUS_SELECTED!=='undefined'&&AUS_SELECTED.size>0){
-    const lf=[...new Set([...AUS_SELECTED].map(k=>{
-      const oid=k.split('||').pop()||k;
-      return typeof _detectFloorNum==='function'?_detectFloorNum(oid):null;
-    }).filter(f=>f!==null))].sort((a,b)=>a-b);
-    if(lf.length>=2) _mfFloors=lf;
-  }
 
-  // ── Multi-floor grid for Page 2 ────────────────────────────────────────
   const buildMultiFloorFpGrid=()=>{
     const floors=_mfFloors||[];
     if(!floors.length) return buildFpHtml(fp2Idx,fp2All,true);
@@ -289,7 +290,9 @@ function gen(){
         // 2. Uploaded FP_PLAN whose label matches this floor number
         const matchedFp=(typeof _detectFloorNum==='function')
           ?FP_PLANS.find(p=>_detectFloorNum(p.label)===floor&&p.url):null;
-        const imgUrl=hlUrl||matchedFp?.url||null;
+        // Fallback chain: highlighted per-floor → uploaded plan → master base image → placeholder
+        const _masterBase=typeof getMasterImageUrl==='function'&&FP_MASTER_DATA?getMasterImageUrl():null;
+        const imgUrl=hlUrl||matchedFp?.url||_masterBase||null;
         // 3. Room IDs: from rows (queued) or AUS_SELECTED (live preview)
         let floorRooms=(S.rows||[])
           .filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor)
