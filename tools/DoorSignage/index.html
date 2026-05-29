@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Door Signage Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Bebas+Neue&family=IBM+Plex+Mono:wght@500;600;700&family=Libre+Franklin:wght@400;600;700;800&family=Manrope:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#15171c; --ink2:#1d2027; --line:#2c313b; --line2:#3a414e;
+    --paper:#f4f1ea; --paper2:#e9e4d8;
+    --txt:#e7e9ee; --mut:#9aa3b2; --mut2:#727b8b;
+    --accent:#e3522a; --accent2:#f0a04b; --ok:#5bbf8a;
+    --field:#23262e;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:'Manrope',system-ui,sans-serif;
+    background:var(--ink); color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:grid;grid-template-columns:360px 1fr;height:100vh;overflow:hidden}
+
+  /* ---------- Control panel ---------- */
+  .panel{
+    background:var(--ink2);border-right:1px solid var(--line);
+    overflow-y:auto;padding:0 0 40px;
+  }
+  .panel::-webkit-scrollbar{width:10px}
+  .panel::-webkit-scrollbar-thumb{background:var(--line2);border-radius:6px}
+  .brand{
+    padding:20px 22px 18px;border-bottom:1px solid var(--line);
+    position:sticky;top:0;background:var(--ink2);z-index:5;
+  }
+  .brand h1{
+    font-family:'Archivo',sans-serif;font-weight:800;font-size:19px;
+    letter-spacing:-.02em;margin:0;line-height:1;
+  }
+  .brand h1 b{color:var(--accent)}
+  .brand p{margin:6px 0 0;font-size:11.5px;color:var(--mut2);letter-spacing:.02em}
+
+  .group{padding:18px 22px;border-bottom:1px solid var(--line)}
+  .group h2{
+    font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent2);margin:0 0 14px;
+  }
+  label.fld{display:block;margin:0 0 13px}
+  label.fld:last-child{margin-bottom:0}
+  .fld span{display:block;font-size:11.5px;color:var(--mut);margin:0 0 5px;font-weight:500}
+  input[type=text],input[type=number],textarea,select{
+    width:100%;background:var(--field);border:1px solid var(--line2);
+    color:var(--txt);border-radius:8px;padding:9px 11px;font-size:13px;
+    font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(227,82,42,.16)}
+  textarea{resize:vertical;min-height:120px;line-height:1.55;font-family:'IBM Plex Mono',monospace;font-size:12.5px}
+  .row{display:flex;gap:10px}
+  .row>label.fld{flex:1;margin-bottom:13px}
+  select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%239aa3b2' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 11px center;padding-right:30px}
+
+  .seg{display:flex;background:var(--field);border:1px solid var(--line2);border-radius:9px;padding:3px;gap:3px}
+  .seg button{
+    flex:1;border:0;background:transparent;color:var(--mut);font-family:inherit;
+    font-size:11.5px;font-weight:600;padding:7px 4px;border-radius:6px;cursor:pointer;transition:.15s;
+  }
+  .seg button.on{background:var(--accent);color:#fff}
+  .seg.small button{font-size:11px;padding:6px 2px}
+
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;margin:0 0 12px}
+  .toggle:last-child{margin-bottom:0}
+  .toggle span{font-size:12.5px;color:var(--txt)}
+  .sw{width:40px;height:23px;border-radius:20px;background:var(--line2);position:relative;flex:none;transition:.18s}
+  .sw::after{content:"";position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.18s}
+  .toggle.on .sw{background:var(--accent)}
+  .toggle.on .sw::after{left:20px}
+
+  .colorrow{display:flex;gap:8px;align-items:center}
+  input[type=color]{width:42px;height:38px;padding:0;border:1px solid var(--line2);border-radius:8px;background:var(--field);cursor:pointer}
+  input[type=color]::-webkit-color-swatch-wrapper{padding:4px}
+  input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
+  .swatchset{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .swatchset button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line2);cursor:pointer;padding:0}
+
+  .hint{font-size:11px;line-height:1.5;color:var(--mut2);margin-top:9px;padding:9px 11px;background:rgba(240,160,75,.07);border:1px solid rgba(240,160,75,.18);border-radius:8px}
+  .hint b{color:var(--accent2)}
+
+  .btn{
+    width:100%;border:0;border-radius:9px;padding:12px;font-family:'Archivo',sans-serif;
+    font-weight:700;font-size:13px;letter-spacing:.01em;cursor:pointer;transition:.15s;
+  }
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.primary:hover{background:#cf421d}
+  .btn.ghost{background:var(--field);color:var(--txt);border:1px solid var(--line2)}
+  .btn.ghost:hover{border-color:var(--mut2)}
+  .btnrow{display:flex;gap:9px}
+  .btnrow .btn{padding:10px;font-size:12px}
+
+  .projlist{display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:170px;overflow-y:auto}
+  .proj{display:flex;align-items:center;gap:8px;background:var(--field);border:1px solid var(--line2);border-radius:8px;padding:8px 10px}
+  .proj .nm{flex:1;font-size:12.5px;font-weight:600;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .proj .nm:hover{color:var(--accent2)}
+  .proj button.x{border:0;background:transparent;color:var(--mut2);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;border-radius:5px}
+  .proj button.x:hover{color:var(--accent);background:rgba(227,82,42,.12)}
+  .empty{font-size:11.5px;color:var(--mut2);font-style:italic;padding:4px 0}
+
+  /* ---------- Stage ---------- */
+  .stage{display:flex;flex-direction:column;overflow:hidden;background:
+    radial-gradient(circle at 30% 20%, #20242c, var(--ink) 70%)}
+  .stagebar{
+    display:flex;align-items:center;gap:16px;padding:13px 22px;border-bottom:1px solid var(--line);
+    background:rgba(21,23,28,.7);backdrop-filter:blur(6px);flex:none;flex-wrap:wrap;
+  }
+  .stagebar .lbl{font-size:11px;color:var(--mut);letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent2);font-weight:600}
+  .bgseg{margin-left:auto}
+  .zoom{display:flex;align-items:center;gap:8px}
+  .zoom button{width:30px;height:30px;border-radius:7px;border:1px solid var(--line2);background:var(--field);color:var(--txt);cursor:pointer;font-size:16px;line-height:1}
+  .zoom button:hover{border-color:var(--mut2)}
+  .zoom .pct{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--mut);min-width:42px;text-align:center}
+
+  .scroll{flex:1;overflow:auto;padding:34px}
+  .scroll::-webkit-scrollbar{width:12px;height:12px}
+  .scroll::-webkit-scrollbar-thumb{background:var(--line2);border-radius:7px}
+  .signgrid{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;transform-origin:top left}
+
+  .signcard{position:relative}
+  .signcard .tag{position:absolute;top:-19px;left:0;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--mut2);letter-spacing:.04em}
+  .signwrap{box-shadow:0 14px 34px -12px rgba(0,0,0,.55);border-radius:2px}
+
+  /* preview backdrop styles applied to .stage.scroll via data-bg */
+  .scroll[data-bg=dark]{background:#0d0f13}
+  .scroll[data-bg=light]{background:#cfd3da}
+  .scroll[data-bg=wall]{background:#d8d2c4}
+  .scroll[data-bg=checker]{
+    background-color:#2a2e36;
+    background-image:linear-gradient(45deg,#363b45 25%,transparent 25%),linear-gradient(-45deg,#363b45 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#363b45 75%),linear-gradient(-45deg,transparent 75%,#363b45 75%);
+    background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0;
+  }
+
+  /* ---------- Print ---------- */
+  #printRoot{display:none}
+  @media print{
+    @page{size:A4 portrait;margin:8mm}
+    .app{display:none!important}
+    #printRoot{display:block!important}
+    .p-sign{break-inside:avoid;page-break-inside:avoid;margin:0 0 6mm}
+  }
+  @media(max-width:820px){
+    .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    .panel{max-height:48vh}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ CONTROL PANEL ============ -->
+  <aside class="panel">
+    <div class="brand">
+      <h1>DOOR<b>·</b>SIGNAGE STUDIO</h1>
+      <p>180 × 70 mm transparency signs · white-ink ready</p>
+    </div>
+
+    <div class="group">
+      <h2>Content</h2>
+      <label class="fld">
+        <span>Signs — one per line, as <b>number, name</b></span>
+        <textarea id="entries" spellcheck="false"></textarea>
+      </label>
+      <div class="hint">Each line is one sign. Put the <b>room number</b> first, then a comma (or Tab), then the <b>name</b> that shows large in the middle. Leave the name blank for a number-only sign. Long names shrink automatically to fit. Suffixes like <b>33A</b> are fine.</div>
+    </div>
+
+    <div class="group">
+      <h2>Print mode</h2>
+      <div class="seg" id="modeSeg">
+        <button data-mode="white" class="on">White ink</button>
+        <button data-mode="knockout">Knockout</button>
+        <button data-mode="proof">Proof</button>
+      </div>
+      <div class="hint" id="modeHint"></div>
+    </div>
+
+    <div class="group">
+      <h2>Type</h2>
+      <label class="fld">
+        <span>Font</span>
+        <select id="font">
+          <option value="'Times New Roman'">Times New Roman (matches doc)</option>
+          <option value="Archivo">Archivo (bold sans)</option>
+          <option value="'Libre Franklin'">Libre Franklin</option>
+          <option value="Oswald">Oswald (condensed)</option>
+          <option value="'Bebas Neue'">Bebas Neue (display)</option>
+          <option value="'IBM Plex Mono'">IBM Plex Mono</option>
+          <option value="Arial,Helvetica,sans-serif">Arial / Helvetica</option>
+        </select>
+      </label>
+      <div class="row">
+        <label class="fld"><span>Company size (pt) — main</span><input type="number" id="compPt" value="34" min="6" max="200"></label>
+        <label class="fld"><span>Number size (pt) — small</span><input type="number" id="numPt" value="16" min="6" max="120"></label>
+      </div>
+      <label class="fld">
+        <span>Company alignment (centre block)</span>
+        <div class="seg small" id="alignSeg">
+          <button data-align="start">Left</button>
+          <button data-align="middle" class="on">Centre</button>
+          <button data-align="end">Right</button>
+        </div>
+      </label>
+      <label class="fld">
+        <span>Room-number corner</span>
+        <div class="seg small" id="cornerSeg">
+          <button data-corner="tl">Top L</button>
+          <button data-corner="tr" class="on">Top R</button>
+          <button data-corner="bl">Bot L</button>
+          <button data-corner="br">Bot R</button>
+        </div>
+      </label>
+      <label class="toggle" id="tgBold"><span>Bold weight</span><i class="sw"></i></label>
+    </div>
+
+    <div class="group" id="colorGroup">
+      <h2>Colour</h2>
+      <label class="fld" id="txtColorFld">
+        <span>Text colour</span>
+        <div class="colorrow"><input type="color" id="txtColor" value="#ffffff"><input type="text" id="txtColorHex" value="#ffffff"></div>
+        <div class="swatchset" data-target="txt">
+          <button data-c="#ffffff" style="background:#fff"></button>
+          <button data-c="#000000" style="background:#000"></button>
+          <button data-c="#e3522a" style="background:#e3522a"></button>
+          <button data-c="#1a3a5c" style="background:#1a3a5c"></button>
+          <button data-c="#c0a062" style="background:#c0a062"></button>
+        </div>
+      </label>
+      <label class="toggle on" id="tgTransparent"><span>Transparent background</span><i class="sw"></i></label>
+      <label class="fld" id="bgColorFld" style="display:none">
+        <span>Background colour</span>
+        <div class="colorrow"><input type="color" id="bgColor" value="#1a3a5c"><input type="text" id="bgColorHex" value="#1a3a5c"></div>
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>Sign size &amp; cutting</h2>
+      <div class="row">
+        <label class="fld"><span>Width (mm)</span><input type="number" id="wMm" value="180" min="20" max="297"></label>
+        <label class="fld"><span>Height (mm)</span><input type="number" id="hMm" value="70" min="10" max="210"></label>
+      </div>
+      <label class="toggle on" id="tgCut"><span>Cut guides when printing</span><i class="sw"></i></label>
+      <label class="fld" id="cutColorFld">
+        <span>Cut-guide colour</span>
+        <div class="colorrow"><input type="color" id="cutColor" value="#999999"><input type="text" id="cutColorHex" value="#999999"></div>
+        <div class="hint">If printing white-only, set guides to white too, or turn them off and cut by eye.</div>
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>Output</h2>
+      <button class="btn primary" id="printBtn">Print / Save as PDF</button>
+      <div class="hint">In the print dialog choose your transparency tray and turn <b>OFF</b> “fit to page” / scaling so signs stay exactly 180×70&nbsp;mm. White text looks blank on a white PDF — that's normal, the white is still in the file for a white-toner printer.</div>
+    </div>
+
+    <div class="group">
+      <h2>Projects — save &amp; edit later</h2>
+      <label class="fld"><span>Project name</span><input type="text" id="projName" placeholder="Level 3 fitout" value="My signage"></label>
+      <div class="btnrow">
+        <button class="btn primary" id="saveBtn">Save</button>
+        <button class="btn ghost" id="exportBtn">Export file</button>
+      </div>
+      <div class="btnrow" style="margin-top:9px">
+        <button class="btn ghost" id="importBtn">Import file</button>
+        <input type="file" id="importFile" accept="application/json" hidden>
+      </div>
+      <div id="storeNote" class="hint" style="display:none"></div>
+      <div class="projlist" id="projList"></div>
+    </div>
+  </aside>
+
+  <!-- ============ STAGE ============ -->
+  <section class="stage">
+    <div class="stagebar">
+      <span class="lbl">Preview</span>
+      <span class="count" id="count">0 signs</span>
+      <div class="seg small bgseg" id="bgSeg" style="max-width:300px">
+        <button data-bg="dark" class="on">Dark</button>
+        <button data-bg="wall">Wall</button>
+        <button data-bg="light">Light</button>
+        <button data-bg="checker">Clear</button>
+      </div>
+      <div class="zoom">
+        <button id="zOut">−</button><span class="pct" id="zPct">100%</span><button id="zIn">+</button>
+      </div>
+    </div>
+    <div class="scroll" id="scroll" data-bg="dark">
+      <div class="signgrid" id="grid"></div>
+    </div>
+  </section>
+</div>
+
+<div id="printRoot"></div>
+
+<script>
+"use strict";
+const PT2MM = 0.352778;
+const $ = s => document.querySelector(s);
+
+const DEFAULT_NUMS = ["01","02","03","05","06","07","08","09","10","11","12","15","16","17","18","19","20","21","22","23","25","26","27","28","29","30","31","32","33A","33B","35","36","37","38","39","50","51","52","53","55","56","57","58","59","60","61","62","63","65","66","67","68","69","70","71","72","73","75","76","77","78","79","80","81"];
+const DEFAULT_ENTRIES = DEFAULT_NUMS.map((n,i)=> i===0?"01, Reception" : i===1?"02, Boardroom" : n).join("\n");
+
+const state = {
+  entries: DEFAULT_ENTRIES,
+  mode:"white",            // white | knockout | proof
+  font:"'Times New Roman'", numPt:16, compPt:34, align:"middle", bold:false,
+  numCorner:"tr",          // tr | tl | br | bl  (small room-number corner)
+  txtColor:"#ffffff", transparent:true, bgColor:"#1a3a5c",
+  wMm:180, hMm:70, cut:true, cutColor:"#999999",
+  bg:"dark", zoom:1
+};
+
+/* ---------- escape ---------- */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- build one sign as SVG ---------- */
+function signSVG(entry, idx, forPrint){
+  const w = state.wMm, h = state.hMm;
+  const wpx = forPrint ? `${w}mm` : `${w*3.7795}px`;
+  const hpx = forPrint ? `${h}mm` : `${h*3.7795}px`;
+  const open = `<svg class="signwrap" width="${wpx}" height="${hpx}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
+
+  if(state.mode==="knockout"){
+    const bgFill = state.transparent ? "#1a3a5c" : state.bgColor;
+    const id = "ko"+idx;
+    const t = textsFor(entry, "#000");          // black in mask = punched out (clear)
+    return `${open}
+      <defs><mask id="${id}"><rect x="0" y="0" width="${w}" height="${h}" fill="#fff"/>${t.co}${t.num}</mask></defs>
+      <rect x="0" y="0" width="${w}" height="${h}" fill="${bgFill}" mask="url(#${id})"/>
+    </svg>`;
+  }
+
+  let bgFill, fill;
+  if(state.mode==="proof"){ bgFill="#ffffff"; fill="#15171c"; }
+  else { bgFill = state.transparent ? "none" : state.bgColor; fill = state.txtColor; }
+  const t = textsFor(entry, fill);
+  const rect = bgFill==="none" ? "" : `<rect x="0" y="0" width="${w}" height="${h}" fill="${bgFill}"/>`;
+  return `${open}${rect}${t.co}${t.num}</svg>`;
+}
+
+/* text elements for one sign — NAME large & centred, NUMBER small in a corner */
+function textsFor(entry, fill){
+  const w = state.wMm, h = state.hMm;
+  const pad = Math.min(w,h) * 0.085;
+  const numMm = state.numPt * PT2MM, compMm = state.compPt * PT2MM;
+  const weight = state.bold ? 800 : 700, numWeight = state.bold ? 700 : 600;
+  const fam = state.font;
+
+  // name (large, centred, auto-fit to width)
+  let co = "";
+  const name = (entry.name||"").trim();
+  if(name){
+    let cx = w/2, canchor = state.align;
+    if(state.align==="start") cx = pad; else if(state.align==="end") cx = w - pad;
+    const cy = h/2 + compMm*0.34;
+    const maxW = w - 2*pad;
+    const est = name.length * compMm * 0.52;     // rough advance width for the name
+    const fit = est > maxW ? ` textLength="${maxW.toFixed(2)}" lengthAdjust="spacingAndGlyphs"` : "";
+    co = `<text x="${cx}" y="${cy}" text-anchor="${canchor}" font-family="${fam}" font-weight="${weight}" font-size="${compMm}" fill="${fill}"${fit}>${esc(name)}</text>`;
+  }
+
+  // number (small, corner)
+  const c = state.numCorner;
+  const nx = (c==="tl"||c==="bl") ? pad : w - pad;
+  const ny = (c==="tl"||c==="tr") ? pad + numMm*0.78 : h - pad;
+  const nanchor = (c==="tl"||c==="bl") ? "start" : "end";
+  const num = `<text x="${nx}" y="${ny}" text-anchor="${nanchor}" font-family="${fam}" font-weight="${numWeight}" font-size="${numMm}" fill="${fill}">${esc(entry.num)}</text>`;
+  return {co, num};
+}
+
+/* ---------- render preview ---------- */
+function parseEntries(){
+  return state.entries.split("\n").map(l=>l.replace(/\r/,"")).filter(l=>l.trim().length).map(l=>{
+    const idx = l.search(/[,|\t]/);            // first comma, pipe or tab splits number | name
+    if(idx>=0) return {num:l.slice(0,idx).trim(), name:l.slice(idx+1).trim()};
+    return {num:l.trim(), name:""};
+  });
+}
+
+function render(){
+  const list = parseEntries();
+  const grid = $("#grid");
+  grid.innerHTML = list.map((e,i)=>{
+    const cap = e.name ? `${esc(e.num)} · ${esc(e.name)}` : esc(e.num);
+    return `<div class="signcard"><span class="tag">${cap} · ${state.wMm}×${state.hMm}mm</span>${signSVG(e,i,false)}</div>`;
+  }).join("");
+  grid.style.transform = `scale(${state.zoom})`;
+  $("#count").textContent = list.length + (list.length===1?" sign":" signs");
+  $("#zPct").textContent = Math.round(state.zoom*100)+"%";
+  $("#scroll").setAttribute("data-bg", state.bg);
+}
+
+/* ---------- mode hints ---------- */
+const HINTS = {
+  white:"<b>White ink:</b> letters are white on clear film. Looks blank on screen/white PDF — that's expected. Use a white-toner printer or send the PDF to a sign shop.",
+  knockout:"<b>Knockout:</b> for normal printers with no white. A coloured panel is printed and the letters are left clear — over a white wall they read as white.",
+  proof:"<b>Proof:</b> dark text on white, just to check your layout & spacing before producing the real thing."
+};
+
+/* ---------- wiring ---------- */
+function bindToggle(id, key, after){
+  const el = $(id);
+  el.addEventListener("click", ()=>{ state[key]=!state[key]; el.classList.toggle("on",state[key]); after&&after(); render(); persistAuto(); });
+}
+function setMode(m){
+  state.mode=m;
+  $("#modeSeg").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));
+  $("#modeHint").innerHTML = HINTS[m];
+  // colour controls relevance
+  $("#txtColorFld").style.opacity = (m==="white")?1:.45;
+  $("#txtColorFld").style.pointerEvents = (m==="white")?"auto":"none";
+  render(); persistAuto();
+}
+
+function init(){
+  $("#entries").value = state.entries;
+  $("#entries").addEventListener("input", e=>{state.entries=e.target.value; render(); persistAuto();});
+  $("#numPt").addEventListener("input", e=>{state.numPt=+e.target.value||120; render(); persistAuto();});
+  $("#compPt").addEventListener("input", e=>{state.compPt=+e.target.value||26; render(); persistAuto();});
+  $("#font").addEventListener("change", e=>{state.font=e.target.value; render(); persistAuto();});
+  $("#wMm").addEventListener("input", e=>{state.wMm=+e.target.value||180; render(); persistAuto();});
+  $("#hMm").addEventListener("input", e=>{state.hMm=+e.target.value||70; render(); persistAuto();});
+
+  bindToggle("#tgBold","bold");
+  bindToggle("#tgCut","cut",()=>{ $("#cutColorFld").style.display = state.cut?"block":"none"; });
+  bindToggle("#tgTransparent","transparent",()=>{ $("#bgColorFld").style.display = state.transparent?"none":"block"; });
+
+  $("#modeSeg").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+  $("#alignSeg").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    state.align=b.dataset.align;
+    $("#alignSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    render(); persistAuto();
+  }));
+  $("#cornerSeg").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    state.numCorner=b.dataset.corner;
+    $("#cornerSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    render(); persistAuto();
+  }));
+  $("#bgSeg").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    state.bg=b.dataset.bg;
+    $("#bgSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    render(); persistAuto();
+  }));
+
+  // colour pickers
+  function linkColor(picker,hex,key){
+    const p=$(picker),h=$(hex);
+    p.addEventListener("input",()=>{state[key]=p.value;h.value=p.value;render();persistAuto();});
+    h.addEventListener("input",()=>{if(/^#[0-9a-f]{6}$/i.test(h.value)){state[key]=h.value;p.value=h.value;render();persistAuto();}});
+  }
+  linkColor("#txtColor","#txtColorHex","txtColor");
+  linkColor("#bgColor","#bgColorHex","bgColor");
+  linkColor("#cutColor","#cutColorHex","cutColor");
+  document.querySelector('.swatchset[data-target=txt]').querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    state.txtColor=b.dataset.c; $("#txtColor").value=b.dataset.c; $("#txtColorHex").value=b.dataset.c; render(); persistAuto();
+  }));
+
+  // zoom
+  $("#zIn").addEventListener("click",()=>{state.zoom=Math.min(3,state.zoom+0.1);render();});
+  $("#zOut").addEventListener("click",()=>{state.zoom=Math.max(0.2,state.zoom-0.1);render();});
+
+  $("#printBtn").addEventListener("click", doPrint);
+  $("#saveBtn").addEventListener("click", saveProject);
+  $("#exportBtn").addEventListener("click", exportFile);
+  $("#importBtn").addEventListener("click", ()=>$("#importFile").click());
+  $("#importFile").addEventListener("change", importFile);
+
+  setMode("white");
+  render();
+  refreshProjects();
+  loadAuto();
+}
+
+/* ---------- printing ---------- */
+function doPrint(){
+  const list = parseEntries();
+  const cut = state.cut ? `outline:0.2mm solid ${state.cutColor};outline-offset:0;` : "";
+  $("#printRoot").innerHTML = list.map((e,i)=>
+    `<div class="p-sign" style="width:${state.wMm}mm;height:${state.hMm}mm;${cut}">${signSVG(e,i,true)}</div>`
+  ).join("");
+  setTimeout(()=>window.print(), 60);
+}
+
+/* ---------- pull current control values into state before save ---------- */
+function snapshot(){ return JSON.parse(JSON.stringify(state)); }
+function applyState(s){
+  Object.assign(state, s);
+  $("#entries").value=state.entries;
+  $("#numPt").value=state.numPt; $("#compPt").value=state.compPt;
+  $("#font").value=state.font; $("#wMm").value=state.wMm; $("#hMm").value=state.hMm;
+  $("#txtColor").value=state.txtColor; $("#txtColorHex").value=state.txtColor;
+  $("#bgColor").value=state.bgColor; $("#bgColorHex").value=state.bgColor;
+  $("#cutColor").value=state.cutColor; $("#cutColorHex").value=state.cutColor;
+  $("#tgBold").classList.toggle("on",state.bold);
+  $("#tgCut").classList.toggle("on",state.cut);
+  $("#tgTransparent").classList.toggle("on",state.transparent);
+  $("#cutColorFld").style.display = state.cut?"block":"none";
+  $("#bgColorFld").style.display = state.transparent?"none":"block";
+  $("#alignSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.align===state.align));
+  $("#cornerSeg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.corner===state.numCorner));
+  setMode(state.mode);
+}
+
+/* ---------- persistent storage (Claude window.storage) ---------- */
+const hasStore = typeof window.storage!=="undefined" && window.storage && typeof window.storage.set==="function";
+async function persistAuto(){ if(!hasStore) return; try{ await window.storage.set("autosave", JSON.stringify(snapshot())); }catch(e){} }
+async function loadAuto(){ if(!hasStore){ $("#storeNote").style.display="block"; $("#storeNote").innerHTML="Cross-session saving isn't available here, but <b>Export file</b> still lets you save a project and re-import it later."; return; }
+  try{ const r=await window.storage.get("autosave"); if(r&&r.value) applyState(JSON.parse(r.value)); }catch(e){}
+}
+async function saveProject(){
+  const name=($("#projName").value||"Untitled").trim();
+  if(!hasStore){ exportFile(); return; }
+  try{ await window.storage.set("proj:"+name, JSON.stringify(snapshot())); flash($("#saveBtn"),"Saved ✓"); refreshProjects(); }
+  catch(e){ flash($("#saveBtn"),"Failed"); }
+}
+async function refreshProjects(){
+  const box=$("#projList");
+  if(!hasStore){ box.innerHTML='<div class="empty">Use Export / Import to keep projects.</div>'; return; }
+  try{
+    const r=await window.storage.list("proj:");
+    const keys=(r&&r.keys)?r.keys:[];
+    if(!keys.length){ box.innerHTML='<div class="empty">No saved projects yet.</div>'; return; }
+    box.innerHTML="";
+    keys.forEach(k=>{
+      const name=k.replace(/^proj:/,"");
+      const el=document.createElement("div"); el.className="proj";
+      el.innerHTML=`<span class="nm">${esc(name)}</span><button class="x" title="Delete">×</button>`;
+      el.querySelector(".nm").addEventListener("click",async()=>{
+        const g=await window.storage.get(k); if(g&&g.value){ applyState(JSON.parse(g.value)); $("#projName").value=name; render(); }
+      });
+      el.querySelector(".x").addEventListener("click",async()=>{ await window.storage.delete(k); refreshProjects(); });
+      box.appendChild(el);
+    });
+  }catch(e){ box.innerHTML='<div class="empty">Could not read storage.</div>'; }
+}
+function flash(btn,msg){ const t=btn.textContent; btn.textContent=msg; setTimeout(()=>btn.textContent=t,1200); }
+
+/* ---------- file export / import (works everywhere) ---------- */
+function exportFile(){
+  const data={_type:"door-signage",name:$("#projName").value||"signage",state:snapshot()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=(data.name||"signage").replace(/[^a-z0-9_-]+/gi,"_")+".signage.json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function importFile(e){
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ const d=JSON.parse(rd.result); if(d.state){ applyState(d.state); if(d.name)$("#projName").value=d.name; render(); } }catch(err){ alert("That file couldn't be read."); } };
+  rd.readAsText(f); e.target.value="";
+}
+
+init();
+</script>
+</body>
+</html>
