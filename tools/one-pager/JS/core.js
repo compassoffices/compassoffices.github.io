@@ -90,16 +90,31 @@ function gen(){
   const dScale=totalPressure<=6?1.10:totalPressure<=9?1.00:totalPressure<=12?0.92:totalPressure<=15?0.84:totalPressure<=18?0.76:totalPressure<=22?0.68:0.60;
   const fsNum=Math.max(8,Math.min(18,rawFs*dScale));const fsVal=fsNum.toFixed(1)+'px';
 
-  // ── Multi-floor state — computed early so topBarHTML (Page 1) can show floor badges ──
+  // ── Multi-floor detection (computed before topBarHTML so badges work on Page 1) ──
+  // Priority 1: saved MF state — recomputed from S.rows so row-removal is reflected live
+  // Priority 2: live MF mode (window._AUS_MF_MODE) — uses async pre-rendered _mfLiveUrls
   let _mfFloors=null,_mfUrls={};
-  if(S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2){
-    _mfFloors=S._multiFloorNums; _mfUrls=S._multiFloorFpUrls||{};
+  if(S._isMultiFloor&&S._multiFloorNums){
+    const _actual=typeof _detectFloorsFromRows==='function'
+      ? _detectFloorsFromRows(S.rows) : S._multiFloorNums;
+    if(_actual.length>=2){
+      _mfFloors=_actual; _mfUrls=S._multiFloorFpUrls||{};
+      if(JSON.stringify(_actual)!==JSON.stringify(S._multiFloorNums)) S._multiFloorNums=_actual;
+    } else {
+      // Rows reduced to ≤1 floor — degrade to single-floor automatically
+      S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null;
+      window._AUS_MF_MODE=false; window._mfLiveUrls={};
+      const _dB=document.getElementById('aus-mf-active-banner'); if(_dB)_dB.style.display='none';
+    }
   } else if(window._AUS_MF_MODE&&typeof AUS_SELECTED!=='undefined'&&AUS_SELECTED.size>0){
     const _lf=[...new Set([...AUS_SELECTED].map(k=>{
       const oid=k.split('||').pop()||k;
       return typeof _detectFloorNum==='function'?_detectFloorNum(oid):null;
     }).filter(f=>f!==null))].sort((a,b)=>a-b);
-    if(_lf.length>=2) _mfFloors=_lf;
+    if(_lf.length>=2){
+      _mfFloors=_lf;
+      _mfUrls=window._mfLiveUrls||{}; // async pre-rendered highlights from _ausToggleMfMode
+    }
   }
 
   const topBarHTML=(pg)=>`

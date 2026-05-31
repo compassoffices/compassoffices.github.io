@@ -340,9 +340,23 @@ function restoreStateSnapshot(state){
   FP_HIGHLIGHT_LAST_KEY = null;
   FP_DATA_LAST_FETCHED_BASE = '';
   // ── Restore multi-floor combined proposal state ────────────────────────────
-  S._isMultiFloor = state._isMultiFloor||false;
-  S._multiFloorNums = state._multiFloorNums||null;
-  S._multiFloorFpUrls = state._multiFloorFpUrls||null;
+  S._isMultiFloor     = state._isMultiFloor     || false;
+  S._multiFloorNums   = state._multiFloorNums   || null;
+  S._multiFloorFpUrls = state._multiFloorFpUrls || null;
+  // Sync MF mode flag + banner so re-edit works correctly
+  if(S._isMultiFloor){
+    window._AUS_MF_MODE = true;
+    window._mfLiveUrls  = S._multiFloorFpUrls || {};
+    const _rBanner=document.getElementById('aus-mf-active-banner');
+    const _rHint  =document.getElementById('aus-mf-hint-text');
+    if(_rBanner) _rBanner.style.display='flex';
+    if(_rHint&&typeof ui==='function') _rHint.textContent=ui('aus_mf_hint');
+  } else {
+    window._AUS_MF_MODE = false;
+    window._mfLiveUrls  = {};
+    const _rBanner=document.getElementById('aus-mf-active-banner');
+    if(_rBanner) _rBanner.style.display='none';
+  }
   // Sync the inputs to current values
   const _bInp=document.getElementById('fp-base-url');if(_bInp)_bInp.value=FP_BASE_URL;
   const _dInp=document.getElementById('fp-data-url');if(_dInp)_dInp.value=FP_DATA_URL;
@@ -1225,7 +1239,43 @@ function _ausToggleMfMode(){
   const hint=document.getElementById('aus-mf-hint-text');
   if(banner)banner.style.display=window._AUS_MF_MODE?'flex':'none';
   if(hint)hint.textContent=window._AUS_MF_MODE?ui('aus_mf_hint'):'';
+  if(!window._AUS_MF_MODE) window._mfLiveUrls={};
   if(AUS_CENTRE_FILTER)renderAusLibSuggestions(AUS_CENTRE_FILTER);
+  // When turning ON: async card-switching pre-render so mini grid shows images immediately
+  if(window._AUS_MF_MODE&&AUS_SELECTED.size>0&&AUS_CENTRE_FILTER&&typeof ausLibCardsForCentre==='function'){
+    const _sf=[...new Set([...AUS_SELECTED].map(k=>_detectFloorNum(k.split('||').pop()||k)).filter(f=>f!==null))].sort((a,b)=>a-b);
+    if(_sf.length>=2){
+      const _ftc={};
+      ausLibCardsForCentre(AUS_CENTRE_FILTER).forEach(({l,i})=>{const f=_extractFloorNum(l);if(f!==null&&_sf.includes(f))_ftc[f]=i;});
+      window._mfLiveUrls={};
+      const _fakeRows=[...AUS_SELECTED].map(k=>({seats:k.split('||').pop()||k}));
+      (async()=>{
+        const _saveMaster=FP_MASTER_DATA,_saveBase=FP_BASE_URL,_saveData=FP_DATA_URL;
+        const _saveHL=new Set(FP_HIGHLIGHTS_MANUAL),_saveHRL=FP_HIGHLIGHT_RENDER_URL;
+        const _saveP2=FP_PAGE2_SAME,_saveP1=FP_PAGE1_IDX,_saveP2i=FP_PAGE2_IDX;
+        const _saveSel=new Set(AUS_SELECTED);
+        for(const floor of _sf){
+          if(!window._AUS_MF_MODE) break;
+          const cIdx=_ftc[floor];
+          if(cIdx===undefined){window._mfLiveUrls[floor]=null;continue;}
+          _ausLoadCard(cIdx);
+          AUS_SELECTED=_saveSel;
+          const _fr=_fakeRows.filter(r=>_detectFloorNum(r.seats)===floor).map(r=>r.seats);
+          FP_HIGHLIGHTS_MANUAL=new Set(_fr);
+          FP_HIGHLIGHT_LAST_KEY=null;FP_HIGHLIGHT_RENDER_URL=null;FP_HIGHLIGHT_PENDING_KEY=null;
+          if(typeof ensureHighlightRender==='function')ensureHighlightRender();
+          if(typeof _waitForCardReady==='function')await _waitForCardReady();
+          window._mfLiveUrls[floor]=FP_HIGHLIGHT_RENDER_URL||null;
+        }
+        FP_MASTER_DATA=_saveMaster;FP_BASE_URL=_saveBase;FP_DATA_URL=_saveData;
+        FP_HIGHLIGHTS_MANUAL=_saveHL;FP_HIGHLIGHT_RENDER_URL=_saveHRL;
+        FP_PAGE2_SAME=_saveP2;FP_PAGE1_IDX=_saveP1;FP_PAGE2_IDX=_saveP2i;
+        FP_HIGHLIGHT_LAST_KEY=null;FP_HIGHLIGHT_PENDING_KEY=null;
+        AUS_SELECTED=_saveSel;
+        if(window._AUS_MF_MODE)gen();
+      })();
+    }
+  }
 }
 function renderAusLookup(){
   if(_ausLookupRendering) return;
@@ -2240,6 +2290,8 @@ function _emailGetLocations(){
         rows,
         benefits,
         depositNote,
+        _isMultiFloor:   st._isMultiFloor   || false,
+        _multiFloorNums: st._multiFloorNums || null,
       };
     });
   }
@@ -2268,6 +2320,8 @@ function _emailGetLocations(){
       rows,
       benefits,
       depositNote,
+      _isMultiFloor:   S._isMultiFloor   || false,
+      _multiFloorNums: S._multiFloorNums || null,
     }];
   }
   // Same language as UI → read live from DOM
@@ -2283,6 +2337,8 @@ function _emailGetLocations(){
     rows:    S.rows || [],
     benefits:(LANG_DATA[LANG]?.benefits||BENEFITS||[]).filter(b=>b.on&&b.text),
     depositNote: DEPOSIT_NOTE_ON ? getDepositNote() : '',
+    _isMultiFloor:   S._isMultiFloor   || false,
+    _multiFloorNums: S._multiFloorNums || null,
   }];
 }
 
