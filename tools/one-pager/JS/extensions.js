@@ -1244,6 +1244,26 @@ function _ausToggleMfMode(){
   if(banner) banner.style.display = window._AUS_MF_MODE ? 'flex' : 'none';
   if(hintEl) hintEl.textContent = window._AUS_MF_MODE ? ui('aus_mf_hint') : '';
   if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
+
+  if(window._AUS_MF_MODE && AUS_SELECTED && AUS_SELECTED.size > 0){
+    // Pre-render per-floor highlighted masters NOW using AUS_SELECTED rooms
+    // so the preview shows highlighted images immediately (not after + Queue)
+    const selFloors=[...new Set([...AUS_SELECTED].map(k=>{
+      const oid=k.split('||').pop()||k;
+      return typeof _detectFloorNum==='function'?_detectFloorNum(oid):null;
+    }).filter(f=>f!==null))].sort((a,b)=>a-b);
+    if(selFloors.length>=1){
+      // Build synthetic rows from AUS_SELECTED for the highlight renderer
+      const fakeRows=[...AUS_SELECTED].map(k=>({seats:k.split('||').pop()||k}));
+      window._mfPreviewUrls={};
+      _preRenderFloorHighlights(selFloors,fakeRows).then(urls=>{
+        window._mfPreviewUrls=urls;
+        gen(); // re-render with highlights
+      });
+    }
+  } else {
+    window._mfPreviewUrls={};
+  }
 }
 function renderAusLookup(){
   if(_ausLookupRendering) return;
@@ -2477,7 +2497,9 @@ function buildEmailHTML(toName, fromName, company){
     <tr>
       <td style="background:#fff3ec;border-left:4px solid #FF6600;padding:14px 20px;${li>0?'border-top:2px solid #ffe4d0;':''}">
         <span style="font-family:${FF};font-size:15px;font-weight:800;color:#FF6600;">${loc.locName}</span>
-        ${loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`:''}
+        ${(loc._isMultiFloor&&loc._multiFloorNums?.length)
+          ? loc._multiFloorNums.map(f=>`<span style="display:inline-block;margin-left:6px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${f}F</span>`).join('')
+          : loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`:''}
         ${loc.city||loc.addr?`<div style="font-family:${FF};font-size:12px;color:#999;margin-top:3px;">${[loc.addr,loc.city].filter(Boolean).join(' · ')}</div>`:''}
       </td>
     </tr>

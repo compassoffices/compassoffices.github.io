@@ -104,7 +104,11 @@ function gen(){
       const oid=k.split('||').pop()||k;
       return typeof _detectFloorNum==='function'?_detectFloorNum(oid):null;
     }).filter(f=>f!==null))].sort((a,b)=>a-b);
-    if(_lf.length>=2) _mfFloors=_lf;
+    if(_lf.length>=2){
+      _mfFloors=_lf;
+      // Use pre-rendered preview URLs (populated async by _ausToggleMfMode)
+      _mfUrls=window._mfPreviewUrls||{};
+    }
   }
 
   const topBarHTML=(pg)=>`
@@ -232,9 +236,44 @@ function gen(){
   // pgIdx: -2 = rooms-only collage, -1 = all collage, 0+ = specific plan
   const fp1Idx = FP_PAGE2_SAME ? -1 : FP_PAGE1_IDX;
   const fp2Idx = FP_PAGE2_SAME ? -1 : FP_PAGE2_IDX;
-  const fp1All = fp1Idx <= -1;  // any collage mode
+  const fp1All = fp1Idx <= -1;
   const fp2All = fp2Idx <= -1;
-  const fpHTML=`<div class="sl-fp" style="flex:${fpFlex}">${buildFpHtml(fp1Idx,fp1All)}</div>`;
+
+  // Mini grid for Page 1 in multi-floor mode — shows all floors as thumbnails
+  // with their respective highlighted master images + floor label bar
+  const buildMiniFloorGrid=()=>{
+    const floors=_mfFloors||[];
+    if(!floors.length) return buildFpHtml(fp1Idx,fp1All);
+    const cols=floors.length<=3?floors.length:2;
+    return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px;width:100%;height:100%;">
+      ${floors.map(floor=>{
+        const fpUrl=_mfUrls?.[floor]||null;
+        // Room IDs for this floor from AUS_SELECTED or S.rows
+        const roomIds=[...new Set([
+          ...[...((typeof AUS_SELECTED!=='undefined'?AUS_SELECTED:new Set()))].filter(k=>{
+            const oid=k.split('||').pop()||k;
+            return typeof _detectFloorNum==='function'&&_detectFloorNum(oid)===floor;
+          }).map(k=>k.split('||').pop()||k),
+          ...(S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats)
+        ])];
+        return `<div style="position:relative;overflow:hidden;background:#f5f5f5;border-radius:2px;min-height:0;">
+          ${fpUrl
+            ?`<img src="${fpUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
+            :`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+                color:#ccc;font-size:calc(var(--fs)*0.65);font-style:italic;">Rendering…</div>`}
+          <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(255,102,0,.88);
+              color:#fff;padding:1px 4px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:calc(var(--fs)*0.5);font-weight:800;">${floor}F</span>
+            ${roomIds.length?`<span style="font-size:calc(var(--fs)*0.44);opacity:.85;">${roomIds.join(' · ')}</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
+  const fpHTML=_mfFloors&&_mfFloors.length>=2
+    ?`<div class="sl-fp" style="flex:${fpFlex}">${buildMiniFloorGrid()}</div>`
+    :`<div class="sl-fp" style="flex:${fpFlex}">${buildFpHtml(fp1Idx,fp1All)}</div>`;
 
   page1El.innerHTML=`
   ${topBarHTML(1)}
@@ -251,8 +290,8 @@ function gen(){
     <div style="display:flex;flex-direction:column;overflow:hidden;grid-column:2 / span 2;">
       <!-- Top: Floor plan full width -->
       <div style="flex:0 0 55%;border-bottom:1px solid var(--bd);padding:calc(var(--fs)*0.5) calc(var(--fs)*0.8) calc(var(--fs)*0.3);overflow:hidden;">
-        ${(FP_PLANS.length||S.floorplan)
-          ?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">${buildFpHtml(fp1Idx,fp1All)}</div>`
+        ${(FP_PLANS.length||S.floorplan||FP_MASTER_DATA||(_mfFloors&&_mfFloors.length>=2))
+          ?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">${_mfFloors&&_mfFloors.length>=2?buildMiniFloorGrid():buildFpHtml(fp1Idx,fp1All)}</div>`
           :`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--bd);border-radius:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:18%;opacity:.15;display:block;margin-bottom:calc(var(--fs)*0.4)"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span style="font-size:calc(var(--fs)*0.6);color:var(--xlt)">Floor Plan</span></div>`}
       </div>
       <!-- Bottom: Transport+Custom (left) | Benefits (right) -->
