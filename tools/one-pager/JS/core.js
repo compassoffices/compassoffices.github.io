@@ -1,28 +1,24 @@
-// Compass Offices One-Pager Builder
-// https://github.com/compassoffices/compassoffices.github.io
-
-// Build a standalone full-page floor plan page for one floor.
-// Used in printSlide() and _openQueueTextPrintWindow() to add extra
-// floor plan pages (Page 3, 4…) for multi-floor combined proposals.
+// Builds one dedicated floor plan page for multi-floor combined proposals.
+// Called at print time for Pages 3, 4… (Page 2 = first floor, already in slide2).
 function _buildExtraFloorPageHtml(floor, fpUrl, topBarHtml, rooms){
-  const roomLabel=(rooms&&rooms.length)?rooms.join(' · '):'';
+  const rl=(rooms&&rooms.length)?rooms.join(' · '):'';
   return `<div class="slide2" style="background:#fff;display:grid;grid-template-rows:76px 1fr;">
     ${topBarHtml||''}
     <div class="p2-body" style="display:flex;overflow:hidden;">
       <div class="p2-fp-area" style="flex:1;position:relative;overflow:hidden;">
-        ${fpUrl
-          ?`<img src="${fpUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
-          :`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;
-              color:#ccc;font-size:13px;font-style:italic;">No floor plan uploaded for ${floor}F</div>`}
+        ${fpUrl?`<img src="${fpUrl}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`:
+          `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:13px;">No floor plan for ${floor}F</div>`}
         <div style="position:absolute;bottom:16px;left:18px;background:rgba(255,102,0,.92);color:#fff;
-            padding:5px 14px;border-radius:4px;font-family:inherit;font-size:13px;font-weight:800;
-            letter-spacing:.04em;line-height:1.2;">
-          ${floor}F${roomLabel?` <span style="font-weight:500;opacity:.88;font-size:11px;">&nbsp;·&nbsp;${roomLabel}</span>`:''}
+            padding:5px 14px;border-radius:4px;font-family:inherit;font-size:13px;font-weight:800;letter-spacing:.04em;">
+          ${floor}F${rl?` <span style="font-weight:500;opacity:.88;font-size:11px;">&nbsp;·&nbsp;${rl}</span>`:''}
         </div>
       </div>
     </div>
   </div>`;
 }
+
+// Compass Offices One-Pager Builder
+// https://github.com/compassoffices/compassoffices.github.io
 
 function gen(){
   const _captureMode = gen._captureMode || false;
@@ -94,8 +90,7 @@ function gen(){
   const dScale=totalPressure<=6?1.10:totalPressure<=9?1.00:totalPressure<=12?0.92:totalPressure<=15?0.84:totalPressure<=18?0.76:totalPressure<=22?0.68:0.60;
   const fsNum=Math.max(8,Math.min(18,rawFs*dScale));const fsVal=fsNum.toFixed(1)+'px';
 
-  // ── Multi-floor detection — computed early so BOTH topBarHTML (Page 1)
-  //    and buildMultiFloorFpGrid (Page 2) can use it ──────────────────────
+  // ── Multi-floor state — computed early so topBarHTML (Page 1) can show floor badges ──
   let _mfFloors=null,_mfUrls={};
   if(S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2){
     _mfFloors=S._multiFloorNums; _mfUrls=S._multiFloorFpUrls||{};
@@ -104,11 +99,7 @@ function gen(){
       const oid=k.split('||').pop()||k;
       return typeof _detectFloorNum==='function'?_detectFloorNum(oid):null;
     }).filter(f=>f!==null))].sort((a,b)=>a-b);
-    if(_lf.length>=2){
-      _mfFloors=_lf;
-      // Use pre-rendered preview URLs (populated async by _ausToggleMfMode)
-      _mfUrls=window._mfPreviewUrls||{};
-    }
+    if(_lf.length>=2) _mfFloors=_lf;
   }
 
   const topBarHTML=(pg)=>`
@@ -119,7 +110,7 @@ function gen(){
     </div>
     <div class="sl-title-block">
       <div class="sl-title">${name}${
-        _mfFloors && _mfFloors.length>=2
+        _mfFloors&&_mfFloors.length>=2
           ? ' '+_mfFloors.map(f=>`<span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.75);vertical-align:middle;position:relative;top:-.05em;margin-left:.18em">${f}F</span>`).join('')
           : floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''
       }</div>
@@ -236,41 +227,31 @@ function gen(){
   // pgIdx: -2 = rooms-only collage, -1 = all collage, 0+ = specific plan
   const fp1Idx = FP_PAGE2_SAME ? -1 : FP_PAGE1_IDX;
   const fp2Idx = FP_PAGE2_SAME ? -1 : FP_PAGE2_IDX;
-  const fp1All = fp1Idx <= -1;
+  const fp1All = fp1Idx <= -1;  // any collage mode
   const fp2All = fp2Idx <= -1;
-
-  // Mini grid for Page 1 in multi-floor mode — shows all floors as thumbnails
-  // with their respective highlighted master images + floor label bar
+  // Mini grid for Page 1 fp area in multi-floor mode
   const buildMiniFloorGrid=()=>{
     const floors=_mfFloors||[];
     if(!floors.length) return buildFpHtml(fp1Idx,fp1All);
     const cols=floors.length<=3?floors.length:2;
     return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px;width:100%;height:100%;">
       ${floors.map(floor=>{
-        const fpUrl=_mfUrls?.[floor]||null;
-        // Room IDs for this floor from AUS_SELECTED or S.rows
-        const roomIds=[...new Set([
-          ...[...((typeof AUS_SELECTED!=='undefined'?AUS_SELECTED:new Set()))].filter(k=>{
-            const oid=k.split('||').pop()||k;
-            return typeof _detectFloorNum==='function'&&_detectFloorNum(oid)===floor;
-          }).map(k=>k.split('||').pop()||k),
-          ...(S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats)
+        const img=_mfUrls?.[floor]||null;
+        const ids=[...new Set([
+          ...(S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats),
+          ...(typeof AUS_SELECTED!=='undefined'?[...AUS_SELECTED].filter(k=>typeof _detectFloorNum==='function'&&_detectFloorNum(k.split('||').pop()||k)===floor).map(k=>k.split('||').pop()||k):[])
         ])];
         return `<div style="position:relative;overflow:hidden;background:#f5f5f5;border-radius:2px;min-height:0;">
-          ${fpUrl
-            ?`<img src="${fpUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
-            :`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;
-                color:#ccc;font-size:calc(var(--fs)*0.65);font-style:italic;">Rendering…</div>`}
-          <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(255,102,0,.88);
-              color:#fff;padding:1px 4px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:calc(var(--fs)*0.5);font-weight:800;">${floor}F</span>
-            ${roomIds.length?`<span style="font-size:calc(var(--fs)*0.44);opacity:.85;">${roomIds.join(' · ')}</span>`:''}
+          ${img?`<img src="${img}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`:
+            `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:calc(var(--fs)*0.6);font-style:italic;">Preparing…</div>`}
+          <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(255,102,0,.88);color:#fff;padding:1px 5px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:calc(var(--fs)*0.52);font-weight:800;">${floor}F</span>
+            ${ids.length?`<span style="font-size:calc(var(--fs)*0.44);opacity:.88;">${ids.join(' · ')}</span>`:''}
           </div>
         </div>`;
       }).join('')}
     </div>`;
   };
-
   const fpHTML=_mfFloors&&_mfFloors.length>=2
     ?`<div class="sl-fp" style="flex:${fpFlex}">${buildMiniFloorGrid()}</div>`
     :`<div class="sl-fp" style="flex:${fpFlex}">${buildFpHtml(fp1Idx,fp1All)}</div>`;
@@ -290,8 +271,8 @@ function gen(){
     <div style="display:flex;flex-direction:column;overflow:hidden;grid-column:2 / span 2;">
       <!-- Top: Floor plan full width -->
       <div style="flex:0 0 55%;border-bottom:1px solid var(--bd);padding:calc(var(--fs)*0.5) calc(var(--fs)*0.8) calc(var(--fs)*0.3);overflow:hidden;">
-        ${(FP_PLANS.length||S.floorplan||FP_MASTER_DATA||(_mfFloors&&_mfFloors.length>=2))
-          ?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">${_mfFloors&&_mfFloors.length>=2?buildMiniFloorGrid():buildFpHtml(fp1Idx,fp1All)}</div>`
+        ${(FP_PLANS.length||S.floorplan)
+          ?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">${buildFpHtml(fp1Idx,fp1All)}</div>`
           :`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--bd);border-radius:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:18%;opacity:.15;display:block;margin-bottom:calc(var(--fs)*0.4)"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span style="font-size:calc(var(--fs)*0.6);color:var(--xlt)">Floor Plan</span></div>`}
       </div>
       <!-- Bottom: Transport+Custom (left) | Benefits (right) -->
@@ -323,86 +304,29 @@ function gen(){
 
   const page2El=document.getElementById('slide2');
   page2El.style.setProperty('--fs',fsVal);
-
-  // ── Detect multi-floor state for Page 2 ─────────────────────────────────
-  // Priority 1: queued combined state (S._isMultiFloor set after + Queue)
-
-  const buildMultiFloorFpGrid=()=>{
-    const floors=_mfFloors||[];
-    if(!floors.length) return buildFpHtml(fp2Idx,fp2All,true);
-    const cols=floors.length<=3?floors.length:2;
-    const phCell=(floor)=>`
-      <div style="width:100%;height:100%;display:flex;flex-direction:column;
-          align-items:center;justify-content:center;padding:10px;box-sizing:border-box;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width=".8"
-          style="width:28%;max-width:44px;opacity:.5;margin-bottom:calc(var(--fs)*0.35);">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/>
-          <line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
-        </svg>
-        <span style="font-size:calc(var(--fs)*0.52);color:#bbb;text-align:center;line-height:1.4;">
-          ${floor}F<br>Upload in Media tab
-        </span>
-      </div>`;
-    return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);
-        gap:3px;width:100%;height:100%;">
-      ${floors.map(floor=>{
-        // 1. Pre-rendered highlighted master for this floor
-        const hlUrl=_mfUrls?.[floor];
-        // 2. Uploaded FP_PLAN whose label matches this floor number
-        const matchedFp=(typeof _detectFloorNum==='function')
-          ?FP_PLANS.find(p=>_detectFloorNum(p.label)===floor&&p.url):null;
-        // Fallback chain: highlighted per-floor → uploaded plan → master base image → placeholder
-        const _masterBase=typeof getMasterImageUrl==='function'&&FP_MASTER_DATA?getMasterImageUrl():null;
-        const imgUrl=hlUrl||matchedFp?.url||_masterBase||null;
-        // 3. Room IDs: from rows (queued) or AUS_SELECTED (live preview)
-        let floorRooms=(S.rows||[])
-          .filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor)
-          .map(r=>r.seats).join(' · ');
-        if(!floorRooms&&typeof AUS_SELECTED!=='undefined'){
-          floorRooms=[...AUS_SELECTED].filter(k=>{
-            const oid=k.split('||').pop()||k;
-            return typeof _detectFloorNum==='function'&&_detectFloorNum(oid)===floor;
-          }).map(k=>k.split('||').pop()||k).join(' · ');
-        }
-        return `<div style="position:relative;overflow:hidden;background:#f5f5f5;
-            border-radius:3px;border:1px solid #e8e8e8;box-sizing:border-box;">
-          ${imgUrl
-            ?`<img src="${imgUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
-            :phCell(floor)}
-          <div style="position:absolute;bottom:0;left:0;right:0;
-              background:rgba(255,102,0,.9);color:#fff;
-              padding:3px 7px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:calc(var(--fs)*0.62);font-weight:800;letter-spacing:.04em;">${floor}F</span>
-            ${floorRooms?`<span style="font-size:calc(var(--fs)*0.55);opacity:.9;">${floorRooms}</span>`:''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  };
   const noph2=(bg='#E8E8E8')=>`<div class="p2-noph" style="background:${bg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
   page2El.innerHTML=`
   ${topBarHTML(2)}
   <div class="p2-body">
     <div class="p2-fp-area">
-      ${_mfFloors&&_mfFloors.length>=2
-        ? (()=>{
-            // Multi-floor: slide2 shows FIRST floor's highlighted plan (full size).
-            // Extra floors are added as separate pages at print/export time.
-            const fl0=_mfFloors[0];
-            const fl0Url=_mfUrls?.[fl0]||(typeof getMasterImageUrl==='function'&&FP_MASTER_DATA?getMasterImageUrl():null);
-            const fl0Rooms=(S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===fl0).map(r=>r.seats);
-            if(!fl0Url) return `<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Floor plans shown at print time</span></div>`;
-            const roomLabel=fl0Rooms.join(' · ');
+      ${(()=>{
+        if(_mfFloors&&_mfFloors.length>=2){
+          // Multi-floor: slide2 shows FIRST floor's pre-rendered highlighted plan
+          const fl0=_mfFloors[0];
+          const fl0Url=_mfUrls?.[fl0]||null;
+          if(fl0Url){
+            const fl0Rooms=(S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===fl0).map(r=>r.seats).join(' · ');
             return `<div style="position:relative;width:100%;height:100%;overflow:hidden;">
-              <img src="${fl0Url}" style="width:100%;height:100%;object-fit:contain;display:block;">
-              <div style="position:absolute;bottom:16px;left:18px;background:rgba(255,102,0,.92);color:#fff;
-                  padding:5px 14px;border-radius:4px;font-size:calc(var(--fs)*0.8);font-weight:800;letter-spacing:.04em;">
-                ${fl0}F${roomLabel?` <span style="font-weight:500;opacity:.88;">&nbsp;·&nbsp;${roomLabel}</span>`:''}
+              <img src="${fl0Url}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">
+              <div style="position:absolute;bottom:16px;left:18px;background:rgba(255,102,0,.92);color:#fff;padding:5px 14px;border-radius:4px;font-size:calc(var(--fs)*0.8);font-weight:800;letter-spacing:.04em;">
+                ${fl0}F${fl0Rooms?` <span style="font-weight:500;opacity:.88;font-size:calc(var(--fs)*0.65);">&nbsp;·&nbsp;${fl0Rooms}</span>`:''}
               </div>
             </div>`;
-          })()
-        :(FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
+          }
+          return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:calc(var(--fs)*0.7);font-style:italic;">Click + Queue to generate floor plans</div>`;
+        }
+        return (FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`;
+      })()}
       ${COMPASS_ON ? `<div class="sl-compass"><img src="${COMPASS_IMG_URL}" alt="N" style="transform:rotate(${COMPASS_ANGLE}deg);transform-origin:center center;"><span class="sl-compass-dir">${_compassCardinal(COMPASS_ANGLE)}</span></div>` : ''}
     </div>
     <div class="p2-right">
@@ -495,6 +419,7 @@ async function printQueue(){
           name: item.name || '',
           slide1: page1El.outerHTML,
           slide2: page2El ? page2El.outerHTML : '',
+          state: item.state || {}, // for multi-floor extra floor pages
         });
       }
     }
@@ -594,24 +519,19 @@ function _openQueueTextPrintWindow(captured, existingWindow){
   const perksHtml = typeof buildPerksPageHtml==='function'
     ? buildPerksPageHtml(LANG)
     : '';
-  // Helper: extract .p2-top HTML from a slide2 HTML string
-  const _extractTopBar=(html)=>{
-    try{
-      const doc=new DOMParser().parseFromString(html,'text/html');
-      return doc.querySelector('.p2-top')?.outerHTML||'';
-    }catch{return '';}
-  };
+  // Helper: extract .p2-top topbar from a slide2 HTML string
+  const _extractTopBar=html=>{try{const d=new DOMParser().parseFromString(html,'text/html');return d.querySelector('.p2-top')?.outerHTML||'';}catch{return '';}};
   const pagesHtml = captured.flatMap(c => {
     const arr = [`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`];
     if(c.slide2) arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide2}</div></div>`);
-    // Extra floor plan pages for multi-floor combined proposals
+    // Extra floor pages for multi-floor combined proposals
     const st=c.state||{};
-    if(st._isMultiFloor&&st._multiFloorNums&&st._multiFloorNums.length>=2&&st._multiFloorFpUrls){
-      const topBar=c.slide2?_extractTopBar(c.slide2):'';
+    if(st._isMultiFloor&&st._multiFloorNums?.length>=2&&st._multiFloorFpUrls){
+      const tb=c.slide2?_extractTopBar(c.slide2):'';
       st._multiFloorNums.slice(1).forEach(floor=>{
         const fpUrl=st._multiFloorFpUrls[floor]||null;
         const rooms=(st.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats);
-        arr.push(`<div class="page-wrap"><div class="page-clip">${_buildExtraFloorPageHtml(floor,fpUrl,topBar,rooms)}</div></div>`);
+        arr.push(`<div class="page-wrap"><div class="page-clip">${_buildExtraFloorPageHtml(floor,fpUrl,tb,rooms)}</div></div>`);
       });
     }
     return arr;
@@ -818,18 +738,18 @@ function printSlide(){
   const prevDisplay = preview ? preview.style.display : '';
   if(preview) preview.style.display = 'block';
 
-  // Extra floor plan pages for multi-floor proposals (Page 3, 4… one per floor)
-  let extraFloorHtml = '';
-  if(S._isMultiFloor && S._multiFloorNums && S._multiFloorNums.length >= 2 && S._multiFloorFpUrls){
-    const topBarHtml = page2El ? (page2El.querySelector('.p2-top')?.outerHTML || '') : '';
-    S._multiFloorNums.slice(1).forEach(floor => {
-      const fpUrl = S._multiFloorFpUrls[floor];
-      const rooms = (S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats);
-      extraFloorHtml += `\n<div class="page-wrap"><div class="page-clip">${_buildExtraFloorPageHtml(floor, fpUrl||null, topBarHtml, rooms)}</div></div>`;
+  // Extra floor pages for multi-floor proposals (Pages 3, 4…)
+  let _extraFloorHtml='';
+  let _totalPages=2;
+  if(S._isMultiFloor&&S._multiFloorNums&&S._multiFloorNums.length>=2&&S._multiFloorFpUrls){
+    const _topBar=page2El?(page2El.querySelector('.p2-top')?.outerHTML||''):'';
+    S._multiFloorNums.slice(1).forEach(floor=>{
+      const fpUrl=S._multiFloorFpUrls[floor]||null;
+      const rooms=(S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats);
+      _extraFloorHtml+=`\n<div class="page-wrap"><div class="page-clip">${_buildExtraFloorPageHtml(floor,fpUrl,_topBar,rooms)}</div></div>`;
     });
+    _totalPages=1+S._multiFloorNums.length;
   }
-  const totalPages = 2 + (S._isMultiFloor&&S._multiFloorNums?S._multiFloorNums.length-1:0);
-
   const page1Html = page1El.outerHTML;
   const page2Html = page2El ? page2El.outerHTML : '';
 
@@ -1047,23 +967,23 @@ body {
 <!-- Page 1 -->
 <div class="page-wrap"><div class="page-clip">${page1Html}</div></div>
 
-<!-- Page 2 — first floor plan (or single floor plan for normal proposals) -->
+<!-- Page 2 — first floor plan -->
 ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div></div>` : ''}
 
-<!-- Extra floor plan pages for multi-floor proposals (Page 3, 4…) -->
-${extraFloorHtml}
+<!-- Extra floor plan pages (Pages 3, 4… for multi-floor proposals) -->
+${_extraFloorHtml}
 
 <!-- Perks page — always before Let's Talk (skipped if perks.js not loaded) -->
 ${typeof buildPerksPageHtml==='function' ? `<div class="page-wrap"><div class="page-clip">${buildPerksPageHtml(LANG)}</div></div>` : ''}
 
-<!-- Let's talk (contact page, only if staff profile is set) -->
+<!-- Page 3 — Let's talk (contact page, only if staff profile is set) -->
 ${buildContactPageHtml() ? `<div class="page-wrap"><div class="page-clip">${buildContactPageHtml()}</div></div>` : ''}
 
 <!-- Floating controls (screen only) -->
 <div class="print-controls">
   ${_buildIosTipHtml()}
   <div class="print-hint-box">
-    <b>1 location</b> · ${totalPages} page${totalPages!==1?'s':''} ready.<br>
+    <b>1 location</b> · ${_totalPages} page${_totalPages!==1?'s':''} ready.<br>
     In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
     <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
   </div>
