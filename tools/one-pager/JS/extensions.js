@@ -2497,9 +2497,15 @@ function buildEmailHTML(toName, fromName, company){
     ? bens.map(b=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${b.text}</li>`).join('')
     : T.default_benefits.map(t=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${t}</li>`).join('');
 
+  // Format floor list: [15,16,28] → "15F, 16F & 28F"
+  const _fmtFloors=nums=>!nums||!nums.length?'':
+    nums.length===1?`${nums[0]}F`:
+    nums.length===2?`${nums[0]}F & ${nums[1]}F`:
+    nums.slice(0,-1).map(f=>`${f}F`).join(', ')+` & ${nums[nums.length-1]}F`;
+
   const locTitle = isMulti
-    ? locations.map(l=>l.locName+(l.floor?' '+l.floor:'')).join(' · ')
-    : [firstLoc.locName, firstLoc.floor].filter(Boolean).join(' – ');
+    ? locations.map(l=>l.locName+(l._isMultiFloor&&l._multiFloorNums?.length?' — '+_fmtFloors(l._multiFloorNums):l.floor?' '+l.floor:'')).join(' · ')
+    : firstLoc.locName+(firstLoc._isMultiFloor&&firstLoc._multiFloorNums?.length?' — '+_fmtFloors(firstLoc._multiFloorNums):firstLoc.floor?' – '+firstLoc.floor:'');
 
   return `<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="${lc}">

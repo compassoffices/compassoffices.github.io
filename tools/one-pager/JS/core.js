@@ -1,6 +1,29 @@
 // Compass Offices One-Pager Builder
 // https://github.com/compassoffices/compassoffices.github.io
 
+// Build a standalone full-page floor plan page for one floor.
+// Used in printSlide() and _openQueueTextPrintWindow() to add extra
+// floor plan pages (Page 3, 4…) for multi-floor combined proposals.
+function _buildExtraFloorPageHtml(floor, fpUrl, topBarHtml, rooms){
+  const roomLabel=(rooms&&rooms.length)?rooms.join(' · '):'';
+  return `<div class="slide2" style="background:#fff;display:grid;grid-template-rows:76px 1fr;">
+    ${topBarHtml||''}
+    <div class="p2-body" style="display:flex;overflow:hidden;">
+      <div class="p2-fp-area" style="flex:1;position:relative;overflow:hidden;">
+        ${fpUrl
+          ?`<img src="${fpUrl}" style="width:100%;height:100%;object-fit:contain;display:block;">`
+          :`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+              color:#ccc;font-size:13px;font-style:italic;">No floor plan uploaded for ${floor}F</div>`}
+        <div style="position:absolute;bottom:16px;left:18px;background:rgba(255,102,0,.92);color:#fff;
+            padding:5px 14px;border-radius:4px;font-family:inherit;font-size:13px;font-weight:800;
+            letter-spacing:.04em;line-height:1.2;">
+          ${floor}F${roomLabel?` <span style="font-weight:500;opacity:.88;font-size:11px;">&nbsp;·&nbsp;${roomLabel}</span>`:''}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function gen(){
   const _captureMode = gen._captureMode || false;
   // Keep highlight render in sync with current pricing rows + manual additions.
@@ -324,7 +347,22 @@ function gen(){
   <div class="p2-body">
     <div class="p2-fp-area">
       ${_mfFloors&&_mfFloors.length>=2
-        ?buildMultiFloorFpGrid()
+        ? (()=>{
+            // Multi-floor: slide2 shows FIRST floor's highlighted plan (full size).
+            // Extra floors are added as separate pages at print/export time.
+            const fl0=_mfFloors[0];
+            const fl0Url=_mfUrls?.[fl0]||(typeof getMasterImageUrl==='function'&&FP_MASTER_DATA?getMasterImageUrl():null);
+            const fl0Rooms=(S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===fl0).map(r=>r.seats);
+            if(!fl0Url) return `<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Floor plans shown at print time</span></div>`;
+            const roomLabel=fl0Rooms.join(' · ');
+            return `<div style="position:relative;width:100%;height:100%;overflow:hidden;">
+              <img src="${fl0Url}" style="width:100%;height:100%;object-fit:contain;display:block;">
+              <div style="position:absolute;bottom:16px;left:18px;background:rgba(255,102,0,.92);color:#fff;
+                  padding:5px 14px;border-radius:4px;font-size:calc(var(--fs)*0.8);font-weight:800;letter-spacing:.04em;">
+                ${fl0}F${roomLabel?` <span style="font-weight:500;opacity:.88;">&nbsp;·&nbsp;${roomLabel}</span>`:''}
+              </div>
+            </div>`;
+          })()
         :(FP_PLANS.length||S.floorplan||FP_MASTER_DATA)?buildFpHtml(fp2Idx,fp2All,true):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
       ${COMPASS_ON ? `<div class="sl-compass"><img src="${COMPASS_IMG_URL}" alt="N" style="transform:rotate(${COMPASS_ANGLE}deg);transform-origin:center center;"><span class="sl-compass-dir">${_compassCardinal(COMPASS_ANGLE)}</span></div>` : ''}
     </div>
@@ -517,9 +555,26 @@ function _openQueueTextPrintWindow(captured, existingWindow){
   const perksHtml = typeof buildPerksPageHtml==='function'
     ? buildPerksPageHtml(LANG)
     : '';
+  // Helper: extract .p2-top HTML from a slide2 HTML string
+  const _extractTopBar=(html)=>{
+    try{
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      return doc.querySelector('.p2-top')?.outerHTML||'';
+    }catch{return '';}
+  };
   const pagesHtml = captured.flatMap(c => {
     const arr = [`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`];
     if(c.slide2) arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide2}</div></div>`);
+    // Extra floor plan pages for multi-floor combined proposals
+    const st=c.state||{};
+    if(st._isMultiFloor&&st._multiFloorNums&&st._multiFloorNums.length>=2&&st._multiFloorFpUrls){
+      const topBar=c.slide2?_extractTopBar(c.slide2):'';
+      st._multiFloorNums.slice(1).forEach(floor=>{
+        const fpUrl=st._multiFloorFpUrls[floor]||null;
+        const rooms=(st.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats);
+        arr.push(`<div class="page-wrap"><div class="page-clip">${_buildExtraFloorPageHtml(floor,fpUrl,topBar,rooms)}</div></div>`);
+      });
+    }
     return arr;
   }).join('\n')
   + `\n<div class="page-wrap"><div class="page-clip">${perksHtml}</div></div>`
@@ -723,6 +778,18 @@ function printSlide(){
   const preview = document.querySelector('.preview');
   const prevDisplay = preview ? preview.style.display : '';
   if(preview) preview.style.display = 'block';
+
+  // Extra floor plan pages for multi-floor proposals (Page 3, 4… one per floor)
+  let extraFloorHtml = '';
+  if(S._isMultiFloor && S._multiFloorNums && S._multiFloorNums.length >= 2 && S._multiFloorFpUrls){
+    const topBarHtml = page2El ? (page2El.querySelector('.p2-top')?.outerHTML || '') : '';
+    S._multiFloorNums.slice(1).forEach(floor => {
+      const fpUrl = S._multiFloorFpUrls[floor];
+      const rooms = (S.rows||[]).filter(r=>typeof _detectFloorNum==='function'&&_detectFloorNum(r.seats)===floor).map(r=>r.seats);
+      extraFloorHtml += `\n<div class="page-wrap"><div class="page-clip">${_buildExtraFloorPageHtml(floor, fpUrl||null, topBarHtml, rooms)}</div></div>`;
+    });
+  }
+  const totalPages = 2 + (S._isMultiFloor&&S._multiFloorNums?S._multiFloorNums.length-1:0);
 
   const page1Html = page1El.outerHTML;
   const page2Html = page2El ? page2El.outerHTML : '';
@@ -941,20 +1008,23 @@ body {
 <!-- Page 1 -->
 <div class="page-wrap"><div class="page-clip">${page1Html}</div></div>
 
-<!-- Page 2 -->
+<!-- Page 2 — first floor plan (or single floor plan for normal proposals) -->
 ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div></div>` : ''}
+
+<!-- Extra floor plan pages for multi-floor proposals (Page 3, 4…) -->
+${extraFloorHtml}
 
 <!-- Perks page — always before Let's Talk (skipped if perks.js not loaded) -->
 ${typeof buildPerksPageHtml==='function' ? `<div class="page-wrap"><div class="page-clip">${buildPerksPageHtml(LANG)}</div></div>` : ''}
 
-<!-- Page 3 — Let's talk (contact page, only if staff profile is set) -->
+<!-- Let's talk (contact page, only if staff profile is set) -->
 ${buildContactPageHtml() ? `<div class="page-wrap"><div class="page-clip">${buildContactPageHtml()}</div></div>` : ''}
 
 <!-- Floating controls (screen only) -->
 <div class="print-controls">
   ${_buildIosTipHtml()}
   <div class="print-hint-box">
-    <b>1 location</b> · 2 pages ready.<br>
+    <b>1 location</b> · ${totalPages} page${totalPages!==1?'s':''} ready.<br>
     In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
     <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
   </div>
