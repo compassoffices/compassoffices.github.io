@@ -153,9 +153,6 @@ function buildStateSnapshot(){
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
-    _isMultiFloor:S._isMultiFloor||false,
-    _multiFloorNums:S._multiFloorNums||null,
-    _multiFloorFpUrls:S._multiFloorFpUrls||null,
   };
 }
 
@@ -339,24 +336,6 @@ function restoreStateSnapshot(state){
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;
   FP_DATA_LAST_FETCHED_BASE = '';
-  // ── Restore multi-floor combined proposal state ────────────────────────────
-  S._isMultiFloor     = state._isMultiFloor     || false;
-  S._multiFloorNums   = state._multiFloorNums   || null;
-  S._multiFloorFpUrls = state._multiFloorFpUrls || null;
-  // Sync MF mode flag + banner so re-edit works correctly
-  if(S._isMultiFloor){
-    window._AUS_MF_MODE = true;
-    window._mfLiveUrls  = S._multiFloorFpUrls || {};
-    const _rBanner=document.getElementById('aus-mf-active-banner');
-    const _rHint  =document.getElementById('aus-mf-hint-text');
-    if(_rBanner) _rBanner.style.display='flex';
-    if(_rHint&&typeof ui==='function') _rHint.textContent=ui('aus_mf_hint');
-  } else {
-    window._AUS_MF_MODE = false;
-    window._mfLiveUrls  = {};
-    const _rBanner=document.getElementById('aus-mf-active-banner');
-    if(_rBanner) _rBanner.style.display='none';
-  }
   // Sync the inputs to current values
   const _bInp=document.getElementById('fp-base-url');if(_bInp)_bInp.value=FP_BASE_URL;
   const _dInp=document.getElementById('fp-data-url');if(_dInp)_dInp.value=FP_DATA_URL;
@@ -619,10 +598,6 @@ function _resetCardForNewProposal(){
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;
   FP_HIGHLIGHT_PENDING_KEY = null;
-  // Clear multi-floor combined state
-  S._isMultiFloor = false;
-  S._multiFloorNums = null;
-  S._multiFloorFpUrls = null;
   if(typeof _AUS_FP_AUTO_ADDED !== 'undefined') _AUS_FP_AUTO_ADDED.clear();
   // Layout / spec visibility
   HIDDEN_SPECS.clear();
@@ -667,59 +642,6 @@ function _resetCardForNewProposal(){
 }
 
 async function addToQueue(){
-  // ── Multi-floor mode: ausAddToRows + card-switching per-floor highlight render ──
-  if(window._AUS_MF_MODE && AUS_SELECTED.size>0){
-    window._AUS_MF_MODE=false;
-    const mfBanner=document.getElementById('aus-mf-active-banner');if(mfBanner)mfBanner.style.display='none';
-    if(AUS_CENTRE_FILTER)renderAusLibSuggestions(AUS_CENTRE_FILTER);
-    ausAddToRows(); // sync — adds AUS_SELECTED to S.rows
-    const floors=_detectFloorsFromRows(S.rows);
-    if(floors.length>=2){
-      S._isMultiFloor=true; S._multiFloorNums=floors; S._multiFloorFpUrls={};
-      // Map floor → card index
-      const floorToCard={};
-      if(AUS_CENTRE_FILTER&&typeof ausLibCardsForCentre==='function'){
-        ausLibCardsForCentre(AUS_CENTRE_FILTER).forEach(({l,i})=>{
-          const f=_extractFloorNum(l);if(f!==null&&floors.includes(f))floorToCard[f]=i;
-        });
-      }
-      showStatus(ui('aus_mf_rendering'),'s-info');
-      // Save combined rows before card switching clobbers them
-      const combinedRows=JSON.parse(JSON.stringify(S.rows));
-      // For each floor: load card → set its highlights → wait for render → save URL
-      for(const floor of floors){
-        const cardIdx=floorToCard[floor];
-        if(cardIdx===undefined){S._multiFloorFpUrls[floor]=null;continue;}
-        _ausLoadCard(cardIdx); // loads FP_MASTER_DATA for this floor
-        S.rows=combinedRows.map(r=>({...r})); // restore combined rows
-        const floorRooms=combinedRows.filter(r=>_detectFloorNum(r.seats)===floor).map(r=>r.seats);
-        FP_HIGHLIGHTS_MANUAL=new Set(floorRooms);
-        FP_HIGHLIGHT_LAST_KEY=null; FP_HIGHLIGHT_RENDER_URL=null; FP_HIGHLIGHT_PENDING_KEY=null;
-        if(typeof ensureHighlightRender==='function')ensureHighlightRender();
-        if(typeof _waitForCardReady==='function')await _waitForCardReady();
-        S._multiFloorFpUrls[floor]=FP_HIGHLIGHT_RENDER_URL||null;
-      }
-      // Restore the combined state with per-floor URLs
-      const savedUrls={...S._multiFloorFpUrls};
-      const savedState=buildStateSnapshot();
-      savedState.rows=combinedRows;
-      restoreStateSnapshot(savedState);
-      S._isMultiFloor=true; S._multiFloorNums=floors; S._multiFloorFpUrls=savedUrls;
-      // Prime slide2 with first floor's highlighted plan
-      const fl0=floors[0];
-      if(floorToCard[fl0]!==undefined){
-        _ausLoadCard(floorToCard[fl0]);
-        S.rows=combinedRows.map(r=>({...r}));
-        FP_HIGHLIGHTS_MANUAL=new Set(combinedRows.filter(r=>_detectFloorNum(r.seats)===fl0).map(r=>r.seats));
-        FP_HIGHLIGHT_LAST_KEY=null; FP_HIGHLIGHT_RENDER_URL=null; FP_HIGHLIGHT_PENDING_KEY=null;
-        if(typeof ensureHighlightRender==='function')ensureHighlightRender();
-        if(typeof _waitForCardReady==='function')await _waitForCardReady();
-      }
-    } else {
-      S._isMultiFloor=false; S._multiFloorNums=null; S._multiFloorFpUrls=null;
-    }
-  }
-
   const btn=document.getElementById('queue-btn');
   const origHTML=btn?btn.innerHTML:'';
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(0,0,0,.2);border-top-color:var(--o);border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Adding…</span>';btn.disabled=true;}
@@ -1196,86 +1118,28 @@ function ausAvailLabel(o){
 let _ausLookupRendering=false;
 let _ausLoadingCard=false;
 function _ausLoadCard(idx){
+  // Load a lib card without triggering AUS centre re-filter
   _ausLoadingCard=true;
   loadFromLib(idx);
   _ausLoadingCard=false;
 }
+
 function _ausLoadCardAndFilter(idx, floorNum){
-  if(window._AUS_MF_MODE){
-    // Multi-floor mode: just filter the list — keep card & selections
-    const si=document.getElementById('aus-search');
-    if(si&&floorNum) si.value=floorNum;
-    setTimeout(()=>{renderAusLookup();if(AUS_CENTRE_FILTER)renderAusLibSuggestions(AUS_CENTRE_FILTER);},0);
-    return;
-  }
+  // Load lib card AND filter AUS office list to that floor's offices
   _ausLoadCard(idx);
-  if(floorNum){const si=document.getElementById('aus-search');if(si)si.value=floorNum;}
-  setTimeout(()=>{renderAusLookup();if(AUS_CENTRE_FILTER)renderAusLibSuggestions(AUS_CENTRE_FILTER);},0);
-}
-// ── Multi-floor helpers ─────────────────────────────────────────────────────
-// Parse floor from "16-01"→16, "1601"→16
-function _detectFloorNum(id){
-  id=(id||'').trim();if(!id)return null;
-  const p=id.split('-');
-  if(p.length>=2){const f=parseInt(p[0]);if(!isNaN(f)&&f>=1&&f<=99)return f;}
-  const n=parseInt(id);if(!isNaN(n)&&n>=1001)return Math.floor(n/100);
-  return null;
-}
-function _detectFloorsFromRows(rows){
-  const s=new Set();(rows||[]).forEach(r=>{const f=_detectFloorNum(r.seats);if(f!==null)s.add(f);});return[...s].sort((a,b)=>a-b);
-}
-// Extract numeric floor from a library card object
-function _extractFloorNum(card){
-  const raw=(card&&(card.floor||card.langs?.en?.floor||''));
-  const m=(raw||'').match(/(\d+)/);if(m)return parseInt(m[1]);
-  const name=typeof(card&&card.name)==='object'?Object.values(card.name)[0]:(card&&card.name)||'';
-  const m2=name.match(/(\d+)[Ff]/);return m2?parseInt(m2[1]):null;
-}
-// MF mode flag — on window so onclick= attributes can reach it
-window._AUS_MF_MODE=false;
-function _ausToggleMfMode(){
-  window._AUS_MF_MODE=!window._AUS_MF_MODE;
-  const banner=document.getElementById('aus-mf-active-banner');
-  const hint=document.getElementById('aus-mf-hint-text');
-  if(banner)banner.style.display=window._AUS_MF_MODE?'flex':'none';
-  if(hint)hint.textContent=window._AUS_MF_MODE?ui('aus_mf_hint'):'';
-  if(!window._AUS_MF_MODE) window._mfLiveUrls={};
-  if(AUS_CENTRE_FILTER)renderAusLibSuggestions(AUS_CENTRE_FILTER);
-  // When turning ON: async card-switching pre-render so mini grid shows images immediately
-  if(window._AUS_MF_MODE&&AUS_SELECTED.size>0&&AUS_CENTRE_FILTER&&typeof ausLibCardsForCentre==='function'){
-    const _sf=[...new Set([...AUS_SELECTED].map(k=>_detectFloorNum(k.split('||').pop()||k)).filter(f=>f!==null))].sort((a,b)=>a-b);
-    if(_sf.length>=2){
-      const _ftc={};
-      ausLibCardsForCentre(AUS_CENTRE_FILTER).forEach(({l,i})=>{const f=_extractFloorNum(l);if(f!==null&&_sf.includes(f))_ftc[f]=i;});
-      window._mfLiveUrls={};
-      const _fakeRows=[...AUS_SELECTED].map(k=>({seats:k.split('||').pop()||k}));
-      (async()=>{
-        const _saveMaster=FP_MASTER_DATA,_saveBase=FP_BASE_URL,_saveData=FP_DATA_URL;
-        const _saveHL=new Set(FP_HIGHLIGHTS_MANUAL),_saveHRL=FP_HIGHLIGHT_RENDER_URL;
-        const _saveP2=FP_PAGE2_SAME,_saveP1=FP_PAGE1_IDX,_saveP2i=FP_PAGE2_IDX;
-        const _saveSel=new Set(AUS_SELECTED);
-        for(const floor of _sf){
-          if(!window._AUS_MF_MODE) break;
-          const cIdx=_ftc[floor];
-          if(cIdx===undefined){window._mfLiveUrls[floor]=null;continue;}
-          _ausLoadCard(cIdx);
-          AUS_SELECTED=_saveSel;
-          const _fr=_fakeRows.filter(r=>_detectFloorNum(r.seats)===floor).map(r=>r.seats);
-          FP_HIGHLIGHTS_MANUAL=new Set(_fr);
-          FP_HIGHLIGHT_LAST_KEY=null;FP_HIGHLIGHT_RENDER_URL=null;FP_HIGHLIGHT_PENDING_KEY=null;
-          if(typeof ensureHighlightRender==='function')ensureHighlightRender();
-          if(typeof _waitForCardReady==='function')await _waitForCardReady();
-          window._mfLiveUrls[floor]=FP_HIGHLIGHT_RENDER_URL||null;
-        }
-        FP_MASTER_DATA=_saveMaster;FP_BASE_URL=_saveBase;FP_DATA_URL=_saveData;
-        FP_HIGHLIGHTS_MANUAL=_saveHL;FP_HIGHLIGHT_RENDER_URL=_saveHRL;
-        FP_PAGE2_SAME=_saveP2;FP_PAGE1_IDX=_saveP1;FP_PAGE2_IDX=_saveP2i;
-        FP_HIGHLIGHT_LAST_KEY=null;FP_HIGHLIGHT_PENDING_KEY=null;
-        AUS_SELECTED=_saveSel;
-        if(window._AUS_MF_MODE)gen();
-      })();
+  if(floorNum){
+    const searchInp = document.getElementById('aus-search');
+    if(searchInp){
+      searchInp.value = floorNum;
     }
   }
+  // Defer so loadFromLib completes first, then refresh both the office list
+  // and the floor-chip bar (the chip for the just-loaded floor should turn
+  // solid to indicate it's the active card).
+  setTimeout(()=>{
+    renderAusLookup();
+    if(AUS_CENTRE_FILTER) renderAusLibSuggestions(AUS_CENTRE_FILTER);
+  }, 0);
 }
 function renderAusLookup(){
   if(_ausLookupRendering) return;
@@ -1405,16 +1269,11 @@ function renderAusLookup(){
     </table>`;
   }
 
-  // Update selection bar — show floor breakdown when multi-floor
+  // Update selection bar
   const bar=document.getElementById('aus-selection-bar');
   const selCnt=document.getElementById('aus-sel-count');
   if(bar){bar.style.display=AUS_SELECTED.size?'flex':'none';}
-  if(selCnt){
-    const sf=[...new Set([...AUS_SELECTED].map(k=>_detectFloorNum(k.split('||').pop()||k)).filter(f=>f!==null))].sort((a,b)=>a-b);
-    selCnt.textContent=sf.length>=2
-      ?`${AUS_SELECTED.size} ${ui('aus_mf_floors')} · ${sf.map(f=>f+'F').join(' & ')}${window._AUS_MF_MODE?' · Multi-floor ON':''}`
-      :`${AUS_SELECTED.size} office${AUS_SELECTED.size!==1?'s':''} selected`;
-  }
+  if(selCnt){selCnt.textContent=`${AUS_SELECTED.size} office${AUS_SELECTED.size!==1?'s':''} selected`;}
   _ausLookupRendering=false;
 }
 
@@ -2039,22 +1898,17 @@ function renderAusLibSuggestions(centre){
   const activeFloor = (typeof ausGetCurrentLoadedFloor === 'function')
     ? (ausGetCurrentLoadedFloor() || '')
     : '';
-  // Count selected rooms per floor for badge display
-  const _selByFloor={};
-  [...AUS_SELECTED].forEach(key=>{const oid=key.split('||').pop()||key;const f=_detectFloorNum(oid);if(f!==null)_selByFloor[f]=(_selByFloor[f]||0)+1;});
-  const _multiFloorAvail=matches.length>=2;
   bar.innerHTML='<span style="font-size:9.5px;font-weight:700;color:var(--o);white-space:nowrap;">Select floor:</span>'
     +matches.map(({l,i})=>{
       const floor=getFloor({l});
+      // Extract numeric floor for office # filtering (e.g. "21F" → "21")
       const floorNum=(floor.match(/^(\d+)[Ff]/)||[])[1]||'';
-      const fInt=parseInt(floorNum)||0;
-      const isActive=floorNum&&floorNum.replace(/^0+/,'')===activeFloor;
-      const bg=isActive?'var(--o)':'var(--olt)';const fg=isActive?'#fff':'var(--o)';
-      const cnt=_selByFloor[fInt]||0;
-      const badge=cnt>0?` <span style="background:rgba(255,255,255,.28);border-radius:8px;font-size:9px;font-weight:800;padding:0 4px;">·${cnt}✓</span>`:'';
-      return `<button class="${isActive?'floor-btn-active':''}" onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:${bg};color:${fg};font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}${badge}</button>`;
-    }).join('')
-  +(_multiFloorAvail?`<button onclick="_ausToggleMfMode()" style="padding:2px 10px;border:1.5px solid ${window._AUS_MF_MODE?'var(--o)':'var(--xlt)'};border-radius:20px;background:${window._AUS_MF_MODE?'var(--olt)':'transparent'};color:${window._AUS_MF_MODE?'var(--o)':'var(--xlt)'};font-size:10.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;">${window._AUS_MF_MODE?'✓ '+ui('aus_mf_btn'):ui('aus_mf_btn')}</button>`:'');
+      const isActive = floorNum && floorNum.replace(/^0+/,'') === activeFloor;
+      const bg = isActive ? 'var(--o)' : 'var(--olt)';
+      const fg = isActive ? '#fff' : 'var(--o)';
+      const cls = isActive ? 'floor-btn-active' : '';
+      return `<button class="${cls}" onmousedown="event.preventDefault();_ausLoadCardAndFilter(${i},'${floorNum}')" style="padding:2px 10px;border:1.5px solid var(--o);border-radius:20px;background:${bg};color:${fg};font-size:11.5px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;">${floor||'?F'}</button>`;
+    }).join('');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2290,8 +2144,6 @@ function _emailGetLocations(){
         rows,
         benefits,
         depositNote,
-        _isMultiFloor:   st._isMultiFloor   || false,
-        _multiFloorNums: st._multiFloorNums || null,
       };
     });
   }
@@ -2320,8 +2172,6 @@ function _emailGetLocations(){
       rows,
       benefits,
       depositNote,
-      _isMultiFloor:   S._isMultiFloor   || false,
-      _multiFloorNums: S._multiFloorNums || null,
     }];
   }
   // Same language as UI → read live from DOM
@@ -2337,8 +2187,6 @@ function _emailGetLocations(){
     rows:    S.rows || [],
     benefits:(LANG_DATA[LANG]?.benefits||BENEFITS||[]).filter(b=>b.on&&b.text),
     depositNote: DEPOSIT_NOTE_ON ? getDepositNote() : '',
-    _isMultiFloor:   S._isMultiFloor   || false,
-    _multiFloorNums: S._multiFloorNums || null,
   }];
 }
 
@@ -2478,7 +2326,7 @@ function buildEmailHTML(toName, fromName, company){
     <tr>
       <td style="background:#fff3ec;border-left:4px solid #FF6600;padding:14px 20px;${li>0?'border-top:2px solid #ffe4d0;':''}">
         <span style="font-family:${FF};font-size:15px;font-weight:800;color:#FF6600;">${loc.locName}</span>
-        ${(loc._isMultiFloor&&loc._multiFloorNums?.length)?loc._multiFloorNums.map(f=>`<span style="display:inline-block;margin-left:6px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${f}F</span>`).join(''):loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`:''}
+        ${loc.floor?`<span style="display:inline-block;margin-left:8px;border:1.5px solid #FF6600;color:#FF6600;font-family:${FF};font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;">${loc.floor}</span>`:''}
         ${loc.city||loc.addr?`<div style="font-family:${FF};font-size:12px;color:#999;margin-top:3px;">${[loc.addr,loc.city].filter(Boolean).join(' · ')}</div>`:''}
       </td>
     </tr>
@@ -2498,10 +2346,9 @@ function buildEmailHTML(toName, fromName, company){
     ? bens.map(b=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${b.text}</li>`).join('')
     : T.default_benefits.map(t=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${t}</li>`).join('');
 
-  const _fmtMFFloors=nums=>!nums||!nums.length?'':nums.length===1?nums[0]+'F':nums.slice(0,-1).map(f=>f+'F').join(', ')+' & '+nums[nums.length-1]+'F';
   const locTitle = isMulti
-    ? locations.map(l=>l.locName+(l._isMultiFloor&&l._multiFloorNums?.length?' — '+_fmtMFFloors(l._multiFloorNums):l.floor?' '+l.floor:'')).join(' · ')
-    : firstLoc.locName+(firstLoc._isMultiFloor&&firstLoc._multiFloorNums?.length?' — '+_fmtMFFloors(firstLoc._multiFloorNums):firstLoc.floor?' – '+firstLoc.floor:'');
+    ? locations.map(l=>l.locName+(l.floor?' '+l.floor:'')).join(' · ')
+    : [firstLoc.locName, firstLoc.floor].filter(Boolean).join(' – ');
 
   return `<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="${lc}">

@@ -568,22 +568,6 @@ function applyLocationData(p){
       );
     }
   }
-  // ── Restore multi-floor combined proposal state (if saved with proposal) ──
-  S._isMultiFloor     = p._isMultiFloor     || false;
-  S._multiFloorNums   = p._multiFloorNums   || null;
-  S._multiFloorFpUrls = p._multiFloorFpUrls || null;
-  if(S._isMultiFloor){
-    window._AUS_MF_MODE = true;
-    window._mfLiveUrls  = S._multiFloorFpUrls || {};
-    const _mfBanner = document.getElementById('aus-mf-active-banner');
-    const _mfHint   = document.getElementById('aus-mf-hint-text');
-    if(_mfBanner) _mfBanner.style.display='flex';
-    if(_mfHint && typeof ui==='function') _mfHint.textContent = ui('aus_mf_hint');
-  } else {
-    window._AUS_MF_MODE = false;
-    window._mfLiveUrls  = {};
-  }
-
   // Save the loaded data into current lang slot so it persists on lang switch
   saveLangData(LANG);
   // Auto-switch layout: if loaded card has specs, switch to Classic; if none, stay/go Auto
