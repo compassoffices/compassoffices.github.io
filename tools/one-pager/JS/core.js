@@ -1,3 +1,26 @@
+// Show a "Save As" dialog so the user can name the proposal before downloading.
+// Default is the auto-generated export name; timestamp is always appended.
+function _showSaveAsDialog(){
+  const modal = document.getElementById('save-as-modal');
+  const input = document.getElementById('save-as-input');
+  if(!modal || !input) { downloadCurrentJSON(); return; }
+  input.value = getExportName();
+  modal.style.display = 'flex';
+  // Focus + select all so the user can type a new name immediately
+  setTimeout(()=>{ input.focus(); input.select(); }, 60);
+}
+function _saveAsConfirm(){
+  const input = document.getElementById('save-as-input');
+  const modal = document.getElementById('save-as-modal');
+  const name  = (input?.value || '').trim();
+  if(modal) modal.style.display = 'none';
+  downloadCurrentJSON(name || undefined);
+}
+function _saveAsCancel(){
+  const modal = document.getElementById('save-as-modal');
+  if(modal) modal.style.display = 'none';
+}
+
 // Compass Offices One-Pager Builder
 // https://github.com/compassoffices/compassoffices.github.io
 
@@ -940,12 +963,12 @@ setTimeout(function(){
 // ══════════════════════════════════════════════════════════
 //  DOWNLOAD JSON — saves ALL 4 languages in one file
 // ══════════════════════════════════════════════════════════
-function downloadCurrentJSON(){
+function downloadCurrentJSON(customName){
   // Save current lang first
   saveLangData(LANG);
 
   const r=v=>(v||'').trim();
-  const slug=getExportName();
+  const slug = customName ? String(customName).trim().replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,'-').replace(/^-|-$/g,'') || 'proposal' : getExportName();
   const now=new Date();
   const ts=now.getFullYear().toString().slice(2)+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0');
 

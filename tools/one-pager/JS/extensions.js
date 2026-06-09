@@ -3173,7 +3173,7 @@ document.addEventListener('keydown', e => {
   const tag = document.activeElement?.tagName?.toUpperCase();
   const inText = tag==='INPUT'||tag==='TEXTAREA'||document.activeElement?.isContentEditable;
   const ctrl = e.ctrlKey||e.metaKey;
-  if(ctrl && e.key==='s'){ e.preventDefault(); if(typeof downloadCurrentJSON==='function') downloadCurrentJSON(); showStatus('Proposal saved ↓','s-ok'); }
+  if(ctrl && e.key==='s'){ e.preventDefault(); if(typeof _showSaveAsDialog==='function') _showSaveAsDialog(); else if(typeof downloadCurrentJSON==='function') downloadCurrentJSON(); }
   if(ctrl && e.key==='p'){ e.preventDefault(); if(typeof printSlide==='function') printSlide(); }
   if(ctrl && e.key==='Enter' && !inText){ e.preventDefault(); if(typeof gen==='function') gen(); }
 });
