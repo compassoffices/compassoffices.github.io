@@ -83,11 +83,60 @@ let FP_ANNOTATIONS = {};          // { [roomId]: { shapes:[], imageDataUrl:'' } 
 const FPE_W = 1000, FPE_H = 707; // canvas logical size (A4-ish landscape ratio)
 let _fpe = null;                  // editor runtime state (null when closed)
 
+
+// ── Furniture stamp constants ─────────────────────────────────────────────
+// Bounding boxes for hit detection (width, height in canvas px)
+const FPE_STAMP_BOUNDS  = { wall_seg:[160,16], door:[72,72], table_chair:[80,100] };
+const FPE_STAMP_LABELS  = { wall_seg:'Wall', door:'Door', table_chair:'Table + Chair' };
+
+// Draw a wall segment centered at origin (FPE canvas: 1000×707)
+function _fpeDrWall(ctx,sel){
+  const w=160,h=16;
+  if(sel){ctx.shadowColor='#FF6600';ctx.shadowBlur=14;}
+  ctx.fillStyle='#1e1e1e'; ctx.fillRect(-w/2,-h/2,w,h);
+  ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=0.8;
+  ctx.strokeRect(-w/2,-h/2,w,h); ctx.shadowBlur=0;
+}
+// Draw an architectural door symbol centered at origin
+function _fpeDrDoor(ctx,sel){
+  const s=72,jam=10;
+  if(sel){ctx.shadowColor='#FF6600';ctx.shadowBlur=14;}
+  ctx.strokeStyle='#1e1e1e'; ctx.lineWidth=2.5; ctx.lineCap='square';
+  // Hinge jamb
+  ctx.beginPath(); ctx.moveTo(-s/2,-jam); ctx.lineTo(-s/2,0); ctx.stroke();
+  // Far jamb
+  ctx.beginPath(); ctx.moveTo(s/2,-jam);  ctx.lineTo(s/2,0);  ctx.stroke();
+  // Door panel (hinge→open position)
+  ctx.beginPath(); ctx.moveTo(-s/2,0); ctx.lineTo(-s/2,-s); ctx.stroke();
+  // Swing arc (dashed)
+  ctx.beginPath(); ctx.arc(-s/2,0,s,-Math.PI/2,0);
+  ctx.setLineDash([6,4]); ctx.lineWidth=1.8; ctx.strokeStyle='#666'; ctx.stroke();
+  ctx.setLineDash([]); ctx.shadowBlur=0;
+}
+// Draw a table + chair symbol centered at origin
+function _fpeDrTable(ctx,sel){
+  const tw=80,th=55,chw=65,chh=18,gap=5;
+  if(sel){ctx.shadowColor='#FF6600';ctx.shadowBlur=14;}
+  ctx.strokeStyle='#1e1e1e'; ctx.lineWidth=2;
+  // Chair seat
+  ctx.fillStyle='#e8e4db';
+  ctx.fillRect(-chw/2,-th/2-gap-chh,chw,chh); ctx.strokeRect(-chw/2,-th/2-gap-chh,chw,chh);
+  // Chair back arc
+  ctx.beginPath(); ctx.arc(0,-th/2-gap-chh,chw/2,Math.PI,0); ctx.stroke();
+  // Table (rounded rect)
+  ctx.fillStyle='#f2ede3'; const r=5;
+  ctx.beginPath();
+  ctx.moveTo(-tw/2+r,-th/2); ctx.arcTo(tw/2,-th/2,tw/2,th/2,r);
+  ctx.arcTo(tw/2,th/2,-tw/2,th/2,r); ctx.arcTo(-tw/2,th/2,-tw/2,-th/2,r);
+  ctx.arcTo(-tw/2,-th/2,tw/2,-th/2,r); ctx.closePath();
+  ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+}
+
 function openFpEditor(oid){
   _fpe = {
     roomId: oid, mode: 'box', color: '#FF6600', fontSize: 13,
     shapes: JSON.parse(JSON.stringify(FP_ANNOTATIONS[oid]?.shapes || [])),
-    history: [], selected: -1,
+    stampMode: null, history: [], selected: -1,
     dragging: false, startX: 0, startY: 0,
     draft: null, pendingLabel: false,
     canvas: null, ctx: null, bgImg: null, bgTainted: false,
@@ -214,6 +263,18 @@ function _fpeDrawShape(ctx,s,selected,isDraft){
         ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2); ctx.fill();
       });
     }
+  } else if(s.type==='stamp'){
+    ctx.translate(s.cx,s.cy); ctx.rotate(s.r||0);
+    if(s.stamp==='wall_seg')    _fpeDrWall(ctx,selected);
+    else if(s.stamp==='door')   _fpeDrDoor(ctx,selected);
+    else if(s.stamp==='table_chair') _fpeDrTable(ctx,selected);
+    if(selected){
+      const [bw,bh]=FPE_STAMP_BOUNDS[s.stamp]||[80,80];
+      ctx.shadowBlur=0; ctx.fillStyle='#FF6600';
+      [[-bw/2,-bh/2],[bw/2,-bh/2],[-bw/2,bh/2],[bw/2,bh/2]].forEach(([px,py])=>{
+        ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill();
+      });
+    }
   }
   ctx.restore();
 }
@@ -239,6 +300,16 @@ function _fpeUpdateCursor(e){
 function _fpeMouseDown(e){
   if(!_fpe) return;
   const {x,y}=_fpeXY(e), hit=_fpeFindShape(x,y);
+  // ── Stamp mode: click places a furniture stamp ─────────────────────────
+  if(_fpe.stampMode && hit<0){
+    _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));
+    _fpe.shapes.push({type:'stamp',stamp:_fpe.stampMode,cx:x,cy:y,r:0,color:_fpe.color});
+    _fpe.selected=_fpe.shapes.length-1;
+    document.getElementById('fpe-delete-btn').disabled=false;
+    _fpeUpdateRotateBtn(); _fpeRender();
+    _fpeStatus(`${FPE_STAMP_LABELS[_fpe.stampMode]} placed — drag to move · R to rotate`);
+    return;
+  }
   if(hit>=0){
     // Select existing shape AND prepare for potential drag-to-move
     _fpe.selected=hit; _fpe.dragging=false; _fpe.moving=false;
@@ -254,7 +325,7 @@ function _fpeMouseDown(e){
       _fpe.fontSize=fs;
       const fi=document.getElementById('fpe-font-size'); if(fi) fi.value=fs;
     }
-    _fpeRender(); return;
+    _fpeUpdateRotateBtn(); _fpeRender(); return;
   }
   // No shape hit — start drawing a new shape
   _fpe.selected=-1; _fpe.moveReady=false; _fpe.moving=false;
@@ -276,6 +347,7 @@ function _fpeMouseMove(e){
     const orig=_fpe.moveShapeStart, s=_fpe.shapes[_fpe.selected];
     if(!s) return;
     if(s.type==='box'){ s.x=orig.x+dx; s.y=orig.y+dy; }
+    else if(s.type==='stamp'){ s.cx=orig.cx+dx; s.cy=orig.cy+dy; }
     else { s.x1=orig.x1+dx; s.y1=orig.y1+dy; s.x2=orig.x2+dx; s.y2=orig.y2+dy; }
     _fpeRender(); return;
   }
@@ -331,6 +403,13 @@ function _fpeFindShape(x,y){
       const t=l2?Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/l2)):0;
       if(Math.hypot(x-(x1+t*dx),y-(y1+t*dy))<8) return i;
     }
+    if(s.type==='stamp'){
+      const [bw,bh]=FPE_STAMP_BOUNDS[s.stamp]||[80,80];
+      const a=s.r||0, cos=Math.cos(-a), sin=Math.sin(-a);
+      const dx=x-s.cx, dy=y-s.cy;
+      const lx=cos*dx-sin*dy, ly=sin*dx+cos*dy;
+      if(Math.abs(lx)<=bw/2+10 && Math.abs(ly)<=bh/2+10) return i;
+    }
   }
   return -1;
 }
@@ -340,7 +419,14 @@ function _fpeGlobalKey(e){
   if(!_fpe) return;
   if(document.activeElement?.id==='fpe-label-inp') return;
   if(e.key==='Delete'||e.key==='Backspace') _fpeDeleteSelected();
-  if(e.key==='Escape'){_fpe.selected=-1;document.getElementById('fpe-delete-btn').disabled=true;_fpeRender();}
+  if(e.key==='r'||e.key==='R') _fpeRotateSelected();
+  if(e.key==='Escape'){
+    _fpe.selected=-1; _fpe.stampMode=null;
+    document.getElementById('fpe-delete-btn').disabled=true;
+    _fpeUpdateRotateBtn();
+    ['wall_seg','door','table_chair'].forEach(k=>{document.getElementById(`fpe-stamp-${k}`)?.classList.remove('on');});
+    _fpeRender();
+  }
 }
 function _fpeSetFontSize(val){
   if(!_fpe) return;
@@ -358,12 +444,48 @@ function _fpeFontStep(delta){
   if(!_fpe) return;
   _fpeSetFontSize((_fpe.fontSize||13)+delta);
 }
-function _fpeSetMode(mode,init){ if(_fpe)_fpe.mode=mode; document.getElementById('fpe-btn-box')?.classList.toggle('on',mode==='box'); document.getElementById('fpe-btn-wall')?.classList.toggle('on',mode==='wall'); const inp=document.getElementById('fpe-label-inp'); if(inp)inp.style.opacity=mode==='box'?'1':'0.35'; }
+function _fpeSetMode(mode,init){
+  if(_fpe){ _fpe.mode=mode; if(!init) _fpe.stampMode=null; }
+  document.getElementById('fpe-btn-box')?.classList.toggle('on',mode==='box');
+  document.getElementById('fpe-btn-wall')?.classList.toggle('on',mode==='wall');
+  ['wall_seg','door','table_chair'].forEach(k=>{document.getElementById(`fpe-stamp-${k}`)?.classList.remove('on');});
+  const inp=document.getElementById('fpe-label-inp'); if(inp)inp.style.opacity=mode==='box'?'1':'0.35';
+}
 function _fpeSetColor(color,el){ if(!_fpe)return; _fpe.color=color; document.querySelectorAll('.fpe-swatch').forEach(s=>s.classList.remove('on')); if(el)el.classList.add('on'); if(_fpe.selected>=0){_fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));_fpe.shapes[_fpe.selected].color=color;_fpeRender();} }
-function _fpeDeleteSelected(){ if(!_fpe||_fpe.selected<0)return; _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes))); _fpe.shapes.splice(_fpe.selected,1); _fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true; document.getElementById('fpe-label-inp').value=''; _fpeRender();_fpeStatus('Shape deleted'); }
+function _fpeDeleteSelected(){ if(!_fpe||_fpe.selected<0)return; _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes))); _fpe.shapes.splice(_fpe.selected,1); _fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true; document.getElementById('fpe-label-inp').value=''; _fpeUpdateRotateBtn(); _fpeRender();_fpeStatus('Shape deleted'); }
 function _fpeUndo(){ if(!_fpe||!_fpe.history.length)return; _fpe.shapes=_fpe.history.pop(); _fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true; _fpeRender();_fpeStatus('Undo'); }
 function _fpeReset(){ if(!_fpe)return; if(_fpe.shapes.length&&!confirm(`Clear all annotations for room ${_fpe.roomId}?`))return; _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes))); _fpe.shapes=[];_fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true; document.getElementById('fpe-label-inp').value=''; delete FP_ANNOTATIONS[_fpe.roomId]; _fpeRender();_fpeStatus('Annotations cleared — room restored to original image'); }
 function _fpeStatus(msg){const el=document.getElementById('fpe-status');if(el)el.textContent=msg;}
+
+function _fpeSetStamp(key){
+  if(!_fpe) return;
+  const same=_fpe.stampMode===key;
+  _fpe.stampMode=same?null:key;
+  if(!same){
+    _fpe.mode='box'; // keep box as fallback draw mode
+    document.getElementById('fpe-btn-box')?.classList.remove('on');
+    document.getElementById('fpe-btn-wall')?.classList.remove('on');
+    if(_fpe.canvas) _fpe.canvas.style.cursor='crosshair';
+  } else {
+    _fpeSetMode('box');
+  }
+  ['wall_seg','door','table_chair'].forEach(k=>{
+    document.getElementById(`fpe-stamp-${k}`)?.classList.toggle('on',_fpe.stampMode===k);
+  });
+  _fpeStatus(_fpe.stampMode
+    ?`Click to place a ${FPE_STAMP_LABELS[key]} — drag to move · R to rotate · click tool again to cancel`
+    :`Room ${_fpe.roomId} · drag to draw boxes · Apply saves to Page 1`);
+}
+function _fpeRotateSelected(){
+  if(!_fpe||_fpe.selected<0) return;
+  const s=_fpe.shapes[_fpe.selected]; if(s?.type!=='stamp') return;
+  _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));
+  s.r=(s.r||0)+Math.PI/4; _fpeRender();
+}
+function _fpeUpdateRotateBtn(){
+  const btn=document.getElementById('fpe-rotate-btn'); if(!btn) return;
+  btn.disabled=!(_fpe&&_fpe.selected>=0&&_fpe.shapes[_fpe.selected]?.type==='stamp');
+}
 function _fpeApply(){
   if(!_fpe)return;
   const oid=_fpe.roomId;
