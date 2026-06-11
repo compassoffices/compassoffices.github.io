@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass Landing Page — Content Editor</title>
+<style>
+  :root{--o:#FF6600;--ink:#1a1a1a;--mut:#666;--line:#e3e3e6;--bg:#f4f5f7;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#fff;}
+  .ed-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 18px;background:#1c1c1c;color:#fff;}
+  .ed-top h1{font-size:1rem;margin:0;font-weight:700;}
+  .ed-top .sp{flex:1;}
+  .ed-btn{border:none;border-radius:9px;padding:10px 16px;font-weight:700;font-size:.9rem;cursor:pointer;background:var(--o);color:#fff;}
+  .ed-btn.alt{background:#333;color:#fff;}
+  .ed-btn:hover{filter:brightness(1.06);}
+  .ed-wrap{display:grid;grid-template-columns:minmax(340px,420px) 1fr;height:calc(100vh - 56px);}
+  .ed-panel{overflow:auto;border-right:1px solid var(--line);padding:16px 16px 80px;}
+  .ed-prev{background:var(--bg);overflow:hidden;}
+  .ed-prev iframe{width:100%;height:100%;border:0;background:#fff;}
+  details.ed-sec{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden;background:#fff;}
+  details.ed-sec>summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:700;background:#fafafa;display:flex;align-items:center;gap:8px;}
+  details.ed-sec>summary::-webkit-details-marker{display:none;}
+  details.ed-sec>summary .chev{margin-left:auto;color:#999;transition:transform .2s;}
+  details.ed-sec[open]>summary .chev{transform:rotate(90deg);}
+  .ed-body{padding:12px 14px;}
+  .ed-f{margin-bottom:10px;}
+  .ed-f label{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);font-weight:700;margin-bottom:4px;}
+  .ed-f input,.ed-f textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;font-family:inherit;}
+  .ed-f textarea{min-height:60px;resize:vertical;}
+  .ed-f input:focus,.ed-f textarea:focus{outline:none;border-color:var(--o);box-shadow:0 0 0 3px rgba(255,102,0,.12);}
+  .ed-item{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:#fcfcfd;}
+  .ed-item-h{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
+  .ed-item-h .t{font-weight:700;font-size:.82rem;color:var(--mut);}
+  .ed-mini{margin-left:auto;display:flex;gap:4px;}
+  .ed-mini button{border:1px solid var(--line);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:.85rem;line-height:1;}
+  .ed-mini button:hover{border-color:var(--o);color:var(--o);}
+  .ed-add{border:1px dashed var(--o);color:var(--o);background:#fff6ef;border-radius:9px;padding:8px;width:100%;font-weight:700;cursor:pointer;}
+  .ed-toggle{display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;margin-bottom:10px;}
+  .ed-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .ed-note{font-size:.78rem;color:var(--mut);background:#fff8f1;border:1px solid #ffe2cc;border-radius:8px;padding:8px 10px;margin-bottom:12px;}
+  .ed-toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1c1c1c;color:#fff;padding:11px 18px;border-radius:10px;font-weight:600;font-size:.9rem;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20;}
+  .ed-toast.show{opacity:1;}
+  @media(max-width:900px){.ed-wrap{grid-template-columns:1fr;height:auto;}.ed-prev{height:70vh;}.ed-panel{height:auto;}}
+  /* export modal */
+  .ed-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:30;padding:20px;}
+  .ed-modal.show{display:flex;}
+  .ed-modal-box{background:#fff;border-radius:14px;max-width:840px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;}
+  .ed-modal-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);}
+  .ed-modal-h h2{margin:0;font-size:1rem;}
+  .ed-modal-h .sp{flex:1;}
+  .ed-modal textarea{flex:1;border:0;padding:14px 16px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;resize:none;}
+  .ed-x{border:none;background:#eee;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1rem;}
+</style>
+</head>
+<body>
+  <div class="ed-top">
+    <h1>Compass Landing Page — Content Editor</h1>
+    <div class="sp"></div>
+    <button class="ed-btn alt" onclick="resetAll()">Reset</button>
+    <button class="ed-btn" onclick="openExport()">Copy HTML for WordPress</button>
+  </div>
+  <div class="ed-wrap">
+    <div class="ed-panel" id="panel"></div>
+    <div class="ed-prev"><iframe id="prev"></iframe></div>
+  </div>
+
+  <div class="ed-modal" id="modal">
+    <div class="ed-modal-box">
+      <div class="ed-modal-h">
+        <h2>Paste this into a WordPress “Custom HTML” block</h2>
+        <div class="sp"></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600;margin-right:6px;">
+          <input type="checkbox" id="inlineChk" checked onchange="onInlineToggle()"> Bundle CSS &amp; JS inline (recommended)
+        </label>
+        <button class="ed-btn" onclick="copyExport()">Copy</button>
+        <button class="ed-x" onclick="closeExport()">✕</button>
+      </div>
+      <textarea id="exportText" readonly spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="ed-toast" id="toast"></div>
+
+<script>
+const CSS = "/* ============================================================\n   COMPASS OFFICES \u2014 HK Office Rental | SEM Landing Page\n   All rules namespaced under .co-lp. No font-family declared\n   (brand font inherited). Includes Gravity Forms styling so the\n   embedded form matches the brand automatically.\n   ============================================================ */\n\n.co-lp{\n  --co-orange:#FF6600;\n  --co-orange-dark:#E55A00;\n  --co-tint:#FFF3EA;\n  --co-ink:#1A1A1A;\n  --co-slate:#5C5C5C;\n  --co-paper:#FFFFFF;\n  --co-mist:#F6F6F6;\n  --co-dark:#1C1C1C;\n  --co-line:rgba(0,0,0,.08);\n  --co-radius:16px;\n  --co-radius-lg:22px;\n  --co-shadow:0 1px 2px rgba(0,0,0,.05);\n  --co-shadow-md:0 10px 30px rgba(0,0,0,.08);\n  --co-shadow-lift:0 22px 50px rgba(0,0,0,.16);\n  --co-max:1180px;\n  color:var(--co-ink);\n  line-height:1.6;\n}\n.co-lp *,.co-lp *::before,.co-lp *::after{box-sizing:border-box;}\n.co-lp p{margin:0 0 1rem;color:var(--co-slate);font-size:1.05rem;}\n.co-lp img{max-width:100%;display:block;}\n.co-lp a{color:inherit;}\n.co-lp .co-wrap{max-width:var(--co-max);margin:0 auto;padding:0 24px;}\n.co-lp .co-eyebrow{\n  display:inline-block;font-size:.82rem;letter-spacing:.16em;\n  text-transform:uppercase;font-weight:700;color:var(--co-orange);\n  margin-bottom:14px;\n}\n.co-lp h2.co-h2{\n  font-size:clamp(1.6rem,3.4vw,2.4rem);line-height:1.15;\n  font-weight:800;margin:0 0 16px;color:var(--co-ink);\n}\n.co-lp .co-section{padding:60px 0;}\n.co-lp .co-center{text-align:center;}\n.co-lp .co-center .co-head{max-width:680px;margin:0 auto 40px;}\n\n/* ---- Top bar --------------------------------------------- */\n.co-lp .co-bar{\n  position:sticky;top:0;z-index:50;\n  background:rgba(255,255,255,.92);backdrop-filter:blur(8px);\n  border-bottom:1px solid var(--co-line);\n}\n.co-lp .co-bar-in{\n  max-width:var(--co-max);margin:0 auto;padding:12px 24px;\n  display:flex;align-items:center;justify-content:space-between;gap:16px;\n}\n.co-lp .co-logo{font-weight:800;font-size:1.15rem;letter-spacing:-.01em;}\n.co-lp .co-logo span{color:var(--co-orange);}\n.co-lp .co-bar-right{display:flex;align-items:center;gap:18px;}\n.co-lp .co-phone{font-weight:700;color:var(--co-ink);text-decoration:none;white-space:nowrap;}\n.co-lp .co-phone:hover{color:var(--co-orange);}\n\n/* ---- Buttons --------------------------------------------- */\n.co-lp .co-btn{\n  display:inline-block;background:var(--co-orange);color:#fff;\n  text-decoration:none;font-weight:700;font-size:1rem;\n  padding:13px 28px;border-radius:999px;cursor:pointer;border:none;\n  transition:background .25s ease, transform .2s ease, box-shadow .25s ease;\n}\n.co-lp .co-btn:hover{background:var(--co-orange-dark);transform:translateY(-2px);\n  box-shadow:0 10px 22px rgba(255,102,0,.28);color:#fff;}\n.co-lp .co-btn-sm{padding:10px 20px;font-size:.95rem;}\n.co-lp .co-btn-lg{padding:16px 40px;font-size:1.1rem;}\n\n/* ---- Hero ------------------------------------------------- */\n.co-lp .co-hero{\n  background:\n    radial-gradient(70% 90% at 85% 10%, var(--co-tint) 0%, transparent 60%),\n    linear-gradient(180deg,#fff 0%, #FFF8F2 100%);\n  padding:54px 0 60px;\n}\n.co-lp .co-hero-grid{\n  display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;\n}\n.co-lp .co-badge{\n  display:inline-flex;align-items:center;gap:8px;\n  background:var(--co-orange);color:#fff;font-weight:700;\n  font-size:.82rem;letter-spacing:.04em;text-transform:uppercase;\n  padding:8px 16px;border-radius:999px;margin-bottom:20px;\n}\n.co-lp .co-hero h1{\n  font-size:clamp(2rem,4.4vw,3rem);line-height:1.1;font-weight:800;\n  margin:0 0 18px;color:var(--co-ink);\n}\n.co-lp .co-hero h1 .co-accent{color:var(--co-orange);}\n.co-lp .co-hero-lead{font-size:1.12rem;margin:0 0 24px;max-width:520px;}\n.co-lp .co-points{list-style:none;margin:0 0 24px;padding:0;display:grid;gap:12px;}\n.co-lp .co-points li{display:flex;gap:12px;align-items:flex-start;font-weight:600;color:var(--co-ink);}\n.co-lp .co-points li::before{\n  content:\"\\2713\";flex:0 0 auto;width:26px;height:26px;border-radius:8px;\n  background:var(--co-tint);color:var(--co-orange);font-weight:800;\n  display:flex;align-items:center;justify-content:center;font-size:.95rem;margin-top:1px;\n}\n.co-lp .co-hero-trust{font-size:.95rem;color:var(--co-slate);display:flex;\n  align-items:center;gap:8px;flex-wrap:wrap;}\n.co-lp .co-hero-trust strong{color:var(--co-ink);}\n\n/* ---- Form card ------------------------------------------- */\n.co-lp .co-formcard{\n  background:var(--co-paper);border-radius:var(--co-radius-lg);\n  box-shadow:var(--co-shadow-lift);border-top:5px solid var(--co-orange);\n  padding:clamp(24px,3vw,36px);\n}\n.co-lp .co-formcard h3{font-size:1.5rem;font-weight:800;margin:0 0 6px;color:var(--co-ink);}\n.co-lp .co-form-tag{\n  display:inline-block;background:var(--co-tint);color:var(--co-orange);\n  font-weight:700;font-size:.76rem;letter-spacing:.05em;text-transform:uppercase;\n  padding:6px 13px;border-radius:999px;margin-bottom:14px;\n}\n.co-lp .co-formcard .co-formsub{font-size:1rem;margin:0 0 20px;color:var(--co-slate);}\n.co-lp .co-privacy{\n  margin:18px 0 0;font-size:.88rem;color:var(--co-slate);\n  display:flex;align-items:center;gap:8px;justify-content:center;\n}\n.co-lp .co-privacy svg{width:16px;height:16px;flex:0 0 auto;color:var(--co-orange);}\n.co-lp .co-formcard-call{margin:10px 0 0;text-align:center;font-size:.92rem;}\n.co-lp .co-formcard-call a{color:var(--co-orange);font-weight:700;text-decoration:none;}\n\n/* ---- Form (shared look: mock + live Gravity Forms) ------- */\n.co-lp .co-form{display:grid;gap:16px;}\n.co-lp .co-field{display:flex;flex-direction:column;}\n.co-lp .co-field label,\n.co-lp .gform_wrapper .gfield_label{\n  font-size:.85rem;font-weight:600;color:var(--co-ink);\n  letter-spacing:.01em;margin:0 0 7px;\n}\n.co-lp .co-field label .req,\n.co-lp .gform_wrapper .gfield_required{color:var(--co-orange);}\n\n.co-lp .co-input,.co-lp .co-select,\n.co-lp .gform_wrapper input[type=text],\n.co-lp .gform_wrapper input[type=email],\n.co-lp .gform_wrapper input[type=tel],\n.co-lp .gform_wrapper input[type=number],\n.co-lp .gform_wrapper textarea,\n.co-lp .gform_wrapper select{\n  width:100%;padding:14px 16px !important;font-size:1rem;color:var(--co-ink);\n  background:#F4F5F7 !important;border:1.5px solid transparent !important;\n  border-radius:12px !important;box-shadow:none !important;\n  appearance:none;-webkit-appearance:none;\n  transition:background .2s ease, border-color .2s ease, box-shadow .2s ease;\n}\n.co-lp .co-input::placeholder,\n.co-lp .gform_wrapper input::placeholder{color:#9aa0a6;}\n.co-lp .co-input:focus,.co-lp .co-select:focus,\n.co-lp .gform_wrapper input:focus,\n.co-lp .gform_wrapper textarea:focus,\n.co-lp .gform_wrapper select:focus{\n  outline:none;background:#fff !important;border-color:var(--co-orange) !important;\n  box-shadow:0 0 0 4px rgba(255,102,0,.13) !important;\n}\n/* custom dropdown arrow */\n.co-lp .co-select,\n.co-lp .gform_wrapper select{\n  background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\") !important;\n  background-repeat:no-repeat !important;background-position:right 16px center !important;\n  padding-right:42px !important;\n}\n.co-lp .co-submit,\n.co-lp .gform_wrapper .gform_button{\n  width:100%;margin-top:6px;background:var(--co-orange) !important;color:#fff !important;\n  font-weight:700 !important;font-size:1.1rem !important;border:none !important;\n  padding:16px !important;border-radius:12px !important;cursor:pointer;\n  transition:background .25s ease, transform .2s ease, box-shadow .25s ease;\n}\n.co-lp .co-submit:hover,\n.co-lp .gform_wrapper .gform_button:hover{\n  background:var(--co-orange-dark) !important;transform:translateY(-2px);\n  box-shadow:0 12px 24px rgba(255,102,0,.28);\n}\n.co-lp .gform_wrapper.gravity-theme .gform_fields{grid-row-gap:16px;}\n.co-lp .gform_wrapper .gform_footer{margin-top:6px !important;padding:0 !important;}\n.co-lp .gform_wrapper .gform_validation_errors,\n.co-lp .gform_wrapper .gfield_description.validation_message{border-radius:10px;}\n\n/* ---- Trust / stats strip --------------------------------- */\n.co-lp .co-strip{\n  position:relative;overflow:hidden;\n  background:linear-gradient(180deg,#242424 0%, #1A1A1A 100%);\n}\n.co-lp .co-strip::before{        /* top accent line */\n  content:\"\";position:absolute;top:0;left:0;right:0;height:3px;\n  background:linear-gradient(90deg,transparent,var(--co-orange),transparent);\n}\n.co-lp .co-strip::after{         /* faint diagonal line texture */\n  content:\"\";position:absolute;inset:0;pointer-events:none;opacity:.05;\n  background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Cpath d='M-4 48 48 -4M-4 26 26 -4M18 48 48 18' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E\");\n}\n.co-lp .co-strip-grid{\n  position:relative;z-index:1;\n  display:grid;grid-template-columns:repeat(4,1fr);gap:0;\n  padding:50px 0;text-align:center;\n}\n.co-lp .co-stat{position:relative;padding:4px 18px;}\n.co-lp .co-stat + .co-stat::before{   /* vertical divider line */\n  content:\"\";position:absolute;left:0;top:50%;transform:translateY(-50%);\n  width:1px;height:62px;\n  background:linear-gradient(180deg,transparent,rgba(255,255,255,.18),transparent);\n}\n.co-lp .co-stat .co-stat-n{\n  font-size:2.15rem;font-weight:800;color:#fff;line-height:1.05;letter-spacing:-.01em;\n}\n.co-lp .co-stat .co-stat-n::after{    /* orange underline accent */\n  content:\"\";display:block;width:28px;height:3px;border-radius:3px;\n  background:var(--co-orange);margin:11px auto 0;\n}\n.co-lp .co-stat .co-stat-l{\n  font-size:.92rem;color:rgba(255,255,255,.68);margin-top:13px;letter-spacing:.02em;\n}\n\n/* ---- Amenities ------------------------------------------- */\n.co-lp .co-amen-grid{\n  display:grid;grid-template-columns:repeat(4,1fr);gap:20px;\n}\n.co-lp .co-amen{\n  background:var(--co-paper);border:1px solid var(--co-line);border-radius:var(--co-radius);\n  padding:24px 20px;text-align:center;box-shadow:var(--co-shadow);\n  transition:transform .3s ease, box-shadow .3s ease, border-color .3s ease;\n}\n.co-lp .co-amen:hover{transform:translateY(-5px);box-shadow:var(--co-shadow-md);border-color:transparent;}\n.co-lp .co-amen-ico{\n  width:54px;height:54px;margin:0 auto 14px;border-radius:14px;\n  background:var(--co-tint);color:var(--co-orange);\n  display:flex;align-items:center;justify-content:center;\n}\n.co-lp .co-amen-ico svg{width:26px;height:26px;}\n.co-lp .co-amen h4{font-size:1.02rem;font-weight:700;margin:0;color:var(--co-ink);}\n\n/* ---- Office types ---------------------------------------- */\n.co-lp .co-offices{background:var(--co-mist);}\n.co-lp .co-off-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:26px;}\n.co-lp .co-off{\n  background:var(--co-paper);border-radius:var(--co-radius);overflow:hidden;\n  border:1px solid var(--co-line);box-shadow:var(--co-shadow);\n  display:flex;flex-direction:column;\n  transition:transform .3s ease, box-shadow .3s ease;\n}\n.co-lp .co-off:hover{transform:translateY(-5px);box-shadow:var(--co-shadow-md);}\n.co-lp .co-off-img{aspect-ratio:16/9;overflow:hidden;}\n.co-lp .co-off-img img{width:100%;height:100%;object-fit:cover;transition:transform .5s ease;}\n.co-lp .co-off:hover .co-off-img img{transform:scale(1.05);}\n.co-lp .co-off-body{padding:22px 24px 26px;}\n.co-lp .co-off-body h4{font-size:1.2rem;font-weight:800;margin:0 0 8px;color:var(--co-ink);}\n.co-lp .co-off-body p{margin:0;font-size:.98rem;}\n\n/* ---- Locations ------------------------------------------- */\n.co-lp .co-loc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}\n.co-lp .co-loc{\n  border:1px solid var(--co-line);border-radius:var(--co-radius);\n  padding:22px 22px;background:var(--co-paper);\n  transition:border-color .25s ease, box-shadow .25s ease, transform .25s ease;\n}\n.co-lp .co-loc:hover{border-color:var(--co-orange);box-shadow:var(--co-shadow-md);transform:translateY(-3px);}\n.co-lp .co-loc-name{display:flex;align-items:center;gap:10px;font-size:1.1rem;font-weight:800;color:var(--co-ink);margin-bottom:6px;}\n.co-lp .co-loc-name svg{width:20px;height:20px;color:var(--co-orange);flex:0 0 auto;}\n.co-lp .co-loc p{margin:0;font-size:.95rem;}\n\n/* ---- CTA band -------------------------------------------- */\n.co-lp .co-cta{background:var(--co-dark);text-align:center;padding:58px 0;}\n.co-lp .co-cta h2{color:#fff;font-size:clamp(1.6rem,3.2vw,2.2rem);font-weight:800;margin:0 0 12px;}\n.co-lp .co-cta p{color:rgba(255,255,255,.78);max-width:560px;margin:0 auto 26px;}\n.co-lp .co-cta-call{margin:18px 0 0;color:rgba(255,255,255,.8);font-size:1rem;}\n.co-lp .co-cta-call a{color:var(--co-orange);font-weight:700;text-decoration:none;}\n\n/* ---- Call strip (white, below CTA box) ------------------- */\n.co-lp .co-callout{background:var(--co-paper);text-align:center;padding:30px 0 12px;}\n.co-lp .co-callout p{margin:0;font-size:1.04rem;color:var(--co-slate);}\n.co-lp .co-callout a{color:var(--co-orange);font-weight:700;text-decoration:none;}\n.co-lp .co-callout a:hover{text-decoration:underline;}\n\n/* ---- Sticky mobile CTA ----------------------------------- */\n.co-lp-stickycta{\n  position:fixed;left:0;right:0;bottom:0;z-index:60;\n  display:none;padding:12px 16px;background:rgba(255,255,255,.96);\n  backdrop-filter:blur(8px);border-top:1px solid var(--co-line);\n  box-shadow:0 -6px 20px rgba(0,0,0,.08);\n}\n.co-lp-stickycta a{display:block;text-align:center;}\n\n/* ---- Scroll reveal (enhancement only \u2014 visible without JS) */\n.co-lp.co-anim .co-reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease, transform .7s ease;}\n.co-lp.co-anim .co-reveal.is-in{opacity:1;transform:none;}\n.co-lp .co-amen.co-reveal,.co-lp .co-off.co-reveal,.co-lp .co-loc.co-reveal,.co-lp .co-stat.co-reveal{transition-delay:var(--d,0s);}\n@media (prefers-reduced-motion:reduce){\n  .co-lp.co-anim .co-reveal{opacity:1;transform:none;transition:none;}\n  .co-lp .co-amen,.co-lp .co-off,.co-lp .co-off-img img,.co-lp .co-btn{transition:none;}\n}\n\n/* ---- Responsive ------------------------------------------ */\n@media (max-width:960px){\n  .co-lp .co-hero-grid{grid-template-columns:1fr;gap:34px;}\n  .co-lp .co-amen-grid{grid-template-columns:repeat(2,1fr);}\n  .co-lp .co-off-grid{grid-template-columns:1fr;}\n  .co-lp .co-loc-grid{grid-template-columns:repeat(2,1fr);}\n  .co-lp .co-strip-grid{grid-template-columns:repeat(2,1fr);gap:36px 8px;}\n  .co-lp .co-stat + .co-stat::before{display:none;}\n}\n@media (max-width:600px){\n  .co-lp .co-wrap{padding:0 20px;}\n  .co-lp .co-section{padding:46px 0;}\n  .co-lp .co-bar .co-phone{display:none;}\n  .co-lp .co-loc-grid{grid-template-columns:1fr;}\n  .co-lp .co-amen-grid{grid-template-columns:repeat(2,1fr);}\n  .co-lp-stickycta{display:block;}\n  .co-lp .co-callout{padding-bottom:96px;}\n}\n";
+const JS = "/* ============================================================\n   COMPASS OFFICES \u2014 SEM Landing Page behaviour\n   - Scroll reveal for .co-reveal elements\n   - Smooth scroll for [data-scroll] links to the form\n   - Show sticky mobile CTA after hero scrolls out\n   ============================================================ */\n(function () {\n  function init() {\n    var root = document.querySelector('.co-lp');\n    if (!root) return;\n\n    /* Scroll reveal \u2014 only activate hide/animate when JS runs & motion ok */\n    var prefersReduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n    var els = root.querySelectorAll('.co-reveal');\n    if (!prefersReduce && 'IntersectionObserver' in window) {\n      root.classList.add('co-anim');\n      var io = new IntersectionObserver(function (entries) {\n        entries.forEach(function (e) {\n          if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }\n        });\n      }, { threshold: 0.12, rootMargin: '0px 0px -50px 0px' });\n      els.forEach(function (el) { io.observe(el); });\n    }\n    /* (no JS / reduced motion / old browser \u2192 content stays visible) */\n\n    /* Number count-up */\n    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n    var counters = root.querySelectorAll('.co-stat-n[data-count]');\n\n    function fmt(el, val) {\n      return (el.dataset.prefix || '') + val + (el.dataset.suffix || '');\n    }\n    function runCount(el) {\n      var target = parseFloat(el.dataset.count);\n      if (reduce) { el.textContent = fmt(el, target); return; }\n      var dur = 1400, start = null;\n      function step(ts) {\n        if (start === null) start = ts;\n        var p = Math.min((ts - start) / dur, 1);\n        var eased = 1 - Math.pow(1 - p, 3); /* easeOutCubic */\n        el.textContent = fmt(el, Math.round(target * eased));\n        if (p < 1) requestAnimationFrame(step);\n        else el.textContent = fmt(el, target);\n      }\n      requestAnimationFrame(step);\n    }\n\n    if (counters.length) {\n      counters.forEach(function (el) { if (!reduce) el.textContent = fmt(el, 0); });\n      if ('IntersectionObserver' in window) {\n        var co = new IntersectionObserver(function (entries) {\n          entries.forEach(function (e) {\n            if (e.isIntersecting) { runCount(e.target); co.unobserve(e.target); }\n          });\n        }, { threshold: 0.4 });\n        counters.forEach(function (el) { co.observe(el); });\n      } else {\n        counters.forEach(function (el) { el.textContent = fmt(el, parseFloat(el.dataset.count)); });\n      }\n    }\n\n    /* Smooth scroll to form */\n    document.querySelectorAll('.co-lp [data-scroll]').forEach(function (a) {\n      a.addEventListener('click', function (ev) {\n        var target = document.getElementById('lead-form');\n        if (target) {\n          ev.preventDefault();\n          target.scrollIntoView({ behavior: 'smooth', block: 'start' });\n        }\n      });\n    });\n\n    /* Sticky mobile CTA visibility */\n    var sticky = document.querySelector('.co-lp-stickycta');\n    var hero = document.getElementById('lead-form');\n    if (sticky && hero && 'IntersectionObserver' in window) {\n      var ho = new IntersectionObserver(function (entries) {\n        entries.forEach(function (e) {\n          sticky.style.display = e.isIntersecting ? 'none' : '';\n        });\n      }, { threshold: 0 });\n      ho.observe(hero);\n    }\n  }\n\n  if (document.readyState === 'loading') {\n    document.addEventListener('DOMContentLoaded', init);\n  } else { init(); }\n})();\n";
+const DEFAULT = {"css_url": "/wp-content/uploads/compass-gpw/compass-lp.css", "js_url": "/wp-content/uploads/compass-gpw/compass-lp.js", "bar": {"brand": "Limited Time", "accent": "Special", "phone": "+852 3796 7188", "phoneHref": "tel:+85237967188", "cta": "Get Offer"}, "hero": {"badge": "New centre opening · Limited-time offer", "h1pre": "Flexible Serviced Offices in Hong Kong", "h1accent": "from HK$3,500 / person", "lead": "Move-in-ready private offices, coworking and meeting rooms across 6 prime Hong Kong districts. Get a tailored quote today.", "points": ["Fully furnished & move-in ready — start from day one", "Prime CBD addresses with 24/7 access", "High-speed Wi-Fi, IT support & business phone line", "Flexible terms that scale with your team (1–50 people)"], "trust": "Trusted since 2009 · 100% privacy guaranteed · Local HK team"}, "form": {"tag": "Free · No obligation", "heading": "Get your custom quote", "sub": "Tell us what you need — our Hong Kong team replies fast.", "gfId": "1", "privacy": "100% Privacy Guaranteed — no spam, ever.", "call": "+852 3796 7188", "callHref": "tel:+85237967188"}, "stats": [{"count": "17", "prefix": "", "suffix": "", "label": "Years · since 2009"}, {"count": "6", "prefix": "", "suffix": "", "label": "Prime HK districts"}, {"count": "50", "prefix": "1–", "suffix": "", "label": "Person offices"}, {"count": "24", "prefix": "", "suffix": "/7", "label": "Building access"}], "amenities": {"show": true, "eyebrow": "Everything included", "h2": "Move in and get straight to work", "intro": "Premium amenities come standard across every Compass Offices location.", "items": [{"icon": 0, "title": "Flexible Office Rental"}, {"icon": 1, "title": "Meeting Room Facilities"}, {"icon": 2, "title": "Dedicated Business Line"}, {"icon": 3, "title": "IT Services & Support"}, {"icon": 4, "title": "Co-working Space"}, {"icon": 5, "title": "Free Coffee, Tea & Water"}, {"icon": 6, "title": "High-Speed Wi-Fi"}, {"icon": 7, "title": "Concierge & Secretarial"}]}, "offices": {"show": true, "eyebrow": "Featured office space", "h2": "Choose the workspace that fits", "intro": "From a private one-person suite to a fully customised floor — we have a space for every stage.", "items": [{"img": "https://d9hhrg4mnvzow.cloudfront.net/visit.compassoffices.com/hong-kong-ppc-landing-page-office-rental-en/09168e22-one-person-office-2_100000000000000000001o.jpg", "title": "Private Office", "desc": "Private, secure suites with 24-hour access — fully furnished, daily cleaning, complimentary high-speed Wi-Fi and a business phone line."}, {"img": "https://d9hhrg4mnvzow.cloudfront.net/visit.compassoffices.com/hong-kong-ppc-landing-page-office-rental-en/9dc56fe0-360-collins-street-open-view-office-426x173_100000000000000000001o.jpg", "title": "Open-View Team Office", "desc": "Bright team offices with views of Victoria Harbour, Kowloon Park and the Island — corporate fit-out with ample natural daylight."}, {"img": "https://d9hhrg4mnvzow.cloudfront.net/visit.compassoffices.com/hong-kong-ppc-landing-page-office-rental-en/67e22bd6-manager-office-suite-2_100000000000000000001o.jpg", "title": "Manager Office Suite", "desc": "Efficient suites for meetings, interviews and client interaction — maximising space without sacrificing privacy or confidentiality."}, {"img": "https://d9hhrg4mnvzow.cloudfront.net/visit.compassoffices.com/hong-kong-ppc-landing-page-office-rental-en/e5b7cce7-customised-workspace-2_100000000000000000001o.jpg", "title": "Customised Workspace", "desc": "Tailored layouts with manager suite, private meeting rooms, private entrance and breakout areas — designed and built around your brand."}]}, "locations": {"show": true, "eyebrow": "Our Hong Kong locations", "h2": "Six prime addresses across the city", "intro": "Work from the heart of Hong Kong's most established business districts.", "items": [{"name": "Central", "b": "World Wide House"}, {"name": "Sheung Wan", "b": "Nan Fung Tower"}, {"name": "Admiralty", "b": "Admiralty Centre Tower 1 & 2"}, {"name": "Causeway Bay", "b": "Lee Garden One & Two"}, {"name": "Tsim Sha Tsui", "b": "Silvercord Tower 1 & 2"}, {"name": "North Point", "b": "AIA Tower"}]}, "cta": {"h2": "Ready to claim your limited-time offer?", "p": "Get a tailored quote for your team — flexible terms, prime locations, move-in ready.", "btn": "Get my quote"}, "callout": {"show": true, "text": "Prefer to talk now? Call", "phone": "+852 3796 7188", "phoneHref": "tel:+85237967188"}};
+let S = JSON.parse(JSON.stringify(DEFAULT));
+let inlineMode = true;
+
+const AMEN_ICONS = [
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V5l8-2v18M11 9h8v12M3 21h18"/><path d="M7 8v0M7 12v0M7 16v0M15 13v0M15 17v0"/></svg>',
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="9" rx="1.5"/><path d="M7 9V6h10v3M9 18v2M15 18v2"/></svg>',
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>',
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"/><rect x="2" y="13" width="4" height="7" rx="1.5"/><rect x="18" y="13" width="4" height="7" rx="1.5"/><path d="M20 20a4 4 0 0 1-4 3h-3"/></svg>',
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M2 20a6 6 0 0 1 12 0M14 20a6 6 0 0 1 8-4.5"/></svg>',
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 10h2.5a2.5 2.5 0 0 1 0 5H17"/><path d="M7 3v2M11 3v2"/></svg>',
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg>',
+ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21h14M6 21v-6a6 6 0 0 1 12 0v6"/><path d="M12 9V5M9 5h6"/></svg>'
+];
+const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escAttr(s){return esc(s).replace(/"/g,'&quot;');}
+
+/* ---------- generate page body ---------- */
+function gen(mode){
+  const b=S.bar,h=S.hero,f=S.form,c=S.cta,co=S.callout;
+  let html='<div class="co-lp">';
+
+  // top bar
+  html+='<div class="co-bar"><div class="co-bar-in">'+
+    '<div class="co-logo">'+esc(b.brand)+' <span>'+esc(b.accent)+'</span></div>'+
+    '<div class="co-bar-right"><a class="co-phone" href="'+escAttr(b.phoneHref)+'">'+esc(b.phone)+'</a>'+
+    '<a class="co-btn co-btn-sm" href="#lead-form" data-scroll>'+esc(b.cta)+'</a></div></div></div>';
+
+  // hero
+  html+='<section class="co-hero"><div class="co-wrap"><div class="co-hero-grid"><div class="co-hero-copy">';
+  html+='<span class="co-badge">'+esc(h.badge)+'</span>';
+  html+='<h1>'+esc(h.h1pre)+' <span class="co-accent">'+esc(h.h1accent)+'</span></h1>';
+  html+='<p class="co-hero-lead">'+esc(h.lead)+'</p>';
+  html+='<ul class="co-points">'+h.points.map(p=>'<li>'+esc(p)+'</li>').join('')+'</ul>';
+  html+='<p class="co-hero-trust">'+esc(h.trust)+'</p></div>';
+
+  // form card
+  html+='<div id="lead-form" class="co-formcard co-reveal">';
+  html+='<span class="co-form-tag">'+esc(f.tag)+'</span><h3>'+esc(f.heading)+'</h3>';
+  html+='<p class="co-formsub">'+esc(f.sub)+'</p>';
+  if(mode==='export'){
+    html+='\n<!-- \u25bc\u25bc GRAVITY FORM \u25bc\u25bc -->\n[gravityform id="'+esc(f.gfId)+'" title="false" description="false" ajax="true"]\n<!-- \u25b2\u25b2 END GRAVITY FORM \u25b2\u25b2 -->\n';
+  } else {
+    html+='<form class="co-form" onsubmit="return false">'+
+      '<div class="co-field"><label>Name <span class="req">*</span></label><input class="co-input" type="text" placeholder="Your name"></div>'+
+      '<div class="co-field"><label>Email <span class="req">*</span></label><input class="co-input" type="email" placeholder="you@company.com"></div>'+
+      '<div class="co-field"><label>Phone Number <span class="req">*</span></label><input class="co-input" type="tel" placeholder="+852"></div>'+
+      '<div class="co-field"><label>Preferred Location <span class="req">*</span></label><select class="co-select"><option>Please select</option><option>Central</option><option>Tsim Sha Tsui</option><option>North Point</option><option>Causeway Bay</option><option>Admiralty</option><option>Sheung Wan</option></select></div>'+
+      '<button class="co-btn co-submit" type="submit">'+esc(b.cta)+'</button></form>';
+  }
+  html+='<p class="co-privacy">'+LOCK+' '+esc(f.privacy)+'</p>';
+  html+='<p class="co-formcard-call">Prefer to call? <a href="'+escAttr(f.callHref)+'">'+esc(f.call)+'</a></p>';
+  html+='</div></div></div></section>';
+
+  // stats
+  html+='<section class="co-strip"><div class="co-wrap"><div class="co-strip-grid">';
+  S.stats.forEach((s,i)=>{
+    const d=(i*0.1).toFixed(2)+'s';
+    let numAttr='', shown=(s.prefix||'')+s.count+(s.suffix||'');
+    if(mode==='export'){
+      numAttr=' data-count="'+esc(s.count)+'"'+(s.prefix?(' data-prefix="'+escAttr(s.prefix)+'"'):'')+(s.suffix?(' data-suffix="'+escAttr(s.suffix)+'"'):'');
+    }
+    html+='<div class="co-stat co-reveal" style="--d:'+d+'"><div class="co-stat-n"'+numAttr+'>'+esc(shown)+'</div><div class="co-stat-l">'+esc(s.label)+'</div></div>';
+  });
+  html+='</div></div></section>';
+
+  // amenities
+  if(S.amenities.show){
+    const a=S.amenities;
+    html+='<section class="co-section co-center"><div class="co-wrap"><div class="co-head co-reveal">'+
+      '<span class="co-eyebrow">'+esc(a.eyebrow)+'</span><h2 class="co-h2">'+esc(a.h2)+'</h2><p>'+esc(a.intro)+'</p></div>'+
+      '<div class="co-amen-grid">';
+    a.items.forEach((it,i)=>{
+      const d=((i%4)*0.06).toFixed(2)+'s';
+      const icon=AMEN_ICONS[((it.icon||0)%AMEN_ICONS.length+AMEN_ICONS.length)%AMEN_ICONS.length];
+      html+='<div class="co-amen co-reveal" style="--d:'+d+'"><div class="co-amen-ico">'+icon+'</div><h4>'+esc(it.title)+'</h4></div>';
+    });
+    html+='</div></div></section>';
+  }
+
+  // offices
+  if(S.offices.show){
+    const o=S.offices;
+    html+='<section class="co-section co-offices co-center"><div class="co-wrap"><div class="co-head co-reveal">'+
+      '<span class="co-eyebrow">'+esc(o.eyebrow)+'</span><h2 class="co-h2">'+esc(o.h2)+'</h2><p>'+esc(o.intro)+'</p></div>'+
+      '<div class="co-off-grid" style="text-align:left">';
+    o.items.forEach((it,i)=>{
+      const d=((i%2)*0.08).toFixed(2)+'s';
+      html+='<article class="co-off co-reveal" style="--d:'+d+'"><div class="co-off-img"><img src="'+escAttr(it.img)+'" alt="'+escAttr(it.title)+'" loading="lazy"></div>'+
+        '<div class="co-off-body"><h4>'+esc(it.title)+'</h4><p>'+esc(it.desc)+'</p></div></article>';
+    });
+    html+='</div></div></section>';
+  }
+
+  // locations
+  if(S.locations.show){
+    const l=S.locations;
+    html+='<section class="co-section co-center"><div class="co-wrap"><div class="co-head co-reveal">'+
+      '<span class="co-eyebrow">'+esc(l.eyebrow)+'</span><h2 class="co-h2">'+esc(l.h2)+'</h2><p>'+esc(l.intro)+'</p></div>'+
+      '<div class="co-loc-grid" style="text-align:left">';
+    l.items.forEach((it,i)=>{
+      const d=((i%3)*0.06).toFixed(2)+'s';
+      html+='<div class="co-loc co-reveal" style="--d:'+d+'"><div class="co-loc-name">'+PIN+esc(it.name)+'</div><p>'+esc(it.b)+'</p></div>';
+    });
+    html+='</div></div></section>';
+  }
+
+  // cta
+  html+='<section class="co-cta"><div class="co-wrap"><h2 class="co-reveal">'+esc(c.h2)+'</h2>'+
+    '<p class="co-reveal">'+esc(c.p)+'</p>'+
+    '<a class="co-btn co-btn-lg co-reveal" href="#lead-form" data-scroll>'+esc(c.btn)+'</a></div></section>';
+
+  // callout
+  if(co.show){
+    html+='<section class="co-callout"><div class="co-wrap"><p class="co-reveal">'+esc(co.text)+' <a href="'+escAttr(co.phoneHref)+'">'+esc(co.phone)+'</a></p></div></section>';
+  }
+
+  // sticky mobile cta
+  html+='<div class="co-lp-stickycta"><a class="co-btn" href="#lead-form" data-scroll>'+esc(b.cta)+'</a></div>';
+
+  html+='</div>';
+  return html;
+}
+
+function previewDoc(){
+  return '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+CSS+
+    '</style><style>.co-lp .co-reveal{opacity:1!important;transform:none!important;}.co-lp-stickycta{display:none!important;}</style></head><body style="margin:0">'+
+    gen('preview')+'</body></html>';
+}
+function refresh(){ document.getElementById('prev').srcdoc = previewDoc(); }
+
+function exportHTML(){
+  const body=gen('export');
+  const note='<!-- Compass HK Landing Page — paste into ONE WordPress "Custom HTML" block.\n';
+  if(inlineMode){
+    return note+'     Self-contained: CSS & JS are included below, no external files needed.\n     After saving, purge your site cache. -->\n\n'+
+      '<style>\n'+CSS+'\n</style>\n\n'+body+'\n\n<script>\n'+JS+'\n<'+'/script>\n';
+  }
+  const link='<link rel="stylesheet" href="'+S.css_url+'">';
+  const script='<script src="'+S.js_url+'"><'+'/script>';
+  return note+'     Loads CSS & JS from uploaded files (upload them once to your server). -->\n\n'+
+    link+'\n\n'+body+'\n\n'+script+'\n';
+}
+function onInlineToggle(){inlineMode=document.getElementById('inlineChk').checked;document.getElementById('exportText').value=exportHTML();}
+
+/* ---------- editor UI ---------- */
+function field(label,val,onin,multi){
+  const wrap=document.createElement('div');wrap.className='ed-f';
+  const lb=document.createElement('label');lb.textContent=label;wrap.appendChild(lb);
+  const inp=document.createElement(multi?'textarea':'input');
+  inp.value=val==null?'':val;
+  inp.addEventListener('input',()=>{onin(inp.value);scheduleRefresh();});
+  wrap.appendChild(inp);return wrap;
+}
+function sec(title,open){
+  const d=document.createElement('details');d.className='ed-sec';if(open)d.open=true;
+  const s=document.createElement('summary');s.innerHTML=title+'<span class="chev">\u203a</span>';
+  d.appendChild(s);const body=document.createElement('div');body.className='ed-body';d.appendChild(body);
+  d._body=body;return d;
+}
+function toggle(label,obj,key){
+  const w=document.createElement('label');w.className='ed-toggle';
+  const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!obj[key];
+  cb.addEventListener('change',()=>{obj[key]=cb.checked;scheduleRefresh();});
+  w.appendChild(cb);w.appendChild(document.createTextNode(' Show this section'));return w;
+}
+function miniBtns(arr,idx,onchange){
+  const wrap=document.createElement('div');wrap.className='ed-mini';
+  const up=document.createElement('button');up.textContent='\u2191';up.title='Move up';
+  up.onclick=()=>{if(idx>0){[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];onchange();}};
+  const dn=document.createElement('button');dn.textContent='\u2193';dn.title='Move down';
+  dn.onclick=()=>{if(idx<arr.length-1){[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];onchange();}};
+  const rm=document.createElement('button');rm.textContent='\u2715';rm.title='Remove';
+  rm.onclick=()=>{arr.splice(idx,1);onchange();};
+  wrap.appendChild(up);wrap.appendChild(dn);wrap.appendChild(rm);return wrap;
+}
+
+function build(){
+  const p=document.getElementById('panel');p.innerHTML='';
+
+  const note=document.createElement('div');note.className='ed-note';
+  note.innerHTML='Edit the content below — the preview updates live. When done, click <b>Copy HTML for WordPress</b> and paste it into your Custom HTML block. The CSS &amp; JS files stay as they are (no need to re-paste them).';
+  p.appendChild(note);
+
+  // TOP BAR
+  let d=sec('Top bar',false),bd=d._body;
+  bd.appendChild(field('Brand text',S.bar.brand,v=>S.bar.brand=v));
+  bd.appendChild(field('Brand accent (orange)',S.bar.accent,v=>S.bar.accent=v));
+  const r1=document.createElement('div');r1.className='ed-row';
+  r1.appendChild(field('Phone (shown)',S.bar.phone,v=>S.bar.phone=v));
+  r1.appendChild(field('Phone link (tel:)',S.bar.phoneHref,v=>S.bar.phoneHref=v));
+  bd.appendChild(r1);
+  bd.appendChild(field('Button label',S.bar.cta,v=>S.bar.cta=v));
+  p.appendChild(d);
+
+  // HERO
+  d=sec('Hero',true);bd=d._body;
+  bd.appendChild(field('Badge',S.hero.badge,v=>S.hero.badge=v));
+  bd.appendChild(field('Headline',S.hero.h1pre,v=>S.hero.h1pre=v));
+  bd.appendChild(field('Headline accent (orange)',S.hero.h1accent,v=>S.hero.h1accent=v));
+  bd.appendChild(field('Lead paragraph',S.hero.lead,v=>S.hero.lead=v,true));
+  const pts=document.createElement('div');
+  S.hero.points.forEach((pt,i)=>{
+    const it=document.createElement('div');it.className='ed-item';
+    const hd=document.createElement('div');hd.className='ed-item-h';
+    hd.innerHTML='<span class="t">Bullet '+(i+1)+'</span>';
+    hd.appendChild(miniBtns(S.hero.points,i,build));it.appendChild(hd);
+    it.appendChild(field('Text',pt,v=>S.hero.points[i]=v));
+    pts.appendChild(it);
+  });
+  bd.appendChild(pts);
+  const addp=document.createElement('button');addp.className='ed-add';addp.textContent='+ Add bullet';
+  addp.onclick=()=>{S.hero.points.push('New benefit');build();};bd.appendChild(addp);
+  bd.appendChild(field('Trust line',S.hero.trust,v=>S.hero.trust=v));
+  p.appendChild(d);
+
+  // FORM
+  d=sec('Form card',false);bd=d._body;
+  bd.appendChild(field('Tag chip',S.form.tag,v=>S.form.tag=v));
+  bd.appendChild(field('Heading',S.form.heading,v=>S.form.heading=v));
+  bd.appendChild(field('Sub text',S.form.sub,v=>S.form.sub=v));
+  bd.appendChild(field('Gravity Form ID',S.form.gfId,v=>S.form.gfId=v));
+  bd.appendChild(field('Privacy line',S.form.privacy,v=>S.form.privacy=v));
+  const r2=document.createElement('div');r2.className='ed-row';
+  r2.appendChild(field('Call (shown)',S.form.call,v=>S.form.call=v));
+  r2.appendChild(field('Call link (tel:)',S.form.callHref,v=>S.form.callHref=v));
+  bd.appendChild(r2);
+  p.appendChild(d);
+
+  // STATS
+  d=sec('Stats bar',false);bd=d._body;
+  S.stats.forEach((s,i)=>{
+    const it=document.createElement('div');it.className='ed-item';
+    const hd=document.createElement('div');hd.className='ed-item-h';hd.innerHTML='<span class="t">Stat '+(i+1)+'</span>';
+    hd.appendChild(miniBtns(S.stats,i,build));it.appendChild(hd);
+    const r=document.createElement('div');r.className='ed-row';
+    r.appendChild(field('Prefix',s.prefix,v=>S.stats[i].prefix=v));
+    r.appendChild(field('Number (counts up)',s.count,v=>S.stats[i].count=v));
+    it.appendChild(r);
+    const r3=document.createElement('div');r3.className='ed-row';
+    r3.appendChild(field('Suffix',s.suffix,v=>S.stats[i].suffix=v));
+    r3.appendChild(field('Label',s.label,v=>S.stats[i].label=v));
+    it.appendChild(r3);
+    bd.appendChild(it);
+  });
+  const adds=document.createElement('button');adds.className='ed-add';adds.textContent='+ Add stat';
+  adds.onclick=()=>{S.stats.push({count:"0",prefix:"",suffix:"",label:"New stat"});build();};bd.appendChild(adds);
+  p.appendChild(d);
+
+  // AMENITIES
+  d=sec('Amenities',false);bd=d._body;
+  bd.appendChild(toggle('',S.amenities,'show'));
+  bd.appendChild(field('Eyebrow',S.amenities.eyebrow,v=>S.amenities.eyebrow=v));
+  bd.appendChild(field('Heading',S.amenities.h2,v=>S.amenities.h2=v));
+  bd.appendChild(field('Intro',S.amenities.intro,v=>S.amenities.intro=v,true));
+  S.amenities.items.forEach((it2,i)=>{
+    const it=document.createElement('div');it.className='ed-item';
+    const hd=document.createElement('div');hd.className='ed-item-h';hd.innerHTML='<span class="t">Item '+(i+1)+'</span>';
+    hd.appendChild(miniBtns(S.amenities.items,i,build));it.appendChild(hd);
+    const r=document.createElement('div');r.className='ed-row';
+    r.appendChild(field('Title',it2.title,v=>S.amenities.items[i].title=v));
+    r.appendChild(field('Icon # (0–7)',it2.icon,v=>S.amenities.items[i].icon=parseInt(v||'0',10)));
+    it.appendChild(r);bd.appendChild(it);
+  });
+  const adda=document.createElement('button');adda.className='ed-add';adda.textContent='+ Add amenity';
+  adda.onclick=()=>{S.amenities.items.push({icon:0,title:'New amenity'});build();};bd.appendChild(adda);
+  p.appendChild(d);
+
+  // OFFICES
+  d=sec('Office types',false);bd=d._body;
+  bd.appendChild(toggle('',S.offices,'show'));
+  bd.appendChild(field('Eyebrow',S.offices.eyebrow,v=>S.offices.eyebrow=v));
+  bd.appendChild(field('Heading',S.offices.h2,v=>S.offices.h2=v));
+  bd.appendChild(field('Intro',S.offices.intro,v=>S.offices.intro=v,true));
+  S.offices.items.forEach((it2,i)=>{
+    const it=document.createElement('div');it.className='ed-item';
+    const hd=document.createElement('div');hd.className='ed-item-h';hd.innerHTML='<span class="t">Card '+(i+1)+'</span>';
+    hd.appendChild(miniBtns(S.offices.items,i,build));it.appendChild(hd);
+    it.appendChild(field('Image URL',it2.img,v=>S.offices.items[i].img=v));
+    it.appendChild(field('Title',it2.title,v=>S.offices.items[i].title=v));
+    it.appendChild(field('Description',it2.desc,v=>S.offices.items[i].desc=v,true));
+    bd.appendChild(it);
+  });
+  const addo=document.createElement('button');addo.className='ed-add';addo.textContent='+ Add office card';
+  addo.onclick=()=>{S.offices.items.push({img:'',title:'New office type',desc:'Description'});build();};bd.appendChild(addo);
+  p.appendChild(d);
+
+  // LOCATIONS
+  d=sec('Locations',false);bd=d._body;
+  bd.appendChild(toggle('',S.locations,'show'));
+  bd.appendChild(field('Eyebrow',S.locations.eyebrow,v=>S.locations.eyebrow=v));
+  bd.appendChild(field('Heading',S.locations.h2,v=>S.locations.h2=v));
+  bd.appendChild(field('Intro',S.locations.intro,v=>S.locations.intro=v,true));
+  S.locations.items.forEach((it2,i)=>{
+    const it=document.createElement('div');it.className='ed-item';
+    const hd=document.createElement('div');hd.className='ed-item-h';hd.innerHTML='<span class="t">Location '+(i+1)+'</span>';
+    hd.appendChild(miniBtns(S.locations.items,i,build));it.appendChild(hd);
+    const r=document.createElement('div');r.className='ed-row';
+    r.appendChild(field('District',it2.name,v=>S.locations.items[i].name=v));
+    r.appendChild(field('Building(s)',it2.b,v=>S.locations.items[i].b=v));
+    it.appendChild(r);bd.appendChild(it);
+  });
+  const addl=document.createElement('button');addl.className='ed-add';addl.textContent='+ Add location';
+  addl.onclick=()=>{S.locations.items.push({name:'District',b:'Building'});build();};bd.appendChild(addl);
+  p.appendChild(d);
+
+  // CTA + CALLOUT
+  d=sec('Closing CTA',false);bd=d._body;
+  bd.appendChild(field('Heading',S.cta.h2,v=>S.cta.h2=v));
+  bd.appendChild(field('Sub text',S.cta.p,v=>S.cta.p=v,true));
+  bd.appendChild(field('Button label',S.cta.btn,v=>S.cta.btn=v));
+  bd.appendChild(document.createElement('hr'));
+  bd.appendChild(toggle('',S.callout,'show'));
+  const r4=document.createElement('div');r4.className='ed-row';
+  r4.appendChild(field('Call text',S.callout.text,v=>S.callout.text=v));
+  r4.appendChild(field('Phone',S.callout.phone,v=>S.callout.phone=v));
+  bd.appendChild(r4);
+  bd.appendChild(field('Phone link (tel:)',S.callout.phoneHref,v=>S.callout.phoneHref=v));
+  p.appendChild(d);
+
+  refresh();
+}
+
+let rt=null;
+function scheduleRefresh(){clearTimeout(rt);rt=setTimeout(refresh,250);}
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600);}
+function openExport(){var c=document.getElementById('inlineChk');if(c)c.checked=inlineMode;document.getElementById('exportText').value=exportHTML();document.getElementById('modal').classList.add('show');}
+function closeExport(){document.getElementById('modal').classList.remove('show');}
+function copyExport(){const t=document.getElementById('exportText');t.select();try{document.execCommand('copy');}catch(e){}
+  if(navigator.clipboard){navigator.clipboard.writeText(t.value).catch(()=>{});}toast('HTML copied');}
+function resetAll(){if(confirm('Reset all content to the original?')){S=JSON.parse(JSON.stringify(DEFAULT));build();}}
+
+build();
+</script>
+</body>
+</html>
