@@ -142,7 +142,7 @@ function gen(){
           const items = highlights.map(r => ({
             // Use per-room annotation if available (Page 1 only — Page 2 untouched)
             url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)
-                 || FP_BASE_URL + (r.file || (r.displayLabel + '.png')),
+                 || FP_BASE_URL + (typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||'') || FP_BASE_URL+(r.displayLabel+'.png'),
             label: r.displayLabel,
           }));
           if(items.length === 1){
@@ -168,7 +168,7 @@ function gen(){
           const _items=[];
           if(_allHL.some(r=>!r._synthetic)) _items.push({url:masterImg,label:'master'});
           _synHL.forEach(r=>_items.push({
-            url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)||FP_BASE_URL+r.file,
+            url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)||(FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||'')),
             label: r.displayLabel,
           }));
           if(!_items.length) _items.push({url:masterImg,label:'master'});

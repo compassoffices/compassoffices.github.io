@@ -3,6 +3,16 @@
 //   Simple:  "15-85"                → "15-85"   (unchanged, file is 15-85.png)
 //   Plain C: "15-85 - C"            → "15-85"   (strip suffix, reuses base image)
 //   Complex: "15-85 - C (90,93,95)" → "1585_-_C_90_93_95" (Cloudinary slug)
+// Convert a data.json `file` value to a URL-safe path.
+// "15-85.png"                → "15-85.png"            (unchanged)
+// "1585 - C (90,93,95).png" → "1585_-_C_90_93_95.png" (sanitized)
+function _fpSanitizeFile(file){
+  if(!file) return file;
+  const dot=file.lastIndexOf('.');
+  if(dot<0) return typeof _fpRoomSlug==='function'?_fpRoomSlug(file):file;
+  return (typeof _fpRoomSlug==='function'?_fpRoomSlug(file.slice(0,dot)):file.slice(0,dot))+file.slice(dot);
+}
+
 function _fpRoomSlug(oid){
   const s=String(oid||'').trim();
   if(!s) return s;

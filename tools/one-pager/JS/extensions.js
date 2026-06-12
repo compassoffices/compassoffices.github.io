@@ -1333,8 +1333,12 @@ function _ausAddOfficeToFp(oid){
       // Combined room: check for a REAL polygon entry (not a previously injected one).
       // If none exists, inject a synthetic entry so the room gets a chip and
       // buildFpHtml(pgIdx=-2) uses FP_BASE_URL + file for its specific image.
+      const _noHyph   = rawOid.replace(/(\d)-(\d)/g,'$1$2');
       const realEntry = FP_MASTER_DATA.rooms &&
-        FP_MASTER_DATA.rooms.find(r => !r._synthetic && (r.displayLabel===rawOid||r.label===rawOid));
+        FP_MASTER_DATA.rooms.find(r => !r._synthetic && (
+          r.displayLabel===rawOid||r.label===rawOid||
+          r.displayLabel===_noHyph||r.label===_noHyph
+        ));
       if(!realEntry){
         // Inject synthetic — only once per room
         if(!FP_MASTER_DATA.rooms) FP_MASTER_DATA.rooms = [];

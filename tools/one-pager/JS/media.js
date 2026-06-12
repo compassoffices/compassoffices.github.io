@@ -353,13 +353,17 @@ function fpFindRoom(needle){
   if(!FP_MASTER_DATA || !needle) return null;
   const raw=String(needle).trim(); if(!raw) return null;
   const rooms=FP_MASTER_DATA.rooms||[];
-  // Build a set of variants to try, most-specific first:
-  //   raw         → "15-85 - C (90,93,95)"  (exact match)
-  //   stripC      → "15-85"                  (strip "- C …" for base room)
-  //   slug        → "1585_-_C_90_93_95"      (Cloudinary slug, in case used as displayLabel)
-  const stripC = raw.replace(/\s*-\s*C\b.*/i,'').trim();
-  const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(raw) : raw;
-  const variants=[raw, stripC, slug].filter((v,i,a)=>v&&a.indexOf(v)===i);
+  // Variants to try, most-specific first:
+  //  raw       "15-85 - C (90,93,95)"  exact AUS office ID
+  //  noHyphen  "1585 - C (90,93,95)"   remove digit-hyphen-digit → matches data.json displayLabel
+  //  stripC    "15-85"                 strip "- C …" → base room fallback
+  //  stripCnh  "1585"                  noHyphen version of stripC
+  //  slug      "1585_-_C_90_93_95"     underscore slug
+  const noHyphen = raw.replace(/(\d)-(\d)/g,'$1$2');
+  const stripC   = raw.replace(/\s*-\s*C\b.*/i,'').trim();
+  const stripCnh = noHyphen.replace(/\s*-\s*C\b.*/i,'').trim();
+  const slug     = typeof _fpRoomSlug==='function' ? _fpRoomSlug(raw) : raw;
+  const variants = [raw,noHyphen,slug,stripC,stripCnh].filter((v,i,a)=>v&&a.indexOf(v)===i);
   for(const n of variants){
     const found = rooms.find(r=>r.displayLabel===n)
                || rooms.find(r=>r.label===n)
