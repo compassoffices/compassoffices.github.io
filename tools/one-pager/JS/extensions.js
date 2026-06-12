@@ -1319,26 +1319,29 @@ function ausGetCurrentLoadedFloor(){
 const _AUS_FP_AUTO_ADDED = new Set(); // keyed by stripped office # (e.g. "1801")
 function _ausAddOfficeToFp(oid){
   if(!oid) return false;
-  const room = _fpRoomSlug(oid);
-  if(!room) return false;
+  // slug = safe filename (e.g. "1585_-_C_90_93_95") — used ONLY for URL construction.
+  // rawOid is kept for fpFindRoom/fpHighlightAdd so data.json displayLabel matches work.
+  const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(oid) : String(oid).replace(/\s*-\s*C$/i,'').trim();
+  const rawOid = String(oid).trim();
+  if(!slug) return false;
   if(FP_MASTER_DATA){
     // Highlight mode — must check existence BEFORE calling fpHighlightAdd
     // (which itself dedupes silently), so we only mark as auto on a true
     // new addition. If the room was already highlighted (e.g. user typed
     // it manually first), don't mark as auto — they own it.
-    const found = fpFindRoom(room);
+    const found = fpFindRoom(rawOid);  // search data.json by original name
     if(!found) return false; // room not in polygon JSON
     if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
-    const ok = fpHighlightAdd(room);   // chip render + gen() handled inside
-    if(ok) _AUS_FP_AUTO_ADDED.add(room);
+    const ok = fpHighlightAdd(rawOid); // pass original — chip render + gen() handled inside
+    if(ok) _AUS_FP_AUTO_ADDED.add(slug);
     return ok;
   }
   if(!FP_BASE_URL) return false;
-  const url = FP_BASE_URL + room + '.png';
-  const label = oid;
+  const url = FP_BASE_URL + slug + '.png'; // slug gives correct Cloudinary filename
+  const label = oid;                        // keep original name as label
   if(FP_PLANS.some(p => p.url === url || p.label === label)) return false;
   FP_PLANS.push({url, label});
-  _AUS_FP_AUTO_ADDED.add(room);
+  _AUS_FP_AUTO_ADDED.add(slug);
   if(FP_PLANS.length === 1) S.floorplan = url;
   applyFpSmartDefaults();
   renderFpList();
@@ -1351,17 +1354,18 @@ function _ausAddOfficeToFp(oid){
 // — user-typed entries (never tracked in the auto set) are left alone.
 function _ausRemoveOfficeFromFp(oid){
   if(!oid) return;
-  const room = _fpRoomSlug(oid);
-  if(!room || !_AUS_FP_AUTO_ADDED.has(room)) return;
-  _AUS_FP_AUTO_ADDED.delete(room);
+  const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(oid) : String(oid).replace(/\s*-\s*C$/i,'').trim();
+  const rawOid = String(oid).trim();
+  if(!slug || !_AUS_FP_AUTO_ADDED.has(slug)) return;
+  _AUS_FP_AUTO_ADDED.delete(slug);
   if(FP_MASTER_DATA){
-    const found = fpFindRoom(room);
+    const found = fpFindRoom(rawOid);
     if(found) fpHighlightRemove(found.displayLabel); // chip render + gen() inside
     return;
   }
   if(!FP_BASE_URL) return;
-  const url = FP_BASE_URL + room + '.png';
-  const idx = FP_PLANS.findIndex(p => p.url === url || p.label === oid || p.label === room);
+  const url = FP_BASE_URL + slug + '.png';
+  const idx = FP_PLANS.findIndex(p => p.url === url || p.label === oid || p.label === slug);
   if(idx < 0) return;
   FP_PLANS.splice(idx, 1);
   if(typeof FP_PAGE1_IDX !== 'undefined' && FP_PAGE1_IDX >= FP_PLANS.length) FP_PAGE1_IDX = -1;
@@ -1408,7 +1412,7 @@ function ausToggle(key){
   // Only triggers on SELECT (not deselect), and only if search is empty or
   // already a floor number (avoids clobbering a text search).
   if(!wasSelected){
-    const cleanOid2 = _fpRoomSlug(oid);
+    const cleanOid2 = oid.replace(/\s*-\s*C$/i,'').trim();
     const fm2 = cleanOid2.match(/^(\d{1,2})\d{2}$/) || cleanOid2.match(/^(\d{1,2})/);
     const floorNum2 = fm2 ? fm2[1].replace(/^0+/,'') : null;
     if(floorNum2){
@@ -1427,7 +1431,7 @@ function ausToggle(key){
   if(!wasSelected && AUS_CENTRE_FILTER){
     // Office IDs like "1718" (level 17, room 18) or "2101" (level 21, room 01).
     // The level is the leading 1-2 digits, except some centres prefix "P" etc.
-    const cleanOid = _fpRoomSlug(oid);
+    const cleanOid = oid.replace(/\s*-\s*C$/i, '').trim();
     const fm = cleanOid.match(/^(\d{1,2})\d{2}$/) || cleanOid.match(/^(\d{1,2})/);
     const officeFloor = fm ? fm[1].replace(/^0+/, '') : null;
     const currentFloor = ausGetCurrentLoadedFloor();
