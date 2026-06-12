@@ -1319,26 +1319,43 @@ function ausGetCurrentLoadedFloor(){
 const _AUS_FP_AUTO_ADDED = new Set(); // keyed by stripped office # (e.g. "1801")
 function _ausAddOfficeToFp(oid){
   if(!oid) return false;
-  // slug = safe filename (e.g. "1585_-_C_90_93_95") — used ONLY for URL construction.
-  // rawOid is kept for fpFindRoom/fpHighlightAdd so data.json displayLabel matches work.
+  // slug  → safe filename used for URL (e.g. "1585_-_C_90_93_95")
+  // rawOid→ original name passed to fpFindRoom so data.json displayLabel matches work
   const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(oid) : String(oid).replace(/\s*-\s*C$/i,'').trim();
   const rawOid = String(oid).trim();
   if(!slug) return false;
+
+  // Combined room pattern: "15-85 - C (90,93,95)" — has specific Cloudinary image.
+  // We only use highlight-polygon mode when there is an EXACT polygon for this name;
+  // otherwise we fall through to the per-room PNG so the correct image shows.
+  const isCombined = /\s*-\s*C\s*\(/i.test(rawOid);
+
   if(FP_MASTER_DATA){
-    // Highlight mode — must check existence BEFORE calling fpHighlightAdd
-    // (which itself dedupes silently), so we only mark as auto on a true
-    // new addition. If the room was already highlighted (e.g. user typed
-    // it manually first), don't mark as auto — they own it.
-    const found = fpFindRoom(rawOid);  // search data.json by original name
-    if(!found) return false; // room not in polygon JSON
-    if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
-    const ok = fpHighlightAdd(rawOid); // pass original — chip render + gen() handled inside
-    if(ok) _AUS_FP_AUTO_ADDED.add(slug);
-    return ok;
+    if(!isCombined){
+      // Standard room / plain "- C" room → use highlight polygon as before
+      const found = fpFindRoom(rawOid);
+      if(!found) return false;
+      if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
+      const ok = fpHighlightAdd(rawOid);
+      if(ok) _AUS_FP_AUTO_ADDED.add(slug);
+      return ok;
+    }
+    // Combined room with sub-rooms → only use polygon if there's an EXACT match
+    const found = fpFindRoom(rawOid);
+    const exactMatch = found && (found.displayLabel === rawOid || found.label === rawOid);
+    if(exactMatch){
+      if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
+      const ok = fpHighlightAdd(rawOid);
+      if(ok) _AUS_FP_AUTO_ADDED.add(slug);
+      return ok;
+    }
+    // No exact polygon — fall through to use the specific per-room PNG
+    if(!FP_BASE_URL) return false;
   }
+
   if(!FP_BASE_URL) return false;
-  const url = FP_BASE_URL + slug + '.png'; // slug gives correct Cloudinary filename
-  const label = oid;                        // keep original name as label
+  const url = FP_BASE_URL + slug + '.png'; // slug gives correct filename
+  const label = oid;                        // keep original label
   if(FP_PLANS.some(p => p.url === url || p.label === label)) return false;
   FP_PLANS.push({url, label});
   _AUS_FP_AUTO_ADDED.add(slug);
@@ -1361,7 +1378,7 @@ function _ausRemoveOfficeFromFp(oid){
   if(FP_MASTER_DATA){
     const found = fpFindRoom(rawOid);
     if(found) fpHighlightRemove(found.displayLabel); // chip render + gen() inside
-    return;
+    // Also remove from FP_PLANS in case it was added in legacy mode
   }
   if(!FP_BASE_URL) return;
   const url = FP_BASE_URL + slug + '.png';
