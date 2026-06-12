@@ -269,7 +269,7 @@ function prAddFpPlanBtn(){
     alert('Set the Base URL in the Media → Floor Plan section first.');
     return;
   }
-  const url=base+room+'.png';
+  const url=base+(room.toLowerCase()==='master'?room:_fpRoomSlug(room))+'.png';
   const label=room.toLowerCase()==='master'?'Master':room;
   const exists=FP_PLANS.some(p=>p.label===label||p.url===url);
   if(!exists){
@@ -351,13 +351,22 @@ function fpHexToRgb(hex){
 // and tolerates whitespace + an optional "- C" suffix that AUS uses.
 function fpFindRoom(needle){
   if(!FP_MASTER_DATA || !needle) return null;
-  const n = String(needle).replace(/\s*-\s*C$/i,'').trim();
-  if(!n) return null;
-  const rooms = FP_MASTER_DATA.rooms || [];
-  return rooms.find(r => r.displayLabel===n)
-      || rooms.find(r => r.label===n)
-      || rooms.find(r => String(r.displayLabel).toLowerCase()===n.toLowerCase())
-      || null;
+  const raw=String(needle).trim(); if(!raw) return null;
+  const rooms=FP_MASTER_DATA.rooms||[];
+  // Build a set of variants to try, most-specific first:
+  //   raw         → "15-85 - C (90,93,95)"  (exact match)
+  //   stripC      → "15-85"                  (strip "- C …" for base room)
+  //   slug        → "1585_-_C_90_93_95"      (Cloudinary slug, in case used as displayLabel)
+  const stripC = raw.replace(/\s*-\s*C\b.*/i,'').trim();
+  const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(raw) : raw;
+  const variants=[raw, stripC, slug].filter((v,i,a)=>v&&a.indexOf(v)===i);
+  for(const n of variants){
+    const found = rooms.find(r=>r.displayLabel===n)
+               || rooms.find(r=>r.label===n)
+               || rooms.find(r=>String(r.displayLabel).toLowerCase()===n.toLowerCase());
+    if(found) return found;
+  }
+  return null;
 }
 
 // Collect every room that should currently be highlighted.
@@ -880,7 +889,7 @@ function delFpPlan(i){
   // Clean up the auto-tracked set — same logic as fpHighlightRemove
   const removed = FP_PLANS[i];
   if(removed && removed.label){
-    const r = String(removed.label).replace(/\s*-\s*C$/i,'').trim();
+    const r = _fpRoomSlug(String(removed.label));
     if(r) _AUS_FP_AUTO_ADDED.delete(r);
   }
   FP_PLANS.splice(i,1);
@@ -934,7 +943,7 @@ function updateFpUrl(i){
       base=m?m[1]:'';
     }
     if(base){
-      FP_PLANS[i].url=base+room+'.png';
+      FP_PLANS[i].url=base+(room.toLowerCase()==='master'?room:_fpRoomSlug(room))+'.png';
       FP_PLANS[i].label=room;
       urlInp.value=FP_PLANS[i].url;
     }

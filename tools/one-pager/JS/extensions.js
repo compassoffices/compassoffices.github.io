@@ -1319,7 +1319,7 @@ function ausGetCurrentLoadedFloor(){
 const _AUS_FP_AUTO_ADDED = new Set(); // keyed by stripped office # (e.g. "1801")
 function _ausAddOfficeToFp(oid){
   if(!oid) return false;
-  const room = String(oid).replace(/\s*-\s*C$/i, '').trim();
+  const room = _fpRoomSlug(oid);
   if(!room) return false;
   if(FP_MASTER_DATA){
     // Highlight mode — must check existence BEFORE calling fpHighlightAdd
@@ -1351,7 +1351,7 @@ function _ausAddOfficeToFp(oid){
 // — user-typed entries (never tracked in the auto set) are left alone.
 function _ausRemoveOfficeFromFp(oid){
   if(!oid) return;
-  const room = String(oid).replace(/\s*-\s*C$/i, '').trim();
+  const room = _fpRoomSlug(oid);
   if(!room || !_AUS_FP_AUTO_ADDED.has(room)) return;
   _AUS_FP_AUTO_ADDED.delete(room);
   if(FP_MASTER_DATA){
@@ -1408,7 +1408,7 @@ function ausToggle(key){
   // Only triggers on SELECT (not deselect), and only if search is empty or
   // already a floor number (avoids clobbering a text search).
   if(!wasSelected){
-    const cleanOid2 = oid.replace(/\s*-\s*C$/i,'').trim();
+    const cleanOid2 = _fpRoomSlug(oid);
     const fm2 = cleanOid2.match(/^(\d{1,2})\d{2}$/) || cleanOid2.match(/^(\d{1,2})/);
     const floorNum2 = fm2 ? fm2[1].replace(/^0+/,'') : null;
     if(floorNum2){
@@ -1427,7 +1427,7 @@ function ausToggle(key){
   if(!wasSelected && AUS_CENTRE_FILTER){
     // Office IDs like "1718" (level 17, room 18) or "2101" (level 21, room 01).
     // The level is the leading 1-2 digits, except some centres prefix "P" etc.
-    const cleanOid = oid.replace(/\s*-\s*C$/i, '').trim();
+    const cleanOid = _fpRoomSlug(oid);
     const fm = cleanOid.match(/^(\d{1,2})\d{2}$/) || cleanOid.match(/^(\d{1,2})/);
     const officeFloor = fm ? fm[1].replace(/^0+/, '') : null;
     const currentFloor = ausGetCurrentLoadedFloor();
@@ -3173,7 +3173,7 @@ document.addEventListener('keydown', e => {
   const tag = document.activeElement?.tagName?.toUpperCase();
   const inText = tag==='INPUT'||tag==='TEXTAREA'||document.activeElement?.isContentEditable;
   const ctrl = e.ctrlKey||e.metaKey;
-  if(ctrl && e.key==='s'){ e.preventDefault(); if(typeof _showSaveAsDialog==='function') _showSaveAsDialog(); else if(typeof downloadCurrentJSON==='function') downloadCurrentJSON(); }
+  if(ctrl && e.key==='s'){ e.preventDefault(); if(typeof downloadCurrentJSON==='function') downloadCurrentJSON(); showStatus('Proposal saved ↓','s-ok'); }
   if(ctrl && e.key==='p'){ e.preventDefault(); if(typeof printSlide==='function') printSlide(); }
   if(ctrl && e.key==='Enter' && !inText){ e.preventDefault(); if(typeof gen==='function') gen(); }
 });

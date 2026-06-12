@@ -1,3 +1,25 @@
+// ── Room ID → filename slug ────────────────────────────────────────────────
+// Handles three naming patterns:
+//   Simple:  "15-85"                → "15-85"   (unchanged, file is 15-85.png)
+//   Plain C: "15-85 - C"            → "15-85"   (strip suffix, reuses base image)
+//   Complex: "15-85 - C (90,93,95)" → "1585_-_C_90_93_95" (Cloudinary slug)
+function _fpRoomSlug(oid){
+  const s=String(oid||'').trim();
+  if(!s) return s;
+  // Complex combined room: " - C (...)" pattern → full underscore slug
+  if(/\s*-\s*C\s*\(/i.test(s)){
+    return s
+      .replace(/[()]/g,'')            // strip parentheses
+      .replace(/,/g,'_')              // commas → underscores
+      .replace(/\s+/g,'_')            // spaces → underscores
+      .replace(/(\d)-(\d)/g,'$1$2')   // digit-hyphen-digit: 15-85→1585
+      .replace(/_+/g,'_')             // collapse doubles
+      .replace(/^_|_$/g,'');          // trim
+  }
+  // Simple / plain "- C" room: strip optional "- C" suffix (existing behaviour)
+  return s.replace(/\s*-\s*C$/i,'').trim();
+}
+
 // Compass Offices One-Pager Builder
 // https://github.com/compassoffices/compassoffices.github.io
 
@@ -182,7 +204,7 @@ async function _fpeInitCanvas(){
 function _fpeGetRoomUrl(oid){
   const plan = FP_PLANS.find(p=>p.label===oid && !/(master)/i.test(p.label));
   if(plan?.url) return plan.url;
-  if(FP_BASE_URL){ const r=String(oid).replace(/\s*-\s*C$/i,'').trim(); return FP_BASE_URL+r+'.png'; }
+  if(FP_BASE_URL){ return FP_BASE_URL+_fpRoomSlug(oid)+'.png'; }
   if(typeof getActiveHighlightRooms==='function' && FP_BASE_URL){
     const h=getActiveHighlightRooms().find(r=>r.displayLabel===oid);
     if(h) return FP_BASE_URL+(h.file||h.displayLabel+'.png');
