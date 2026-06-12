@@ -1319,43 +1319,50 @@ function ausGetCurrentLoadedFloor(){
 const _AUS_FP_AUTO_ADDED = new Set(); // keyed by stripped office # (e.g. "1801")
 function _ausAddOfficeToFp(oid){
   if(!oid) return false;
-  // slug  → safe filename used for URL (e.g. "1585_-_C_90_93_95")
-  // rawOid→ original name passed to fpFindRoom so data.json displayLabel matches work
+  // slug  = safe filename for URL, e.g. "1585_-_C_90_93_95"
+  // rawOid = original label, e.g. "15-85 - C (90,93,95)" — matches data.json displayLabel
   const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(oid) : String(oid).replace(/\s*-\s*C$/i,'').trim();
   const rawOid = String(oid).trim();
   if(!slug) return false;
 
-  // Combined room pattern: "15-85 - C (90,93,95)" — has specific Cloudinary image.
-  // We only use highlight-polygon mode when there is an EXACT polygon for this name;
-  // otherwise we fall through to the per-room PNG so the correct image shows.
+  // Is this a combined room with sub-room numbers? e.g. "15-85 - C (90,93,95)"
   const isCombined = /\s*-\s*C\s*\(/i.test(rawOid);
 
   if(FP_MASTER_DATA){
-    if(!isCombined){
-      // Standard room / plain "- C" room → use highlight polygon as before
-      const found = fpFindRoom(rawOid);
-      if(!found) return false;
-      if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
-      const ok = fpHighlightAdd(rawOid);
-      if(ok) _AUS_FP_AUTO_ADDED.add(slug);
-      return ok;
+    if(isCombined && FP_BASE_URL){
+      // Combined room: check for a REAL polygon entry (not a previously injected one).
+      // If none exists, inject a synthetic entry so the room gets a chip and
+      // buildFpHtml(pgIdx=-2) uses FP_BASE_URL + file for its specific image.
+      const realEntry = FP_MASTER_DATA.rooms &&
+        FP_MASTER_DATA.rooms.find(r => !r._synthetic && (r.displayLabel===rawOid||r.label===rawOid));
+      if(!realEntry){
+        // Inject synthetic — only once per room
+        if(!FP_MASTER_DATA.rooms) FP_MASTER_DATA.rooms = [];
+        if(!FP_MASTER_DATA.rooms.find(r => r._synthetic && r.displayLabel===rawOid)){
+          FP_MASTER_DATA.rooms.push({
+            displayLabel: rawOid,  // matches search in fpFindRoom
+            label:        slug,
+            file:         slug + '.png',  // e.g. "1585_-_C_90_93_95.png"
+            polygon:      [],             // no polygon — renders as image only
+            fillColor:    '#FF6600',
+            _synthetic:   true,
+          });
+        }
+      }
     }
-    // Combined room with sub-rooms → only use polygon if there's an EXACT match
+    // Now fpFindRoom will find the room (real or synthetic)
     const found = fpFindRoom(rawOid);
-    const exactMatch = found && (found.displayLabel === rawOid || found.label === rawOid);
-    if(exactMatch){
-      if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
-      const ok = fpHighlightAdd(rawOid);
-      if(ok) _AUS_FP_AUTO_ADDED.add(slug);
-      return ok;
-    }
-    // No exact polygon — fall through to use the specific per-room PNG
-    if(!FP_BASE_URL) return false;
+    if(!found) return false;
+    if(FP_HIGHLIGHTS_MANUAL.has(found.displayLabel)) return false;
+    const ok = fpHighlightAdd(rawOid); // chip render + gen() inside
+    if(ok) _AUS_FP_AUTO_ADDED.add(slug);
+    return ok;
   }
 
+  // Legacy image-collage mode (no FP_MASTER_DATA)
   if(!FP_BASE_URL) return false;
-  const url = FP_BASE_URL + slug + '.png'; // slug gives correct filename
-  const label = oid;                        // keep original label
+  const url = FP_BASE_URL + slug + '.png';
+  const label = oid;
   if(FP_PLANS.some(p => p.url === url || p.label === label)) return false;
   FP_PLANS.push({url, label});
   _AUS_FP_AUTO_ADDED.add(slug);
@@ -1377,8 +1384,13 @@ function _ausRemoveOfficeFromFp(oid){
   _AUS_FP_AUTO_ADDED.delete(slug);
   if(FP_MASTER_DATA){
     const found = fpFindRoom(rawOid);
-    if(found) fpHighlightRemove(found.displayLabel); // chip render + gen() inside
-    // Also remove from FP_PLANS in case it was added in legacy mode
+    if(found) fpHighlightRemove(found.displayLabel); // removes from FP_HIGHLIGHTS_MANUAL
+    // Remove synthetic entry so it doesn't persist after deselect
+    if(FP_MASTER_DATA.rooms){
+      const si = FP_MASTER_DATA.rooms.findIndex(r => r._synthetic && r.displayLabel===rawOid);
+      if(si >= 0) FP_MASTER_DATA.rooms.splice(si, 1);
+    }
+    return;
   }
   if(!FP_BASE_URL) return;
   const url = FP_BASE_URL + slug + '.png';
