@@ -161,7 +161,7 @@ function gen(){
       const baked     = FP_HIGHLIGHT_RENDER_URL;
       const masterUrl = getMasterImageUrl();
       const masterImg = baked || masterUrl;
-      if(masterImg && typeof getActiveHighlightRooms==='function'){
+      if(masterImg && typeof getActiveHighlightRooms==='function' && !forPage2){
         const _allHL = getActiveHighlightRooms();
         const _synHL = _allHL.filter(r => r._synthetic && r.file && FP_BASE_URL);
         if(_synHL.length){
