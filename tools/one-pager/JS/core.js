@@ -1,55 +1,3 @@
-// ── Save As dialog ──────────────────────────────────────────────────────────
-// Entirely self-contained: creates its own modal DOM if needed.
-// downloadCurrentJSON() calls this when invoked without a customName.
-// The confirm button calls downloadCurrentJSON(name) to trigger the actual download.
-function _showSaveAsDialog(){
-  let modal = document.getElementById('save-as-modal');
-  if(!modal){
-    modal = document.createElement('div');
-    modal.id = 'save-as-modal';
-    modal.setAttribute('onclick',"if(event.target===this)_saveAsCancel()");
-    modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
-    modal.innerHTML=`
-      <div style="background:#fff;border-radius:14px;padding:28px 28px 24px;width:100%;max-width:420px;
-                  box-shadow:0 12px 40px rgba(0,0,0,.22);font-family:var(--ff,sans-serif);">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-          <h3 style="margin:0;font-size:16px;font-weight:800;color:#222;">Save Proposal As</h3>
-          <button onclick="_saveAsCancel()" style="border:none;background:transparent;cursor:pointer;color:#aaa;padding:4px;border-radius:6px;line-height:0;font-size:18px;" title="Close">&times;</button>
-        </div>
-        <label style="font-size:11.5px;font-weight:700;color:#888;letter-spacing:.04em;display:block;margin-bottom:6px;">FILE NAME</label>
-        <div style="display:flex;align-items:stretch;">
-          <input id="save-as-input" type="text" autocomplete="off" spellcheck="false"
-            onkeydown="if(event.key==='Enter')_saveAsConfirm();if(event.key==='Escape')_saveAsCancel();"
-            onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#ddd'"
-            style="flex:1;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px 0 0 8px;
-                   font-size:14px;font-family:inherit;color:#222;outline:none;background:#fff;min-width:0;">
-          <span style="padding:0 10px;background:#f5f5f5;border:1.5px solid #ddd;border-left:none;
-                       border-radius:0 8px 8px 0;font-size:11px;color:#aaa;
-                       white-space:nowrap;display:flex;align-items:center;">_YYMMDD-HHmm.json</span>
-        </div>
-        <p style="margin:7px 0 0;font-size:11px;color:#aaa;">Date-time stamp added automatically — versions are never overwritten.</p>
-        <div style="display:flex;gap:10px;margin-top:22px;">
-          <button onclick="_saveAsCancel()" style="flex:1;padding:10px 16px;border:1.5px solid #ddd;border-radius:10px;background:transparent;color:#666;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;">Cancel</button>
-          <button onclick="_saveAsConfirm()" style="flex:2;padding:10px 16px;border:none;border-radius:10px;background:#FF6600;color:#fff;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;">↓ Save</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-  }
-  const input = document.getElementById('save-as-input');
-  if(input) input.value = getExportName();
-  modal.style.display = 'flex';
-  setTimeout(()=>{ const i=document.getElementById('save-as-input'); if(i){i.focus();i.select();} }, 80);
-}
-function _saveAsConfirm(){
-  const name = (document.getElementById('save-as-input')?.value||'').trim();
-  _saveAsCancel();
-  downloadCurrentJSON(name || getExportName());
-}
-function _saveAsCancel(){
-  const m = document.getElementById('save-as-modal');
-  if(m) m.style.display = 'none';
-}
-
 // Compass Offices One-Pager Builder
 // https://github.com/compassoffices/compassoffices.github.io
 
@@ -207,12 +155,30 @@ function gen(){
         }
         // No highlights → fall through to master display below
       }
-      // All other modes → master with highlight polygons baked in
-      const baked = FP_HIGHLIGHT_RENDER_URL;
-      if(baked){
-        return `<img src="${baked}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
-      }
+      // All other modes → master with highlight polygons baked in.
+      // Exception: if any highlights are synthetic combined rooms (specific image,
+      // no polygon), show them alongside the master as a collage.
+      const baked     = FP_HIGHLIGHT_RENDER_URL;
       const masterUrl = getMasterImageUrl();
+      const masterImg = baked || masterUrl;
+      if(masterImg && typeof getActiveHighlightRooms==='function'){
+        const _allHL = getActiveHighlightRooms();
+        const _synHL = _allHL.filter(r => r._synthetic && r.file && FP_BASE_URL);
+        if(_synHL.length){
+          const _items=[];
+          if(_allHL.some(r=>!r._synthetic)) _items.push({url:masterImg,label:'master'});
+          _synHL.forEach(r=>_items.push({
+            url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)||FP_BASE_URL+r.file,
+            label: r.displayLabel,
+          }));
+          if(!_items.length) _items.push({url:masterImg,label:'master'});
+          if(_items.length===1) return `<img src="${_items[0].url}" alt="${_items[0].label}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
+          const _n=_items.length, _cols=_n===2?2:_n===3?3:_n<=4?2:3;
+          const _last=(_n%_cols===0)?1:(_cols-(_n%_cols)+1);
+          return `<div class="sl-fp-collage" style="grid-template-columns:repeat(${_cols},1fr)">${_items.map((it,pi)=>`<img src="${it.url}" alt="${it.label}" style="${pi===_n-1&&_last>1?'grid-column:span '+_last+';':''}">`).join('')}</div>`;
+        }
+      }
+      if(baked) return `<img src="${baked}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
       return `<img src="${masterUrl}" style="width:100%;height:100%;object-fit:contain;display:block;background:#fff;">`;
     }
     // ── Legacy image-collage mode ──
@@ -992,17 +958,12 @@ setTimeout(function(){
 // ══════════════════════════════════════════════════════════
 //  DOWNLOAD JSON — saves ALL 4 languages in one file
 // ══════════════════════════════════════════════════════════
-function downloadCurrentJSON(customName){
-  // Called without a name → show Save As dialog first
-  if(customName === undefined){
-    _showSaveAsDialog();
-    return;
-  }
+function downloadCurrentJSON(){
   // Save current lang first
   saveLangData(LANG);
 
   const r=v=>(v||'').trim();
-  const slug = customName && customName.trim() ? customName.trim().replace(/[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]+/g,'-').replace(/^-|-$/g,'')||'proposal' : getExportName();
+  const slug=getExportName();
   const now=new Date();
   const ts=now.getFullYear().toString().slice(2)+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0');
 
