@@ -70,6 +70,10 @@
   .seg button{font-family:inherit;font-weight:700;font-size:.82rem;padding:8px 14px;border:0;background:#fff;color:var(--slate);cursor:pointer;}
   .seg button.on{background:var(--orange);color:#fff;}
   .mcard textarea.code{width:100%;min-height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.76rem;line-height:1.5;border:1px solid var(--line-2);border-radius:10px;padding:14px;background:#FBFAF8;resize:vertical;}
+  .mcard textarea.cc-sm{min-height:96px;}
+  .cc-block{margin-bottom:14px;}
+  .cc-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 6px;font-size:.82rem;font-weight:800;color:var(--ink);}
+  .cc-head .cc-tab{font-weight:600;color:var(--orange);font-size:.74rem;margin-left:6px;}
   .mcard .cc-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;}
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:80;background:var(--ink);color:#fff;font-weight:700;font-size:.9rem;padding:12px 20px;border-radius:999px;box-shadow:0 14px 34px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:.25s;}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -115,19 +119,18 @@
   <div class="modalwrap" id="embedWrap">
     <div class="mcard">
       <h3>Embed on WordPress</h3>
-      <p class="desc">Paste this into a <b>Custom HTML</b> block. The chart loads its content from your hosted JSON, so you can update text later without touching WordPress.</p>
+      <p class="desc">No JavaScript needed — the chart is fully built from HTML + CSS. Paste each box into its matching tab.</p>
       <div class="row">
-        <div class="ed-field"><label class="ed-label">JSON file URL (raw)</label><input class="ed-input" id="embedUrl" type="text" placeholder="https://raw.githubusercontent.com/USER/REPO/main/json/orgchart.json"></div>
-        <div class="ed-field" style="flex:0 0 150px"><label class="ed-label">This page's language</label><select class="ed-input" id="embedLang"></select></div>
+        <div class="ed-field" style="flex:0 0 170px"><label class="ed-label">This page's language</label><select class="ed-input" id="embedLang"></select></div>
       </div>
-      <div class="row" style="align-items:center">
-        <div class="seg" id="embedMode"><button data-mode="url" class="on">Load from URL</button><button data-mode="self">Self-contained</button></div>
+      <p class="note" id="embedNote">Paste <b>HTML → HTML tab</b> and <b>CSS → CSS tab</b>. The <b>JavaScript</b> is <b>optional</b> — it only adds the fade-in-on-scroll effect. The chart (lines, pop-ups, hover) works fully from HTML + CSS even if the JS is left out or your block strips it. Re-open and re-paste whenever you change content.</p>
+      <div id="embedSplit">
+        <div class="cc-block"><div class="cc-head"><span>HTML <span class="cc-tab">→ HTML tab</span></span><button class="ed-btn small" data-copy="codeH">Copy HTML</button></div><textarea class="code cc-sm" id="codeH" readonly spellcheck="false"></textarea></div>
+        <div class="cc-block"><div class="cc-head"><span>CSS <span class="cc-tab">→ CSS tab</span></span><button class="ed-btn small" data-copy="codeC">Copy CSS</button></div><textarea class="code cc-sm" id="codeC" readonly spellcheck="false"></textarea></div>
+        <div class="cc-block"><div class="cc-head"><span>JavaScript <span class="cc-tab">→ JS tab (optional)</span></span><button class="ed-btn small" data-copy="codeJ">Copy JS</button></div><textarea class="code cc-sm" id="codeJ" readonly spellcheck="false"></textarea></div>
       </div>
-      <p class="note" id="embedNote">Recommended. Upload your exported JSON to GitHub (e.g. <b>/json/orgchart.json</b>), paste its <b>raw</b> URL above, then copy this for each language page (change the language each time).</p>
-      <textarea class="code" id="embedCode" readonly spellcheck="false"></textarea>
       <div class="cc-actions">
         <button class="ed-btn" id="embedClose">Close</button>
-        <button class="ed-btn" style="background:var(--orange);border-color:var(--orange);color:#fff" id="embedCopy">Copy to clipboard</button>
       </div>
     </div>
   </div>
@@ -175,8 +178,7 @@ var state={
   header:{ eyebrow:L("Leadership & Organisation"), title:L("The people behind your workspace"), highlight:L("your workspace"),
     lead:L("From group leadership in Hong Kong through to the country teams running each market day to day — here's who's accountable for what across our Asia Pacific network. Tap any card to learn more.") },
   chairman:person("Andrew Chung","Chairman & Founder","Group",BASE+"Andrew-Chung.jpg","Founder of Compass Offices, Andrew leads the group's long-term vision and its growth across the Asia Pacific network.",LI),
-  includeNed:true,
-  ned:person("Piers Brunner","Non-Executive Director","Board",BASE+"Piers-Brunner.jpg","Piers serves on the board as a Non-Executive Director, bringing senior industry experience to group governance.",LI),
+  board:[ person("Piers Brunner","Non-Executive Director","Board",BASE+"Piers-Brunner.jpg","Piers serves on the board as a Non-Executive Director, bringing senior industry experience to group governance.",LI) ],
   viceChairman:person("Alan Mackay","Vice Chairman","Group",BASE+"Alan-Mackay.jpg","As Vice Chairman, Alan oversees group strategy and leads the regional management team.",LI),
   regions:[
     {head:person("Frank Van Bemmel","Country Manager, Hong Kong","Hong Kong",BASE+"Frank-Van-Bemmel.jpg","Frank leads the Hong Kong market, overseeing sales and centre operations across the city.",LI),
@@ -229,6 +231,7 @@ var CHART_CSS=`
   .coorg .coorg-wires.coorg-in{opacity:1;}
   .coorg .coorg-wire{fill:none;stroke:var(--line);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
   .coorg .coorg-wires circle{fill:var(--paper);stroke:var(--orange);stroke-width:2;}
+  .coorg .coorg-hl{fill:none;stroke:var(--orange);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;transition:stroke-dashoffset .6s cubic-bezier(.4,.05,.2,1);}
   /* top leadership row — same level, Alan centred, Andrew largest, Alan styled like Andrew */
   .coorg .coorg-top{position:relative;z-index:1;display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;column-gap:18px;}
   .coorg .coorg-lead-card{justify-self:end;width:330px;display:flex;align-items:center;gap:20px;padding:24px 28px;border-top:3px solid var(--orange);box-shadow:0 22px 56px rgba(20,22,28,.13);}
@@ -241,12 +244,13 @@ var CHART_CSS=`
   .coorg .coorg-vc-card .coorg-ph{width:74px;height:74px;}
   .coorg .coorg-vc-card .coorg-ph .coorg-ini{font-size:1.42rem;}
   .coorg .coorg-vc-card h3{margin:6px 0 6px;font-size:1.16rem;font-weight:800;letter-spacing:-.01em;color:var(--ink);}
-  .coorg .coorg-ned-card{justify-self:start;width:210px;display:flex;align-items:center;gap:13px;padding:16px 18px;}
+  .coorg .coorg-board{justify-self:start;align-self:center;display:flex;flex-direction:column;gap:14px;width:210px;position:relative;}
+  .coorg .coorg-ned-card{width:100%;display:flex;align-items:center;gap:13px;padding:16px 18px;}
   .coorg .coorg-ned-card .coorg-ph{width:54px;height:54px;}
   .coorg .coorg-ned-card .coorg-ph .coorg-ini{font-size:1rem;}
   .coorg .coorg-ned-card h3{margin:4px 0 4px;font-size:1rem;font-weight:800;letter-spacing:-.01em;color:var(--ink);}
   .coorg .coorg-ned-card .coorg-role{font-size:.6rem;letter-spacing:.05em;}
-  .coorg .coorg-cols{position:relative;z-index:1;margin-top:96px;display:grid;grid-template-columns:repeat(var(--rcols,3),1fr);gap:var(--g);}
+  .coorg .coorg-cols{position:relative;z-index:1;margin-top:62px;display:grid;grid-template-columns:repeat(var(--rcols,3),1fr);gap:var(--g);}
   .coorg .coorg-col{position:relative;}
   .coorg .coorg-head-card{text-align:center;padding:26px 20px 24px;}
   .coorg .coorg-head-card .coorg-ph{width:74px;height:74px;margin:0 auto 14px;}
@@ -258,7 +262,12 @@ var CHART_CSS=`
   .coorg .coorg-head-card:hover .coorg-ph.coorg-ring2{box-shadow:0 0 0 3px var(--paper),0 0 0 4px var(--orange);}
   .coorg .coorg-team{position:relative;margin-top:0;display:flex;flex-direction:column;gap:14px;padding-top:32px;}
   .coorg .coorg-team::before{content:"";position:absolute;left:50%;top:0;bottom:22px;width:2px;background:var(--line-soft);transform:translateX(-50%);}
-  .coorg .coorg-team::after{content:"";position:absolute;left:50%;top:0;width:9px;height:9px;border-radius:50%;background:var(--paper);border:2px solid var(--orange);transform:translate(-50%,-50%);z-index:1;}
+  .coorg .coorg-team::after{content:"";position:absolute;left:50%;top:0;width:9px;height:9px;border-radius:50%;background:var(--paper);border:2px solid var(--orange);transform:translate(-50%,-50%);z-index:1;transition:background .3s ease;}
+  .coorg .coorg-spine-hot{position:absolute;left:50%;top:0;bottom:22px;width:2px;background:var(--orange);border-radius:2px;transform:translateX(-50%) scaleY(0);transform-origin:top center;transition:transform .5s cubic-bezier(.4,.05,.2,1);transition-delay:var(--spine-delay,0s);z-index:0;}
+  .coorg .coorg-col.coorg-hot .coorg-spine-hot{transform:translateX(-50%) scaleY(1);}
+  .coorg .coorg-col.coorg-hot .coorg-team::after{background:var(--orange);}
+  .coorg .coorg-col.coorg-hot .coorg-head-card{border-color:rgba(255,102,0,.5);}
+  .coorg .coorg-col.coorg-hot .coorg-member{border-color:rgba(255,102,0,.42);}
   .coorg .coorg-team:empty::after{display:none;}
   .coorg .coorg-team:empty{margin:0;padding:0;}
   .coorg .coorg-team:empty::before{display:none;}
@@ -272,7 +281,40 @@ var CHART_CSS=`
   .coorg .coorg-member:hover .coorg-go,.coorg .coorg-member:focus-visible .coorg-go{transform:translateY(-50%);}
   .coorg .coorg-member:hover{border-color:rgba(255,102,0,.45);transform:translateX(3px);}
   .coorg .coorg-member:hover .coorg-ph{box-shadow:0 0 0 2px var(--paper),0 0 0 3px var(--orange);}
-  .coorg .coorg-vc-card::before,.coorg .coorg-ned-card::before,.coorg .coorg-col::before,.coorg .coorg-col::after{display:none;}
+  /* desktop connectors — pure CSS, smooth rounded corners, no JS */
+  .coorg .coorg-vc-card,.coorg .coorg-head-card{position:relative;}
+  .coorg .coorg-vc-card::before{content:"";position:absolute;top:50%;right:100%;width:18px;height:2px;background:var(--line);transition:background .35s ease;}
+  .coorg .coorg-top.coorg-has-ned .coorg-vc-card::after{content:"";position:absolute;top:50%;left:100%;width:18px;height:2px;background:var(--line);transition:background .35s ease;}
+  .coorg .coorg-cols::before{content:"";position:absolute;left:50%;top:-62px;width:2px;height:30px;background:var(--line);transform:translateX(-50%);transition:background .35s ease;}
+  /* drops + bus, each anchored to its own column centre (always aligned with the node) */
+  .coorg .coorg-col::before{content:"";position:absolute;left:50%;top:-32px;width:2px;height:32px;background:var(--line);transform:translateX(-50%);transition:background .35s ease;}
+  .coorg .coorg-col::after{content:"";position:absolute;top:-32px;height:0;left:calc(var(--g) * -0.5);right:calc(var(--g) * -0.5);border-top:2px solid var(--line);transition:border-color .35s ease;}
+  .coorg .coorg-col:first-child:not(:only-child)::before{display:none;}
+  .coorg .coorg-col:first-child:not(:only-child)::after{left:50%;right:calc(var(--g) * -0.5);height:32px;background:none;border:0;border-left:2px solid var(--line);border-top:2px solid var(--line);border-top-left-radius:14px;}
+  .coorg .coorg-col:last-child:not(:only-child)::before{display:none;}
+  .coorg .coorg-col:last-child:not(:only-child)::after{left:calc(var(--g) * -0.5);right:50%;height:32px;background:none;border:0;border-right:2px solid var(--line);border-top:2px solid var(--line);border-top-right-radius:14px;}
+  .coorg .coorg-col:only-child::after{display:none;}
+  .coorg .coorg-pin{position:absolute;left:50%;width:9px;height:9px;border-radius:50%;background:var(--paper);border:2px solid var(--orange);z-index:2;transition:background .3s ease;}
+  .coorg .coorg-pin-bot{bottom:0;transform:translate(-50%,50%);}
+  .coorg .coorg-pin-top{top:0;transform:translate(-50%,-50%);}
+  /* hover the leadership row -> light the whole tree, cascading downward */
+  .coorg .coorg-top:hover .coorg-vc-card::before{background:var(--orange);}
+  .coorg .coorg-top.coorg-has-ned:hover .coorg-vc-card::after{background:var(--orange);}
+  .coorg .coorg-top:hover .coorg-pin-bot{background:var(--orange);}
+  .coorg .coorg-top:hover ~ .coorg-cols::before{background:var(--orange);transition-delay:.05s;}
+  .coorg .coorg-top:hover ~ .coorg-cols .coorg-col::after{border-color:var(--orange);transition-delay:.18s;}
+  .coorg .coorg-top:hover ~ .coorg-cols .coorg-col::before{background:var(--orange);transition-delay:.3s;}
+  .coorg .coorg-top:hover ~ .coorg-cols .coorg-pin-top{background:var(--orange);transition-delay:.3s;}
+  .coorg .coorg-top:hover ~ .coorg-cols .coorg-spine-hot{transform:translateX(-50%) scaleY(1);transition-delay:.42s;}
+  .coorg .coorg-top:hover ~ .coorg-cols .coorg-team::after{background:var(--orange);transition-delay:.42s;}
+  /* hover a single region -> light just that branch */
+  .coorg .coorg-col:hover::before{background:var(--orange);}
+  .coorg .coorg-col:first-child:hover::after{border-left-color:var(--orange);}
+  .coorg .coorg-col:last-child:hover::after{border-right-color:var(--orange);}
+  .coorg .coorg-col:hover .coorg-pin-top{background:var(--orange);}
+  .coorg .coorg-col:hover .coorg-spine-hot{transform:translateX(-50%) scaleY(1);transition-delay:.08s;}
+  .coorg .coorg-col:hover .coorg-team::after{background:var(--orange);}
+  .coorg .coorg-col:hover .coorg-member{border-color:rgba(255,102,0,.42);}
   .coorg .coorg-fn-head{max-width:680px;margin-bottom:36px;}
   .coorg .coorg-fn-head h2{margin-bottom:14px;}
   .coorg .coorg-fn-head p{margin:0;}
@@ -282,12 +324,12 @@ var CHART_CSS=`
   .coorg .coorg-fn .coorg-fn-ic svg{width:22px;height:22px;stroke:var(--orange);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
   .coorg .coorg-fn .coorg-fn-name{font-size:1.08rem;font-weight:800;letter-spacing:-.01em;color:var(--ink);}
   .coorg .coorg-fn:hover{border-color:rgba(255,102,0,.5);box-shadow:0 14px 32px rgba(20,22,28,.08);transform:translateY(-3px);}
-  .coorg .coorg-modal{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:22px;}
-  .coorg .coorg-modal[hidden]{display:none;}
-  .coorg .coorg-modal-bd{position:absolute;inset:0;background:rgba(17,17,19,.5);opacity:0;transition:opacity .25s ease;}
-  .coorg .coorg-modal.coorg-on .coorg-modal-bd{opacity:1;}
-  .coorg .coorg-modal-card{position:relative;z-index:1;width:min(440px,100%);background:var(--paper);border-radius:22px;padding:30px 30px 28px;box-shadow:0 30px 80px rgba(20,20,22,.34);border-top:4px solid var(--orange);opacity:0;transform:translateY(12px) scale(.98);transition:opacity .26s ease,transform .26s cubic-bezier(.2,.7,.2,1);}
-  .coorg .coorg-modal.coorg-on .coorg-modal-card{opacity:1;transform:none;}
+  .coorg .coorg-toggle{position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;margin:0;pointer-events:none;z-index:-1;}
+  .coorg .coorg-modal{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:22px;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .25s ease,visibility .25s ease;}
+  .coorg .coorg-toggle:checked + .coorg-modal{visibility:visible;opacity:1;pointer-events:auto;}
+  .coorg .coorg-modal-bd{position:absolute;inset:0;background:rgba(17,17,19,.5);cursor:pointer;}
+  .coorg .coorg-modal-card{position:relative;z-index:1;width:min(440px,100%);background:var(--paper);border-radius:22px;padding:30px 30px 28px;box-shadow:0 30px 80px rgba(20,20,22,.34);border-top:4px solid var(--orange);transform:translateY(12px) scale(.98);transition:transform .26s cubic-bezier(.2,.7,.2,1);}
+  .coorg .coorg-toggle:checked + .coorg-modal .coorg-modal-card{transform:none;}
   .coorg .coorg-modal-x{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;border:0;background:#F3F2EF;color:var(--slate);cursor:pointer;display:grid;place-items:center;transition:background .2s,color .2s;}
   .coorg .coorg-modal-x:hover{background:var(--ink);color:#fff;}
   .coorg .coorg-modal-x svg{width:15px;height:15px;stroke:currentColor;stroke-width:2.4;fill:none;stroke-linecap:round;}
@@ -302,8 +344,8 @@ var CHART_CSS=`
   .coorg .coorg-m-li svg{width:17px;height:17px;fill:#fff;}
   .coorg .coorg-m-li:hover{background:var(--orange-dk);transform:translateY(-2px);}
   .coorg .coorg-m-li[hidden]{display:none;}
-  .coorg .coorg-rv{opacity:0;transform:translateY(30px);transition:opacity .7s cubic-bezier(.22,.61,.36,1),transform .7s cubic-bezier(.22,.61,.36,1);}
-  .coorg .coorg-rv.coorg-in{opacity:1;transform:none;}
+  .coorg.coorg-anim .coorg-rv{opacity:0;transform:translateY(30px);transition:opacity .7s cubic-bezier(.22,.61,.36,1),transform .7s cubic-bezier(.22,.61,.36,1);}
+  .coorg.coorg-anim .coorg-rv.coorg-in{opacity:1;transform:none;}
   .coorg .coorg-team .coorg-member:nth-child(1){transition-delay:.04s;}
   .coorg .coorg-team .coorg-member:nth-child(2){transition-delay:.11s;}
   .coorg .coorg-team .coorg-member:nth-child(3){transition-delay:.18s;}
@@ -318,6 +360,9 @@ var CHART_CSS=`
   @media (prefers-reduced-motion:reduce){.coorg .coorg-rv{opacity:1;transform:none;transition:none;} .coorg .coorg-card,.coorg .coorg-member,.coorg .coorg-modal-card,.coorg .coorg-modal-bd,.coorg .coorg-wires{transition:none;}}
   @media (max-width:1060px){
     .coorg .coorg-wires{display:none;}
+    .coorg .coorg-cols::before,.coorg .coorg-cols::after{display:none;}
+    .coorg .coorg-top.coorg-has-ned .coorg-vc-card::after{display:none;}
+    .coorg .coorg-pin{display:none;}
     .coorg .coorg-sec{padding:60px 0;}
     .coorg .coorg-sec.coorg-tight .coorg-rule{margin-bottom:44px;}
     .coorg .coorg-org{margin-top:44px;}
@@ -325,17 +370,20 @@ var CHART_CSS=`
     .coorg .coorg-lead-card{justify-self:auto;width:100%;max-width:430px;margin:0 auto;}
     .coorg .coorg-vc-card{justify-self:auto;width:100%;max-width:420px;margin:46px auto 0;position:relative;}
     .coorg .coorg-vc-card::before{display:block;content:"";position:absolute;left:50%;top:-46px;width:2px;height:46px;background:var(--line);transform:translateX(-50%);}
-    .coorg .coorg-ned-card{justify-self:auto;width:100%;max-width:360px;margin:38px auto 0;position:relative;}
-    .coorg .coorg-ned-card::before{display:block;content:"";position:absolute;left:50%;top:-38px;width:0;height:38px;border-left:2px dotted var(--line);transform:translateX(-50%);}
-    .coorg .coorg-cols{grid-template-columns:1fr;gap:0;margin-top:0;}
-    .coorg .coorg-col{padding-top:44px;}
-    .coorg .coorg-col::before{display:block;content:"";position:absolute;left:50%;top:0;width:2px;height:44px;background:var(--line);transform:translateX(-50%);}
-    .coorg .coorg-col::after{display:block;content:"";position:absolute;left:50%;top:44px;width:9px;height:9px;border-radius:50%;background:var(--paper);border:2px solid var(--orange);transform:translate(-50%,-50%);}
+    .coorg .coorg-board{width:100%;max-width:360px;margin:38px auto 0;align-self:auto;position:relative;gap:18px;}
+    .coorg .coorg-board::before{content:"";position:absolute;left:50%;top:-38px;width:0;height:38px;border-left:2px dotted var(--line);transform:translateX(-50%);}
+    .coorg .coorg-ned-card{width:100%;}
+    .coorg .coorg-cols{grid-template-columns:1fr;gap:0;margin-top:34px;}
+    .coorg .coorg-col{padding-top:0;}
+    .coorg .coorg-col + .coorg-col{margin-top:50px;}
+    .coorg .coorg-col::before,.coorg .coorg-col:first-child::before,.coorg .coorg-col:last-child::before{display:none;}
+    .coorg .coorg-col::after,.coorg .coorg-col:first-child:not(:only-child)::after,.coorg .coorg-col:last-child:not(:only-child)::after{display:none;}
     .coorg .coorg-head-card{display:flex;align-items:center;text-align:left;gap:16px;padding:18px;}
     .coorg .coorg-head-card .coorg-ph{margin:0;}
     .coorg .coorg-head-card h4{margin:6px 0 5px;}
-    .coorg .coorg-team{max-width:560px;margin:18px auto 0;padding-top:22px;}
-    .coorg .coorg-team::before{left:21px;top:-2px;}
+    .coorg .coorg-team{max-width:560px;margin:10px auto 0;padding-top:22px;}
+    .coorg .coorg-team::before{left:21px;top:-10px;}
+    .coorg .coorg-spine-hot{left:21px;top:-10px;}
     .coorg .coorg-team::after{display:none;}
   }
   @media (max-width:600px){
@@ -345,6 +393,7 @@ var CHART_CSS=`
     .coorg .coorg-ned-card{flex-direction:column;text-align:center;gap:12px;padding:22px;}
     .coorg .coorg-team{max-width:none;}
     .coorg .coorg-team::before{left:50%;}
+    .coorg .coorg-spine-hot{left:50%;}
     .coorg .coorg-fn-grid{grid-template-columns:1fr;}
     .coorg .coorg-modal-card{padding:26px 22px 24px;}
     .coorg .coorg-modal-top{flex-direction:column;text-align:center;gap:14px;}
@@ -359,96 +408,54 @@ function tx(map,lang){ if(!map) return ""; return map[lang]||map[DEFLANG]||map.e
 function iniOf(p){ var en=tx(p&&p.name,DEFLANG); return (p&&p.ini&&p.ini.trim())?p.ini.trim():autoIni(en); }
 function phHTML(p,ring){ var img=(p.photo&&String(p.photo).trim())?('<img src="'+escA(p.photo)+'" alt="">'):''; return '<span class="coorg-ph '+ring+'">'+img+'<span class="coorg-ini">'+esc(iniOf(p))+'</span></span>'; }
 function dataAttrs(p,lang){ var s=' data-name="'+escA(tx(p.name,lang))+'" data-role="'+escA(tx(p.role,lang))+'" data-tag="'+escA(tx(p.tag,lang))+'" data-ini="'+escA(iniOf(p))+'" data-bio="'+escA(tx(p.bio,lang))+'" data-li="'+escA(p.li||"")+'"'; if(p.photo&&String(p.photo).trim()) s+=' data-photo="'+escA(p.photo)+'"'; return s; }
-function leadCard(p,lang){ return '<article class="coorg-card coorg-lead-card coorg-clk coorg-rv" tabindex="0" role="button"'+dataAttrs(p,lang)+'>'+phHTML(p,'coorg-ring')+'<div class="coorg-who"><span class="coorg-tag">'+esc(tx(p.tag,lang))+'</span><h3>'+esc(tx(p.name,lang))+'</h3><p class="coorg-role">'+esc(tx(p.role,lang))+'</p></div>'+ARROW+'</article>'; }
-function nedCard(p,lang){ return '<article class="coorg-card coorg-ned-card coorg-clk coorg-rv" tabindex="0" role="button"'+dataAttrs(p,lang)+'>'+phHTML(p,'coorg-ring2')+'<div class="coorg-who"><span class="coorg-tag">'+esc(tx(p.tag,lang))+'</span><h3>'+esc(tx(p.name,lang))+'</h3><p class="coorg-role">'+esc(tx(p.role,lang))+'</p></div>'+ARROW+'</article>'; }
-function vcCard(p,lang){ return '<article class="coorg-card coorg-vc-card coorg-clk coorg-rv" tabindex="0" role="button"'+dataAttrs(p,lang)+'>'+phHTML(p,'coorg-ring')+'<div class="coorg-who"><span class="coorg-tag">'+esc(tx(p.tag,lang))+'</span><h3>'+esc(tx(p.name,lang))+'</h3><p class="coorg-role">'+esc(tx(p.role,lang))+'</p></div>'+ARROW+'</article>'; }
-function headCard(p,lang){ return '<article class="coorg-card coorg-head-card coorg-clk coorg-rv" tabindex="0" role="button"'+dataAttrs(p,lang)+'>'+phHTML(p,'coorg-ring2')+'<div class="coorg-htxt"><span class="coorg-tag">'+esc(tx(p.tag,lang))+'</span><h4>'+esc(tx(p.name,lang))+'</h4><p class="coorg-role">'+esc(tx(p.role,lang))+'</p></div>'+ARROW+'</article>'; }
-function memberCard(p,lang){ return '<article class="coorg-card coorg-member coorg-clk coorg-rv" tabindex="0" role="button"'+dataAttrs(p,lang)+'>'+phHTML(p,'')+'<div class="coorg-who"><span class="coorg-nm">'+esc(tx(p.name,lang))+'</span><p class="coorg-role">'+esc(tx(p.role,lang))+'</p></div>'+CHEV+'</article>'; }
+function liSVG(){ return '<svg viewBox="0 0 24 24"><path d="M4.98 3.5A2.5 2.5 0 1 1 0 3.5a2.5 2.5 0 0 1 4.98 0ZM.5 8.25h4.96V24H.5V8.25ZM8.5 8.25h4.75v2.15h.07c.66-1.2 2.28-2.46 4.69-2.46 5.02 0 5.95 3.2 5.95 7.36V24h-4.96v-6.75c0-1.61-.03-3.68-2.24-3.68-2.25 0-2.6 1.75-2.6 3.56V24H8.5V8.25Z"/></svg>'; }
+function personModal(p,lang,id){
+  var li=(p.li||"").trim();
+  return '<input type="checkbox" class="coorg-toggle" id="'+id+'" aria-hidden="true"><div class="coorg-modal"><label class="coorg-modal-bd" for="'+id+'" aria-label="Close"></label><div class="coorg-modal-card" role="dialog" aria-modal="true"><label class="coorg-modal-x" for="'+id+'" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></label><div class="coorg-modal-top">'+phHTML(p,'')+'<div><span class="coorg-tag">'+esc(tx(p.tag,lang))+'</span><h3 class="coorg-m-name">'+esc(tx(p.name,lang))+'</h3><p class="coorg-m-role">'+esc(tx(p.role,lang))+'</p></div></div><p class="coorg-m-bio">'+esc(tx(p.bio,lang))+'</p>'+(li?('<a class="coorg-m-li" target="_blank" rel="noopener" href="'+escA(li)+'">'+liSVG()+'View LinkedIn profile</a>'):'')+'</div></div>';
+}
 function titleHTML(title,hl){ var t=esc(title||""); if(hl){ var h=esc(hl); var i=t.indexOf(h); if(i>=0){ t=t.slice(0,i)+'<span class="coorg-o">'+h+'</span>'+t.slice(i+h.length); } } return t; }
 function buildMarkup(d,lang){
   lang=lang||DEFLANG;
+  var modals=[],idn=0;
+  function card(cls,p,inner){ var id='coorgM'+(idn++); modals.push(personModal(p,lang,id)); return '<label class="coorg-card '+cls+' coorg-clk coorg-rv" for="'+id+'">'+inner+'</label>'; }
+  function who(p){ return '<div class="coorg-who"><span class="coorg-tag">'+esc(tx(p.tag,lang))+'</span><h3>'+esc(tx(p.name,lang))+'</h3><p class="coorg-role">'+esc(tx(p.role,lang))+'</p></div>'; }
   var header='<p class="coorg-eye coorg-rv">'+EYE_PEOPLE+esc(tx(d.header.eyebrow,lang))+'</p><h2 class="coorg-rv">'+titleHTML(tx(d.header.title,lang),tx(d.header.highlight,lang))+'</h2><p class="coorg-lead coorg-rv">'+esc(tx(d.header.lead,lang))+'</p>';
-  var topInner=leadCard(d.chairman,lang)+vcCard(d.viceChairman,lang)+(d.includeNed?nedCard(d.ned,lang):'');
-  var top='<div class="coorg-top">'+topInner+'</div>';
-  var cols=d.regions.map(function(r){ var team=r.team.map(function(m){return memberCard(m,lang);}).join(''); return '<div class="coorg-col">'+headCard(r.head,lang)+'<div class="coorg-team">'+team+'</div></div>'; }).join('');
+  var lead=card('coorg-lead-card',d.chairman, phHTML(d.chairman,'coorg-ring')+who(d.chairman)+ARROW);
+  var vc=card('coorg-vc-card',d.viceChairman, phHTML(d.viceChairman,'coorg-ring')+who(d.viceChairman)+ARROW+'<span class="coorg-pin coorg-pin-bot" aria-hidden="true"></span>');
+  var board=(d.board||[]);
+  var boardCards=board.map(function(b){ return card('coorg-ned-card',b, phHTML(b,'coorg-ring2')+who(b)+ARROW); }).join('');
+  var boardWrap=boardCards?('<div class="coorg-board">'+boardCards+'</div>'):'';
+  var top='<div class="coorg-top'+(boardCards?' coorg-has-ned':'')+'">'+lead+vc+boardWrap+'</div>';
+  var cols=d.regions.map(function(r){
+    var team=r.team.map(function(m){ return card('coorg-member',m, phHTML(m,'')+'<div class="coorg-who"><span class="coorg-nm">'+esc(tx(m.name,lang))+'</span><p class="coorg-role">'+esc(tx(m.role,lang))+'</p></div>'+CHEV); }).join('');
+    var spineHot=r.team.length?'<span class="coorg-spine-hot"></span>':'';
+    var head=card('coorg-head-card',r.head, phHTML(r.head,'coorg-ring2')+'<div class="coorg-htxt"><span class="coorg-tag">'+esc(tx(r.head.tag,lang))+'</span><h4>'+esc(tx(r.head.name,lang))+'</h4><p class="coorg-role">'+esc(tx(r.head.role,lang))+'</p></div>'+ARROW);
+    return '<div class="coorg-col">'+head+'<div class="coorg-team">'+spineHot+team+'</div></div>';
+  }).join('');
   var colsWrap='<div class="coorg-cols" style="--rcols:'+d.regions.length+'">'+cols+'</div>';
-  var org='<div class="coorg-org"><svg class="coorg-wires" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>'+top+colsWrap+'</div>';
+  var org='<div class="coorg-org">'+top+colsWrap+'</div>';
   var fns=d.hq.departments.map(function(dep){ var icon=ICONS[dep.icon]||ICONS.briefcase; return '<article class="coorg-card coorg-fn coorg-rv"><span class="coorg-fn-ic"><svg viewBox="0 0 24 24"><path d="'+icon+'"/></svg></span><span class="coorg-fn-name">'+esc(tx(dep.name,lang))+'</span></article>'; }).join('');
   var hq='<div class="coorg-fn-head coorg-rv"><p class="coorg-eye">'+EYE_HQ+esc(tx(d.hq.eyebrow,lang))+'</p><h2>'+titleHTML(tx(d.hq.title,lang),tx(d.hq.highlight,lang))+'</h2><p>'+esc(tx(d.hq.lead,lang))+'</p></div><div class="coorg-fn-grid">'+fns+'</div>';
-  var modal='<div class="coorg-modal" id="coorgModal" hidden><div class="coorg-modal-bd" data-close></div><div class="coorg-modal-card" role="dialog" aria-modal="true" aria-labelledby="coorgMName"><button class="coorg-modal-x" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><div class="coorg-modal-top"><span class="coorg-ph"><img class="coorg-m-img" alt="" hidden><span class="coorg-ini coorg-m-ini"></span></span><div><span class="coorg-tag coorg-m-tag"></span><h3 class="coorg-m-name" id="coorgMName"></h3><p class="coorg-m-role"></p></div></div><p class="coorg-m-bio"></p><a class="coorg-m-li" target="_blank" rel="noopener" href="#"><svg viewBox="0 0 24 24"><path d="M4.98 3.5A2.5 2.5 0 1 1 0 3.5a2.5 2.5 0 0 1 4.98 0ZM.5 8.25h4.96V24H.5V8.25ZM8.5 8.25h4.75v2.15h.07c.66-1.2 2.28-2.46 4.69-2.46 5.02 0 5.95 3.2 5.95 7.36V24h-4.96v-6.75c0-1.61-.03-3.68-2.24-3.68-2.25 0-2.6 1.75-2.6 3.56V24H8.5V8.25Z"/></svg>View LinkedIn profile</a></div></div>';
-  return '<div class="coorg-wrap coorg-sec">'+header+org+'</div><div class="coorg-wrap coorg-sec coorg-tight"><div class="coorg-rule"></div>'+hq+'</div>'+modal;
+  return '<div class="coorg-wrap coorg-sec">'+header+org+'</div><div class="coorg-wrap coorg-sec coorg-tight"><div class="coorg-rule"></div>'+hq+'</div>'+modals.join('');
 }
 
-/* ============================ CHART RUNTIME (serialised into loader + preview) ============================ */
-function coorgInit(scope){
-  if(!scope) return;
-  var reveals=scope.querySelectorAll('.coorg-rv');
-  if('IntersectionObserver' in window){
-    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('coorg-in'); io.unobserve(e.target); } }); },{threshold:0.12,rootMargin:'0px 0px -50px 0px'});
-    reveals.forEach(function(el){ io.observe(el); });
-  } else { reveals.forEach(function(el){ el.classList.add('coorg-in'); }); }
-  var org=scope.querySelector('.coorg-org'), svg=scope.querySelector('.coorg-wires');
-  var andrew=scope.querySelector('.coorg-lead-card'), alan=scope.querySelector('.coorg-vc-card'), piers=scope.querySelector('.coorg-ned-card');
-  var heads=Array.prototype.slice.call(scope.querySelectorAll('.coorg-col .coorg-head-card'));
-  var R=12;
-  function rel(el){ var x=0,y=0,n=el; while(n&&n!==org){ x+=n.offsetLeft; y+=n.offsetTop; n=n.offsetParent; } var w=el.offsetWidth,h=el.offsetHeight; return {l:x,r:x+w,cx:Math.round(x+w/2),top:y,bot:y+h,mid:Math.round(y+h/2)}; }
-  function draw(){
-    if(!org||!svg||!andrew||!alan||heads.length<1) return;
-    if(window.innerWidth<=1060){ svg.innerHTML=''; svg.classList.remove('coorg-in'); return; }
-    var W=org.clientWidth,H=org.clientHeight;
-    svg.setAttribute('viewBox','0 0 '+W+' '+H); svg.setAttribute('width',W); svg.setAttribute('height',H);
-    var A=rel(andrew),AL=rel(alan);
-    var hp=heads.map(rel).sort(function(a,b){return a.cx-b.cx;});
-    var n=hp.length,hTop=hp[0].top,Yr=hTop-36,d='';
-    d+='M'+A.r+' '+AL.mid+'L'+AL.l+' '+AL.mid+' ';
-    if(piers){ var P=rel(piers); d+='M'+AL.r+' '+AL.mid+'L'+P.l+' '+AL.mid+' '; }
-    d+='M'+AL.cx+' '+AL.bot+'L'+AL.cx+' '+Yr+' ';
-    if(n===1){ d+='M'+AL.cx+' '+Yr+'L'+hp[0].cx+' '+Yr+'L'+hp[0].cx+' '+hTop+' '; }
-    else{ var xL=hp[0].cx,xR=hp[n-1].cx; d+='M'+xL+' '+hTop+'L'+xL+' '+(Yr+R)+'Q'+xL+' '+Yr+' '+(xL+R)+' '+Yr+' '; d+='L'+(xR-R)+' '+Yr+'Q'+xR+' '+Yr+' '+xR+' '+(Yr+R)+'L'+xR+' '+hTop+' '; for(var i=1;i<n-1;i++){ d+='M'+hp[i].cx+' '+Yr+'L'+hp[i].cx+' '+hTop+' '; } }
-    var circ=hp.map(function(h){return '<circle cx="'+h.cx+'" cy="'+h.top+'" r="4.5"/>';}).join('');
-    svg.innerHTML='<path class="coorg-wire" d="'+d+'"/>'+circ;
-    requestAnimationFrame(function(){ svg.classList.add('coorg-in'); });
-  }
-  var rAF; function schedule(){ cancelAnimationFrame(rAF); rAF=requestAnimationFrame(draw); }
-  schedule(); window.addEventListener('resize',schedule);
-  if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(schedule); }
-  setTimeout(schedule,120); setTimeout(schedule,500);
-  var modal=scope.querySelector('#coorgModal'); if(!modal) return;
-  var mImg=modal.querySelector('.coorg-m-img'), mIni=modal.querySelector('.coorg-m-ini'), mTag=modal.querySelector('.coorg-m-tag'), mName=modal.querySelector('.coorg-m-name'), mRole=modal.querySelector('.coorg-m-role'), mBio=modal.querySelector('.coorg-m-bio'), mLi=modal.querySelector('.coorg-m-li');
-  var lastFocus=null;
-  function openModal(card){
-    var tag=card.getAttribute('data-tag')||''; mTag.textContent=tag; mTag.hidden=!tag;
-    mName.textContent=card.getAttribute('data-name')||''; mRole.textContent=card.getAttribute('data-role')||''; mBio.textContent=card.getAttribute('data-bio')||''; mIni.textContent=card.getAttribute('data-ini')||'';
-    var photo=card.getAttribute('data-photo')||''; if(photo){ mImg.src=photo; mImg.hidden=false; } else { mImg.removeAttribute('src'); mImg.hidden=true; }
-    var li=(card.getAttribute('data-li')||'').trim(); if(li){ mLi.href=li; mLi.hidden=false; } else { mLi.hidden=true; }
-    lastFocus=card; modal.hidden=false; requestAnimationFrame(function(){ modal.classList.add('coorg-on'); }); document.body.style.overflow='hidden';
-    var x=modal.querySelector('.coorg-modal-x'); if(x) x.focus();
-  }
-  function closeModal(){ modal.classList.remove('coorg-on'); document.body.style.overflow=''; var mc=modal.querySelector('.coorg-modal-card'); if(mc){ mc.addEventListener('transitionend',function done(){ modal.hidden=true; mc.removeEventListener('transitionend',done); if(lastFocus) lastFocus.focus(); },{once:true}); } setTimeout(function(){ if(!modal.classList.contains('coorg-on')){ modal.hidden=true; } },350); }
-  scope.querySelectorAll('.coorg-clk').forEach(function(card){ card.addEventListener('click',function(){ openModal(card); }); card.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openModal(card); } }); });
-  modal.querySelectorAll('[data-close]').forEach(function(el){ el.addEventListener('click',closeModal); });
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape' && !modal.hidden){ closeModal(); } });
+/* ============================ EMBED ============================ */
+/* Optional fade-in-on-scroll. The chart is fully functional without it (lines, pop-ups and
+   hover are pure CSS); this only adds a reveal animation. Deliberately avoids < > & and
+   smart-quote-prone syntax so it survives block editors that mangle script. */
+function buildRevealJS(){
+  return "(function(){function go(){var s=document.querySelectorAll('.coorg');Array.prototype.forEach.call(s,function(sec){if(sec.getAttribute('data-coorg'))return;sec.setAttribute('data-coorg','1');sec.className=sec.className+' coorg-anim';var items=sec.querySelectorAll('.coorg-rv');if(!('IntersectionObserver' in window)){Array.prototype.forEach.call(items,function(el){el.className=el.className+' coorg-in';});return;}var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.className=e.target.className+' coorg-in';io.unobserve(e.target);}});},{threshold:0.1,rootMargin:'0px 0px -40px 0px'});Array.prototype.forEach.call(items,function(el){io.observe(el);});});}if(document.readyState!=='loading'){go();}else{document.addEventListener('DOMContentLoaded',go);}setTimeout(go,300);})();";
 }
-
-/* ============================ LOADER + EMBED ============================ */
-function buildLoaderJS(){
-  var parts=[];
-  parts.push('var ICONS='+JSON.stringify(ICONS)+';');
-  parts.push('var DEFLANG='+JSON.stringify(DEFLANG)+';');
-  parts.push('var ARROW='+JSON.stringify(ARROW)+',CHEV='+JSON.stringify(CHEV)+',EYE_PEOPLE='+JSON.stringify(EYE_PEOPLE)+',EYE_HQ='+JSON.stringify(EYE_HQ)+';');
-  [esc,escA,autoIni,tx,iniOf,phHTML,dataAttrs,titleHTML,leadCard,nedCard,vcCard,headCard,memberCard,buildMarkup,coorgInit].forEach(function(fn){ parts.push(fn.toString()); });
-  parts.push("(function(){function go(){var list=document.querySelectorAll('.coorg');Array.prototype.forEach.call(list,function(sec){if(sec.__coorg)return;sec.__coorg=1;var url=sec.getAttribute('data-json');var lang=sec.getAttribute('data-lang')||DEFLANG;function render(d){try{var holder=document.createElement('div');holder.innerHTML=buildMarkup(d,lang);var boot=sec.querySelector('.coorg-boot');if(boot)boot.parentNode.removeChild(boot);while(holder.firstChild){sec.appendChild(holder.firstChild);}coorgInit(sec);}catch(e){}}if(url){fetch(url,{cache:'no-cache'}).then(function(r){return r.json();}).then(render).catch(function(){var b=sec.querySelector('.coorg-boot');if(b)b.textContent='Unable to load chart data.';});}else{var s=sec.querySelector('script.coorg-data');if(s){try{render(JSON.parse(s.textContent));}catch(e){}}}});}if(document.readyState!=='loading')go();else document.addEventListener('DOMContentLoaded',go);})();");
-  return parts.join('\n');
-}
-function buildEmbed(url,lang,selfContained){
-  var attrs=' data-lang="'+escA(lang||DEFLANG)+'"', dataBit='';
-  if(selfContained){ var j=JSON.stringify(state).replace(/<\//g,'<\\/'); dataBit='\n<scr'+'ipt type="application/json" class="coorg-data">'+j+'<\/scr'+'ipt>'; }
-  else { attrs+=' data-json="'+escA(url||"")+'"'; }
-  var loader=buildLoaderJS().replace(/<\/script>/g,'<\\/script>');
-  return '<section class="coorg"'+attrs+'>\n<style>'+CHART_CSS+'</style>\n<div class="coorg-boot">Loading…</div>'+dataBit+'\n</section>\n<scr'+'ipt>'+loader+'<\/scr'+'ipt>';
+function buildBaked(lang){
+  lang=lang||DEFLANG;
+  return {
+    html:'<section class="coorg" data-lang="'+escA(lang)+'">\n'+buildMarkup(state,lang)+'\n</section>',
+    css:CHART_CSS.replace(/^\s+|\s+$/g,''),
+    js:buildRevealJS()
+  };
 }
 function buildPreviewDoc(d,lang){
-  return '<!DOCTYPE html><html lang="'+esc(lang)+'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0;background:#fff;font-family:"Hanken Grotesk",sans-serif;}</style></head><body><section class="coorg"><style>'+CHART_CSS+'</style>'+buildMarkup(d,lang)+'</section><scr'+'ipt>('+coorgInit.toString()+')(document.querySelector(".coorg"));<\/scr'+'ipt></body></html>';
+  return '<!DOCTYPE html><html lang="'+esc(lang)+'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0;background:#fff;font-family:"Hanken Grotesk",sans-serif;}</style></head><body><section class="coorg"><style>'+CHART_CSS+'</style>'+buildMarkup(d,lang)+'</section><scr'+'ipt>'+buildRevealJS()+'<\/scr'+'ipt></body></html>';
 }
 
 /* ============================ PREVIEW ============================ */
@@ -500,11 +507,11 @@ function renderForm(){
   sH.appendChild(langField('Intro paragraph',state.header.lead,{textarea:true}));
   formEl.appendChild(sH);
 
-  var sL=sectionBox('Leadership','Andrew (left) · Alan (centre) · Piers (right) — same level.');
+  var sL=sectionBox('Leadership','Chairman (left) · Vice Chairman (centre) · Board members (right). Add as many board members as you need.');
   sL.appendChild(personGroup(state.chairman,'Chairman (left, largest)'));
   sL.appendChild(personGroup(state.viceChairman,'Vice Chairman (centre)'));
-  var tog=el('label','ed-toggle'); var cb=el('input'); cb.type='checkbox'; cb.checked=state.includeNed; cb.addEventListener('change',function(){ state.includeNed=cb.checked; renderForm(); scheduleUpdate(); }); tog.appendChild(cb); var ts=el('span'); ts.textContent='Show board member (Non-Executive Director)'; tog.appendChild(ts); sL.appendChild(tog);
-  if(state.includeNed){ sL.appendChild(personGroup(state.ned,'Board member (right)')); }
+  state.board.forEach(function(b,i){ var sub=el('div','ed-sub'); sub.appendChild(personGroup(b,'Board member '+(i+1)+' (right)')); sub.appendChild(btn('Remove board member','ed-btn ed-danger small',function(){ state.board.splice(i,1); renderForm(); scheduleUpdate(); })); sL.appendChild(sub); });
+  sL.appendChild(btn('+ Add board member','ed-btn ghost',function(){ state.board.push(person('New Board Member','Non-Executive Director','Board','','','')); renderForm(); scheduleUpdate(); }));
   formEl.appendChild(sL);
 
   var sR=sectionBox('Regions','Each region branches from the Vice Chairman.');
@@ -544,7 +551,10 @@ function normalize(d){
   d=d||{};
   var o={};
   o.header={eyebrow:asMap(d.header&&d.header.eyebrow),title:asMap(d.header&&d.header.title),highlight:asMap(d.header&&d.header.highlight),lead:asMap(d.header&&d.header.lead)};
-  o.chairman=pers(d.chairman); o.viceChairman=pers(d.viceChairman); o.ned=pers(d.ned); o.includeNed=d.includeNed!==false;
+  o.chairman=pers(d.chairman); o.viceChairman=pers(d.viceChairman);
+  if(Array.isArray(d.board)){ o.board=d.board.map(pers); }
+  else if(d.ned && d.includeNed!==false){ o.board=[pers(d.ned)]; }
+  else { o.board=[]; }
   o.regions=(d.regions||[]).map(function(r){ r=r||{}; return {head:pers(r.head),team:(r.team||[]).map(pers)}; });
   o.hq={eyebrow:asMap(d.hq&&d.hq.eyebrow),title:asMap(d.hq&&d.hq.title),highlight:asMap(d.hq&&d.hq.highlight),lead:asMap(d.hq&&d.hq.lead),departments:((d.hq&&d.hq.departments)||[]).map(function(x){ x=x||{}; return {icon:x.icon||'briefcase',name:asMap(x.name)}; })};
   return o;
@@ -566,18 +576,19 @@ document.getElementById('fileInput').addEventListener('change',function(e){
 });
 
 /* embed modal */
-var embedMode='url';
-function refreshEmbed(){ var url=document.getElementById('embedUrl').value.trim(); var lang=document.getElementById('embedLang').value; document.getElementById('embedCode').value=buildEmbed(url,lang,embedMode==='self'); }
+function refreshEmbed(){
+  var lang=document.getElementById('embedLang').value;
+  var p = buildBaked(lang);
+  document.getElementById('codeH').value=p.html; document.getElementById('codeC').value=p.css; document.getElementById('codeJ').value=p.js;
+}
 document.getElementById('btnEmbed').addEventListener('click',function(){
   var sel=document.getElementById('embedLang'); if(!sel.options.length){ LANGS.forEach(function(lg){ var o=el('option'); o.value=lg.code; o.textContent=lg.label; sel.appendChild(o); }); }
   sel.value=curLang; document.getElementById('embedWrap').classList.add('on'); refreshEmbed();
 });
-document.getElementById('embedUrl').addEventListener('input',refreshEmbed);
 document.getElementById('embedLang').addEventListener('change',refreshEmbed);
-document.getElementById('embedMode').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b) return; embedMode=b.getAttribute('data-mode'); Array.prototype.forEach.call(this.children,function(x){ x.classList.toggle('on',x===b); }); document.getElementById('embedUrl').closest('.ed-field').style.opacity=embedMode==='self'?'.4':'1'; document.getElementById('embedNote').innerHTML = embedMode==='self' ? 'The data is embedded directly in the snippet — no hosting needed, but you must re-paste whenever you change content. Good for a quick test.' : 'Recommended. Upload your exported JSON to GitHub (e.g. <b>/json/orgchart.json</b>), paste its <b>raw</b> URL above, then copy this for each language page (change the language each time).'; refreshEmbed(); });
 document.getElementById('embedClose').addEventListener('click',function(){ document.getElementById('embedWrap').classList.remove('on'); });
 document.getElementById('embedWrap').addEventListener('click',function(e){ if(e.target===this) this.classList.remove('on'); });
-document.getElementById('embedCopy').addEventListener('click',function(){ copyText(document.getElementById('embedCode').value,'WordPress code copied!'); });
+document.querySelectorAll('[data-copy]').forEach(function(btn){ btn.addEventListener('click',function(){ var id=btn.getAttribute('data-copy'); var ta=document.getElementById(id); var lbl=id==='codeH'?'HTML copied!':id==='codeC'?'CSS copied!':'Copied!'; copyText(ta.value,lbl); }); });
 
 /* init */
 renderLangBtns();
