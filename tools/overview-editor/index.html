@@ -36,7 +36,12 @@
   .ed-f textarea.ed-oneline{min-height:0;resize:none;overflow:hidden;line-height:1.4;white-space:pre-wrap;word-break:break-word;}
   .ed-f input:focus,.ed-f textarea:focus{outline:none;border-color:var(--o);box-shadow:0 0 0 3px rgba(255,102,0,.12);}
   .ed-item{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:#fcfcfd;}
+  .ed-item.dragging{opacity:.45;}
+  .ed-item.drag-over{border-style:solid;border-color:var(--o);box-shadow:0 0 0 2px rgba(255,102,0,.18) inset;}
   .ed-item-h{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
+  .ed-grip{cursor:grab;user-select:none;color:#bbb;font-size:.9rem;line-height:1;letter-spacing:-3px;padding:2px 4px 2px 0;}
+  .ed-grip:hover{color:var(--o);}
+  .ed-grip:active{cursor:grabbing;}
   .ed-item-h .t{font-weight:700;font-size:.82rem;color:var(--mut);}
   .ed-mini{margin-left:auto;display:flex;gap:4px;}
   .ed-mini button{border:1px solid var(--line);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:.85rem;line-height:1;}
@@ -417,8 +422,11 @@ function field(label,val,onin,multi){
 }
 function row(a,b){var r=document.createElement('div');r.className='ed-row';r.appendChild(a);r.appendChild(b);return r;}
 function sub(t){var d=document.createElement('div');d.className='ed-sub';d.textContent=t;return d;}
+var SEC_STATE={first:true,open:{}};
+var DRAG=null;
 function sec(title,open){
-  var d=document.createElement('details');d.className='ed-sec';if(open)d.open=true;
+  var d=document.createElement('details');d.className='ed-sec';d.setAttribute('data-secid',title);
+  d.open = SEC_STATE.first ? !!open : !!SEC_STATE.open[title];
   var s=document.createElement('summary');s.innerHTML=title+'<span class="chev">\u203a</span>';
   d.appendChild(s);var body=document.createElement('div');body.className='ed-body';d.appendChild(body);
   d._body=body;return d;
@@ -435,8 +443,30 @@ function miniBtns(arr,idx,onchange){
   wrap.appendChild(up);wrap.appendChild(dn);wrap.appendChild(rm);return wrap;
 }
 function itemHead(label,arr,i){
-  var hd=document.createElement('div');hd.className='ed-item-h';hd.innerHTML='<span class="t">'+label+' '+(i+1)+'</span>';
-  hd.appendChild(miniBtns(arr,i,build));return hd;
+  var hd=document.createElement('div');hd.className='ed-item-h';
+  var grip=document.createElement('span');grip.className='ed-grip';grip.textContent='\u22EE\u22EE';grip.title='Drag to reorder';grip.setAttribute('draggable','true');
+  var t=document.createElement('span');t.className='t';t.textContent=label+' '+(i+1);
+  hd.appendChild(grip);hd.appendChild(t);
+  hd.appendChild(miniBtns(arr,i,build));
+  grip.addEventListener('dragstart',function(e){
+    var item=hd.closest('.ed-item');
+    DRAG={arr:arr,from:i};
+    try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(i));if(item)e.dataTransfer.setDragImage(item,14,14);}catch(_){}
+    if(item)item.classList.add('dragging');
+  });
+  grip.addEventListener('dragend',function(){var item=hd.closest('.ed-item');if(item)item.classList.remove('dragging');DRAG=null;
+    document.querySelectorAll('.ed-item.drag-over').forEach(function(el){el.classList.remove('drag-over');});});
+  /* wire the parent .ed-item as a drop target once it's attached */
+  setTimeout(function(){
+    var item=hd.closest('.ed-item');if(!item||item._dnd)return;item._dnd=1;
+    item.addEventListener('dragover',function(e){ if(DRAG&&DRAG.arr===arr){ e.preventDefault();try{e.dataTransfer.dropEffect='move';}catch(_){}item.classList.add('drag-over'); } });
+    item.addEventListener('dragleave',function(){ item.classList.remove('drag-over'); });
+    item.addEventListener('drop',function(e){
+      item.classList.remove('drag-over');
+      if(DRAG&&DRAG.arr===arr&&DRAG.from!==i){ e.preventDefault(); var m=DRAG.arr.splice(DRAG.from,1)[0]; DRAG.arr.splice(i,0,m); DRAG=null; build(); }
+    });
+  },0);
+  return hd;
 }
 function listAdd(label,onclick){var b=document.createElement('button');b.className='ed-add';b.textContent=label;b.onclick=onclick;return b;}
 function statRows(host,arr,label){
@@ -454,7 +484,11 @@ function showToggle(obj){
 }
 
 function build(){
-  var p=document.getElementById('panel');p.innerHTML='';
+  var p=document.getElementById('panel');
+  var prevScroll=p.scrollTop, hadContent=p.children.length>0, openMap={};
+  p.querySelectorAll('details[data-secid]').forEach(function(d){ if(d.open) openMap[d.getAttribute('data-secid')]=1; });
+  SEC_STATE={ first:!hadContent, open:openMap };
+  p.innerHTML='';
   p.appendChild(toggleNote('Edit the content below — the preview updates live. Use the section headers to expand each part. When done, click <b>Copy for WordPress</b> and grab the <b>HTML</b>, <b>CSS</b> and <b>JS</b> tabs into your three-tab block (or <b>Inline</b> for a single block).'));
   var d,bd;
 
@@ -560,12 +594,15 @@ function build(){
   bd.appendChild(toggleNote('In each building\u2019s <b>Status</b> box: type <b>new</b> for an orange \u201cNew\u201d tag, type any text like <b>Opening Q3 2026</b> for an outlined tag, or leave it blank for none.'));
   S.centres.regions.forEach(function(r,ri){
     var rd=document.createElement('details');rd.className='ed-sec';rd.style.margin='0 0 12px';
+    var rsec='region:'+(r.key||('idx'+ri));rd.setAttribute('data-secid',rsec);
+    rd.open = SEC_STATE.first ? false : !!SEC_STATE.open[rsec];
     var rs=document.createElement('summary');rs.innerHTML=esc(r.name)+' <span style="color:#999;font-weight:600">('+r.buildings.length+')</span><span class="chev">\u203a</span>';rd.appendChild(rs);
     var rb=document.createElement('div');rb.className='ed-body';rd.appendChild(rb);
     rb.appendChild(row(field('Region name',r.name,function(v){S.centres.regions[ri].name=v;}),field('Filter key (short id)',r.key,function(v){S.centres.regions[ri].key=v;})));
     rb.appendChild(field('Note',r.note,function(v){S.centres.regions[ri].note=v;},true));
     rb.appendChild(field('Header image URL',r.img,function(v){S.centres.regions[ri].img=v;}));
     rb.appendChild(sub('Buildings'));
+    rb.appendChild(toggleNote('Drag the \u22EE\u22EE handle on a building to reorder, or use the \u2191\u2193 buttons.'));
     r.buildings.forEach(function(b,bi){var it=document.createElement('div');it.className='ed-item';it.appendChild(itemHead('Building',r.buildings,bi));
       it.appendChild(field('Name',b.name,function(v){S.centres.regions[ri].buildings[bi].name=v;}));
       it.appendChild(row(field('Location',b.loc,function(v){S.centres.regions[ri].buildings[bi].loc=v;}),field('Status (new / text / blank)',b.badge,function(v){S.centres.regions[ri].buildings[bi].badge=v;})));
@@ -631,6 +668,8 @@ function build(){
   p.appendChild(d);
 
   refresh();
+  p.scrollTop=prevScroll;
+  requestAnimationFrame(function(){ p.scrollTop=prevScroll; });
 }
 
 /* save / import / reset */
