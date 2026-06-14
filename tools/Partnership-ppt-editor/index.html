@@ -29,6 +29,14 @@ html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Seg
 .panel{border:1px solid #e3e3e5;border-radius:12px;margin-bottom:10px;background:#fff;overflow:hidden;}
 .panel-h{width:100%;display:flex;align-items:center;justify-content:space-between;background:#fff;border:0;padding:13px 15px;font-size:.92rem;font-weight:800;cursor:pointer;color:#161616;text-align:left;}
 .panel-h:hover{background:#fafafa;}
+.panel-h-t{flex:1;}
+.panel-h-r{display:flex;align-items:center;gap:9px;}
+.panel-eye{border:0;background:none;padding:3px;margin:-3px 0;cursor:pointer;color:#FF6600;display:flex;align-items:center;border-radius:6px;}
+.panel-eye:hover{background:#fff1e8;}
+.panel-eye svg{width:18px;height:18px;}
+.panel-eye.off{color:#c2c2c6;}
+.panel.slide-hidden{opacity:.62;}
+.panel.slide-hidden .panel-h-t{text-decoration:line-through;color:#9a9a9a;}
 .panel-chev{color:#FF6600;transition:transform .2s;font-size:.8rem;}
 .panel.open .panel-chev{transform:rotate(90deg);}
 .panel-b{display:none;padding:4px 15px 15px;}
@@ -633,6 +641,7 @@ function kick(no,nm){
       Any image field left "" renders a labelled placeholder.
    ========================================================================= */
 const DEFAULT = {
+  _hidden:[],
   hero:{
     brand:"Compass\nOffices",
     tag:"Landlord & Corporate Introduction",
@@ -1049,14 +1058,16 @@ function sectionParts(S){
 }
 
 function gen(S){
-  return '<div class="cov">'+sectionParts(S).map(function(p){return p.html;}).join('')+'</div>';
+  var hid=(S._hidden||[]);
+  return '<div class="cov">'+sectionParts(S).filter(function(p){return hid.indexOf(p.key)<0;}).map(function(p){return p.html;}).join('')+'</div>';
 }
 
 /* =========================================================================
    6) SLIDESHOW  — wrap each section as a full slide + chrome
    ========================================================================= */
 function genDeck(S){
-  var ps=sectionParts(S);
+  var hid=(S._hidden||[]);
+  var ps=sectionParts(S).filter(function(p){return hid.indexOf(p.key)<0;});
   var SL=(S.ui&&S.ui.slideLabels)||{};
   var slides=ps.map(function(o,i){
     return '<div class="slide'+(o.dark?' dark':'')+(i===0?' active':'')+'" data-key="'+o.key+'" data-label="'+escAttr(SL[o.key]||'')+'">'+o.html+'</div>';
@@ -1168,7 +1179,7 @@ const CSS_DECK = String.raw`
 .cov-deck.as-page .slide .wrap>*{opacity:1;transform:none;}
 .cov-deck.as-page .hero{height:auto;}
 .cov-deck.as-page .hero .hero-grid{min-height:0;height:auto;}
-.cov-deck.as-page .hero .hero-copy{padding:48px 24px 56px;}
+.cov-deck.as-page .hero .hero-copy{padding:clamp(48px,6vh,92px) clamp(28px,5vw,90px) clamp(44px,6vh,80px);}
 .cov-deck.as-page .deck-bar,.cov-deck.as-page .deck-count,.cov-deck.as-page .deck-nav,
 .cov-deck.as-page .deck-dots,.cov-deck.as-page .deck-hint,.cov-deck.as-page .deck-fs{display:none;}
 .cov-deck.as-page .fp .netmap-wrap{max-height:none;}
@@ -1290,7 +1301,7 @@ const JS_DECK = String.raw`(function(){
       else if(src[k]&&typeof src[k]==='object'&&dst[k]&&typeof dst[k]==='object'){ mirrorMedia(src[k],dst[k]); }
     }
   }
-  function mirrorAll(){ if(!store.en) return; LANGS.forEach(function(l){ if(l[0]!=='en') mirrorMedia(store.en, store[l[0]]); }); }
+  function mirrorAll(){ if(!store.en) return; var hid=(store.en._hidden||[]); LANGS.forEach(function(l){ if(l[0]!=='en'){ mirrorMedia(store.en, store[l[0]]); store[l[0]]._hidden=hid.slice(); } }); }
   function setPathOn(root,p,v){ var o=root; for(var i=0;i<p.length-1;i++){ if(o==null) return; o=o[p[i]]; } if(o!=null) o[p[p.length-1]]=v; }
   function baseFor(code){ return code==='en'? cloneDef() : JSON.parse(JSON.stringify(store.en||DEFAULT)); }
   /* ---- minimal store-only zip (for downloading per-language JSON files) ---- */
@@ -1322,6 +1333,23 @@ const JS_DECK = String.raw`(function(){
   }
   function dlBlob(name,blob){ var a=E('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){ try{document.body.removeChild(a);URL.revokeObjectURL(a.href);}catch(e){} },120); }
   var loaded={};
+  var EYE_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.2 3.9M6.3 6.3A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4-.8"/><path d="M9.5 9.5a3 3 0 0 0 4.2 4.2"/></svg>';
+  function slideKeys(){ try{ return sectionParts(content).map(function(p){return p.key;}); }catch(e){ return []; } }
+  function isHiddenKey(k){ return ((store.en&&store.en._hidden)||[]).indexOf(k)>-1; }
+  function toggleSlide(key){
+    var keys=slideKeys();
+    var arr=((store.en._hidden)||[]).slice();
+    var i=arr.indexOf(key);
+    if(i>-1){ arr.splice(i,1); }
+    else {
+      var visible=keys.filter(function(k){ return arr.indexOf(k)<0; });
+      if(visible.length<=1){ toast('At least one slide must stay visible'); return; }
+      arr.push(key);
+    }
+    store.en._hidden=arr; mirrorAll(); content=store[lang];
+    rebuild(); render();
+  }
   /* Editor loads default content per language from this GitHub /json folder.
      Files expected: en.json, tc.json, sc.json, jp.json, vn.json (any missing -> built-in defaults). */
   var GH_JSON='https://compassoffices.github.io/tools/Partnership-ppt-editor/json/';
@@ -1451,13 +1479,29 @@ const JS_DECK = String.raw`(function(){
     }
     formEl.innerHTML='';
     formEl.appendChild(E('div','ed-hint','Edit any field below. The preview updates live. When done, click "Copy Slideshow HTML" and paste into one WordPress Custom HTML block.'));
-    Object.keys(content).forEach(function(sec,idx){
-      var isOpen = firstBuild ? (idx===0) : (openKeys.indexOf(sec)>-1);
-      var panel=E('div','panel'+(isOpen?' open':''));
+    var sKeys=slideKeys(), openedFirst=false;
+    Object.keys(content).forEach(function(sec){
+      if(sec.charAt(0)==='_') return;
+      var isSlide=sKeys.indexOf(sec)>-1;
+      var isHidden=isSlide && isHiddenKey(sec);
+      var isOpen;
+      if(firstBuild){ isOpen=!openedFirst; openedFirst=true; }
+      else { isOpen=openKeys.indexOf(sec)>-1; }
+      var panel=E('div','panel'+(isOpen?' open':'')+(isHidden?' slide-hidden':''));
       panel.dataset.sec=sec;
-      var head=E('button','panel-h');
-      head.appendChild(E('span','',lbl(sec)));
-      head.appendChild(E('span','panel-chev','\u25b8'));
+      var head=E('div','panel-h');
+      head.appendChild(E('span','panel-h-t',lbl(sec)));
+      var right=E('div','panel-h-r');
+      if(isSlide){
+        var eye=E('button','panel-eye'+(isHidden?' off':''));
+        eye.type='button';
+        eye.title=isHidden?'Hidden from slideshow — click to show':'Visible — click to hide from slideshow';
+        eye.innerHTML=isHidden?EYE_OFF:EYE_ON;
+        eye.onclick=function(ev){ ev.stopPropagation(); toggleSlide(sec); };
+        right.appendChild(eye);
+      }
+      right.appendChild(E('span','panel-chev','\u25b8'));
+      head.appendChild(right);
       head.onclick=function(){ panel.classList.toggle('open'); };
       var body=E('div','panel-b');
       var val=content[sec];
