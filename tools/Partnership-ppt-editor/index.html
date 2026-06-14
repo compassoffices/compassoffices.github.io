@@ -1002,8 +1002,9 @@ function genDeck(S){
     return '<div class="slide'+(o.dark?' dark':'')+(i===0?' active':'')+'" data-key="'+o.key+'" data-label="'+escAttr(SL[o.key]||'')+'">'+o.html+'</div>';
   }).join('');
   var hint=(S.ui&&S.ui.deckHint)||'';
-  return '<div class="cov cov-deck at-hero'+(ps.length&&ps[0].dark?' on-dark':'')+'">'
+  return '<div class="cov cov-deck as-page at-hero'+(ps.length&&ps[0].dark?' on-dark':'')+'">'
     +'<div class="deck-bar"><i id="covProg"></i></div>'
+    +'<button class="deck-mode" id="covMode" type="button" aria-label="Switch view"></button>'
     +'<div class="deck-count"><span id="covCur">01</span><i>/</i><span id="covTot">'+ps.length+'</span></div>'
     +'<button class="deck-fs" id="covFs" type="button" aria-label="View full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>'
     +'<div class="deck-track" id="covTrack">'+slides+'</div>'
@@ -1011,7 +1012,8 @@ function genDeck(S){
     +'<button class="deck-nav next" id="covNext" aria-label="Next slide">'+chevR()+'</button>'
     +'<div class="deck-dots" id="covDots"></div>'
     +'<div class="deck-hint" id="covHint">'+esc(hint)+'</div>'
-    +'</div>';
+    +'</div>'
+    +'<script>(function(){try{var d=document.currentScript.previousElementSibling;if(!d||!d.classList||d.classList.contains("cov-deck")===false){d=document.querySelector(".cov-deck");}if(d&&window.innerWidth>768){d.classList.remove("as-page");}}catch(e){}})();<\/script>';
 }
 
 /* ---- deck chrome CSS (adapted from the overview deck; same behaviour) ---- */
@@ -1043,6 +1045,11 @@ const CSS_DECK = String.raw`
 .cov-deck.on-dark .deck-fs:hover{background:var(--orange);border-color:var(--orange);}
 .cov-deck:fullscreen{height:100vh;width:100vw;}
 .cov-deck:-webkit-full-screen{height:100vh;width:100vw;}
+.cov-deck .deck-mode{position:absolute;top:13px;left:18px;z-index:9;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 15px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:var(--ink);font-family:var(--mono);font-weight:700;font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;cursor:pointer;transition:background .2s,color .2s,border-color .2s,transform .2s;}
+.cov-deck .deck-mode:hover{background:var(--orange);border-color:var(--orange);color:#fff;transform:translateY(-1px);}
+.cov-deck .deck-mode svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.cov-deck.on-dark .deck-mode{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.34);color:#fff;}
+.cov-deck.on-dark .deck-mode:hover{background:var(--orange);border-color:var(--orange);color:#fff;}
 /* arrows */
 .cov-deck .deck-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:7;width:50px;height:50px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.85);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s,color .2s,border-color .2s,opacity .2s;}
 .cov-deck .deck-nav svg{width:19px;height:19px;}
@@ -1083,21 +1090,21 @@ const CSS_DECK = String.raw`
 .cov-deck .slide.active .hero-copy>*{}
 .cov-deck .gcard{transition:transform .45s cubic-bezier(.2,.7,.2,1);}
 
-/* ===== MOBILE (<=768px): render the slideshow as a normal scrolling page ===== */
-@media (max-width:768px){
-  .cov-deck{height:auto!important;min-height:0;overflow:visible;background:var(--paper);}
-  .cov-deck .deck-track{display:block;transform:none!important;transition:none;height:auto;width:auto;}
-  .cov-deck .slide{width:auto;height:auto;min-height:0;display:block;overflow:visible;}
-  .cov-deck .slide>section{display:block;min-height:0;}
-  .cov-deck .slide>section>.wrap{margin:0 auto;padding-top:64px;padding-bottom:64px;}
-  .cov-deck .slide .wrap>*{opacity:1!important;transform:none!important;}
-  .cov-deck .hero{height:auto;}
-  .cov-deck .hero .hero-grid{min-height:0;height:auto;}
-  .cov-deck .hero .hero-copy{padding:48px 24px 56px;}
-  .cov-deck .deck-bar,.cov-deck .deck-count,.cov-deck .deck-nav,
-  .cov-deck .deck-dots,.cov-deck .deck-hint,.cov-deck .deck-fs{display:none!important;}
-  .cov-deck .fp .netmap-wrap{max-height:none;}
-}
+/* ===== PAGE MODE: render the slideshow as one scrolling page (default fallback; auto on mobile; or via the toggle button) ===== */
+.cov-deck.as-page{height:auto;min-height:0;overflow:visible;background:var(--paper);}
+.cov-deck.as-page .deck-track{display:block;transform:none;transition:none;height:auto;width:auto;}
+.cov-deck.as-page .slide{width:auto;height:auto;min-height:0;display:block;overflow:visible;}
+.cov-deck.as-page .slide>section{display:block;min-height:0;}
+.cov-deck.as-page .slide>section>.wrap{margin:0 auto;padding-top:64px;padding-bottom:64px;}
+.cov-deck.as-page .slide .wrap>*{opacity:1;transform:none;}
+.cov-deck.as-page .hero{height:auto;}
+.cov-deck.as-page .hero .hero-grid{min-height:0;height:auto;}
+.cov-deck.as-page .hero .hero-copy{padding:48px 24px 56px;}
+.cov-deck.as-page .deck-bar,.cov-deck.as-page .deck-count,.cov-deck.as-page .deck-nav,
+.cov-deck.as-page .deck-dots,.cov-deck.as-page .deck-hint,.cov-deck.as-page .deck-fs{display:none;}
+.cov-deck.as-page .fp .netmap-wrap{max-height:none;}
+.cov-deck.as-page .deck-mode{position:fixed;top:12px;right:12px;left:auto;background:rgba(255,255,255,.95);color:var(--ink);border-color:var(--line);box-shadow:0 4px 16px rgba(0,0,0,.14);}
+.cov-deck.as-page .deck-mode:hover{background:var(--orange);border-color:var(--orange);color:#fff;}
 @media (prefers-reduced-motion:reduce){
   .cov-deck .deck-track{transition:none;}
   .cov-deck .slide.active .wrap>*{transition:none;opacity:1;transform:none;}
@@ -1107,13 +1114,14 @@ const CSS_DECK = String.raw`
 /* ---- deck chrome JS (identical mechanics to the overview deck) ---- */
 const JS_DECK = String.raw`(function(){
   var deck=document.querySelector('.cov-deck'); if(!deck) return;
-  if(window.matchMedia && window.matchMedia('(max-width:768px)').matches){ return; }
   var track=deck.querySelector('#covTrack'); if(!track) return;
   var slides=Array.prototype.slice.call(track.children), n=slides.length, idx=0;
   var prog=deck.querySelector('#covProg'), cur=deck.querySelector('#covCur'),
       prev=deck.querySelector('#covPrev'), next=deck.querySelector('#covNext'),
       dotsWrap=deck.querySelector('#covDots'), hint=deck.querySelector('#covHint'),
-      fsBtn=deck.querySelector('#covFs');
+      fsBtn=deck.querySelector('#covFs'), modeBtn=deck.querySelector('#covMode');
+  var userSet=false;
+  function isPage(){ return deck.classList.contains('as-page'); }
   function pad(i){ return (i+1<10?'0':'')+(i+1); }
   var dots=slides.map(function(s,i){
     var key=s.getAttribute('data-key')||'';
@@ -1123,6 +1131,7 @@ const JS_DECK = String.raw`(function(){
     b.addEventListener('click',function(){ dismissHint(); go(i); }); dotsWrap.appendChild(b); return b;
   });
   function update(){
+    if(isPage()){ track.style.transform=''; return; }
     track.style.transform='translateX('+(-idx*100)+'%)';
     if(prog) prog.style.width=((idx+1)/n*100)+'%';
     if(cur) cur.textContent=pad(idx);
@@ -1133,7 +1142,7 @@ const JS_DECK = String.raw`(function(){
     deck.classList.toggle('at-hero', idx===0);
     slides.forEach(function(s,i){ s.classList.toggle('active',i===idx); if(i!==idx) s.scrollTop=0; });
   }
-  function go(i){ idx=Math.max(0,Math.min(n-1,i)); update(); }
+  function go(i){ if(isPage())return; idx=Math.max(0,Math.min(n-1,i)); update(); }
   function nextS(){ go(idx+1); } function prevS(){ go(idx-1); }
   function dismissHint(){ if(hint){ hint.classList.add('gone'); } }
   if(next) next.addEventListener('click',function(){ dismissHint(); nextS(); });
@@ -1144,6 +1153,7 @@ const JS_DECK = String.raw`(function(){
     return r.top<vh*0.5 && r.bottom>vh*0.5;
   }
   document.addEventListener('keydown',function(e){
+    if(isPage()) return;
     if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight') return;
     if(!deckInView()) return;
     e.preventDefault(); dismissHint();
@@ -1152,7 +1162,7 @@ const JS_DECK = String.raw`(function(){
   var sx=0,sy=0,on=false;
   deck.addEventListener('touchstart',function(e){ var t=e.touches[0]; sx=t.clientX; sy=t.clientY; on=true; },{passive:true});
   deck.addEventListener('touchend',function(e){
-    if(!on) return; on=false;
+    if(!on) return; on=false; if(isPage()) return;
     var t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
     if(Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)*1.5){ dismissHint(); if(dx<0) nextS(); else prevS(); }
   },{passive:true});
@@ -1169,8 +1179,14 @@ const JS_DECK = String.raw`(function(){
     document.addEventListener('webkitfullscreenchange',function(){ syncFs(); update(); });
     syncFs();
   }
-  window.addEventListener('resize',update);
-  update();
+  var V_SCROLL='<svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>';
+  var V_DECK='<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.4l4.6 2.6L10 14.6z" fill="currentColor" stroke="none"/></svg>';
+  function syncMode(){ if(!modeBtn) return; if(isPage()){ modeBtn.innerHTML=V_DECK+'<span>Slideshow</span>'; modeBtn.setAttribute('aria-label','Switch to slideshow view'); } else { modeBtn.innerHTML=V_SCROLL+'<span>Scroll view</span>'; modeBtn.setAttribute('aria-label','Switch to scrolling page view'); } }
+  function setPage(page,manual){ if(manual) userSet=true; deck.classList.toggle('as-page',!!page); if(page){ deck.classList.remove('on-dark'); track.style.transform=''; } else { idx=Math.max(0,Math.min(n-1,idx)); } syncMode(); update(); }
+  if(modeBtn){ modeBtn.addEventListener('click',function(){ var toPage=!isPage(); setPage(toPage,true); if(!toPage && deck.scrollIntoView){ try{ deck.scrollIntoView({block:'start'}); }catch(e){} } }); }
+  function auto(){ if(userSet) return; setPage(window.innerWidth<=768,false); }
+  window.addEventListener('resize',function(){ auto(); update(); });
+  auto(); syncMode(); update();
 })();`;
 
 /* =========================================================================
@@ -1185,7 +1201,7 @@ const JS_DECK = String.raw`(function(){
   var content=store[lang];
   /* Editor loads default content per language from this GitHub /json folder.
      Files expected: en.json, tc.json, sc.json, jp.json, vn.json (any missing -> built-in defaults). */
-  var GH_JSON='https://raw.githubusercontent.com/compassoffices/compassoffices.github.io/tools/Partnership-ppt-editor/json/';
+  var GH_JSON='https://compassoffices.github.io/tools/Partnership-ppt-editor/json/';
   var fontLink = '<link href="https://fonts.cdnfonts.com/css/neue-haas-grotesk-display-pro" rel="stylesheet"><style>body{margin:0;font-family:"Neue Haas Grotesk Display Pro",-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}</style>';
 
   function domReady(js){ return '(function(){function __init(){\n'+js+'\n}if(document.readyState!=="loading"){__init();}else{document.addEventListener("DOMContentLoaded",__init);}})();'; }
