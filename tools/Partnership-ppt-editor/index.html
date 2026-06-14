@@ -41,6 +41,11 @@ html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Seg
 .f-check{width:18px;height:18px;accent-color:#FF6600;}
 .f-thumb{display:none;max-width:100%;max-height:90px;margin-top:8px;border-radius:6px;border:1px solid #e3e3e5;object-fit:contain;}
 .ed-status{font-size:.72rem;color:#888;margin-left:6px;align-self:center;white-space:nowrap;}
+.f-iconpick{display:flex;flex-wrap:wrap;gap:6px;}
+.f-iconbtn{width:40px;height:40px;border:1px solid #d8d8dc;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:border-color .15s,background .15s,box-shadow .15s;}
+.f-iconbtn:hover{border-color:#FF6600;background:#fff6f1;}
+.f-iconbtn.on{border-color:#FF6600;background:#FFF1E8;box-shadow:0 0 0 2px rgba(255,102,0,.18);}
+.f-iconbtn svg{width:21px;height:21px;stroke:#E25A00;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
 .f-colorrow{display:flex;align-items:center;gap:7px;}
 .f-colorrow .f-input{flex:1;}
 .f-sw{width:42px;height:34px;padding:0;border:1px solid #d8d8dc;border-radius:7px;cursor:pointer;background:none;flex:0 0 auto;}
@@ -506,6 +511,8 @@ var I={
   bolt:'<svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>',
   users:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 11.2a3 3 0 0 0 0-6"/><path d="M18 20c0-2.4-1-4.3-2.6-5.4"/></svg>',
   globe:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"/></svg>',
+  plane:'<svg viewBox="0 0 24 24"><path d="M21 15.5 13.5 11V4.2a1.5 1.5 0 0 0-3 0V11L3 15.5V17l7.5-2.3V19l-2 1.4V22l3.5-1 3.5 1v-1.6L13.5 19v-4.3L21 17z"/></svg>',
+  bed:'<svg viewBox="0 0 24 24"><path d="M3 18V7M3 18h18M21 18v-4a3 3 0 0 0-3-3H3"/><path d="M6 11V9a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 11 9v2"/></svg>',
   desk:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="11" rx="1.5"/><path d="M3 16v3M21 16v3M8 19h8"/></svg>',
   pin:'<svg viewBox="0 0 24 24"><path d="M12 22s7-6.3 7-12a7 7 0 0 0-14 0c0 5.7 7 12 7 12z"/><circle cx="12" cy="10" r="2.4"/></svg>',
   table:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="1.5"/><path d="M3 9h18M9 9v9"/></svg>',
@@ -680,7 +687,7 @@ const DEFAULT = {
         {name:"Keeta", d:"Corporate discount", logo:"", logoBg:""},
         {name:"Frites", d:"10% off à la carte & lunch", logo:"", logoBg:""}
       ]},
-      {icon:"globe", t:"Travel & Hospitality", items:[
+      {icon:"plane", t:"Travel & Hospitality", items:[
         {name:"Club Med", d:"Exclusive travel offer", logo:"", logoBg:""},
         {name:"Greater Bay Airline", d:"Flight discounts & flash sales", logo:"", logoBg:""}
       ]},
@@ -1287,6 +1294,8 @@ const JS_DECK = String.raw`(function(){
   function lbl(k){ return String(k).replace(/([A-Z])/g,' $1').replace(/[_\-]/g,' ').replace(/^./,function(m){return m.toUpperCase();}).trim(); }
   function isUrlKey(k){ return /image|logo|img|url|src|photo/i.test(k||''); }
   function isColorKey(k){ return /bg$|background|colou?r/i.test(k||''); }
+  function isIconKey(k){ return /^icon$/i.test(k||''); }
+  var ICON_CHOICES=['dumbbell','cup','globe','plane','bed','star','gem','present','award','headset','building','users','spark','bell','book','shield','chart','desk','network','bolt'];
   function isLong(v){ return typeof v==='string' && (v.length>54 || /\n/.test(v)); }
   function E(t,c,txt){ var e=document.createElement(t); if(c)e.className=c; if(txt!=null)e.textContent=txt; return e; }
 
@@ -1297,6 +1306,17 @@ const JS_DECK = String.raw`(function(){
     var v=getPath(path);
     var wrap=E('div','f-field');
     if(key!=null) wrap.appendChild(E('label','f-label',lbl(key)));
+    if(isIconKey(key)){
+      var cur=(v==null?'':String(v));
+      var pick=E('div','f-iconpick');
+      ICON_CHOICES.forEach(function(name){
+        var b=E('button','f-iconbtn'+(name===cur?' on':''));
+        b.type='button'; b.title=name; b.innerHTML=icon(name);
+        b.onclick=function(){ setPath(path,name); [].forEach.call(pick.children,function(c){ c.classList.remove('on'); }); b.classList.add('on'); schedule(); };
+        pick.appendChild(b);
+      });
+      wrap.appendChild(pick); return wrap;
+    }
     if(typeof v==='boolean'){
       var cb=E('input','f-check'); cb.type='checkbox'; cb.checked=!!v;
       cb.addEventListener('change',function(){ setPath(path,cb.checked); schedule(); });
