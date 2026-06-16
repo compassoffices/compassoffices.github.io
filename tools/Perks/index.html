@@ -213,6 +213,11 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
 .cop .rgopt.allopt{grid-column:1 / -1;font-weight:800;color:var(--orange);border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:2px;}
 .cop .rgopt input{width:16px;height:16px;accent-color:var(--orange);flex:0 0 auto;}
 @media (max-width:520px){.cop .regionpick{grid-template-columns:1fr;}}
+.cop .inputrow{display:flex;gap:8px;align-items:stretch;}
+.cop .inputrow input{flex:1;min-width:0;}
+.cop .openfolder{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:8px;padding:0 15px;font-family:inherit;font-weight:800;font-size:.85rem;letter-spacing:.02em;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;transition:border-color .15s,color .15s;}
+.cop .openfolder:hover{border-color:var(--orange);color:var(--orange);}
+.cop .openfolder svg{width:15px;height:15px;fill:currentColor;}
 </style>
 </head>
 <body>
@@ -298,7 +303,9 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
       <div class="field"><label for="e-contact">Contact</label><input id="e-contact" type="text"></div>
       <div class="field"><label for="e-website">Partner website</label><input id="e-website" type="url" placeholder="https://…"></div>
       <div class="row2">
-        <div class="field"><label for="e-drivelink">Materials / Drive folder link</label><input id="e-drivelink" type="url" placeholder="https://drive.google.com/…"></div>
+        <div class="field"><label for="e-drivelink">Materials / Drive folder link</label>
+          <div class="inputrow"><input id="e-drivelink" type="url" placeholder="https://drive.google.com/…"><button type="button" class="openfolder" id="e-openfolder" title="Open this folder in a new tab"><svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg> Open</button></div>
+          <div class="hint">Click Open to create (or open) a Drive folder named after this perk, inside your Perks folder.</div></div>
         <div class="field"><label for="e-dateadded">Date added</label><input id="e-dateadded" type="text" placeholder="YYYY-MM-DD"></div>
       </div>
       <div class="field"><label class="toggle" for="e-show"><input type="checkbox" id="e-show" checked><span>Show on the dashboard</span></label></div>
@@ -603,6 +610,19 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
   $("cop-edit").addEventListener("click",function(e){if(e.target===this)closeEdit();});
   $("e-logo").addEventListener("input",setLogoPrev);
   $("cop-add").onclick=function(){openEdit(null);};
+  $("e-openfolder").onclick=function(){
+    var u=$("e-drivelink").value.trim();
+    if(u){ if(!/^https?:/.test(u))u="https://"+u; window.open(u,"_blank","noopener"); return; }
+    var name=$("e-company").value.trim();
+    if(!name){ toast("Enter the company name first",true); return; }
+    var win=window.open("","_blank"); // open synchronously so it isn't popup-blocked
+    var b=$("e-openfolder"),old=b.innerHTML; b.disabled=true; b.textContent="Opening…";
+    post({secret:KEY,action:"folder",record:{Company:name}}).then(function(res){
+      if(res&&res.ok&&res.driveUrl){ $("e-drivelink").value=res.driveUrl; if(win)win.location=res.driveUrl; else window.open(res.driveUrl,"_blank","noopener"); toast("Folder ready ✓"); }
+      else { if(win)win.close(); toast("Couldn't create folder"+(res&&res.error?": "+res.error:""),true); }
+    }).catch(function(){ if(win)win.close(); toast("Couldn't reach the endpoint.",true); })
+      .then(function(){ b.disabled=false; b.innerHTML=old; });
+  };
 
   function gather(){
     var r={};
@@ -624,6 +644,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     post({secret:KEY,action:"upsert",record:rec}).then(function(res){
       if(res&&res.ok){
         var obj=recToObj(rec);
+        if(res.driveUrl){obj.drivelink=res.driveUrl;}
         var i=-1;for(var k=0;k<DATA.length;k++){if(DATA[k].company===rec[H.company]){i=k;break;}}
         if(i>-1)DATA[i]=obj;else DATA.push(obj);
         if(editingKey&&editingKey!==rec[H.company]){DATA=DATA.filter(function(p){return p.company!==editingKey;});}
@@ -633,10 +654,10 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
       .then(function(){btn.disabled=false;btn.textContent="Save perk";});
   }
   function delPerk(p){
-    if(!confirm('Delete "'+p.company+'" from the sheet?'))return;
+    if(!confirm('Delete "'+p.company+'" from the sheet?\n\nThis also moves its Google Drive materials folder to Trash.'))return;
     var rec={};rec[H.company]=p.company;
     post({secret:KEY,action:"delete",record:rec}).then(function(res){
-      if(res&&res.ok){DATA=DATA.filter(function(x){return x.company!==p.company;});render();toast("Perk deleted ✓");}
+      if(res&&res.ok){DATA=DATA.filter(function(x){return x.company!==p.company;});render();toast(res.folderTrashed?"Perk + folder deleted ✓":"Perk deleted ✓");}
       else toast("Delete failed"+(res&&res.error?": "+res.error:""),true);
     }).catch(function(){toast("Couldn't reach the endpoint.",true);});
   }
