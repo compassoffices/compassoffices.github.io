@@ -207,6 +207,12 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
 .cop .card.ishidden{opacity:.5;}
 .cop .card.ishidden:hover{opacity:.85;}
 .cop .hiddenbadge{position:absolute;top:14px;left:14px;z-index:4;font-size:.6rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:var(--ink);color:#fff;padding:3px 7px;border-radius:3px;}
+.cop .regionpick{display:grid;grid-template-columns:1fr 1fr;gap:7px 16px;border:1px solid var(--line);border-radius:8px;padding:13px 15px;max-height:220px;overflow:auto;}
+.cop .rgopt{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600;color:var(--ink);cursor:pointer;}
+.cop .rgopt.sub{padding-left:20px;font-weight:500;color:var(--slate);}
+.cop .rgopt.allopt{grid-column:1 / -1;font-weight:800;color:var(--orange);border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:2px;}
+.cop .rgopt input{width:16px;height:16px;accent-color:var(--orange);flex:0 0 auto;}
+@media (max-width:520px){.cop .regionpick{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -285,10 +291,11 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
         <div class="field"><label class="toggle" for="e-pagemade"><input type="checkbox" id="e-pagemade"><span>Has a landing page</span></label></div>
         <div class="field"><label for="e-pageurl">Page URL (green light)</label><input id="e-pageurl" type="url" placeholder="https://…"></div>
       </div>
-      <div class="row2">
-        <div class="field"><label for="e-country">Country / Region</label><input id="e-country" type="text" placeholder="Hong Kong"></div>
-        <div class="field"><label for="e-contact">Contact</label><input id="e-contact" type="text"></div>
+      <div class="field"><label>Regions available</label>
+        <div class="regionpick" id="e-regions"></div>
+        <div class="hint">Tick everywhere this perk applies. “All regions” = every Compass location. “Japan / Australia — all” cover both their cities.</div>
       </div>
+      <div class="field"><label for="e-contact">Contact</label><input id="e-contact" type="text"></div>
       <div class="field"><label for="e-website">Partner website</label><input id="e-website" type="url" placeholder="https://…"></div>
       <div class="row2">
         <div class="field"><label for="e-drivelink">Materials / Drive folder link</label><input id="e-drivelink" type="url" placeholder="https://drive.google.com/…"></div>
@@ -376,7 +383,29 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
   function longText(p){return p.long||p.short||"";}
 
   var DATA=[],activeGroup="all",activeCountry="",query="",LIVE=false,isAdmin=false,KEY="",editingKey=null;
-  function countryOf(p){return (p.country||"").trim()||"Unspecified";}
+  var GLOBAL_LABEL="All regions";
+  function countriesOf(p){return (p.country||"").split(/[,;\/]+/).map(function(s){return s.trim();}).filter(Boolean);}
+  function isGlobalToken(c){return /^(all|global|all regions|worldwide|everywhere|all countries|any)$/i.test((c||"").trim());}
+  function isGlobal(p){return countriesOf(p).some(isGlobalToken);}
+  function specCountries(p){return countriesOf(p).filter(function(c){return !isGlobalToken(c);});}
+  var CITIES=["Hong Kong","Tokyo","Osaka","Melbourne","Sydney","Singapore","Manila","Kuala Lumpur","Ho Chi Minh City"];
+  var GROUP_MAP={japan:["Tokyo","Osaka"],jp:["Tokyo","Osaka"],australia:["Melbourne","Sydney"],au:["Melbourne","Sydney"],vietnam:["Ho Chi Minh City"],vn:["Ho Chi Minh City"],philippines:["Manila"],ph:["Manila"],malaysia:["Kuala Lumpur"],my:["Kuala Lumpur"]};
+  var CITY_CANON={}; CITIES.forEach(function(c){CITY_CANON[c.toLowerCase()]=c;});
+  CITY_CANON["hcmc"]="Ho Chi Minh City"; CITY_CANON["ho chi minh"]="Ho Chi Minh City"; CITY_CANON["kl"]="Kuala Lumpur";
+  function expandCities(p){
+    var set={};
+    countriesOf(p).forEach(function(t){
+      var lt=t.toLowerCase();
+      if(isGlobalToken(t)){ CITIES.forEach(function(c){set[c]=1;}); return; }
+      if(GROUP_MAP[lt]){ GROUP_MAP[lt].forEach(function(c){set[c]=1;}); return; }
+      if(CITY_CANON[lt]){ set[CITY_CANON[lt]]=1; return; }
+      set[t]=1;
+    });
+    return Object.keys(set);
+  }
+  var REGION_OPTS=[{v:"All",l:"All regions (everywhere)"},{v:"Hong Kong",l:"Hong Kong"},{v:"Japan",l:"Japan — all"},{v:"Tokyo",l:"Tokyo",sub:1},{v:"Osaka",l:"Osaka",sub:1},{v:"Australia",l:"Australia — all"},{v:"Melbourne",l:"Melbourne",sub:1},{v:"Sydney",l:"Sydney",sub:1},{v:"Singapore",l:"Singapore"},{v:"Manila",l:"Manila"},{v:"Kuala Lumpur",l:"Kuala Lumpur"},{v:"Ho Chi Minh City",l:"Ho Chi Minh City"}];
+  var LOAD_MAP={all:"All",global:"All",worldwide:"All",everywhere:"All","all regions":"All",any:"All","all countries":"All",japan:"Japan",jp:"Japan",australia:"Australia",au:"Australia",vietnam:"Ho Chi Minh City",vn:"Ho Chi Minh City",philippines:"Manila",ph:"Manila",malaysia:"Kuala Lumpur",my:"Kuala Lumpur"};
+  CITIES.forEach(function(c){LOAD_MAP[c.toLowerCase()]=c;}); LOAD_MAP["hcmc"]="Ho Chi Minh City"; LOAD_MAP["kl"]="Kuala Lumpur";
   var $=function(id){return document.getElementById(id);};
   function esc(s){return (s||"").replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
   function pointFor(g){var x=GROUPS.filter(function(z){return z.name===g;})[0];return x?x.point:"";}
@@ -391,7 +420,11 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
   function logoNode(p){var w=document.createElement("div");w.className="logo";return fillLogo(w,p);}
   function matches(p){
     if(activeGroup!=="all"&&p.group!==activeGroup)return false;
-    if(activeCountry&&countryOf(p)!==activeCountry)return false;
+    if(activeCountry){
+      if(activeCountry===GLOBAL_LABEL){ if(!isGlobal(p)) return false; }
+      else if(activeCountry==="Unspecified"){ if(isGlobal(p)||expandCities(p).length) return false; }
+      else { if(expandCities(p).indexOf(activeCountry)===-1) return false; }
+    }
     if(query){var hay=(p.company+" "+p.industry+" "+teaser(p)+" "+p.long+" "+p.country+" "+p.group).toLowerCase();if(hay.indexOf(query)===-1)return false;}
     return true;
   }
@@ -421,9 +454,18 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
       html+='<div class="stat"><span class="ic">'+g.icon+'</span><span class="n">'+n+'</span><span class="l">'+esc(g.name)+'</span></div>';
     });
     html+='</div>';
-    var cc={};
-    DATA.forEach(function(p){if(!isShown(p))return;var c=(p.country||"").trim()||"Unspecified";cc[c]=(cc[c]||0)+1;});
-    var carr=Object.keys(cc).map(function(k){return {k:k,n:cc[k]};}).sort(function(a,b){return b.n-a.n||a.k.localeCompare(b.k);});
+    var counts={},globalN=0,unspecN=0;
+    DATA.forEach(function(p){if(!isShown(p))return;
+      if(isGlobal(p))globalN++;
+      var cs=expandCities(p);
+      if(cs.length){ cs.forEach(function(c){counts[c]=(counts[c]||0)+1;}); }
+      else if(!isGlobal(p)){ unspecN++; }
+    });
+    var carr=[];
+    CITIES.forEach(function(c){ if(counts[c]) carr.push({k:c,n:counts[c]}); });
+    Object.keys(counts).forEach(function(c){ if(CITIES.indexOf(c)===-1) carr.push({k:c,n:counts[c]}); });
+    if(globalN) carr.unshift({k:GLOBAL_LABEL,n:globalN});
+    if(unspecN) carr.push({k:"Unspecified",n:unspecN});
     if(carr.length){
       html+='<div class="stats-sub">By country / region</div><div class="stats-country">';
       carr.forEach(function(x){html+='<button type="button" class="cchip'+(activeCountry===x.k?' active':'')+'" data-country="'+esc(x.k)+'" title="Filter by '+esc(x.k)+' (click again to clear)">'+esc(x.k)+' <b>'+x.n+'</b></button>';});
@@ -515,6 +557,23 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
   /* ---- edit modal ---- */
   function setLogoPrev(){var url=$("e-logo").value.trim(),box=$("e-logoprev");
     if(url){box.innerHTML="";var img=new Image();img.src=url;img.onerror=function(){box.innerHTML='<span class="none">Image didn’t load</span>';};box.appendChild(img);}else box.innerHTML='<span class="none">No logo yet</span>';}
+  function buildRegionPicker(){
+    var box=$("e-regions"); if(!box) return; box.innerHTML="";
+    REGION_OPTS.forEach(function(o){
+      var lbl=document.createElement("label"); lbl.className="rgopt"+(o.sub?" sub":"")+(o.v==="All"?" allopt":"");
+      lbl.innerHTML='<input type="checkbox" value="'+esc(o.v)+'"><span>'+esc(o.l)+'</span>';
+      box.appendChild(lbl);
+    });
+    box.addEventListener("change",function(e){
+      var t=e.target; if(!t||t.type!=="checkbox")return;
+      if(t.value==="All"&&t.checked){ Array.prototype.forEach.call(box.querySelectorAll('input[type=checkbox]'),function(c){if(c.value!=="All")c.checked=false;}); }
+      else if(t.value!=="All"&&t.checked){ var a=box.querySelector('input[value="All"]'); if(a)a.checked=false; }
+    });
+  }
+  function getCheckedRegions(){ return Array.prototype.map.call($("e-regions").querySelectorAll('input:checked'),function(c){return c.value;}); }
+  function setCheckedRegions(vals){ var set={}; vals.forEach(function(v){set[v]=1;}); Array.prototype.forEach.call($("e-regions").querySelectorAll('input[type=checkbox]'),function(c){c.checked=!!set[c.value];}); }
+  buildRegionPicker();
+
   function openEdit(p){
     editingKey=p?p.company:null;
     $("cop-edit-title").textContent=p?"Edit perk":"New perk";
@@ -527,7 +586,8 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     $("e-long").value=p?p.long:"";
     $("e-pagemade").checked=p?truthy(p.pagemade):false;
     $("e-pageurl").value=p?p.pageurl:"";
-    $("e-country").value=p?p.country:"";
+    var _rv=[]; if(p){ countriesOf(p).forEach(function(t){var v=LOAD_MAP[t.toLowerCase()]; if(v&&_rv.indexOf(v)===-1)_rv.push(v);}); } else { _rv=["Hong Kong"]; }
+    setCheckedRegions(_rv);
     $("e-contact").value=p?p.contact:"";
     $("e-website").value=p?p.website:"";
     $("e-drivelink").value=p?p.drivelink:"";
@@ -549,7 +609,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     r[H.group]=$("e-group").value;r[H.company]=$("e-company").value.trim();r[H.logo]=$("e-logo").value.trim();
     r[H.industry]=$("e-industry").value.trim();r[H.short]=$("e-short").value.trim();r[H.long]=$("e-long").value.trim();
     r[H.pagemade]=$("e-pagemade").checked?"TRUE":"FALSE";r[H.pageurl]=$("e-pageurl").value.trim();
-    r[H.country]=$("e-country").value.trim();r[H.contact]=$("e-contact").value.trim();r[H.website]=$("e-website").value.trim();
+    r[H.country]=getCheckedRegions().join(", ");r[H.contact]=$("e-contact").value.trim();r[H.website]=$("e-website").value.trim();
     r[H.drivelink]=$("e-drivelink").value.trim();r[H.dateadded]=$("e-dateadded").value.trim();
     r[H.show]=$("e-show").checked?"TRUE":"FALSE";
     return r;
