@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Compass Offices — Member Perks</title>
+<link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
 <style>
 body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;margin:0;background:#fff;}
 .cop{
@@ -176,7 +177,12 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
 .cop .stat .l{display:block;margin-top:9px;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--slate);font-weight:700;line-height:1.3;}
 .cop .stats-sub{margin:18px 0 6px;font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--slate);}
 .cop .stats-country{display:flex;flex-wrap:wrap;gap:8px;}
-.cop .cchip{display:inline-flex;align-items:baseline;gap:8px;border:1px solid var(--line);border-radius:999px;padding:8px 15px;font-size:.86rem;font-weight:700;color:var(--ink);}
+.cop .cchip{display:inline-flex;align-items:baseline;gap:8px;border:1px solid var(--line);border-radius:999px;padding:8px 15px;font-size:.86rem;font-weight:700;color:var(--ink);background:#fff;font-family:inherit;cursor:pointer;transition:background .15s,color .15s,border-color .15s;}
+.cop .cchip:hover{border-color:var(--orange);color:var(--orange);}
+.cop .cchip:hover b{color:var(--orange);}
+.cop .cchip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.cop .cchip.active b{color:var(--orange);}
+.cop .cchip:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
 .cop .cchip b{color:var(--orange);font-weight:800;}
 @media (max-width:760px){
   .cop .stats-grid{grid-template-columns:repeat(2,1fr);}
@@ -198,6 +204,9 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
 .cop .modal .matbtn{display:inline-flex;align-items:center;gap:9px;text-decoration:none;font-weight:800;font-size:.9rem;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:999px;padding:10px 18px;margin:0 10px 18px 0;}
 .cop .modal .matbtn:hover{border-color:var(--orange);color:var(--orange);}
 .cop .modal .matbtn svg{width:14px;height:14px;fill:currentColor;}
+.cop .card.ishidden{opacity:.5;}
+.cop .card.ishidden:hover{opacity:.85;}
+.cop .hiddenbadge{position:absolute;top:14px;left:14px;z-index:4;font-size:.6rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:var(--ink);color:#fff;padding:3px 7px;border-radius:3px;}
 </style>
 </head>
 <body>
@@ -328,7 +337,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     long:"Long Description",pagemade:"Page Made",pageurl:"Page URL",country:"Country/Region",
     contact:"Contact",website:"Website",drivelink:"Drive Link",dateadded:"Date Added",show:"Show"};
 
-  var COLS = ["group","company","logo","industry","short","long","pagemade","pageurl","country","contact","website","drivelink","dateadded"];
+  var COLS = ["group","company","logo","industry","short","long","pagemade","pageurl","country","contact","website","drivelink","dateadded","show"];
 
   function parseCSV(text){
     var rows=[],row=[],field="",i=0,inQ=false,c;
@@ -354,19 +363,20 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     for(var r=1;r<rows.length;r++){
       var row=rows[r];
       var g=function(k){return m[k]>-1&&row[m[k]]!=null?row[m[k]].trim():"";};
-      if(m.show>-1){var s=g("show").toLowerCase();if(s==="false"||s==="no"||s==="0"||s==="hide")continue;}
       if(!g("company")&&!g("group"))continue;
-      out.push([g("group"),g("company"),g("logo"),g("industry"),g("short"),g("long"),g("pagemade"),g("pageurl"),g("country"),g("contact"),g("website"),g("drivelink"),g("dateadded")]);
+      out.push([g("group"),g("company"),g("logo"),g("industry"),g("short"),g("long"),g("pagemade"),g("pageurl"),g("country"),g("contact"),g("website"),g("drivelink"),g("dateadded"),g("show")]);
     }
     return out;
   }
   function toObjects(arr){return arr.map(function(r){var o={};COLS.forEach(function(c,i){o[c]=(r[i]||"").trim();});return o;});}
   function truthy(v){return /^(true|yes|y|1|live|done|on)$/i.test((v||"").trim());}
+  function isShown(p){var s=(p.show==null?"":String(p.show)).trim();return s===""?true:truthy(s);}
   function hasPage(p){return !!p.pageurl||truthy(p.pagemade);}
   function teaser(p){return p.short||p.long||"";}
   function longText(p){return p.long||p.short||"";}
 
-  var DATA=[],activeGroup="all",query="",LIVE=false,isAdmin=false,KEY="",editingKey=null;
+  var DATA=[],activeGroup="all",activeCountry="",query="",LIVE=false,isAdmin=false,KEY="",editingKey=null;
+  function countryOf(p){return (p.country||"").trim()||"Unspecified";}
   var $=function(id){return document.getElementById(id);};
   function esc(s){return (s||"").replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
   function pointFor(g){var x=GROUPS.filter(function(z){return z.name===g;})[0];return x?x.point:"";}
@@ -381,6 +391,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
   function logoNode(p){var w=document.createElement("div");w.className="logo";return fillLogo(w,p);}
   function matches(p){
     if(activeGroup!=="all"&&p.group!==activeGroup)return false;
+    if(activeCountry&&countryOf(p)!==activeCountry)return false;
     if(query){var hay=(p.company+" "+p.industry+" "+teaser(p)+" "+p.long+" "+p.country+" "+p.group).toLowerCase();if(hay.indexOf(query)===-1)return false;}
     return true;
   }
@@ -401,23 +412,27 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
 
   function renderStats(){
     var host=$("cop-stats"); if(!host) return;
-    var total=DATA.length;
-    var html='<div class="eye"><svg viewBox="0 0 24 24"><path d="M3 13h4v8H3v-8zm7-9h4v17h-4V4zm7 5h4v12h-4V9z"/></svg> Reporting snapshot</div>';
+    var total=DATA.filter(isShown).length;
+    var hiddenN=DATA.filter(function(p){return !isShown(p);}).length;
+    var html='<div class="eye"><svg viewBox="0 0 24 24"><path d="M3 13h4v8H3v-8zm7-9h4v17h-4V4zm7 5h4v12h-4V9z"/></svg> Reporting snapshot'+(isAdmin&&hiddenN?' · '+hiddenN+' hidden':'')+'</div>';
     html+='<div class="stats-grid"><div class="stat"><span class="ic">'+TOTAL_ICON+'</span><span class="n">'+total+'</span><span class="l">Total perks</span></div>';
     GROUPS.forEach(function(g){
-      var n=DATA.filter(function(p){return p.group===g.name;}).length;
+      var n=DATA.filter(function(p){return p.group===g.name&&isShown(p);}).length;
       html+='<div class="stat"><span class="ic">'+g.icon+'</span><span class="n">'+n+'</span><span class="l">'+esc(g.name)+'</span></div>';
     });
     html+='</div>';
     var cc={};
-    DATA.forEach(function(p){var c=(p.country||"").trim()||"Unspecified";cc[c]=(cc[c]||0)+1;});
+    DATA.forEach(function(p){if(!isShown(p))return;var c=(p.country||"").trim()||"Unspecified";cc[c]=(cc[c]||0)+1;});
     var carr=Object.keys(cc).map(function(k){return {k:k,n:cc[k]};}).sort(function(a,b){return b.n-a.n||a.k.localeCompare(b.k);});
     if(carr.length){
       html+='<div class="stats-sub">By country / region</div><div class="stats-country">';
-      carr.forEach(function(x){html+='<span class="cchip">'+esc(x.k)+' <b>'+x.n+'</b></span>';});
+      carr.forEach(function(x){html+='<button type="button" class="cchip'+(activeCountry===x.k?' active':'')+'" data-country="'+esc(x.k)+'" title="Filter by '+esc(x.k)+' (click again to clear)">'+esc(x.k)+' <b>'+x.n+'</b></button>';});
       html+='</div>';
     }
     host.innerHTML=html;
+    Array.prototype.forEach.call(host.querySelectorAll('.cchip'),function(ch){
+      ch.onclick=function(){var c=ch.getAttribute('data-country');activeCountry=(activeCountry===c?'':c);render();};
+    });
   }
 
   function render(){
@@ -426,7 +441,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     var host=$("cop-sections");host.innerHTML="";var shown=0;
     GROUPS.forEach(function(g){
       if(activeGroup!=="all"&&activeGroup!==g.name)return;
-      var items=DATA.filter(function(p){return p.group===g.name&&matches(p);});
+      var items=DATA.filter(function(p){return p.group===g.name&&matches(p)&&(isAdmin||isShown(p));});
       if(!items.length)return;shown+=items.length;
       var sec=document.createElement("section");sec.className="section rv";
       var head=document.createElement("div");head.className="section-head";
@@ -434,7 +449,8 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
       sec.appendChild(head);
       var grid=document.createElement("div");grid.className="grid";
       items.forEach(function(p){
-        var card=document.createElement("div");card.className="card";card.setAttribute("role","button");card.setAttribute("tabindex","0");
+        var card=document.createElement("div");card.className="card"+(isShown(p)?"":" ishidden");card.setAttribute("role","button");card.setAttribute("tabindex","0");
+        if(!isShown(p)){var hb=document.createElement("span");hb.className="hiddenbadge";hb.textContent="Hidden";card.appendChild(hb);}
         if(hasPage(p)){var d=document.createElement("span");d.className="livedot";d.title="Landing page is live";card.appendChild(d);}
         // admin tools
         var tools=document.createElement("div");tools.className="cardtools";
@@ -516,7 +532,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     $("e-website").value=p?p.website:"";
     $("e-drivelink").value=p?p.drivelink:"";
     $("e-dateadded").value=p?(p.dateadded||""):(new Date().toISOString().slice(0,10));
-    $("e-show").checked=p?truthy(p.show):true;
+    $("e-show").checked=p?isShown(p):true;
     $("e-del").hidden=!p;
     setLogoPrev();
     $("cop-edit").classList.add("open");
