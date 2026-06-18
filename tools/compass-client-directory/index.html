@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compass · Client Directory Editor</title>
+<style>
+/* ===== editor chrome — scoped under .ed ===== */
+.ed{--o:#FF6600;--o-dk:#E55A00;--o-wash:#FFF3EB;--ink:#1A1A1A;--tx:#333;--tx2:#666;--muted:#999;--line:#E5E5E5;--bg:#F4F4F5;--paper:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans TC",sans-serif;color:var(--ink);background:var(--bg);
+  position:fixed;inset:0;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;}
+.ed *,.ed *::before,.ed *::after{box-sizing:border-box;}
+.ed button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:9px 16px;font-weight:600;background:var(--ink);color:#fff;}
+.ed button.primary{background:var(--o);}.ed button.primary:hover{background:var(--o-dk);}
+.ed button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);}
+.ed button.ghost:hover{border-color:var(--ink);}
+.ed button:disabled{opacity:.4;cursor:not-allowed;}
+.ed button.sm{padding:6px 11px;font-size:.82rem;border-radius:7px;}
+.ed input,.ed textarea,.ed select{font:inherit;width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff;color:var(--ink);}
+.ed input:focus,.ed textarea:focus{outline:none;border-color:var(--o);box-shadow:0 0 0 3px var(--o-wash);}
+.ed textarea{resize:vertical;min-height:62px;line-height:1.5;}
+.ed label.fl{display:block;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 5px;}
+.ed .mark{width:26px;height:26px;flex:none;}
+.ed .hidden{display:none !important;}
+
+/* centered card screens (login / picker) */
+.ed .screen{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;overflow:auto;}
+.ed .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:30px;width:100%;max-width:420px;box-shadow:0 14px 40px rgba(0,0,0,.06);}
+.ed .card.wide{max-width:680px;}
+.ed .brandrow{display:flex;align-items:center;gap:11px;margin-bottom:6px;}
+.ed .brandrow b{font-size:1.06rem;letter-spacing:-.01em;}
+.ed .sub{color:var(--tx2);font-size:.9rem;margin:0 0 22px;}
+.ed .field{margin-bottom:14px;}
+.ed .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.ed .msg{font-size:.85rem;margin-top:12px;min-height:18px;}
+.ed .msg.err{color:#C0392B;}.ed .msg.ok{color:#1E8E4E;}
+.ed .tiny{font-size:.78rem;color:var(--muted);}
+.ed .linkbtn{background:none;color:var(--o-dk);padding:0;font-weight:700;font-size:.82rem;}
+.ed details.hashbox{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;}
+.ed details.hashbox summary{cursor:pointer;font-size:.82rem;font-weight:700;color:var(--tx2);}
+.ed .hashout{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.74rem;word-break:break-all;background:var(--bg);border-radius:8px;padding:9px 11px;margin-top:8px;color:var(--ink);}
+
+/* centre picker grid */
+.ed .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-top:6px;}
+.ed .ctile{border:1px solid var(--line);border-radius:12px;padding:18px;background:#fff;text-align:left;color:var(--ink);transition:.12s;}
+.ed .ctile:hover{border-color:var(--o);box-shadow:0 6px 18px rgba(255,102,0,.10);transform:translateY(-1px);}
+.ed .ctile .cn{font-weight:800;font-size:1.04rem;margin-bottom:3px;}
+.ed .ctile .cz{font-size:.86rem;color:var(--tx2);}
+.ed .ctile .cid{font-size:.7rem;color:var(--muted);margin-top:9px;letter-spacing:.03em;}
+
+/* editor workspace */
+.ed .top{display:flex;align-items:center;gap:12px;padding:0 16px;height:58px;background:#fff;border-bottom:1px solid var(--line);flex:none;}
+.ed .top .who{font-size:.78rem;color:var(--tx2);}
+.ed .top .who b{color:var(--ink);}
+.ed .grow{flex:1;}
+.ed .langseg{display:inline-flex;background:var(--bg);border-radius:999px;padding:3px;}
+.ed .langseg button{background:transparent;color:var(--tx2);border-radius:999px;padding:6px 14px;font-size:.82rem;}
+.ed .langseg button.on{background:var(--ink);color:#fff;}
+.ed .work{flex:1;display:flex;min-height:0;}
+.ed .stage{flex:1;min-width:0;background:var(--bg);position:relative;overflow:hidden;}
+.ed .stage .hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:5;background:rgba(26,26,26,.86);color:#fff;font-size:.76rem;font-weight:600;padding:7px 14px;border-radius:999px;pointer-events:none;transition:opacity .4s;}
+.ed iframe{width:100%;height:100%;border:0;background:#fff;}
+.ed .saving{position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--ink);z-index:8;}
+
+/* edit drawer */
+.ed .drawer{width:0;flex:none;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;transition:width .18s ease;}
+.ed .drawer.open{width:380px;}
+.ed .dhead{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line);flex:none;}
+.ed .dhead .dt{font-weight:800;font-size:1rem;}
+.ed .dhead .dx{margin-left:auto;background:none;color:var(--muted);padding:4px 8px;}
+.ed .dbody{flex:1;overflow:auto;padding:18px;}
+.ed .dfield{margin-bottom:16px;}
+.ed .imgthumb{height:120px;border-radius:10px;border:1px solid var(--line);background:var(--bg) center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.8rem;margin-bottom:8px;}
+.ed .uprow{display:flex;gap:8px;}
+.ed .rowcard{border:1px solid var(--line);border-radius:11px;padding:14px;margin-bottom:14px;position:relative;background:#fff;}
+.ed .rowcard .rhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.ed .rowcard .rhd .rn{font-weight:800;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase;color:var(--o-dk);}
+.ed .rowcard .del{background:none;color:#C0392B;padding:3px 7px;font-size:.78rem;}
+.ed .dfoot{padding:14px 18px;border-top:1px solid var(--line);flex:none;}
+.ed .addbtn{width:100%;border:1px dashed var(--line);background:#fff;color:var(--tx2);}
+.ed .addbtn:hover{border-color:var(--o);color:var(--o-dk);}
+.ed .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 20px;border-radius:10px;font-weight:600;font-size:.86rem;opacity:0;pointer-events:none;transition:.25s;z-index:50;}
+.ed .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.ed .toast.err{background:#C0392B;}
+@media(max-width:760px){.ed .drawer.open{width:100%;position:absolute;right:0;top:0;bottom:0;z-index:20;}}
+</style>
+</head>
+<body>
+<div class="ed" id="ed">
+
+  <!-- ===== LOGIN ===== -->
+  <div class="screen" id="login">
+    <div class="card">
+      <div class="brandrow"><b>Client Directory Editor</b></div>
+      <p class="sub">Choose your centre and sign in.</p>
+      <div class="field"><label class="fl">Centre</label>
+        <select id="inCentre"><option value="">Loading centres…</option></select></div>
+      <div class="field"><label class="fl">Password</label><input id="inPass" type="password" autocomplete="current-password"></div>
+      <button class="primary" id="btnLogin" style="width:100%">Sign in</button>
+      <div class="msg" id="loginMsg"></div>
+      <details class="hashbox">
+        <summary>Connection &amp; password setup</summary>
+        <label class="fl" style="margin-top:12px">Apps Script Web app URL</label>
+        <div class="uprow"><input id="inUrl" placeholder="https://script.google.com/macros/s/…/exec"><button class="ghost sm" id="urlReload">Reload</button></div>
+        <p class="tiny" style="margin:14px 0 8px"><b>Set a password.</b> Type one to get its SHA-256 hash, then paste it into the <b>Centres</b> tab's <b>passHash</b> column (per-centre) or the <b>Users</b> tab (administrator).</p>
+        <div class="uprow"><input id="hashIn" placeholder="new password"><button class="ghost sm" id="hashBtn">Hash</button></div>
+        <div class="hashout hidden" id="hashOut"></div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ===== CENTRE PICKER ===== -->
+  <div class="screen hidden" id="picker">
+    <div class="card wide">
+      <div class="brandrow"><b>Choose a centre</b><span class="grow"></span><button class="ghost sm" id="btnLogout1">Sign out</button></div>
+      <p class="sub" id="pickerSub">Select the centre you want to edit.</p>
+      <div class="cgrid" id="cgrid"></div>
+    </div>
+  </div>
+
+  <!-- ===== EDITOR ===== -->
+  <div class="hidden" id="editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div class="top">
+      
+      <div class="who"><b id="curName">—</b><br><span id="whoName"></span></div>
+      <span class="grow"></span>
+      <div class="langseg"><button id="segEn" class="on">EN</button><button id="segZh">繁中</button></div>
+      <button class="ghost sm" id="btnSave">Save</button>
+      <button class="ghost sm" id="btnHtml">Export HTML</button>
+      <button class="ghost sm" id="btnPdf">Export PDF</button>
+      <button class="ghost sm" id="btnCentres">Centres</button>
+      <button class="ghost sm" id="btnLogout2">Sign out</button>
+    </div>
+    <div class="work">
+      <div class="stage">
+        <div class="hint" id="hint">Click any part of the page to edit it</div>
+        <div class="saving hidden" id="saving">Saving…</div>
+        <iframe id="frame"></iframe>
+      </div>
+      <aside class="drawer" id="drawer">
+        <div class="dhead"><span class="dt" id="drawerTitle">Edit</span><button class="dx" id="drawerClose">✕</button></div>
+        <div class="dbody" id="drawerBody"></div>
+        <div class="dfoot hidden" id="drawerFoot"></div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var MARK = '<svg class="mark" viewBox="0 0 23.13 23.13"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>';
+document.querySelectorAll(".ed").forEach(function(){});
+// inject mark
+document.querySelectorAll("#login .brandrow, #picker .brandrow").forEach(function(el){ el.insertAdjacentHTML("afterbegin", MARK); });
+var topMark = document.querySelector(".top"); if(topMark){ topMark.insertAdjacentHTML("afterbegin", MARK); }
+
+function $(s,r){ return (r||document).querySelector(s); }
+function lsGet(k){ try{return localStorage.getItem(k);}catch(e){return null;} }
+function lsSet(k,v){ try{localStorage.setItem(k,v);}catch(e){} }
+
+/* ---------- state ---------- */
+var DEFAULT_API="https://script.google.com/macros/s/AKfycbxcTewWo8PCVw4RcaXRGYXZ9XvNeFzSlpnY4rcTkkimDrwMBPgGTeNhuK2O_IKVO_ol2A/exec";
+var API="", TOKEN="", ROLE="", MYCENTRE="", WHO="", CENTRES=[], CENTRE="", CENTRENAME="", CENTRENAMEZH="";
+var DATA=null, LANG="en", EDIT=true, DIRTY=false, TEMPLATE=lsGet("co_dir_tpl")||"";
+var uid=1;
+
+/* ---------- api ---------- */
+function api(payload){
+  payload.token = TOKEN;
+  return fetch(API, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(payload) })
+    .then(function(r){ return r.json(); });
+}
+function toast(m, err){ var t=$("#toast"); t.textContent=m; t.className="toast show"+(err?" err":""); setTimeout(function(){ t.className="toast"; }, 2200); }
+
+/* ---------- screens ---------- */
+function show(id){ ["login","picker","editor"].forEach(function(s){ $("#"+s).classList.toggle("hidden", s!==id); }); }
+
+/* ---------- login ---------- */
+API = lsGet("co_dir_url") || DEFAULT_API;
+$("#inUrl").value = API;
+$("#btnLogin").addEventListener("click", doLogin);
+$("#inPass").addEventListener("keydown", function(e){ if(e.key==="Enter") doLogin(); });
+$("#urlReload").addEventListener("click", function(){ API=$("#inUrl").value.trim(); lsSet("co_dir_url",API); loadCentres(); });
+
+function loadCentres(){
+  var sel=$("#inCentre"); sel.innerHTML='<option value="">Loading centres…</option>';
+  if(!API){ sel.innerHTML='<option value="">Set the Web app URL below</option>'; return; }
+  fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"centres"})})
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if(!res.ok||!res.centres){ sel.innerHTML='<option value="">Could not load centres</option>'; return; }
+      var groups={}, order=[];
+      res.centres.forEach(function(c){ var d=c.district||"Other"; if(!groups[d]){groups[d]=[];order.push(d);} groups[d].push(c); });
+      var html='<option value="">— Select a centre —</option><option value="__admin__">Administrator — all centres</option>';
+      order.forEach(function(d){
+        html+='<optgroup label="'+esc(d)+'">';
+        groups[d].forEach(function(c){ html+='<option value="'+esc(c.centreId)+'">'+esc(c.name_en)+'</option>'; });
+        html+='</optgroup>';
+      });
+      sel.innerHTML=html;
+    })
+    .catch(function(){ sel.innerHTML='<option value="">Could not reach the API</option>'; });
+}
+loadCentres();
+
+function doLogin(){
+  API=$("#inUrl").value.trim()||DEFAULT_API; lsSet("co_dir_url", API);
+  var msg=$("#loginMsg"); msg.className="msg";
+  var centreId=$("#inCentre").value;
+  if(!centreId){ msg.className="msg err"; msg.textContent="Choose a centre first."; return; }
+  msg.textContent="Signing in…";
+  api({ action:"login", centreId:centreId, password:$("#inPass").value })
+    .then(function(res){
+      if(!res.ok){ msg.className="msg err"; msg.textContent=res.error||"Sign-in failed."; return; }
+      TOKEN=res.token; ROLE=res.role; MYCENTRE=res.centreId||""; WHO=res.displayName||"";
+      CENTRES=res.centres||[]; $("#inPass").value=""; msg.textContent="";
+      $("#whoName").textContent=WHO;
+      $("#btnCentres").classList.toggle("hidden", ROLE!=="admin");
+      if(ROLE==="centre"){ pickCentre(CENTRES[0]); return; }
+      if(res.goto){ var g=null; CENTRES.forEach(function(c){ if(c.centreId===res.goto) g=c; }); if(g){ pickCentre(g); return; } }
+      buildPicker(); show("picker");
+    })
+    .catch(function(){ msg.className="msg err"; msg.textContent="Could not reach the API. Open Connection settings and check the URL."; });
+}
+
+/* password hash tool */
+$("#hashBtn").addEventListener("click", function(){
+  var v=$("#hashIn").value; if(!v) return;
+  crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)).then(function(buf){
+    var hex=Array.prototype.map.call(new Uint8Array(buf), function(b){ return ("0"+b.toString(16)).slice(-2); }).join("");
+    var o=$("#hashOut"); o.textContent=hex; o.classList.remove("hidden");
+  });
+});
+
+/* ---------- picker ---------- */
+function buildPicker(){
+  $("#pickerSub").textContent = ROLE==="admin" ? "You can edit any centre." : "Your centre:";
+  var g=$("#cgrid"); g.innerHTML="";
+  CENTRES.forEach(function(c){
+    var b=document.createElement("button"); b.className="ctile";
+    b.innerHTML='<div class="cn">'+esc(c.name_en||c.centreId)+'</div><div class="cz">'+esc(c.name_zh||"")+'</div><div class="cid">'+esc(c.centreId)+'</div>';
+    b.addEventListener("click", function(){ pickCentre(c); });
+    g.appendChild(b);
+  });
+}
+$("#btnCentres").addEventListener("click", function(){
+  if(DIRTY && !confirm("Discard unsaved changes?")) return;
+  DIRTY=false; if(CENTRES.length>1){ buildPicker(); show("picker"); }
+});
+function logout(){ TOKEN=""; DATA=null; DIRTY=false; show("login"); }
+$("#btnLogout1").addEventListener("click", logout);
+$("#btnLogout2").addEventListener("click", function(){ if(DIRTY && !confirm("Discard unsaved changes?")) return; logout(); });
+
+/* ---------- load a centre ---------- */
+function pickCentre(c){
+  CENTRE=c.centreId; CENTRENAME=c.name_en||c.centreId; CENTRENAMEZH=c.name_zh||"";
+  $("#curName").textContent=CENTRENAME;
+  toast("Loading "+CENTRENAME+"…");
+  api({ action:"read", centreId:CENTRE }).then(function(res){
+    if(!res.ok){ toast(res.error||"Load failed", true); return; }
+    DATA=res; ["Fields","MeetingRooms","FloorPlans","EvacuationPlans","PriceGuide","Fees"].forEach(function(t){
+      DATA.tables[t]=(DATA.tables[t]||[]).map(function(r){ r._id=uid++; return r; });
+    });
+    DIRTY=false; LANG="en"; setSeg(); show("editor"); renderFrame();
+    var h=$("#hint"); h.style.opacity="1"; setTimeout(function(){ h.style.opacity="0"; }, 3200);
+  }).catch(function(){ toast("Could not load centre", true); });
+}
+
+/* ---------- language toggle ---------- */
+function setSeg(){ $("#segEn").classList.toggle("on",LANG==="en"); $("#segZh").classList.toggle("on",LANG==="zh"); }
+$("#segEn").addEventListener("click", function(){ LANG="en"; setSeg(); renderFrame(); });
+$("#segZh").addEventListener("click", function(){ LANG="zh"; setSeg(); renderFrame(); });
+
+/* ========================================================================
+   RENDERER  (DOM-surgery into the brand template; adds edit tags in EDIT mode)
+   ======================================================================== */
+function refreshFieldMap(){
+  DATA.fields={};
+  (DATA.tables.Fields||[]).forEach(function(r){ if(r.key) DATA.fields[r.key]={en:r.value_en||"",zh:r.value_zh||""}; });
+}
+function F(k){ var f=DATA.fields[k]; return f?(f.en||""):""; }
+function Fz(k){ var f=DATA.fields[k]; return f?(f.zh||f.en||""):""; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+function biSpan(en,zh){ return '<span class="en">'+esc(en)+'</span><span class="zh">'+esc(zh||en)+'</span>'; }
+function lines(s){ return String(s||"").split("/").map(function(x){return esc(x.trim());}).join("<br>"); }
+function flat(s){ return String(s||"").split("/").map(function(x){return x.trim();}).join(", "); }
+function telhref(s){ return String(s||"").replace(/[^0-9+]/g,""); }
+function sortByOrder(rows){ return (rows||[]).slice().sort(function(a,b){ return (parseInt(a.order||0,10)||0)-(parseInt(b.order||0,10)||0); }); }
+var RE=true;
+function de(tag){ return RE?(' data-edit="'+tag+'"'):''; }
+function getTemplate(){ return (TEMPLATE&&TEMPLATE.trim())?TEMPLATE:DEFAULT_TEMPLATE; }
+
+function renderDirectory(opts){
+  opts=opts||{}; var edit = ("edit" in opts)?opts.edit:EDIT; RE=edit;
+  refreshFieldMap();
+  var doc=new DOMParser().parseFromString(getTemplate(),"text/html");
+
+  var ctx=doc.querySelector(".bar .brand .ctx");
+  if(ctx){ ctx.innerHTML='<b>'+biSpan("Client Directory","客戶指南")+'</b> · '+biSpan(F("meta.centreName")||CENTRENAME,Fz("meta.centreName")||CENTRENAMEZH); }
+  var title=doc.querySelector("title"); if(title){ title.textContent="Client Directory · "+(F("meta.centreName")||CENTRENAME); }
+
+  var hero=doc.querySelector(".hero#welcome")||doc.querySelector(".hero");
+  var kick=doc.querySelector(".hero .kick");
+  if(kick){ var ic=kick.querySelector("svg"); kick.innerHTML=(ic?ic.outerHTML:"")+biSpan((F("meta.centreName")||CENTRENAME)+" · "+F("meta.levelLabel"),(Fz("meta.centreName")||CENTRENAMEZH)+" · "+Fz("meta.levelLabel")); }
+  if(hero && F("meta.heroImageUrl")){
+    if(!doc.querySelector("style#co-hero-patch")){
+      var st=doc.createElement("style"); st.id="co-hero-patch";
+      st.textContent=".cd .hero{position:relative}.cd .hero .herobanner{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.30;z-index:0}.cd .hero>*:not(.herobanner){position:relative;z-index:1}.cd .hero::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(22,22,22,.92),rgba(22,22,22,.55));z-index:0}";
+      doc.head.appendChild(st);
+    }
+    var old=hero.querySelector(".herobanner"); if(old) old.remove();
+    var img=doc.createElement("img"); img.className="herobanner"; img.src=F("meta.heroImageUrl"); img.alt=F("meta.centreName"); hero.insertBefore(img,hero.firstChild);
+  }
+  if(hero && edit){ hero.setAttribute("data-edit","group:hero"); }
+  var meta=doc.querySelector(".hero .meta");
+  if(meta){
+    meta.innerHTML=
+      '<div><div class="lab">'+biSpan("Address","地址")+'</div><div class="val en">'+lines(F("meta.addressEN"))+'</div><div class="val zh">'+lines(Fz("meta.addressZH"))+'</div></div>'+
+      '<div><div class="lab">'+biSpan("Telephone","電話")+'</div><div class="val"><a href="tel:'+telhref(F("meta.tel"))+'">'+esc(F("meta.tel"))+'</a></div>'+
+        '<div class="lab" style="margin-top:12px">'+biSpan("Fax","傳真")+'</div><div class="val"><a href="tel:'+telhref(F("meta.fax"))+'">'+esc(F("meta.fax"))+'</a></div></div>'+
+      '<div><div class="lab">'+biSpan("Reception Hours","接待時間")+'</div><div class="val">'+biSpan(F("meta.receptionHoursEN"),Fz("meta.receptionHoursZH"))+'</div></div>';
+  }
+
+  patchQuick(doc, edit);
+
+  var mr=doc.querySelector("#facilities .mrooms");
+  if(mr){
+    mr.innerHTML=sortByOrder(DATA.tables.MeetingRooms).map(function(r){
+      return '<div class="mroom"'+de("row:MeetingRooms:"+r._id)+'><div class="mn"><b>'+esc(r.name)+'</b><span class="cap">'+esc(r.size)+'</span></div><div class="mf">'+biSpan(r.facility_en,r.facility_zh)+'</div></div>';
+    }).join("");
+    if(edit){ var add=doc.createElement("div"); add.className="mroom co-add"; add.setAttribute("data-add","MeetingRooms"); add.innerHTML='<b>+ Add meeting room</b>'; mr.appendChild(add); }
+  }
+
+  patchAccess(doc, edit);
+  buildFigures(doc,"#floorplan",DATA.tables.FloorPlans,"FloorPlans","Centre Floor Plan",edit);
+  buildFigures(doc,"#evacuation",DATA.tables.EvacuationPlans,"EvacuationPlans","Emergency Evacuation Plan",edit);
+
+  var feesSec=doc.querySelector("#fees");
+  if(feesSec){
+    if((F("show.fees")||"TRUE").toUpperCase()==="FALSE"){ feesSec.remove(); }
+    else { buildFees(doc, edit); }
+  }
+  if((F("show.priceGuide")||"TRUE").toUpperCase()!=="FALSE"){ buildPriceGuide(doc, edit); }
+  else { var pgs=doc.querySelector("#price-guide"); if(pgs) pgs.remove(); }
+
+  patchPhoneCodes(doc, edit);
+  patchPayment(doc, edit);
+
+  var fend=doc.querySelector(".foot .fend");
+  if(fend){ fend.innerHTML=
+    '<span class="en">'+esc(F("meta.centreName")||CENTRENAME)+' · '+esc(flat(F("meta.addressEN")))+' · Tel '+esc(F("meta.tel"))+' · Fax '+esc(F("meta.fax"))+'</span>'+
+    '<span class="zh">'+esc(Fz("meta.centreName")||CENTRENAMEZH)+' · '+esc(flat(Fz("meta.addressZH")))+' · 電話 '+esc(F("meta.tel"))+' · 傳真 '+esc(F("meta.fax"))+'</span>'; }
+
+  doc.documentElement.querySelector(".cd").setAttribute("data-lang", edit?LANG:"en");
+
+  if(edit){
+    var es=doc.createElement("style");
+    es.textContent='[data-edit]{cursor:pointer}[data-edit]:hover{outline:2px dashed #FF6600;outline-offset:3px;border-radius:4px}.co-add{display:flex;align-items:center;justify-content:center;color:#E55A00 !important;border:1px dashed #FF6600 !important;background:#FFF3EB !important;cursor:pointer;min-height:64px}[data-add]:hover{background:#FFE3CC !important}';
+    doc.head.appendChild(es);
+    var sc=doc.createElement("script");
+    sc.textContent='document.addEventListener("click",function(e){var t=e.target.closest("[data-edit]");if(t){e.preventDefault();parent.postMessage({co:"edit",key:t.getAttribute("data-edit")},"*");return;}var a=e.target.closest("[data-add]");if(a){e.preventDefault();parent.postMessage({co:"add",table:a.getAttribute("data-add")},"*");}},true);';
+    doc.body.appendChild(sc);
+  }
+  return "<!DOCTYPE html>\n"+doc.documentElement.outerHTML;
+}
+
+function patchQuick(doc, edit){
+  var q=doc.querySelector("#quick .quick"); if(q && edit) q.setAttribute("data-edit","group:quick");
+  var cards=doc.querySelectorAll("#quick .qcard"); if(!cards.length) return;
+  var map=[
+    {qv:'<a href="tel:'+telhref(F("contact.emergencyCO"))+'">'+esc(F("contact.emergencyCO"))+'</a>'},
+    {qvbi:[F("contact.businessHoursEN"),Fz("contact.businessHoursZH")]},
+    {qvbi:[F("contact.wifiNameEN"),Fz("contact.wifiNameZH")]},
+    {qv:'<a href="tel:'+telhref(F("contact.buildingMgmt"))+'">'+esc(F("contact.buildingMgmt"))+'</a>'}
+  ];
+  cards.forEach(function(card,i){ if(!map[i]) return; var qv=card.querySelector(".qv"); if(!qv) return;
+    if(map[i].qv) qv.innerHTML=map[i].qv; if(map[i].qvbi) qv.innerHTML=biSpan(map[i].qvbi[0],map[i].qvbi[1]); });
+}
+function patchAccess(doc, edit){
+  var bm=doc.querySelector("#access .note.gray");
+  if(bm){ if(edit) bm.setAttribute("data-edit","group:security");
+    bm.innerHTML='<span class="en"><b>Building Management security measures.</b> '+esc(F("security.bmMeasuresEN"))+'</span><span class="zh"><b>大廈管理處保安措施。</b>'+esc(Fz("security.bmMeasuresZH"))+'</span>'; }
+}
+function buildFigures(doc, sel, rows, tableName, defCap, edit){
+  var sec=doc.querySelector(sel); if(!sec) return;
+  sec.querySelectorAll(".figure,.co-add").forEach(function(f){ f.remove(); });
+  var lead=sec.querySelector(".lead"); var anchor=lead||sec.querySelector("h2")||sec.firstElementChild;
+  var frag=doc.createElement("div");
+  sortByOrder(rows).forEach(function(r){
+    var cap_en=(r.caption_en||(r.level_en?r.level_en:defCap)), cap_zh=(r.caption_zh||(r.level_zh?r.level_zh:defCap));
+    var fig=doc.createElement("figure"); fig.className="figure"; if(edit) fig.setAttribute("data-edit","row:"+tableName+":"+r._id);
+    var lvl=r.level_en?('<div class="seyebrow" style="margin:0 16px;padding-top:10px"><span class="en">'+esc(r.level_en)+'</span><span class="zh">'+esc(r.level_zh||r.level_en)+'</span></div>'):"";
+    fig.innerHTML=lvl+(r.image_url?'<img class="fimg" src="'+esc(r.image_url)+'" alt="'+esc(cap_en)+'">':'<div class="fimg" style="height:150px;display:flex;align-items:center;justify-content:center;color:#BBB;font-size:.85rem">No image set</div>')+
+      '<figcaption class="fcap"><span>'+biSpan(cap_en,cap_zh)+'</span></figcaption>';
+    frag.appendChild(fig);
+  });
+  var ref=anchor?anchor.nextSibling:null;
+  while(frag.firstChild){ sec.insertBefore(frag.firstChild, ref); }
+  if(edit){ var add=doc.createElement("button"); add.className="co-add"; add.style.cssText="width:100%;margin-top:6px"; add.setAttribute("data-add",tableName); add.innerHTML="<b>+ Add "+(tableName==="FloorPlans"?"floor plan":"evacuation plan")+"</b>"; sec.appendChild(add); }
+}
+function buildFees(doc, edit){
+  var wrap=doc.querySelector('#fees [data-co="fees-hk"]'); if(!wrap) return;
+  if(edit){ var sec=doc.querySelector("#fees"); sec.setAttribute("data-edit","table:Fees"); }
+  var rows=sortByOrder(DATA.tables.Fees);
+  var t='<table><thead><tr><th>'+biSpan("Fee","費用")+'</th><th>'+biSpan("Amount","金額")+'</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var note_en=r.note_en?' <span style="color:#888">'+esc(r.note_en)+'</span>':"", note_zh=r.note_zh?' <span style="color:#888">'+esc(r.note_zh)+'</span>':"";
+    t+='<tr><th>'+biSpan(r.fee_en,r.fee_zh)+'</th><td><span class="en">'+esc(r.value)+note_en+'</span><span class="zh">'+esc(r.value)+note_zh+'</span></td></tr>';
+  });
+  t+='</tbody></table>'; wrap.innerHTML=t;
+}
+function buildPriceGuide(doc, edit){
+  var sec=doc.querySelector("#price-guide"); if(!sec) return;
+  if(edit) sec.setAttribute("data-edit","table:PriceGuide");
+  var lead=sec.querySelector(".lead");
+  if(lead){ var sib=lead.nextElementSibling; while(sib){ var n=sib.nextElementSibling; sib.remove(); sib=n; } }
+  var rows=sortByOrder(DATA.tables.PriceGuide), tables={}, torder=[];
+  rows.forEach(function(r){ var t=r.table||"Price Guide"; if(!tables[t]){tables[t]=[];torder.push(t);} tables[t].push(r); });
+  torder.forEach(function(t){
+    var h3=doc.createElement("h3"); h3.className="sub"; h3.textContent=t; sec.appendChild(h3);
+    var wrap=doc.createElement("div"); wrap.className="tbl-wrap";
+    var tbl='<table><thead><tr><th>'+biSpan("Description","項目")+'</th><th>'+biSpan("Price / Unit","價格 / 單位")+'</th></tr></thead><tbody>', lastG="";
+    tables[t].forEach(function(r){
+      if(r.group && r.group!==lastG){ tbl+='<tr><td class="grouprow" colspan="2">'+esc(r.group)+'</td></tr>'; lastG=r.group; }
+      var cls=r.group?' class="subrow"':'';
+      tbl+='<tr'+cls+'><th>'+biSpan(r.desc_en,r.desc_zh)+'</th><td>'+biSpan(r.value_en,r.value_zh||r.value_en)+'</td></tr>';
+    });
+    tbl+='</tbody></table>'; wrap.innerHTML=tbl; sec.appendChild(wrap);
+  });
+}
+function patchPhoneCodes(doc, edit){
+  var g=doc.querySelector("#guides"); if(!g) return;
+  if(edit){ var steps=g.querySelector(".steps"); if(steps) steps.setAttribute("data-edit","group:phone"); }
+  var sub={ "5690":F("phone.voicemailDial"),"+852 3972 5690":F("phone.voicemailExternal"),"5688":F("phone.confBridgeDial"),"+852 3972 5688":F("phone.confBridgeExternal") };
+  g.querySelectorAll("code").forEach(function(c){ var t=c.textContent.trim(); if(sub[t]){ c.textContent=sub[t]; } });
+}
+function patchPayment(doc, edit){
+  var bank=doc.querySelector("#payment .bank");
+  if(bank){ if(edit) bank.setAttribute("data-edit","group:payment");
+    var rows=[["Account Name","賬戶名稱",F("payment.accountName")],["Bank","銀行",F("payment.bank")],["Branch","分行",F("payment.branch")],["Account No.","賬戶號碼",F("payment.accountNo")],["SWIFT","SWIFT",F("payment.swift")],["Bank Code","銀行編號",F("payment.bankCode")],["Branch No.","分行編號",F("payment.branchNo")]];
+    if(F("payment.fpsId")) rows.push(["FPS ID","轉數快 ID",F("payment.fpsId")]);
+    bank.innerHTML=rows.map(function(r){ return '<div class="brow"><div class="bk">'+biSpan(r[0],r[1])+'</div><div class="bv">'+esc(r[2])+'</div></div>'; }).join("");
+  }
+  var lead=doc.querySelector("#payment .lead b"); if(lead) lead.textContent=F("payment.accountName");
+}
+
+/* ---------- frame + edit dispatch ---------- */
+function renderFrame(){ if(!DATA) return; $("#frame").srcdoc=renderDirectory({edit:true}); }
+window.addEventListener("message", function(e){
+  var d=e.data; if(!d||(d.co!=="edit"&&d.co!=="add")) return;
+  if(d.co==="add"){ addRow(d.table); return; }
+  var k=d.key;
+  if(k.indexOf("group:")===0) openFields(k.slice(6));
+  else if(k.indexOf("table:")===0) openTable(k.slice(6));
+  else if(k.indexOf("row:")===0) openTable(k.split(":")[1]);
+});
+
+/* ---------- fields drawer ---------- */
+var GROUPS={
+  hero:{title:"Centre identity",items:[
+    {key:"meta.centreName",label:"Centre name",col:"both"},
+    {key:"meta.levelLabel",label:"Level / floor label",col:"both"},
+    {key:"meta.addressEN",label:"Address (English)",col:"en",type:"textarea"},
+    {key:"meta.addressZH",label:"Address (繁中)",col:"zh",type:"textarea"},
+    {key:"meta.tel",label:"Telephone",col:"en"},
+    {key:"meta.fax",label:"Fax",col:"en"},
+    {key:"meta.receptionHoursEN",label:"Reception hours (English)",col:"en"},
+    {key:"meta.receptionHoursZH",label:"Reception hours (繁中)",col:"zh"},
+    {key:"meta.heroImageUrl",label:"Hero image",col:"en",type:"image"}
+  ]},
+  quick:{title:"Quick reference",items:[
+    {key:"contact.emergencyCO",label:"Compass emergency number",col:"en"},
+    {key:"contact.businessHoursEN",label:"Business hours (English)",col:"en"},
+    {key:"contact.businessHoursZH",label:"Business hours (繁中)",col:"zh"},
+    {key:"contact.wifiNameEN",label:"Wi-Fi name (English)",col:"en"},
+    {key:"contact.wifiNameZH",label:"Wi-Fi name (繁中)",col:"zh"},
+    {key:"contact.buildingMgmt",label:"Building management number",col:"en"}
+  ]},
+  security:{title:"Access & security",items:[
+    {key:"security.bmMeasuresEN",label:"Building security measures (English)",col:"en",type:"textarea"},
+    {key:"security.bmMeasuresZH",label:"Building security measures (繁中)",col:"zh",type:"textarea"}
+  ]},
+  phone:{title:"Phone & device codes",items:[
+    {key:"phone.voicemailDial",label:"Voicemail dial code",col:"en"},
+    {key:"phone.voicemailExternal",label:"Voicemail external number",col:"en"},
+    {key:"phone.confBridgeDial",label:"Conference bridge dial code",col:"en"},
+    {key:"phone.confBridgeExternal",label:"Conference bridge external number",col:"en"}
+  ]},
+  payment:{title:"Payment & remittance",items:[
+    {key:"payment.accountName",label:"Account name",col:"en"},
+    {key:"payment.bank",label:"Bank",col:"en"},
+    {key:"payment.branch",label:"Branch",col:"en",type:"textarea"},
+    {key:"payment.accountNo",label:"Account number",col:"en"},
+    {key:"payment.swift",label:"SWIFT",col:"en"},
+    {key:"payment.bankCode",label:"Bank code",col:"en"},
+    {key:"payment.branchNo",label:"Branch number",col:"en"},
+    {key:"payment.fpsId",label:"FPS ID (blank to hide)",col:"en"}
+  ]}
+};
+var TABLES={
+  MeetingRooms:{title:"Meeting rooms",rowName:"Room",cols:[
+    {k:"name",label:"Name"},{k:"size",label:"Capacity"},{k:"facility_en",label:"Facilities (English)"},{k:"facility_zh",label:"Facilities (繁中)"}]},
+  FloorPlans:{title:"Floor plans",rowName:"Floor",cols:[
+    {k:"level_en",label:"Level (English)"},{k:"level_zh",label:"Level (繁中)"},{k:"image_url",label:"Plan image",type:"image"},{k:"caption_en",label:"Caption (English)"},{k:"caption_zh",label:"Caption (繁中)"}]},
+  EvacuationPlans:{title:"Evacuation plans",rowName:"Floor",cols:[
+    {k:"level_en",label:"Level (English)"},{k:"level_zh",label:"Level (繁中)"},{k:"image_url",label:"Plan image",type:"image"},{k:"caption_en",label:"Caption (English)"},{k:"caption_zh",label:"Caption (繁中)"}]},
+  PriceGuide:{title:"Price guide",rowName:"Line",cols:[
+    {k:"table",label:"Section heading"},{k:"group",label:"Sub-group (optional)"},{k:"desc_en",label:"Description (English)"},{k:"desc_zh",label:"Description (繁中)"},{k:"value_en",label:"Price (English)"},{k:"value_zh",label:"Price (繁中, optional)"}]},
+  Fees:{title:"Fees & charges",rowName:"Fee",cols:[
+    {k:"fee_en",label:"Fee (English)"},{k:"fee_zh",label:"Fee (繁中)"},{k:"value",label:"Amount"},{k:"note_en",label:"Note (English)"},{k:"note_zh",label:"Note (繁中)"}]}
+};
+
+function fieldRow(key){
+  var r=null; (DATA.tables.Fields||[]).forEach(function(x){ if(x.key===key) r=x; });
+  if(!r){ r={centreId:CENTRE,key:key,section:"",label:"",value_en:"",value_zh:""}; DATA.tables.Fields.push(r); }
+  return r;
+}
+function openDrawer(title){ $("#drawerTitle").textContent=title; $("#drawer").classList.add("open"); $("#drawerFoot").classList.add("hidden"); $("#drawerFoot").innerHTML=""; }
+$("#drawerClose").addEventListener("click", function(){ $("#drawer").classList.remove("open"); });
+
+function openFields(group){
+  var g=GROUPS[group]; if(!g) return; openDrawer(g.title);
+  var b=$("#drawerBody"); b.innerHTML="";
+  g.items.forEach(function(it){
+    var row=fieldRow(it.key);
+    var wrap=document.createElement("div"); wrap.className="dfield";
+    if(it.type==="image"){ wrap.appendChild(imageControl(it.label, function(){return row.value_en;}, function(v){ row.value_en=v; markDirty(); renderFrame(); })); }
+    else if(it.col==="both"){
+      wrap.appendChild(textControl(it.label+" — English", it.type, row.value_en, function(v){ row.value_en=v; live(); }));
+      wrap.appendChild(textControl(it.label+" — 繁中", it.type, row.value_zh, function(v){ row.value_zh=v; live(); }));
+    } else {
+      var col=it.col==="zh"?"value_zh":"value_en";
+      wrap.appendChild(textControl(it.label, it.type, row[col], function(v){ row[col]=v; live(); }));
+    }
+    b.appendChild(wrap);
+  });
+}
+function openTable(name){
+  var spec=TABLES[name]; if(!spec) return; openDrawer(spec.title);
+  var b=$("#drawerBody"); b.innerHTML="";
+  var rows=sortByOrder(DATA.tables[name]);
+  rows.forEach(function(r,i){ b.appendChild(tableRowCard(name,spec,r,i+1)); });
+  var foot=$("#drawerFoot"); foot.classList.remove("hidden");
+  foot.innerHTML='<button class="addbtn">+ Add '+spec.rowName.toLowerCase()+'</button>';
+  foot.firstChild.addEventListener("click", function(){ addRow(name); });
+}
+function tableRowCard(name,spec,r,n){
+  var card=document.createElement("div"); card.className="rowcard";
+  var hd=document.createElement("div"); hd.className="rhd";
+  hd.innerHTML='<span class="rn">'+esc(spec.rowName)+' '+n+'</span>';
+  var del=document.createElement("button"); del.className="del"; del.textContent="Remove";
+  del.addEventListener("click", function(){ DATA.tables[name]=DATA.tables[name].filter(function(x){return x!==r;}); markDirty(); renderFrame(); openTable(name); });
+  hd.appendChild(del); card.appendChild(hd);
+  spec.cols.forEach(function(c){
+    if(c.type==="image"){ card.appendChild(imageControl(c.label, function(){return r[c.k];}, function(v){ r[c.k]=v; markDirty(); renderFrame(); })); }
+    else card.appendChild(textControl(c.label, c.type, r[c.k], function(v){ r[c.k]=v; live(); }));
+  });
+  return card;
+}
+function addRow(name){
+  var spec=TABLES[name]; if(!spec) return;
+  var maxOrder=0; (DATA.tables[name]||[]).forEach(function(r){ maxOrder=Math.max(maxOrder, parseInt(r.order||0,10)||0); });
+  var row={centreId:CENTRE, order:maxOrder+10, _id:uid++};
+  spec.cols.forEach(function(c){ row[c.k]=""; });
+  if(name==="PriceGuide"){ var last=sortByOrder(DATA.tables[name]).slice(-1)[0]; if(last) row.table=last.table; }
+  DATA.tables[name].push(row); markDirty(); renderFrame(); openTable(name);
+}
+
+/* drawer controls */
+function textControl(label, type, val, oninput){
+  var w=document.createElement("div"); w.style.marginBottom="12px";
+  var l=document.createElement("label"); l.className="fl"; l.textContent=label; w.appendChild(l);
+  var inp=document.createElement(type==="textarea"?"textarea":"input"); inp.value=val||"";
+  inp.addEventListener("input", function(){ oninput(inp.value); });
+  w.appendChild(inp); return w;
+}
+function imageControl(label, get, set){
+  var w=document.createElement("div"); w.style.marginBottom="12px";
+  var l=document.createElement("label"); l.className="fl"; l.textContent=label; w.appendChild(l);
+  var th=document.createElement("div"); th.className="imgthumb";
+  function paint(){ var u=get(); th.style.backgroundImage=u?("url('"+esc(u)+"')"):""; th.textContent=u?"":"No image"; }
+  paint(); w.appendChild(th);
+  var row=document.createElement("div"); row.className="uprow";
+  var file=document.createElement("input"); file.type="file"; file.accept="image/*"; file.style.display="none";
+  var up=document.createElement("button"); up.className="ghost sm"; up.textContent="Upload"; up.style.flex="1";
+  up.addEventListener("click", function(){ file.click(); });
+  file.addEventListener("change", function(){ if(file.files[0]) doUpload(file.files[0], function(url){ set(url); paint(); }); });
+  var url=document.createElement("button"); url.className="ghost sm"; url.textContent="Paste URL";
+  url.addEventListener("click", function(){ var u=prompt("Image URL:", get()||""); if(u!=null){ set(u); paint(); } });
+  row.appendChild(up); row.appendChild(url); row.appendChild(file); w.appendChild(row);
+  return w;
+}
+function doUpload(file, cb){
+  toast("Uploading image…");
+  var rd=new FileReader();
+  rd.onload=function(){ var b64=String(rd.result).split(",")[1];
+    api({ action:"upload", centreId:CENTRE, name:file.name, mime:file.type, data:b64 })
+      .then(function(res){ if(res.ok){ cb(res.url); markDirty(); toast("Image uploaded"); } else toast(res.error||"Upload failed", true); })
+      .catch(function(){ toast("Upload failed", true); });
+  };
+  rd.readAsDataURL(file);
+}
+function live(){ markDirty(); clearTimeout(live._t); live._t=setTimeout(renderFrame, 350); }
+function markDirty(){ DIRTY=true; $("#btnSave").textContent="Save *"; }
+
+/* ---------- save ---------- */
+$("#btnSave").addEventListener("click", function(){
+  if(!DATA) return; $("#saving").classList.remove("hidden");
+  var payload={};
+  ["Fields","MeetingRooms","FloorPlans","EvacuationPlans","PriceGuide","Fees"].forEach(function(t){
+    payload[t]=(DATA.tables[t]||[]).map(function(r){ var o={}; for(var k in r){ if(k!=="_id") o[k]=r[k]; } return o; });
+  });
+  api({ action:"write", centreId:CENTRE, data:payload })
+    .then(function(res){ $("#saving").classList.add("hidden");
+      if(res.ok){ DIRTY=false; $("#btnSave").textContent="Save"; toast("Saved to sheet"); }
+      else toast(res.error||"Save failed", true); })
+    .catch(function(){ $("#saving").classList.add("hidden"); toast("Save failed", true); });
+});
+
+/* ---------- export HTML (WordPress-ready, no edit scaffolding) ---------- */
+$("#btnHtml").addEventListener("click", function(){
+  if(!DATA) return;
+  var html=renderDirectory({edit:false});
+  var name=(F("meta.centreName")||CENTRE||"client-directory").replace(/[^a-z0-9]+/gi,"-").toLowerCase()+"-directory.html";
+  var blob=new Blob([html],{type:"text/html"}); var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=name; a.click(); toast("Exported "+name);
+});
+
+/* ---------- export PDF (designed A4) ---------- */
+function buildPrint(){
+  var doc=new DOMParser().parseFromString(renderDirectory({edit:false}),"text/html");
+  var cd=doc.querySelector(".cd"); cd.setAttribute("data-lang", LANG);
+  // cover
+  var name=esc(LANG==="zh"?(Fz("meta.centreName")||CENTRENAMEZH):(F("meta.centreName")||CENTRENAME));
+  var level=esc(LANG==="zh"?Fz("meta.levelLabel"):F("meta.levelLabel"));
+  var addr=(LANG==="zh"?lines(Fz("meta.addressZH")):lines(F("meta.addressEN")));
+  var heroU=F("meta.heroImageUrl");
+  var cover=doc.createElement("section"); cover.className="co-cover";
+  cover.innerHTML=(heroU?'<div class="cov-band" style="background-image:url(\''+esc(heroU)+'\')"></div>':'')+
+    '<div class="cov-inner"><div class="cov-mark"><svg viewBox="0 0 23.13 23.13"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg></div>'+
+    '<div class="cov-kick">'+(LANG==="zh"?"客戶指南":"CLIENT DIRECTORY")+'</div>'+
+    '<h1 class="cov-name">'+name+'</h1>'+(level?'<div class="cov-level">'+level+'</div>':'')+
+    '<div class="cov-addr">'+addr+'</div><div class="cov-tag">/ A GREAT PLACE TO WORK /</div></div>';
+  var shell=doc.querySelector(".shell"); shell.insertBefore(cover, shell.firstChild);
+  // print stylesheet
+  var ps=doc.createElement("style");
+  ps.textContent=printCSS(name);
+  doc.head.appendChild(ps);
+  return "<!DOCTYPE html>\n"+doc.documentElement.outerHTML;
+}
+function printCSS(name){
+  return '@media screen{.co-cover{display:none}}'+
+  '@media print{'+
+  '@page{size:A4;margin:18mm 15mm 20mm;'+
+    '@bottom-left{content:"'+name.replace(/"/g,'')+'";font:700 8pt Arial;color:#999}'+
+    '@bottom-center{content:"/ A GREAT PLACE TO WORK /";font:700 7pt Arial;letter-spacing:.12em;color:#FF6600}'+
+    '@bottom-right{content:counter(page) " / " counter(pages);font:8pt Arial;color:#999}}'+
+  '@page:first{@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}}'+
+  'html,body{background:#fff!important}'+
+  '.cd .bar,.cd .langtog{display:none!important}'+
+  '.cd .shell{max-width:none;margin:0}'+
+  '.cd .hero{display:none!important}'+
+  '.cd section{padding:14mm 0 6mm;border-top:1px solid #E5E5E5;break-inside:auto}'+
+  '.cd section:first-of-type{border-top:0}'+
+  '.cd h2,.cd h3{break-after:avoid}.cd .lead{break-after:avoid}'+
+  '.cd .figure,.cd .mroom,.cd .qcard,.cd .bank,.cd .brow,.cd .note,.cd .srow{break-inside:avoid}'+
+  '.cd thead{display:table-header-group}.cd tr{break-inside:avoid}'+
+  '.cd thead th{background:#1A1A1A!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+  '.cd .qcard.alert{background:#FF6600!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+  '.cd .seyebrow,.cd .seyebrow .num{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+  '.cd .fimg{max-height:150mm;object-fit:contain}'+
+  /* cover */
+  '.co-cover{display:flex;flex-direction:column;min-height:248mm;break-after:page;position:relative;padding:0}'+
+  '.co-cover .cov-band{height:78mm;background-size:cover;background-position:center;border-bottom:4px solid #FF6600;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+  '.co-cover .cov-inner{flex:1;display:flex;flex-direction:column;justify-content:center;padding:8mm 4mm}'+
+  '.co-cover .cov-mark svg{width:40px;height:40px;margin-bottom:10mm}'+
+  '.co-cover .cov-kick{font:700 10pt Arial;letter-spacing:.28em;color:#FF6600;margin-bottom:6mm}'+
+  '.co-cover .cov-name{font:800 34pt/1.05 Arial;letter-spacing:-.01em;color:#1A1A1A;margin:0 0 4mm}'+
+  '.co-cover .cov-level{font:600 14pt Arial;color:#555;margin-bottom:10mm}'+
+  '.co-cover .cov-addr{font:400 11pt/1.6 Arial;color:#333;max-width:120mm}'+
+  '.co-cover .cov-tag{margin-top:auto;font:700 9pt Arial;letter-spacing:.2em;color:#FF6600}'+
+  '}';
+}
+$("#btnPdf").addEventListener("click", function(){
+  if(!DATA) return;
+  var html=buildPrint();
+  var w=window.open("","_blank");
+  if(!w){ toast("Allow pop-ups to export PDF", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  w.onload=function(){ setTimeout(function(){ w.focus(); w.print(); }, 600); };
+});
+
+/* ---------- default brand template ---------- */
+var DEFAULT_TEMPLATE = [
+'<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Client Directory</title>',
+'<style>',
+'.cd{--co-orange:#FF6600;--co-orange-dk:#E55A00;--co-orange-wash:#FFF3EB;--co-orange-tint:#FFD9BD;--co-ink:#1A1A1A;--co-text:#333;--co-text-2:#555;--co-muted:#888;--co-faint:#BBB;--co-line:#E5E5E5;--co-bg:#F5F5F5;--co-fill:#EFEFEF;--co-paper:#FFF;--co-radius:10px;--co-radius-pill:999px;color:var(--co-ink);font-family:inherit;line-height:1.6;-webkit-font-smoothing:antialiased;background:var(--co-bg);}',
+'.cd *,.cd *::before,.cd *::after{box-sizing:border-box;}',
+'.cd[data-lang="en"] .zh{display:none !important;}.cd[data-lang="zh"] .en{display:none !important;}',
+'.cd .zh{font-family:inherit;}',
+'.cd img{max-width:100%;display:block;}.cd a{color:inherit;}',
+'.cd h1,.cd h2,.cd h3,.cd h4{margin:0;font-weight:800;letter-spacing:-.015em;line-height:1.12;}.cd p{margin:0 0 .85em;}',
+'.cd .bar{position:sticky;top:0;z-index:60;background:#fff;border-bottom:1px solid var(--co-line);display:flex;align-items:center;gap:16px;padding:0 20px;height:62px;}',
+'.cd .bar .brand{display:flex;align-items:center;gap:12px;}.cd .bar .brand svg{height:24px;}',
+'.cd .bar .brand .ctx{font-size:.74rem;font-weight:700;color:var(--co-text-2);}.cd .bar .brand .ctx b{color:var(--co-ink);}',
+'.cd .langtog{margin-left:auto;display:inline-flex;background:var(--co-fill);border-radius:999px;padding:3px;}',
+'.cd .langtog button{border:0;background:transparent;cursor:pointer;font:inherit;font-weight:700;font-size:.8rem;padding:6px 14px;border-radius:999px;color:var(--co-text-2);}',
+'.cd .langtog button.on{background:var(--co-ink);color:#fff;}',
+'.cd .shell{max-width:1100px;margin:0 auto;background:#fff;}',
+'.cd .hero{background:var(--co-ink);color:#fff;padding:48px 40px;}',
+'.cd .hero .kick{display:inline-flex;gap:9px;align-items:center;font-size:.74rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--co-orange);margin-bottom:16px;}',
+'.cd .hero .kick svg{width:16px;height:16px;}',
+'.cd .hero h1{font-size:clamp(2rem,4.5vw,3rem);margin-bottom:10px;}.cd .hero h1 .o{color:var(--co-orange);}',
+'.cd .hero .sub{color:rgba(255,255,255,.72);max-width:46ch;margin-bottom:28px;}',
+'.cd .hero .meta{display:flex;flex-wrap:wrap;gap:14px 40px;}',
+'.cd .hero .meta .lab{font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5);font-weight:700;margin-bottom:5px;}',
+'.cd .hero .meta .val{font-size:.95rem;font-weight:600;}.cd .hero .meta .val a{color:#fff;text-decoration:none;}',
+'.cd section{padding:42px 40px;border-top:1px solid var(--co-line);scroll-margin-top:70px;}',
+'.cd .seyebrow{display:flex;align-items:center;gap:9px;font-size:.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--co-orange);margin-bottom:12px;}',
+'.cd .seyebrow .num{color:var(--co-faint);}.cd .seyebrow svg{width:15px;height:15px;}',
+'.cd section h2{font-size:clamp(1.4rem,2.5vw,1.9rem);margin-bottom:8px;}',
+'.cd .lead{color:var(--co-text-2);max-width:64ch;margin-bottom:26px;}',
+'.cd h3.sub{font-size:1.12rem;margin:30px 0 12px;}',
+'.cd .quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;}',
+'.cd .qcard{border:1px solid var(--co-line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:8px;}',
+'.cd .qcard.alert{background:var(--co-orange);border-color:var(--co-orange);color:#fff;}',
+'.cd .qcard .qt{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--co-muted);}',
+'.cd .qcard.alert .qt{color:rgba(255,255,255,.85);}',
+'.cd .qcard .qv{font-size:1.05rem;font-weight:800;}.cd .qcard .qv a{color:inherit;text-decoration:none;}',
+'.cd .qcard .qn{font-size:.82rem;color:var(--co-text-2);}.cd .qcard.alert .qn{color:#fff;}',
+'.cd .mrooms{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:16px 0;}',
+'.cd .mroom{border:1px solid var(--co-line);border-radius:10px;padding:18px 20px;}',
+'.cd .mroom .mn{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;}.cd .mroom .mn b{font-size:1.15rem;}',
+'.cd .mroom .cap{font-size:.78rem;font-weight:700;color:var(--co-orange-dk);background:var(--co-orange-wash);border-radius:999px;padding:3px 11px;}',
+'.cd .mroom .mf{font-size:.88rem;color:var(--co-text-2);}',
+'.cd .note{border-left:3px solid var(--co-orange);background:var(--co-orange-wash);border-radius:0 8px 8px 0;padding:16px 18px;margin:20px 0;font-size:.92rem;color:var(--co-text);}',
+'.cd .note.gray{border-left-color:var(--co-faint);background:var(--co-fill);}',
+'.cd .tbl-wrap{overflow-x:auto;border:1px solid var(--co-line);border-radius:10px;margin:16px 0;}',
+'.cd table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:480px;}',
+'.cd thead th{background:var(--co-ink);color:#fff;text-align:left;font-weight:700;font-size:.82rem;padding:12px 14px;}',
+'.cd tbody td,.cd tbody th{padding:11px 14px;border-bottom:1px solid var(--co-line);vertical-align:top;}',
+'.cd tbody th{text-align:left;font-weight:700;}.cd tbody tr:last-child td,.cd tbody tr:last-child th{border-bottom:0;}',
+'.cd tbody tr:nth-child(even){background:#fafafa;}',
+'.cd .grouprow td{background:var(--co-fill);font-weight:800;font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--co-text-2);}',
+'.cd .subrow th{padding-left:28px;font-weight:600;color:var(--co-text-2);}',
+'.cd .figure{margin:18px 0;border:1px solid var(--co-line);border-radius:10px;overflow:hidden;}',
+'.cd .figure .fimg{cursor:zoom-in;width:100%;background:#fff;padding:10px;}',
+'.cd .figure .fcap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 16px;border-top:1px solid var(--co-line);background:var(--co-fill);font-size:.84rem;color:var(--co-text-2);}',
+'.cd .figure .fcap .zoom{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--co-orange-dk);}.cd .figure .fcap .zoom svg{width:15px;height:15px;}',
+'.cd .frow{display:flex;gap:18px;padding:18px 0;border-bottom:1px solid rgba(0,0,0,.08);}.cd .frow:last-child{border-bottom:0;}',
+'.cd .frow .fico{width:42px;height:42px;flex:none;border-radius:10px;border:1px solid var(--co-line);display:flex;align-items:center;justify-content:center;color:var(--co-orange);background:var(--co-orange-wash);}.cd .frow .fico svg{width:22px;height:22px;}',
+'.cd .frow h4{font-size:1.02rem;margin-bottom:5px;}.cd .frow p{font-size:.94rem;color:var(--co-text);margin:0;}',
+'.cd .steps{margin:14px 0;border:1px solid var(--co-line);border-radius:10px;overflow:hidden;}',
+'.cd .steps .srow{display:flex;border-bottom:1px solid var(--co-line);}.cd .steps .srow:last-child{border-bottom:0;}',
+'.cd .steps .sk{flex:none;width:180px;padding:13px 15px;background:var(--co-fill);font-weight:700;font-size:.88rem;border-right:1px solid var(--co-line);}',
+'.cd .steps .sv{padding:13px 15px;font-size:.88rem;}.cd .steps code{background:var(--co-fill);border-radius:5px;padding:1px 7px;font-weight:700;color:var(--co-orange-dk);}',
+'.cd .bank{border:1px solid var(--co-line);border-radius:10px;overflow:hidden;margin:14px 0;}',
+'.cd .bank .brow{display:flex;border-bottom:1px solid rgba(0,0,0,.08);}.cd .bank .brow:last-child{border-bottom:0;}',
+'.cd .bank .bk{flex:none;width:180px;padding:11px 16px;font-size:.8rem;font-weight:700;color:var(--co-muted);text-transform:uppercase;background:var(--co-fill);}',
+'.cd .bank .bv{padding:11px 16px;font-size:.92rem;font-weight:600;}',
+'.cd .foot{background:var(--co-ink);color:rgba(255,255,255,.7);padding:36px 40px;}',
+'.cd .foot .cities{font-size:.76rem;letter-spacing:.08em;color:rgba(255,255,255,.5);text-transform:uppercase;font-weight:600;border-top:1px solid rgba(255,255,255,.16);padding-top:18px;margin-top:8px;}',
+'.cd .foot .fend{font-size:.8rem;color:rgba(255,255,255,.45);margin-top:12px;}',
+'.cd .legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin:14px 0;}.cd .legend .li{display:flex;align-items:center;gap:8px;font-size:.86rem;font-weight:600;}',
+'@media print{.cd .bar,.cd .langtog{display:none!important;}.cd .hero{background:#fff;color:#000;}.cd .hero h1,.cd .hero .sub,.cd .hero .meta .val,.cd .hero .meta .val a{color:#000!important;}.cd .hero .kick,.cd .hero h1 .o{color:var(--co-orange)!important;}.cd .hero .meta .lab{color:#555!important;}.cd .hero .herobanner,.cd .hero::after{display:none!important;}.cd .foot{background:#fff;color:#000;}.cd section{break-inside:avoid;}.cd thead th{background:#333!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}',
+'</style></head>',
+'<body><div class="cd" data-lang="en" id="cd">',
+'<header class="bar"><div class="brand"><svg viewBox="0 0 23.13 23.13"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>',
+'<span class="ctx"><b><span class="en">Client Directory</span><span class="zh">客戶指南</span></b></span></div>',
+'<div class="langtog"><button data-lang="en" class="on">EN</button><button data-lang="zh">繁中</button></div></header>',
+'<div class="shell">',
+'<section class="hero" id="welcome"><span class="kick"><svg viewBox="0 0 23.13 23.13"><path fill="currentColor" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg></span>',
+'<h1><span class="en">Client <span class="o">Directory</span></span><span class="zh">客戶<span class="o">指南</span></span></h1>',
+'<p class="sub"><span class="en">Everything you need to make the most of your workspace — services, facilities, house rules and handy guides, all in one place.</span><span class="zh">在這裡，您可找到充分善用工作空間所需的一切——服務、設施、客戶守則及實用指南，一站盡覽。</span></p>',
+'<div class="meta"></div></section>',
+'<section id="quick"><div class="seyebrow"><span class="num">—</span><span class="en">At a glance</span><span class="zh">快速一覽</span></div><h2><span class="en">Quick reference</span><span class="zh">快速指引</span></h2><p class="lead"><span class="en">The details you will reach for most often.</span><span class="zh">您最常用到的資訊。</span></p>',
+'<div class="quick"><div class="qcard alert"><div class="qt"><span class="en">Emergency (Compass)</span><span class="zh">緊急熱線（Compass）</span></div><div class="qv"></div><div class="qn"><span class="en">Dial 0 for reception · 999 for Police / Fire / Ambulance</span><span class="zh">接待處請按 0 · 報警／火警／救護請致電 999</span></div></div>',
+'<div class="qcard"><div class="qt"><span class="en">Business Hours</span><span class="zh">營業時間</span></div><div class="qv"></div><div class="qn"><span class="en">Air-conditioning provided in these hours.</span><span class="zh">此時段供應冷氣。</span></div></div>',
+'<div class="qcard"><div class="qt"><span class="en">Wi-Fi</span><span class="zh">無線網絡</span></div><div class="qv"></div><div class="qn"><span class="en">Free shared access for clients &amp; guests.</span><span class="zh">客戶及訪客免費共享使用。</span></div></div>',
+'<div class="qcard"><div class="qt"><span class="en">Building Management</span><span class="zh">大廈管理處</span></div><div class="qv"></div><div class="qn"><span class="en">For non-office-hour &amp; building concerns.</span><span class="zh">非辦公時間及大廈相關事宜。</span></div></div></div></section>',
+'<section id="facilities"><div class="seyebrow"><span class="num">02</span><span class="en">Centre Facilities</span><span class="zh">中心設施</span></div><h2><span class="en">Everything on your floor</span><span class="zh">您所在樓層的設施</span></h2><p class="lead"><span class="en">Meeting rooms and shared facilities that keep your workday running.</span><span class="zh">會議室及共享設施。</span></p>',
+'<h3 class="sub"><span class="en">Meeting Facilities</span><span class="zh">會議設施</span></h3><div class="mrooms"></div>',
+'<div class="note"><span class="en"><b>Booking essentials.</b> Advance reservation required, first-come first-served, subject to availability. 09:00–18:00 Mon–Fri (excl. public holidays). 100% surcharge weekdays 18:00–24:00 &amp; 06:00–09:00; 200% surcharge weekdays 00:00–06:00 and Sat/Sun/public holidays.</span><span class="zh"><b>預訂須知。</b>須提前預訂，先到先得，視乎可用情況。週一至五 09:00–18:00（公眾假期除外）。平日 18:00–24:00 及 06:00–09:00 加收 100%；平日 00:00–06:00 及週六日、公眾假期加收 200%。</span></div></section>',
+'<section id="access"><div class="seyebrow"><span class="num">04</span><span class="en">Access &amp; Security</span><span class="zh">出入與保安</span></div><h2><span class="en">Access &amp; security measures</span><span class="zh">出入與保安措施</span></h2><p class="lead"><span class="en">Access cards, after-hours entry and authorised persons.</span><span class="zh">門卡、非辦公時間進出及授權人士。</span></p>',
+'<div class="note gray"></div></section>',
+'<section id="fees" data-static="1"><div class="seyebrow"><span class="num">06</span><span class="en">Fees &amp; Charges</span><span class="zh">費用與收費</span></div><h2><span class="en">Fees &amp; charges</span><span class="zh">費用與收費</span></h2><p class="lead"><span class="en">The capitalized fees referred to in the House Rules.</span><span class="zh">《客戶守則》中提及的各項收費。</span></p><div class="tbl-wrap" data-co="fees-hk"></div></section>',
+'<section id="floorplan"><div class="seyebrow"><span class="num">07</span><span class="en">Appendix A</span><span class="zh">附錄 A</span></div><h2><span class="en">Centre Floor Plan</span><span class="zh">中心平面圖</span></h2><p class="lead"><span class="en">Familiarise yourself with the layout and the exits nearest your workspace.</span><span class="zh">請熟悉中心佈局及最近的出口。</span></p></section>',
+'<section id="evacuation"><div class="seyebrow"><span class="num">08</span><span class="en">Appendix B</span><span class="zh">附錄 B</span></div><h2><span class="en">Emergency Evacuation Plan</span><span class="zh">緊急疏散圖</span></h2><p class="lead"><span class="en">In case of fire, follow the exit signs — do not use the elevators.</span><span class="zh">發生火警時，請依照出口指示疏散，切勿使用電梯。</span></p></section>',
+'<section id="price-guide"><div class="seyebrow"><span class="num">09</span><span class="en">Appendix C</span><span class="zh">附錄 C</span></div><h2><span class="en">Detailed Price Guide</span><span class="zh">詳細價目表</span></h2><p class="lead"><span class="en">Standard service rates, in Hong Kong Dollars (HKD).</span><span class="zh">標準服務收費，以港元（HKD）列示。</span></p></section>',
+'<section id="guides"><div class="seyebrow"><span class="num">10</span><span class="en">Appendix D–F</span><span class="zh">附錄 D–F</span></div><h2><span class="en">Phone &amp; Device Guides</span><span class="zh">電話與設備指南</span></h2><p class="lead"><span class="en">Quick reference for the desk phone and voicemail.</span><span class="zh">桌面電話及語音信箱快速參考。</span></p>',
+'<div class="steps"><div class="srow"><div class="sk"><span class="en">Voicemail Login</span><span class="zh">登入語音信箱</span></div><div class="sv"><span class="en">Press MESSAGES or dial </span><span class="zh">按 MESSAGES 或撥 </span><code>5690</code><span class="en">, then your PIN. Externally dial </span><span class="zh">，再輸入 PIN。外線撥 </span><code>+852 3972 5690</code>.</div></div>',
+'<div class="srow"><div class="sk"><span class="en">Conferencing Bridge</span><span class="zh">電話會議橋接</span></div><div class="sv"><span class="en">Dial </span><span class="zh">撥 </span><code>5688</code><span class="en"> from the Polycom, or </span><span class="zh">（Polycom），或撥 </span><code>+852 3972 5688</code>.</div></div></div></section>',
+'<section id="payment"><div class="seyebrow"><span class="num">11</span><span class="en">Appendix G</span><span class="zh">附錄 G</span></div><h2><span class="en">Payment &amp; In-House Credit</span><span class="zh">付款與內部信貸</span></h2><p class="lead"><span class="en">All payments to </span><span class="zh">所有款項須支付予 </span><b>Grand Strong Holdings Limited</b><span class="en"> before the invoice due date.</span><span class="zh">（賬單到期日前）。</span></p><h3 class="sub"><span class="en">Remittance Details</span><span class="zh">匯款資料</span></h3><div class="bank"></div></section>',
+'<footer class="foot"><div class="cities">HONG KONG · SHANGHAI · SINGAPORE · SYDNEY · MELBOURNE · MANILA · TOKYO · HO CHI MINH CITY · KUALA LUMPUR</div><div class="fend"></div></footer>',
+'</div></div>',
+'<script>(function(){var cd=document.getElementById("cd");var btns=cd.querySelectorAll(".langtog button");function set(l){cd.setAttribute("data-lang",l);for(var i=0;i<btns.length;i++){btns[i].classList.toggle("on",btns[i].getAttribute("data-lang")===l);}}for(var i=0;i<btns.length;i++){(function(b){b.addEventListener("click",function(){set(b.getAttribute("data-lang"));});})(btns[i]);}cd.querySelectorAll(".fimg").forEach(function(im){im.addEventListener("click",function(){window.open(im.getAttribute("src"),"_blank");});});})();<\/script>',
+'</body></html>'
+].join("\n");
+
+})();
+</script>
+</body>
+</html>
