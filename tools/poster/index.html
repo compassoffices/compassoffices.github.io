@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass Offices — Poster Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800;900&family=Noto+Sans+TC:wght@300;500;700;900&family=Noto+Sans+JP:wght@300;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+/* ============================================================
+   CONFIG: paste your Apps Script Web App /exec URL below
+   (you can also set it in the app via the gear button)
+   ============================================================ */
+.cop{
+  --co-orange:#FF6600; --co-orange-dk:#E55A00; --co-orange-wash:#FFF3EB;
+  --co-ink:#1A1A1A; --co-text:#333333; --co-text-2:#555555;
+  --co-muted:#888888; --co-line:#E5E5E5; --co-bg:#F5F5F5; --co-paper:#FFFFFF;
+  font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;
+  color:var(--co-ink);
+}
+.cop *,.cop *::before,.cop *::after{box-sizing:border-box; margin:0; padding:0;}
+body{margin:0;background:#e9eaec;}
+.cop{display:flex; min-height:100vh; -webkit-font-smoothing:antialiased;}
+
+/* ---------- CONTROL PANEL ---------- */
+.cop-panel{flex:0 0 392px; max-width:392px; height:100vh; overflow-y:auto; background:var(--co-paper); border-right:1px solid var(--co-line); padding:24px 24px 60px;}
+.cop-brand{display:flex; align-items:center; gap:10px; margin-bottom:4px;}
+.cop-brand svg{display:block;}
+.cop-brand b{font-weight:800; font-size:16px; letter-spacing:-.01em;}
+.cop-brand span{font-weight:600; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--co-muted);}
+.cop-sub{font-size:12.5px; color:var(--co-muted); margin:2px 0 18px;}
+
+.cop-sync{display:flex; align-items:center; gap:10px; background:#FAFAFA; border:1px solid var(--co-line); border-radius:10px; padding:10px 12px; margin-bottom:18px;}
+.cop-dot{width:9px; height:9px; border-radius:50%; background:#BBB; flex:0 0 auto;}
+.cop-dot.ok{background:#2BB673;} .cop-dot.busy{background:var(--co-orange);} .cop-dot.err{background:#E5484D;}
+.cop-sync .t{flex:1 1 auto; font-size:12.5px; color:var(--co-text); line-height:1.3;}
+.cop-gear{flex:0 0 auto; border:0; background:transparent; cursor:pointer; color:var(--co-muted); padding:4px; border-radius:6px;}
+.cop-gear:hover{color:var(--co-ink); background:#EFEFEF;}
+
+.cop-row2{display:flex; gap:10px; align-items:center; margin-bottom:16px;}
+.cop-select{flex:1 1 auto; min-width:0; border:1.5px solid var(--co-line); border-radius:9px; padding:10px 12px; font:600 13px 'Hanken Grotesk',sans-serif; color:var(--co-ink); background:#fff; cursor:pointer;}
+.cop-iconbtn{flex:0 0 auto; border:1.5px solid var(--co-line); background:#fff; color:var(--co-ink); border-radius:9px; padding:9px 11px; font:700 13px 'Hanken Grotesk',sans-serif; cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+.cop-iconbtn:hover{border-color:var(--co-orange);}
+.cop-iconbtn.danger:hover{border-color:#E5484D; color:#E5484D;}
+
+.cop-group{margin-bottom:22px;}
+.cop-label{font-weight:700; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--co-muted); margin-bottom:10px;}
+.cop-field{margin-bottom:11px;}
+.cop-field > label{display:block; font-size:11.5px; font-weight:600; color:var(--co-text-2); margin-bottom:5px;}
+.cop-input,.cop-textarea{width:100%; border:1.5px solid var(--co-line); border-radius:9px; padding:10px 12px; font:500 14px 'Hanken Grotesk',sans-serif; color:var(--co-ink); background:#fff; resize:vertical;}
+.cop-input:focus,.cop-textarea:focus{outline:none; border-color:var(--co-orange);}
+.cop-textarea{min-height:62px; line-height:1.45;}
+.cop-3{display:flex; gap:8px;} .cop-3 > div{flex:1;}
+.cop-2{display:flex; gap:8px;} .cop-2 > div{flex:1;}
+
+.cop-presets{display:flex; flex-wrap:wrap; gap:7px;}
+.cop-chip{border:1.5px solid var(--co-line); background:#fff; color:var(--co-text); border-radius:8px; padding:8px 11px; font:600 12.5px 'Hanken Grotesk',sans-serif; cursor:pointer;}
+.cop-chip:hover{border-color:var(--co-orange); color:var(--co-orange);}
+
+.cop-photobtn{display:flex; gap:8px;}
+.cop-filebtn{flex:1; border:1.5px dashed var(--co-line); background:#FAFAFA; color:var(--co-text); border-radius:9px; padding:11px; font:600 13px 'Hanken Grotesk',sans-serif; cursor:pointer; text-align:center;}
+.cop-filebtn:hover{border-color:var(--co-orange);}
+
+.cop-toggle{display:flex; align-items:center; gap:9px; margin-bottom:11px; cursor:pointer;}
+.cop-toggle input{width:16px; height:16px; accent-color:var(--co-orange);}
+.cop-toggle span{font-size:13px; color:var(--co-text);}
+
+.cop-arrange{display:flex; gap:9px; margin-bottom:9px;}
+.cop-btn{flex:1; border:1.5px solid var(--co-line); background:#fff; color:var(--co-ink); border-radius:9px; padding:11px; font:700 13px 'Hanken Grotesk',sans-serif; cursor:pointer;}
+.cop-btn:hover{border-color:var(--co-orange);}
+.cop-btn.on{border-color:var(--co-orange); background:var(--co-orange-wash); color:var(--co-orange-dk);}
+.cop-hint{font-size:11.5px; color:var(--co-muted); line-height:1.45;}
+
+.cop-export{display:flex; flex-direction:column; gap:10px; margin-top:24px;}
+.cop-primary{width:100%; border:0; background:var(--co-orange); color:#fff; border-radius:10px; padding:15px; font:800 15px 'Hanken Grotesk',sans-serif; cursor:pointer;}
+.cop-primary:hover{background:var(--co-orange-dk);}
+.cop-secondary{width:100%; border:1.5px solid var(--co-line); background:#fff; color:var(--co-ink); border-radius:10px; padding:13px; font:700 14px 'Hanken Grotesk',sans-serif; cursor:pointer;}
+.cop-secondary:hover{border-color:var(--co-ink);}
+
+/* ---------- STAGE ---------- */
+.cop-stage{flex:1 1 auto; height:100vh; overflow:auto; background:#d8d9dc; display:flex; align-items:center; justify-content:center; padding:40px;}
+.cop-fit{flex:0 0 auto;}
+.cop-scale{width:794px; height:1123px; transform-origin:top left;}
+
+/* ---------- POSTER ---------- */
+.cop-poster{position:relative; width:794px; height:1123px; background:#fff; box-shadow:0 24px 70px rgba(0,0,0,.28); overflow:hidden;}
+.cop-hero{position:relative; height:600px; overflow:hidden; background:#1a1a1a;}
+.cop-hero img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+.cop-photo-ph{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:rgba(255,255,255,.5);}
+.cop-veil-base{position:absolute; inset:0; pointer-events:none; background:linear-gradient(180deg, rgba(18,18,18,0) 28%, rgba(18,18,18,.30) 54%, rgba(18,18,18,.72) 86%, rgba(18,18,18,.86) 100%);}
+.cop-veil-anchor{position:absolute; left:0; right:0; bottom:0; height:330px; pointer-events:none; background:linear-gradient(180deg, rgba(16,16,16,0) 0%, rgba(16,16,16,.52) 70%, rgba(16,16,16,.74) 100%);}
+
+.cop-mv{position:relative;}
+.cop-headline{position:absolute; left:60px; right:60px; bottom:50px;}
+.cop-eyebrow{display:inline-flex; align-items:center; gap:10px; margin-bottom:18px;}
+.cop-eyebrow span{font-weight:800; font-size:14px; letter-spacing:.26em; text-transform:uppercase; color:var(--co-orange);}
+.cop-line1{font-weight:300; font-size:58px; line-height:1.0; color:#fff; letter-spacing:-.02em;}
+.cop-line2{font-weight:900; font-size:112px; line-height:.86; color:#fff; letter-spacing:-.035em; margin-top:4px; text-shadow:0 2px 28px rgba(0,0,0,.22);}
+
+.cop-details{position:absolute; left:0; right:0; top:600px; bottom:0; background:#FFF8F2; overflow:hidden;}
+.cop-watermark{position:absolute; left:-70px; bottom:34px; width:360px; color:var(--co-orange); opacity:.06; pointer-events:none;}
+.cop-pad{position:absolute; left:0; right:0; top:0; padding:42px 60px 0;}
+.cop-subhead{font-weight:800; font-size:25px; line-height:1.26; color:var(--co-orange); letter-spacing:-.01em; max-width:600px;}
+.cop-body{font-weight:400; font-size:17.5px; line-height:1.5; color:var(--co-text); margin-top:13px; max-width:520px;}
+.cop-divider{height:1px; background:rgba(26,26,26,.12); margin:30px 0 28px;}
+.cop-detailrow{display:flex; align-items:center; justify-content:space-between; gap:30px;}
+.cop-where{max-width:300px;}
+.cop-where-h{display:flex; align-items:center; gap:9px; margin-bottom:14px;}
+.cop-where-h span{font-weight:800; font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:var(--co-orange);}
+.cop-where1{font-weight:700; font-size:23px; line-height:1.3; color:var(--co-ink);}
+.cop-where2{font-weight:500; font-size:17.5px; line-height:1.4; color:var(--co-text-2); margin-top:6px;}
+.cop-card{flex:0 0 auto; background:#fff; border-radius:18px; border-top:5px solid var(--co-orange); padding:24px 32px 26px; box-shadow:0 10px 32px rgba(0,0,0,.07); min-width:274px;}
+.cop-card-l{font-weight:800; font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:var(--co-orange); margin-bottom:8px;}
+.cop-date{display:flex; align-items:baseline; color:var(--co-ink);}
+.cop-day{font-weight:800; font-size:74px; line-height:.84; letter-spacing:-.03em;}
+.cop-suffix{font-weight:700; font-size:26px; align-self:flex-start; margin-top:5px;}
+.cop-month{font-weight:800; font-size:44px; margin-left:11px; letter-spacing:-.02em;}
+.cop-time{display:flex; align-items:center; gap:9px; margin-top:16px;}
+.cop-time span{font-weight:600; font-size:24px; color:var(--co-text);}
+.cop-footer{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+
+/* resize handle */
+.cop-rsz{position:absolute; right:-8px; bottom:-8px; width:17px; height:17px; border-radius:4px; background:var(--co-orange); border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.35); cursor:nwse-resize; display:none; z-index:6;}
+.cop-poster.arranging .cop-mv{outline:1.5px dashed rgba(255,102,0,.5); outline-offset:6px; cursor:move;}
+.cop-poster.arranging .cop-rsz{display:block;}
+
+/* settings modal */
+.cop-modal{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:50;}
+.cop-modal.show{display:flex;}
+.cop-card2{background:#fff; border-radius:14px; padding:26px; width:440px; max-width:92vw; box-shadow:0 30px 80px rgba(0,0,0,.3);}
+.cop-card2 h3{font-size:17px; font-weight:800; margin-bottom:6px;}
+.cop-card2 p{font-size:13px; color:var(--co-text-2); line-height:1.5; margin-bottom:14px;}
+.cop-card2 .cop-input{margin-bottom:14px;}
+.cop-modal-actions{display:flex; gap:10px; justify-content:flex-end;}
+
+@media print{
+  body{background:#fff;}
+  .cop-panel,.cop-stage{display:none;}
+  .cop-printroot{display:block !important;}
+}
+.cop-printroot{display:none;}
+</style>
+</head>
+<body>
+<div class="cop" id="cop-app">
+
+  <!-- ============ CONTROL PANEL ============ -->
+  <aside class="cop-panel">
+    <div class="cop-brand">
+      <svg viewBox="0 0 23.13 23.13" width="22" height="22" aria-hidden="true"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"></path></svg>
+      <b>Poster Maker</b>
+    </div>
+    <div class="cop-sub">Compass Offices · event poster · A4</div>
+
+    <!-- sync status -->
+    <div class="cop-sync">
+      <span class="cop-dot" id="cop-dot"></span>
+      <span class="t" id="cop-status">Not connected</span>
+      <button class="cop-gear" id="cop-settings-btn" title="Sheet connection settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>
+      </button>
+    </div>
+
+    <!-- poster selector -->
+    <div class="cop-row2">
+      <select class="cop-select" id="cop-poster-select" title="Saved posters"></select>
+      <button class="cop-iconbtn" id="cop-new" title="New poster">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>New
+      </button>
+      <button class="cop-iconbtn danger" id="cop-delete" title="Delete this poster" aria-label="Delete">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
+      </button>
+    </div>
+
+    <div class="cop-field">
+      <label>Poster name (for your sheet)</label>
+      <input class="cop-input" id="f-name" placeholder="e.g. Melbourne Morning Tea — June">
+    </div>
+
+    <!-- presets -->
+    <div class="cop-group">
+      <div class="cop-label">Quick start</div>
+      <div class="cop-presets" id="cop-presets"></div>
+    </div>
+
+    <!-- photo -->
+    <div class="cop-group">
+      <div class="cop-label">Hero photo</div>
+      <div class="cop-field">
+        <label>Image URL (saved to your sheet)</label>
+        <input class="cop-input" id="f-photoUrl" placeholder="https://… or images/lounge.jpg">
+      </div>
+      <div class="cop-photobtn">
+        <label class="cop-filebtn">Upload from device (preview only)
+          <input type="file" id="f-photoFile" accept="image/*" hidden>
+        </label>
+      </div>
+      <div class="cop-hint" style="margin-top:7px;">Uploads show in preview &amp; export. To persist across devices, host the image and use the URL field.</div>
+    </div>
+
+    <!-- headline -->
+    <div class="cop-group">
+      <div class="cop-label">Headline</div>
+      <label class="cop-toggle"><input type="checkbox" id="f-showEyebrow" checked><span>Show eyebrow</span></label>
+      <div class="cop-field"><label>Eyebrow</label><input class="cop-input" id="f-eyebrow"></div>
+      <div class="cop-field"><label>Line 1 (light)</label><input class="cop-input" id="f-line1"></div>
+      <div class="cop-field"><label>Line 2 (bold)</label><input class="cop-input" id="f-line2"></div>
+    </div>
+
+    <!-- copy -->
+    <div class="cop-group">
+      <div class="cop-label">Message</div>
+      <div class="cop-field"><label>Value subhead (orange)</label><textarea class="cop-textarea" id="f-subhead"></textarea></div>
+      <div class="cop-field"><label>Body</label><textarea class="cop-textarea" id="f-body"></textarea></div>
+    </div>
+
+    <!-- where -->
+    <div class="cop-group">
+      <div class="cop-label">Where</div>
+      <div class="cop-field"><label>Address line 1</label><input class="cop-input" id="f-where1"></div>
+      <div class="cop-field"><label>Address line 2</label><input class="cop-input" id="f-where2"></div>
+    </div>
+
+    <!-- when -->
+    <div class="cop-group">
+      <div class="cop-label">When</div>
+      <div class="cop-3">
+        <div class="cop-field"><label>Day</label><input class="cop-input" id="f-day"></div>
+        <div class="cop-field"><label>Suffix</label><input class="cop-input" id="f-daySuffix"></div>
+        <div class="cop-field"><label>Month</label><input class="cop-input" id="f-month"></div>
+      </div>
+      <div class="cop-field"><label>Time</label><input class="cop-input" id="f-time"></div>
+    </div>
+
+    <!-- arrange -->
+    <div class="cop-group">
+      <div class="cop-label">Arrange</div>
+      <div class="cop-arrange">
+        <button class="cop-btn" id="cop-arrange-btn">Move &amp; resize</button>
+        <button class="cop-btn" id="cop-reset-btn" style="flex:0 0 auto;">Reset</button>
+      </div>
+      <div class="cop-hint">Turn on, then drag a block to move it or drag its orange corner to resize. Positions save to your sheet.</div>
+    </div>
+
+    <!-- export -->
+    <div class="cop-export">
+      <button class="cop-primary" id="cop-png">Download poster (PNG)</button>
+      <button class="cop-secondary" id="cop-print">Print / Save as PDF</button>
+    </div>
+  </aside>
+
+  <!-- ============ STAGE ============ -->
+  <main class="cop-stage" id="cop-stage">
+    <div class="cop-fit" id="cop-fit">
+      <div class="cop-scale" id="cop-scale">
+      <div class="cop-poster" id="cop-poster">
+
+        <div class="cop-hero">
+          <img id="cop-photo" alt="" style="display:none;">
+          <div class="cop-photo-ph" id="cop-photo-ph">
+            <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>
+            <div style="font-size:17px; font-weight:600;">Your hero photo appears here</div>
+          </div>
+          <div class="cop-veil-base"></div>
+          <div class="cop-veil-anchor"></div>
+
+          <div class="cop-mv cop-headline" id="mv-headline" data-key="headline">
+            <div class="cop-rsz" data-resize="headline"></div>
+            <div class="cop-eyebrow" id="cop-eyebrow-wrap">
+              <svg viewBox="0 0 23.13 23.13" width="24" height="24" aria-hidden="true" style="display:block;"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"></path></svg>
+              <span id="cop-eyebrow"></span>
+            </div>
+            <div class="cop-line1" id="cop-line1"></div>
+            <div class="cop-line2" id="cop-line2"></div>
+          </div>
+        </div>
+
+        <div class="cop-details">
+          <svg class="cop-watermark" viewBox="0 0 607.77 534.92" aria-hidden="true"><polygon fill="currentColor" points="309.27 299.25 440.64 534.92 607.77 534.92 309.27 0 0 534.92 173.03 534.92 309.27 299.25"></polygon></svg>
+          <div class="cop-pad">
+            <div class="cop-mv" id="mv-copy" data-key="copy">
+              <div class="cop-rsz" data-resize="copy"></div>
+              <div class="cop-subhead" id="cop-subhead"></div>
+              <div class="cop-body" id="cop-body"></div>
+            </div>
+
+            <div class="cop-divider"></div>
+
+            <div class="cop-detailrow">
+              <div class="cop-mv cop-where" id="mv-where" data-key="where">
+                <div class="cop-rsz" data-resize="where"></div>
+                <div class="cop-where-h">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#FF6600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+                  <span>Where</span>
+                </div>
+                <div class="cop-where1" id="cop-where1"></div>
+                <div class="cop-where2" id="cop-where2"></div>
+              </div>
+
+              <div class="cop-mv cop-card" id="mv-card" data-key="card">
+                <div class="cop-rsz" data-resize="card"></div>
+                <div class="cop-card-l">When</div>
+                <div class="cop-date">
+                  <span class="cop-day" id="cop-day"></span>
+                  <span class="cop-suffix" id="cop-suffix"></span>
+                  <span class="cop-month" id="cop-month"></span>
+                </div>
+                <div class="cop-time">
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#FF6600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7v5l3.5 2"></path></svg>
+                  <span id="cop-time"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <img class="cop-footer" id="cop-footer" alt="Compass Offices">
+      </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- settings modal -->
+  <div class="cop-modal" id="cop-modal">
+    <div class="cop-card2">
+      <h3>Connect to Google Sheet</h3>
+      <p>Paste the Web App URL from your Apps Script deployment (ends in <code>/exec</code>). Every change then autosaves to your sheet.</p>
+      <input class="cop-input" id="cop-api-input" placeholder="https://script.google.com/macros/s/…/exec">
+      <div class="cop-modal-actions">
+        <button class="cop-secondary" style="width:auto; padding:11px 18px;" id="cop-api-cancel">Cancel</button>
+        <button class="cop-primary" style="width:auto; padding:11px 20px;" id="cop-api-save">Save &amp; connect</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- print root (filled at print time) -->
+<div class="cop-printroot" id="cop-printroot"></div>
+
+<script>
+"use strict";
+(function(){
+  /* ====== CONFIG ====== */
+  var SHEET_API_URL = ""; // <-- paste your Apps Script /exec URL here (or use the gear button)
+
+  var FOOTER_SVG = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIj8+CjxzdmcgaWQ9IkxheWVyXzEiIGRhdGEtbmFtZT0iTGF5ZXIgMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmlld0JveD0iMCAwIDU5NS4yOCA4NDEuODkiPgogIDxkZWZzPgogICAgCiAgICAKICA8L2RlZnM+CiAgPHJlY3QgZmlsbD0iIzI4MjgyOCIgeT0iNzcxLjMyIiB3aWR0aD0iNTk1LjI4IiBoZWlnaHQ9IjcwLjU3Ij48L3JlY3Q+CiAgPGc+CiAgICA8Zz4KICAgICAgPHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTUxLjg3LDc5NS4wNGMtNi4zOSwwLTExLjU3LDUuMTgtMTEuNTcsMTEuNTdzNS4xOCwxMS41NiwxMS41NywxMS41NiwxMS41Ni01LjE4LDExLjU2LTExLjU2LTUuMTgtMTEuNTctMTEuNTYtMTEuNTdaTTU0LjU0LDgxMC42MWwtMi40OC00LjQ1LTIuNTcsNC40NWgtMy4yN2w1Ljg0LTEwLjEsNS42MywxMC4xaC0zLjE1WiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNzQuMTYsODA0LjU2Yy44MywwLDEuNTctLjE2LDIuMjItLjQ5bC4wNi0uMDN2LTEuMzNsLS4xNy4wOWMtLjYxLjMxLTEuMjguNDctMS45OS40Ny0uODMsMC0xLjUzLS4yNS0yLjA3LS43NC0uNTQtLjQ5LS44MS0xLjExLS44MS0xLjg0LDAtLjczLjI4LTEuMzQuODEtMS44MS41NC0uNDcsMS4yMy0uNzEsMi4wNy0uNzEuNzIsMCwxLjM5LjEzLDEuOTkuMzhsLjE2LjA3di0xLjM0bC0uMDctLjAzYy0uNjEtLjI0LTEuMzUtLjM3LTIuMjItLjM3LTEuMjIsMC0yLjI0LjM1LTMuMDMsMS4wNS0uNzkuNy0xLjE5LDEuNjMtMS4xOSwyLjc3cy40LDIuMDgsMS4xOSwyLjhjLjc5LjcxLDEuODEsMS4wOCwzLjAzLDEuMDhaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik04NS4wNCw3OTcuOTNjLS43Ni0uNzEtMS43NS0xLjA3LTIuOTMtMS4wN3MtMi4xOC4zNi0yLjkzLDEuMDdjLS43Ni43MS0xLjE0LDEuNjMtMS4xNCwyLjcxcy4zOCwyLjA3LDEuMTQsMi44MWMuNzUuNzMsMS43NCwxLjEsMi45MywxLjFzMi4xOC0uMzcsMi45My0xLjFjLjc1LS43NCwxLjE0LTEuNjksMS4xNC0yLjgxcy0uMzktMi4wMS0xLjE0LTIuNzFaTTgzLjk5LDgwMi41M2MtLjQ4LjQ5LTEuMTEuNzQtMS44Ny43NHMtMS4zOS0uMjUtMS44Ny0uNzRjLS40OC0uNDktLjcyLTEuMTItLjcyLTEuODZzLjI1LTEuMzEuNzMtMS43OGMuNDgtLjQ4LDEuMTEtLjcyLDEuODYtLjcyczEuMzkuMjQsMS44Ny43MmMuNDguNDcuNzIsMS4wNy43MiwxLjc4cy0uMjUsMS4zNy0uNzIsMS44NloiPjwvcGF0aD4KICAgICAgPHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTkyLjgxLDgwMi42M2wtMi41NS01LjY0aC0yLjAydjcuNDRoMS40MXYtNS41MmMuMDUuMTEuMS4yNC4xNy4zOGwyLjMzLDUuMTNoMS4zbDIuMjgtNS4xM3MuMDctLjE1LjE1LS4zM2MwLS4wMi4wMi0uMDQuMDMtLjA2djUuNTJoMS40M3YtNy40NGgtMi4wNGwtMi41LDUuNjRaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik0xMDUuNjUsNzk3LjczYy0uNTMtLjQ5LTEuMjUtLjc0LTIuMTUtLjc0aC0zLjQ2djcuNDRoMS40N3YtMi4wMWgxLjk5Yy45LDAsMS42Mi0uMjUsMi4xNS0uNzQuNTMtLjUuOC0xLjE2LjgtMS45OHMtLjI3LTEuNDgtLjgtMS45N1pNMTA0LjU5LDgwMC43OWMtLjMxLjI4LS43Mi40Mi0xLjIzLjQyaC0xLjg1di0zaDEuODVjLjUyLDAsLjk0LjEzLDEuMjQuNDEuMy4yOC40NS42My40NSwxLjA4cy0uMTUuODEtLjQ1LDEuMDlaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik0xMTIuMDMsNzk2Ljk5aC0xLjgxbC0zLjM2LDcuNDRoMS41N2wuNjItMS40NWg0LjA3bC42MiwxLjQ1aDEuNjRsLTMuMzUtNy40NFpNMTA5LjU5LDgwMS43MWwxLjQ4LTMuNDcsMS41LDMuNDdoLTIuOThaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik0xMjAuMTgsODAwLjAxbC0uNjYtLjEzYy0uNjItLjEyLTEuMDUtLjI1LTEuMjYtLjQtLjE5LS4xNC0uMjktLjMxLS4yOS0uNTEsMC0uMjcuMTctLjQ2LjUyLS41OS4zOC0uMTQuODUtLjIyLDEuMzgtLjIyLjc3LDAsMS41Mi4xNCwyLjIxLjQxbC4xNi4wNnYtMS4zM2wtLjA4LS4wM2MtLjc4LS4yNy0xLjU1LS40LTIuMjktLjQtLjk2LDAtMS43Ni4xOC0yLjM4LjU0LS42NS4zNy0uOTcuOTMtLjk3LDEuNjYsMCwuNTIuMi45OC41OCwxLjM3LjM4LjM5LDEuMDEuNjYsMS44Ny44bC43Mi4xM2MuNTYuMS45NS4yMywxLjE3LjM5LjIxLjE1LjMuMzQuMy41NywwLC4yOS0uMTYuNTEtLjUuNjgtLjM2LjE4LS44My4yNy0xLjQxLjI3LS45NSwwLTEuODMtLjIxLTIuNTktLjYzbC0uMTctLjA5djEuMzlsLjA3LjAzYy44Mi40LDEuNzUuNiwyLjc4LjYuOTQsMCwxLjcyLS4yMSwyLjM0LS42MS42My0uNDIuOTUtMS4wMS45NS0xLjc3LDAtLjU1LS4yLTEuMDEtLjU4LTEuMzctLjM4LS4zNi0xLjAxLS42Mi0xLjg2LS43OVoiPjwvcGF0aD4KICAgICAgPHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTEyOS44LDgwMC44Yy0uMzgtLjM2LTEuMDEtLjYyLTEuODYtLjc5bC0uNjYtLjEzYy0uNjItLjEyLTEuMDUtLjI1LTEuMjYtLjQtLjE5LS4xNC0uMjktLjMxLS4yOS0uNTEsMC0uMjcuMTctLjQ2LjUyLS41OS4zOC0uMTQuODUtLjIyLDEuMzgtLjIyLjc3LDAsMS41Mi4xNCwyLjIxLjQxbC4xNi4wNnYtMS4zM2wtLjA4LS4wM2MtLjc4LS4yNy0xLjU1LS40LTIuMjktLjQtLjk2LDAtMS43Ni4xOC0yLjM4LjU0LS42NS4zNy0uOTcuOTMtLjk3LDEuNjYsMCwuNTIuMi45OC41OCwxLjM3LjM4LjM5LDEuMDEuNjYsMS44Ny44bC43Mi4xM2MuNTYuMS45NS4yMywxLjE3LjM5LjIxLjE1LjMuMzQuMy41NywwLC4yOS0uMTYuNTEtLjUuNjgtLjM2LjE4LS44My4yNy0xLjQxLjI3LS45NSwwLTEuODMtLjIxLTIuNTktLjYzbC0uMTctLjA5djEuMzlsLjA3LjAzYy44Mi40LDEuNzUuNiwyLjc4LjYuOTQsMCwxLjcyLS4yMSwyLjM0LS42MS42My0uNDIuOTUtMS4wMS45NS0xLjc3LDAtLjU1LS4yLTEuMDEtLjU4LTEuMzdaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik03Ni45NSw4MDkuNzJjLS43Ni0uNzEtMS43NS0xLjA3LTIuOTMtMS4wN3MtMi4xOC4zNi0yLjkzLDEuMDdjLS43Ni43MS0xLjE0LDEuNjMtMS4xNCwyLjcxcy4zOCwyLjA3LDEuMTQsMi44Yy43NS43NCwxLjc0LDEuMTEsMi45MywxLjExczIuMTgtLjM3LDIuOTMtMS4xMWMuNzUtLjczLDEuMTQtMS42OCwxLjE0LTIuOHMtLjM5LTIuMDEtMS4xNC0yLjcxWk03NS45LDgxNC4zMWMtLjQ4LjQ4LTEuMTEuNzQtMS44Ny43NHMtMS4zOS0uMjUtMS44Ny0uNzRjLS40OC0uNDktLjcyLTEuMTMtLjcyLTEuODdzLjI1LTEuMzEuNzMtMS43OGMuNDgtLjQ3LDEuMTEtLjcyLDEuODYtLjcyczEuMzkuMjUsMS44Ny43MmMuNDguNDguNzIsMS4wNy43MiwxLjc4LDAsLjc1LS4yNSwxLjM4LS43MiwxLjg3WiI+PC9wYXRoPgogICAgICA8cG9seWdvbiBmaWxsPSIjZmZmZmZmIiBwb2ludHM9IjgwLjE1IDgxNi4yMiA4MS42MiA4MTYuMjIgODEuNjIgODEzLjcgODUuNTEgODEzLjcgODUuNTEgODEyLjQ0IDgxLjYyIDgxMi40NCA4MS42MiA4MTAuMDYgODUuODggODEwLjA2IDg1Ljg4IDgwOC43NyA4MC4xNSA4MDguNzcgODAuMTUgODE2LjIyIj48L3BvbHlnb24+CiAgICAgIDxwb2x5Z29uIGZpbGw9IiNmZmZmZmYiIHBvaW50cz0iODcuOTMgODE2LjIyIDg5LjQgODE2LjIyIDg5LjQgODEzLjcgOTMuMjkgODEzLjcgOTMuMjkgODEyLjQ0IDg5LjQgODEyLjQ0IDg5LjQgODEwLjA2IDkzLjY2IDgxMC4wNiA5My42NiA4MDguNzcgODcuOTMgODA4Ljc3IDg3LjkzIDgxNi4yMiI+PC9wb2x5Z29uPgogICAgICA8cmVjdCBmaWxsPSIjZmZmZmZmIiB4PSI5NS44MiIgeT0iODA4Ljc3IiB3aWR0aD0iMS40NyIgaGVpZ2h0PSI3LjQ0Ij48L3JlY3Q+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik0xMDMuNDUsODA4LjY1Yy0xLjIyLDAtMi4yNC4zNS0zLjAzLDEuMDUtLjc5LjctMS4xOSwxLjYzLTEuMTksMi43N3MuNCwyLjA4LDEuMTksMi44Yy43OS43MSwxLjgxLDEuMDgsMy4wMywxLjA4LjgzLDAsMS41Ny0uMTYsMi4yMi0uNDlsLjA2LS4wM3YtMS4zM2wtLjE3LjA5Yy0uNjEuMzEtMS4yOC40Ny0xLjk5LjQ3LS44MywwLTEuNTMtLjI1LTIuMDctLjc0LS41NC0uNDktLjgxLTEuMTEtLjgxLTEuODQsMC0uNzMuMjgtMS4zNC44MS0xLjgxLjU0LS40NywxLjIzLS43MSwyLjA3LS43MS43MiwwLDEuMzkuMTMsMS45OS4zOGwuMTYuMDd2LTEuMzRsLS4wNy0uMDNjLS42MS0uMjQtMS4zNS0uMzctMi4yMi0uMzdaIj48L3BhdGg+CiAgICAgIDxwb2x5Z29uIGZpbGw9IiNmZmZmZmYiIHBvaW50cz0iMTA5LjY2IDgxMy4wNiAxMTMuODggODEzLjA2IDExMy44OCA4MTEuODYgMTA5LjY2IDgxMS44NiAxMDkuNjYgODEwLjAyIDExNC4wNyA4MTAuMDIgMTE0LjA3IDgwOC43NyAxMDguMTkgODA4Ljc3IDEwOC4xOSA4MTYuMjIgMTE0LjE2IDgxNi4yMiAxMTQuMTYgODE0Ljk4IDEwOS42NiA4MTQuOTggMTA5LjY2IDgxMy4wNiI+PC9wb2x5Z29uPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNMTIwLjE4LDgxMS44bC0uNjYtLjEzYy0uNjItLjEyLTEuMDUtLjI1LTEuMjYtLjQtLjE5LS4xNC0uMjktLjMxLS4yOS0uNTEsMC0uMjcuMTctLjQ2LjUyLS41OS4zOC0uMTQuODUtLjIyLDEuMzgtLjIyLjc3LDAsMS41Mi4xNCwyLjIxLjQxbC4xNi4wNnYtMS4zM2wtLjA4LS4wM2MtLjc4LS4yNy0xLjU1LS40LTIuMjktLjQtLjk2LDAtMS43Ni4xOC0yLjM4LjU0LS42NS4zNy0uOTcuOTMtLjk3LDEuNjYsMCwuNTIuMi45OC41OCwxLjM3LjM4LjM5LDEuMDEuNjYsMS44Ny44bC43Mi4xM2MuNTYuMS45NS4yMywxLjE3LjM5LjIxLjE1LjMuMzQuMy41NywwLC4yOS0uMTYuNTEtLjUuNjgtLjM2LjE4LS44My4yNy0xLjQxLjI3LS45NSwwLTEuODMtLjIxLTIuNTktLjYzbC0uMTctLjA5djEuMzlsLjA3LjAzYy44Mi40LDEuNzUuNiwyLjc4LjYuOTQsMCwxLjcyLS4yMSwyLjM0LS42MS42My0uNDIuOTUtMS4wMS45NS0xLjc3LDAtLjU1LS4yLTEuMDEtLjU4LTEuMzctLjM4LS4zNi0xLjAxLS42Mi0xLjg2LS43OVoiPjwvcGF0aD4KICAgIDwvZz4KICAgIDxnPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNMzcyLjk1LDgwM2gxLjQxbC02LjA3LDExLjU1aC0xLjQxbDYuMDctMTEuNTVaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik0zODEuMzMsODAzLjQ5aC4xN2w0LjM1LDkuMzJoLTIuMDZsLS41My0xLjI1aC0zLjY5bC0uNTMsMS4yNWgtMS44OWw0LjE4LTkuMzJaTTM4Mi41Niw4MDkuOTZsLS42LTEuNGMtLjI3LS42MS0uNTUtMS41NS0uNTctMS42NC0uMDEuMDQtLjI5LDEuMDEtLjU2LDEuNjRsLS42LDEuNGgyLjM0WiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNMzg5LjkxLDgwOC4xOWMwLTIuNzMsMS45OS00LjczLDQuODUtNC43MywxLjU1LDAsMi42Ny40MSwzLjQ2LDEuMjhsLTEuMzMsMS4yOGMtLjQ4LS40OC0xLjAyLS44NC0yLjEzLS44NC0xLjcyLDAtMi44NCwxLjI5LTIuODQsMy4wMnMxLjE1LDMuMDQsMy4xNSwzLjA0Yy42MiwwLDEuMzctLjExLDEuODYtLjM0di0xLjQ5aC0yLjI5di0xLjY3aDQuMDh2NC4xM2MtLjU1LjQzLTEuOTIsMS4wNy0zLjY1LDEuMDctMy4xMSwwLTUuMTYtMi4wMS01LjE2LTQuNzRaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik00MDAuNTcsODAzLjU3aDMuNTNjMS45NCwwLDMuNTQuODgsMy41NCwzLjA0LDAsMS40LS43NiwyLjI4LTEuODYsMi43bDIuMTcsMy40OWgtMi4yNGwtMS45My0zLjIxaC0xLjI0djMuMjFoLTEuOTZ2LTkuMjRaTTQwNC4wMyw4MDhjLjk3LDAsMS41OC0uMzcsMS41OC0xLjM5cy0uNjQtMS4zNy0xLjU4LTEuMzdoLTEuNTF2Mi43NmgxLjUxWiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNDA5LjM2LDgwMy41N2g2LjI5djEuNjdoLTQuMzR2Mi4xMmgzLjgydjEuNjNoLTMuODJ2Mi4xNWg0LjUzdjEuNjdoLTYuNDl2LTkuMjRaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik00MjEuMTYsODAzLjQ5aC4xN2w0LjM1LDkuMzJoLTIuMDZsLS41My0xLjI1aC0zLjY5bC0uNTMsMS4yNWgtMS44OWw0LjE4LTkuMzJaTTQyMi4zOSw4MDkuOTZsLS42LTEuNGMtLjI3LS42MS0uNTUtMS41NS0uNTctMS42NC0uMDEuMDQtLjI5LDEuMDEtLjU2LDEuNjRsLS42LDEuNGgyLjM0WiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNDI3LjgsODA1LjI0aC0yLjcxdi0xLjY3aDcuMzl2MS42N2gtMi43MXY3LjU3aC0xLjk2di03LjU3WiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNDM3LjAxLDgwMy41N2gzLjM0YzEuOTQsMCwzLjU0Ljk0LDMuNTQsMy4xcy0xLjYxLDMuMTEtMy41NCwzLjExaC0xLjM4djMuMDNoLTEuOTZ2LTkuMjRaTTQ0MC4yOSw4MDguMWMuOTcsMCwxLjU4LS40MiwxLjU4LTEuNDRzLS42NC0xLjQzLTEuNTgtMS40M2gtMS4zM3YyLjg3aDEuMzNaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik00NDUuNDIsODAzLjU3aDEuOTZ2Ny41N2g0LjMxdjEuNjdoLTYuMjd2LTkuMjRaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik00NTYuNzUsODAzLjQ5aC4xN2w0LjM1LDkuMzJoLTIuMDZsLS41My0xLjI1aC0zLjY5bC0uNTMsMS4yNWgtMS44OWw0LjE4LTkuMzJaTTQ1Ny45OCw4MDkuOTZsLS42LTEuNGMtLjI3LS42MS0uNTUtMS41NS0uNTctMS42NC0uMDEuMDQtLjI5LDEuMDEtLjU2LDEuNjRsLS42LDEuNGgyLjM0WiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNDYxLjM5LDgwOC4xOWMwLTIuNzMsMi4xNy00LjczLDQuOS00LjczLDEuNzIsMCwyLjk1LjYsMy44LDEuODlsLTEuNSwxLjAzYy0uNDUtLjcxLTEuMjItMS4yMS0yLjMxLTEuMjEtMS43MiwwLTIuODgsMS4yOS0yLjg4LDMuMDJzMS4xNiwzLjA0LDIuODgsMy4wNGMxLjIzLDAsMS45Mi0uNTcsMi40NS0xLjM2bDEuNTIsMS4wMmMtLjgzLDEuMjUtMi4xNCwyLjA0LTMuOTcsMi4wNC0yLjczLDAtNC45LTIuMDEtNC45LTQuNzRaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik00NzEuNzIsODAzLjU3aDYuM3YxLjY3aC00LjM0djIuMTJoMy44MnYxLjYzaC0zLjgydjIuMTVoNC41M3YxLjY3aC02LjQ5di05LjI0WiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNDg1LjUxLDgwNC40NGgtMi45MnYtLjg3aDYuODV2Ljg3aC0yLjkydjguMzdoLTEuMDF2LTguMzdaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik00OTAuMSw4MDguMTljMC0yLjc4LDIuMTgtNC43Myw0Ljg4LTQuNzNzNC45LDEuOTQsNC45LDQuNzMtMi4xOCw0LjczLTQuOSw0LjczLTQuODgtMS45NC00Ljg4LTQuNzNaTTQ5OC44Myw4MDguMTljMC0yLjItMS42Mi0zLjg0LTMuODUtMy44NHMtMy44MywxLjY0LTMuODMsMy44NCwxLjYyLDMuODQsMy44MywzLjg0LDMuODUtMS42NCwzLjg1LTMuODRaIj48L3BhdGg+CiAgICAgIDxwYXRoIGZpbGw9IiNmZmZmZmYiIGQ9Ik01MDQuNDQsODAzLjU3aDEuMDhsMiw2LjE1Yy4xMS4zOS4yNS45NS4yNywxLjAxLjAxLS4wNS4xNS0uNjIuMzEtMS4wMWwyLjQ4LTYuMjVoLjE3bDIuNDgsNi4yNWMuMTQuMzguMjkuOTUuMzEsMS4wMS4wMS0uMDUuMTQtLjYyLjI3LTEuMDFsMS45OS02LjE1aDEuMDJsLTMuMTMsOS4zM2gtLjE3bC0yLjU2LTYuNTdjLS4xNS0uMzUtLjI3LS44Ni0uMjgtLjktLjAxLjA0LS4xNS41NC0uMjkuOWwtMi42LDYuNTdoLS4xN2wtMy4xNS05LjMzWiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNTE3LjY4LDgwOC4xOWMwLTIuNzgsMi4xOC00LjczLDQuODgtNC43M3M0LjksMS45NCw0LjksNC43My0yLjE4LDQuNzMtNC45LDQuNzMtNC44OC0xLjk0LTQuODgtNC43M1pNNTI2LjQxLDgwOC4xOWMwLTIuMi0xLjYyLTMuODQtMy44NS0zLjg0cy0zLjgzLDEuNjQtMy44MywzLjg0LDEuNjIsMy44NCwzLjgzLDMuODQsMy44NS0xLjY0LDMuODUtMy44NFoiPjwvcGF0aD4KICAgICAgPHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTUyOS41Miw4MDMuNTdoMi44NWMxLjk5LDAsMy4zOS45MSwzLjM5LDIuODMsMCwxLjM2LS43NywyLjI0LTIsMi42MWwyLjMyLDMuOGgtMS4xOWwtMi4xOC0zLjY0Yy0uMTQuMDEtLjI5LjAxLS40NS4wMWgtMS43M3YzLjYzaC0xLjAxdi05LjI0Wk01MzIuMzIsODA4LjMzYzEuNTUsMCwyLjM5LS42NCwyLjM5LTEuOTRzLS44NS0xLjk2LTIuMzktMS45NmgtMS43OXYzLjloMS43OVoiPjwvcGF0aD4KICAgICAgPHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTUzOC4wMSw4MDMuNTdoMS4wMXY0LjE0YzAsLjQyLS4wNC45Mi0uMDcsMS4yMS4yLS4zOC40OC0uODEuNjYtMS4wNWwzLjY0LTQuMzFoMS4xNWwtMy40Niw0LjEzLDMuODUsNS4xMWgtMS4yM2wtMy4yNy00LjM5LTEuMjYsMS40NXYyLjkzaC0xLjAxdi05LjI0WiI+PC9wYXRoPgogICAgICA8cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNTUzLjU3LDgwM2gxLjQxbC02LjA3LDExLjU1aC0xLjQxbDYuMDctMTEuNTVaIj48L3BhdGg+CiAgICA8L2c+CiAgPC9nPgo8L3N2Zz4=";
+
+  /* ====== presets ====== */
+  var PRESETS = [
+    {label:"Morning Tea", eyebrow:"You're invited", line1:"Morning Tea", line2:"Party",
+     subhead:"Coffee, fresh pastries and good company — on us.",
+     body:"Take a break from your desk and join your floor for a relaxed catch-up. Everyone's welcome — just bring yourself.",
+     day:"25", daySuffix:"th", month:"June", time:"11 am"},
+    {label:"Afternoon Tea", eyebrow:"You're invited", line1:"Afternoon Tea", line2:"Party",
+     subhead:"Coffee, fresh pastries and good company — on us.",
+     body:"Take a break from your desk and join your floor for a relaxed catch-up. Everyone's welcome — just bring yourself.",
+     day:"30", daySuffix:"th", month:"June", time:"2 pm"},
+    {label:"Coffee Catch-up", eyebrow:"This week", line1:"Coffee", line2:"Catch-up",
+     subhead:"Great coffee and a friendly chat to start the day.",
+     body:"Swing by the lounge, grab a cup, and say hello to your neighbours on the floor.",
+     day:"12", daySuffix:"th", month:"July", time:"10 am"},
+    {label:"Friday Drinks", eyebrow:"You're invited", line1:"Friday", line2:"Drinks",
+     subhead:"Wind down the week with the floor — drinks on us.",
+     body:"Join us in the lounge for a relaxed end to the week. Bring a colleague.",
+     day:"4", daySuffix:"th", month:"July", time:"5 pm"},
+    {label:"Networking", eyebrow:"Members' event", line1:"Networking", line2:"Mixer",
+     subhead:"Meet the businesses sharing your building.",
+     body:"An easy, hosted hour to connect with other members over drinks and canapés.",
+     day:"18", daySuffix:"th", month:"July", time:"5:30 pm"},
+    {label:"Welcome", eyebrow:"Say hello", line1:"Welcome", line2:"Aboard",
+     subhead:"New to the floor? Come and meet the community.",
+     body:"A warm welcome from your Compass team and the members around you. Coffee and pastries provided.",
+     day:"1", daySuffix:"st", month:"August", time:"10 am"}
+  ];
+  /* editable location quick-fills */
+  var LOCATIONS = [
+    {label:"Melbourne", where1:"360 Collins Street, Level 26", where2:"Melbourne — Lounge area"},
+    {label:"Sydney",    where1:"Level 16, 9 Castlereagh Street", where2:"Sydney — Lounge area"}
+  ];
+
+  function blankPoster(){
+    return {
+      id:"", name:"", showEyebrow:true,
+      eyebrow:"You're invited", line1:"Morning Tea", line2:"Party",
+      subhead:"Coffee, fresh pastries and good company — on us.",
+      body:"Take a break from your desk and join your floor for a relaxed catch-up. Everyone's welcome — just bring yourself.",
+      where1:"360 Collins Street, Level 26", where2:"Melbourne — Lounge area",
+      day:"25", daySuffix:"th", month:"June", time:"11 am",
+      photoUrl:"",
+      layout:{ headline:{x:0,y:0,s:1}, copy:{x:0,y:0,s:1}, where:{x:0,y:0,s:1}, card:{x:0,y:0,s:1} }
+    };
+  }
+
+  /* ====== state ====== */
+  var state = blankPoster();
+  var localPhoto = "";      // dataURL from device upload (not persisted)
+  var arranging = false;
+  var saveTimer = null;
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---- safe local storage (optional, never required) ---- */
+  function lsGet(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
+  function lsSet(k,v){ try{ window.localStorage.setItem(k,v); }catch(e){} }
+
+  /* ====== boot ====== */
+  function boot(){
+    $("cop-footer").src = FOOTER_SVG;
+    var savedUrl = lsGet("cop_api_url");
+    if(savedUrl) SHEET_API_URL = savedUrl;
+    buildPresets();
+    bindInputs();
+    bindButtons();
+    applyToForm();
+    render();
+    fitStage();
+    window.addEventListener("resize", fitStage);
+    if(SHEET_API_URL){ setStatus("busy","Connecting…"); refreshList(true); }
+    else { setStatus("idle","Not connected — open settings"); }
+  }
+
+  /* ====== presets UI ====== */
+  function buildPresets(){
+    var wrap = $("cop-presets"); wrap.innerHTML="";
+    PRESETS.forEach(function(p){
+      var b=document.createElement("button"); b.className="cop-chip"; b.textContent=p.label;
+      b.onclick=function(){ applyPreset(p); }; wrap.appendChild(b);
+    });
+    LOCATIONS.forEach(function(loc){
+      var b=document.createElement("button"); b.className="cop-chip"; b.textContent="@ "+loc.label;
+      b.onclick=function(){ state.where1=loc.where1; state.where2=loc.where2; applyToForm(); render(); scheduleSave(); };
+      wrap.appendChild(b);
+    });
+  }
+  function applyPreset(p){
+    ["eyebrow","line1","line2","subhead","body","day","daySuffix","month","time"].forEach(function(k){ state[k]=p[k]; });
+    applyToForm(); render(); scheduleSave();
+  }
+
+  /* ====== form binding ====== */
+  var TEXT_FIELDS = ["name","eyebrow","line1","line2","subhead","body","where1","where2","day","daySuffix","month","time","photoUrl"];
+  function bindInputs(){
+    TEXT_FIELDS.forEach(function(k){
+      var el=$("f-"+k); if(!el) return;
+      el.addEventListener("input", function(){ state[k]=el.value; render(); scheduleSave(); });
+    });
+    $("f-showEyebrow").addEventListener("change", function(e){ state.showEyebrow=e.target.checked; render(); scheduleSave(); });
+    $("f-photoFile").addEventListener("change", function(e){
+      var file=e.target.files && e.target.files[0]; if(!file) return;
+      var r=new FileReader();
+      r.onload=function(){ localPhoto=r.result; render(); };
+      r.readAsDataURL(file);
+    });
+  }
+  function applyToForm(){
+    TEXT_FIELDS.forEach(function(k){ var el=$("f-"+k); if(el) el.value=(state[k]!=null?state[k]:""); });
+    $("f-showEyebrow").checked = state.showEyebrow!==false;
+  }
+
+  /* ====== render poster ====== */
+  function txt(id,v){ var el=$(id); if(el) el.textContent=(v!=null?v:""); }
+  function render(){
+    txt("cop-eyebrow", state.eyebrow);
+    txt("cop-line1", state.line1);
+    txt("cop-line2", state.line2);
+    txt("cop-subhead", state.subhead);
+    txt("cop-body", state.body);
+    txt("cop-where1", state.where1);
+    txt("cop-where2", state.where2);
+    txt("cop-day", state.day);
+    txt("cop-suffix", state.daySuffix);
+    txt("cop-month", state.month);
+    txt("cop-time", state.time);
+    $("cop-eyebrow-wrap").style.display = (state.showEyebrow!==false) ? "inline-flex" : "none";
+
+    var src = localPhoto || state.photoUrl || "";
+    var img=$("cop-photo"), ph=$("cop-photo-ph");
+    if(src){ img.src=src; img.style.display="block"; ph.style.display="none"; }
+    else { img.removeAttribute("src"); img.style.display="none"; ph.style.display="flex"; }
+
+    applyLayout();
+  }
+  function applyLayout(){
+    ["headline","copy","where","card"].forEach(function(key){
+      var L=(state.layout&&state.layout[key])||{x:0,y:0,s:1};
+      var el=document.querySelector('[data-key="'+key+'"]'); if(!el) return;
+      el.style.transform="translate("+(L.x||0)+"px,"+(L.y||0)+"px) scale("+(L.s||1)+")";
+      el.style.transformOrigin = (key==="card") ? "top right" : "left top";
+    });
+  }
+
+  /* ====== stage fit ====== */
+  function fitStage(){
+    var stage=$("cop-stage"), fit=$("cop-fit"), scale=$("cop-scale");
+    var availW=stage.clientWidth-80, availH=stage.clientHeight-80;
+    var s=Math.min(availW/794, availH/1123, 1);
+    if(s<0.18) s=0.18;
+    scale.style.transform="scale("+s+")";
+    fit.style.width=(794*s)+"px"; fit.style.height=(1123*s)+"px";
+    stage.style.alignItems = (1123*s > availH) ? "flex-start" : "center";
+  }
+
+  /* ====== drag + resize ====== */
+  function currentScale(){
+    var t=$("cop-scale").style.transform.match(/scale\(([0-9.]+)\)/); return t?parseFloat(t[1]):1;
+  }
+  function setupArrange(){
+    var poster=$("cop-poster");
+    poster.querySelectorAll(".cop-mv").forEach(function(el){
+      var key=el.getAttribute("data-key");
+      el.addEventListener("pointerdown", function(ev){
+        if(!arranging) return;
+        if(ev.target.classList.contains("cop-rsz")) return; // handled below
+        ev.preventDefault();
+        var sc=currentScale();
+        var L=state.layout[key]; var startX=ev.clientX, startY=ev.clientY, ox=L.x||0, oy=L.y||0;
+        el.setPointerCapture(ev.pointerId);
+        function mv(e){ L.x=ox+(e.clientX-startX)/sc; L.y=oy+(e.clientY-startY)/sc; applyLayout(); }
+        function up(e){ el.releasePointerCapture(ev.pointerId); el.removeEventListener("pointermove",mv); el.removeEventListener("pointerup",up); scheduleSave(); }
+        el.addEventListener("pointermove",mv); el.addEventListener("pointerup",up);
+      });
+    });
+    poster.querySelectorAll(".cop-rsz").forEach(function(h){
+      var key=h.getAttribute("data-resize");
+      h.addEventListener("pointerdown", function(ev){
+        if(!arranging) return;
+        ev.preventDefault(); ev.stopPropagation();
+        var sc=currentScale(); var L=state.layout[key];
+        var startX=ev.clientX, os=L.s||1;
+        h.setPointerCapture(ev.pointerId);
+        function mv(e){ var d=(e.clientX-startX)/sc; var ns=os+d/300; ns=Math.max(0.55,Math.min(1.8,ns)); L.s=Math.round(ns*100)/100; applyLayout(); }
+        function up(e){ h.releasePointerCapture(ev.pointerId); h.removeEventListener("pointermove",mv); h.removeEventListener("pointerup",up); scheduleSave(); }
+        h.addEventListener("pointermove",mv); h.addEventListener("pointerup",up);
+      });
+    });
+  }
+
+  /* ====== buttons ====== */
+  function bindButtons(){
+    $("cop-arrange-btn").addEventListener("click", function(){
+      arranging=!arranging;
+      $("cop-poster").classList.toggle("arranging", arranging);
+      this.classList.toggle("on", arranging);
+    });
+    $("cop-reset-btn").addEventListener("click", function(){
+      state.layout={ headline:{x:0,y:0,s:1}, copy:{x:0,y:0,s:1}, where:{x:0,y:0,s:1}, card:{x:0,y:0,s:1} };
+      applyLayout(); scheduleSave();
+    });
+    $("cop-png").addEventListener("click", downloadPNG);
+    $("cop-print").addEventListener("click", printPoster);
+    $("cop-new").addEventListener("click", newPoster);
+    $("cop-delete").addEventListener("click", deletePoster);
+    $("cop-poster-select").addEventListener("change", function(e){ if(e.target.value) loadPoster(e.target.value); });
+    // settings modal
+    $("cop-settings-btn").addEventListener("click", function(){ $("cop-api-input").value=SHEET_API_URL||""; $("cop-modal").classList.add("show"); });
+    $("cop-api-cancel").addEventListener("click", function(){ $("cop-modal").classList.remove("show"); });
+    $("cop-api-save").addEventListener("click", function(){
+      SHEET_API_URL=($("cop-api-input").value||"").trim();
+      lsSet("cop_api_url", SHEET_API_URL);
+      $("cop-modal").classList.remove("show");
+      if(SHEET_API_URL){ setStatus("busy","Connecting…"); refreshList(true); }
+      else setStatus("idle","Not connected — open settings");
+    });
+    setupArrange();
+  }
+
+  /* ====== export ====== */
+  function fileName(ext){
+    var base=(state.name||state.line1+" "+state.line2||"compass-poster").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    return (base||"compass-poster")+"."+ext;
+  }
+  function downloadPNG(){
+    if(typeof html2canvas==="undefined"){ alert("Image export needs an internet connection (html2canvas)."); return; }
+    var node=$("cop-poster");
+    html2canvas(node,{scale:2, useCORS:true, backgroundColor:"#ffffff", width:794, height:1123, windowWidth:794, windowHeight:1123}).then(function(canvas){
+      var a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download=fileName("png"); a.click();
+    }).catch(function(err){ alert("Export failed: "+err.message); });
+  }
+  function printPoster(){
+    var root=$("cop-printroot");
+    root.innerHTML="";
+    var clone=$("cop-poster").cloneNode(true);
+    clone.style.boxShadow="none"; clone.querySelectorAll(".cop-rsz").forEach(function(h){h.remove();});
+    root.appendChild(clone);
+    window.print();
+  }
+
+  /* ====== Google Sheet sync ====== */
+  function setStatus(kind,msg){
+    var dot=$("cop-dot"); dot.className="cop-dot"+(kind==="ok"?" ok":kind==="busy"?" busy":kind==="err"?" err":"");
+    $("cop-status").textContent=msg;
+  }
+  function scheduleSave(){
+    if(!SHEET_API_URL) return;
+    setStatus("busy","Saving…");
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer=setTimeout(saveNow, 800);
+  }
+  function saveNow(){
+    if(!SHEET_API_URL) return;
+    if(!state.id) state.id="p_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
+    state.name=state.name||($("f-name").value)||"Untitled poster";
+    var payload={action:"save", poster:state};
+    fetch(SHEET_API_URL,{method:"POST", body:JSON.stringify(payload)})
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if(res && res.ok){ setStatus("ok","Saved"); ensureOption(state.id, state.name); $("cop-poster-select").value=state.id; }
+        else setStatus("err","Save failed");
+      })
+      .catch(function(){ setStatus("err","Offline — not saved"); });
+  }
+  function refreshList(thenLoadLast){
+    if(!SHEET_API_URL) return;
+    fetch(SHEET_API_URL+"?action=list")
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if(!res || !res.ok){ setStatus("err","Sheet error"); return; }
+        var sel=$("cop-poster-select"); sel.innerHTML="";
+        var ph=document.createElement("option"); ph.value=""; ph.textContent=res.posters.length?"— select a saved poster —":"— no saved posters yet —"; sel.appendChild(ph);
+        res.posters.sort(function(a,b){ return (b.updatedAt||"").localeCompare(a.updatedAt||""); });
+        res.posters.forEach(function(p){ var o=document.createElement("option"); o.value=p.id; o.textContent=p.name||p.id; sel.appendChild(o); });
+        setStatus("ok","Connected");
+        if(thenLoadLast){ var last=lsGet("cop_last_id"); if(last && res.posters.some(function(p){return String(p.id)===String(last);})) loadPoster(last); }
+      })
+      .catch(function(){ setStatus("err","Can't reach sheet"); });
+  }
+  function ensureOption(id,name){
+    var sel=$("cop-poster-select");
+    var opt=Array.prototype.find.call(sel.options, function(o){ return o.value===id; });
+    if(!opt){ opt=document.createElement("option"); opt.value=id; sel.appendChild(opt); }
+    opt.textContent=name||id;
+  }
+  function loadPoster(id){
+    if(!SHEET_API_URL) return;
+    setStatus("busy","Loading…");
+    fetch(SHEET_API_URL+"?action=get&id="+encodeURIComponent(id))
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if(!res || !res.ok || !res.poster){ setStatus("err","Not found"); return; }
+        var p=res.poster;
+        var s=blankPoster();
+        ["id","name","eyebrow","line1","line2","subhead","body","where1","where2","day","daySuffix","month","time","photoUrl"].forEach(function(k){ if(p[k]!=null) s[k]=p[k]; });
+        s.showEyebrow = !(String(p.showEyebrow).toLowerCase()==="false" || p.showEyebrow===false);
+        s.day=String(s.day); // sheets may coerce numbers
+        try{ s.layout = (typeof p.layout==="string"&&p.layout) ? JSON.parse(p.layout) : (p.layout||s.layout); }catch(e){}
+        state=s; localPhoto="";
+        lsSet("cop_last_id", state.id);
+        applyToForm(); render();
+        setStatus("ok","Loaded");
+      })
+      .catch(function(){ setStatus("err","Load failed"); });
+  }
+  function newPoster(){
+    state=blankPoster(); localPhoto="";
+    applyToForm(); render();
+    $("cop-poster-select").value="";
+    // a fresh poster is not written to the sheet until you edit it (keeps the sheet free of empty rows)
+    setStatus(SHEET_API_URL?"ok":"idle", SHEET_API_URL?"New poster — edit to save":"Not connected — open settings");
+  }
+  function deletePoster(){
+    if(!state.id){ newPoster(); return; }
+    if(!SHEET_API_URL){ newPoster(); return; }
+    if(!confirm("Delete \""+(state.name||"this poster")+"\" from your sheet?")) return;
+    var id=state.id;
+    fetch(SHEET_API_URL,{method:"POST", body:JSON.stringify({action:"delete", id:id})})
+      .then(function(r){ return r.json(); })
+      .then(function(){ var sel=$("cop-poster-select"); Array.prototype.slice.call(sel.options).forEach(function(o){ if(o.value===id) o.remove(); }); newPoster(); setStatus("ok","Deleted"); })
+      .catch(function(){ setStatus("err","Delete failed"); });
+  }
+
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+</script>
+</body>
+</html>
