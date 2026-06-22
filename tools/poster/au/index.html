@@ -46,8 +46,6 @@ body{margin:0;background:#e9eaec;}
 .cop-dot{width:9px; height:9px; border-radius:50%; background:#BBB; flex:0 0 auto;}
 .cop-dot.ok{background:#2BB673;} .cop-dot.busy{background:var(--co-orange);} .cop-dot.err{background:#E5484D;}
 .cop-sync .t{flex:1 1 auto; font-size:12.5px; color:var(--co-text); line-height:1.3;}
-.cop-gear{flex:0 0 auto; border:0; background:transparent; cursor:pointer; color:var(--co-muted); padding:4px; border-radius:6px;}
-.cop-gear:hover{color:var(--co-ink); background:#EFEFEF;}
 
 .cop-row2{display:flex; gap:10px; align-items:center; margin-bottom:16px;}
 .cop-select{flex:1 1 auto; min-width:0; border:1.5px solid var(--co-line); border-radius:9px; padding:10px 12px; font:600 13px 'Hanken Grotesk',sans-serif; color:var(--co-ink); background:#fff; cursor:pointer;}
@@ -137,14 +135,6 @@ body{margin:0;background:#e9eaec;}
 .cop-poster.arranging .cop-mv{outline:1.5px dashed rgba(255,102,0,.5); outline-offset:6px; cursor:move;}
 .cop-poster.arranging .cop-rsz{display:block;}
 
-/* settings modal */
-.cop-modal{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:50;}
-.cop-modal.show{display:flex;}
-.cop-card2{background:#fff; border-radius:14px; padding:26px; width:440px; max-width:92vw; box-shadow:0 30px 80px rgba(0,0,0,.3);}
-.cop-card2 h3{font-size:17px; font-weight:800; margin-bottom:6px;}
-.cop-card2 p{font-size:13px; color:var(--co-text-2); line-height:1.5; margin-bottom:14px;}
-.cop-card2 .cop-input{margin-bottom:14px;}
-.cop-modal-actions{display:flex; gap:10px; justify-content:flex-end;}
 
 @media print{
   body{background:#fff;}
@@ -168,10 +158,7 @@ body{margin:0;background:#e9eaec;}
     <!-- sync status -->
     <div class="cop-sync">
       <span class="cop-dot" id="cop-dot"></span>
-      <span class="t" id="cop-status">Not connected</span>
-      <button class="cop-gear" id="cop-settings-btn" title="Sheet connection settings" aria-label="Settings">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>
-      </button>
+      <span class="t" id="cop-status">Connecting…</span>
     </div>
 
     <!-- poster selector -->
@@ -332,19 +319,6 @@ body{margin:0;background:#e9eaec;}
       </div>
     </div>
   </main>
-
-  <!-- settings modal -->
-  <div class="cop-modal" id="cop-modal">
-    <div class="cop-card2">
-      <h3>Connect to Google Sheet</h3>
-      <p>Paste the Web App URL from your Apps Script deployment (ends in <code>/exec</code>). Every change then autosaves to your sheet.</p>
-      <input class="cop-input" id="cop-api-input" placeholder="https://script.google.com/macros/s/…/exec">
-      <div class="cop-modal-actions">
-        <button class="cop-secondary" style="width:auto; padding:11px 18px;" id="cop-api-cancel">Cancel</button>
-        <button class="cop-primary" style="width:auto; padding:11px 20px;" id="cop-api-save">Save &amp; connect</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- print root (filled at print time) -->
@@ -418,8 +392,6 @@ body{margin:0;background:#e9eaec;}
   /* ====== boot ====== */
   function boot(){
     $("cop-footer").src = FOOTER_SVG;
-    var savedUrl = lsGet("cop_api_url");
-    if(savedUrl) SHEET_API_URL = savedUrl;
     buildPresets();
     bindInputs();
     bindButtons();
@@ -428,7 +400,7 @@ body{margin:0;background:#e9eaec;}
     fitStage();
     window.addEventListener("resize", fitStage);
     if(SHEET_API_URL){ setStatus("busy","Connecting…"); refreshList(true); }
-    else { setStatus("idle","Not connected — open settings"); }
+    else { setStatus("idle","Offline"); }
   }
 
   /* ====== presets UI ====== */
@@ -563,16 +535,6 @@ body{margin:0;background:#e9eaec;}
     $("cop-new").addEventListener("click", newPoster);
     $("cop-delete").addEventListener("click", deletePoster);
     $("cop-poster-select").addEventListener("change", function(e){ if(e.target.value) loadPoster(e.target.value); });
-    // settings modal
-    $("cop-settings-btn").addEventListener("click", function(){ $("cop-api-input").value=SHEET_API_URL||""; $("cop-modal").classList.add("show"); });
-    $("cop-api-cancel").addEventListener("click", function(){ $("cop-modal").classList.remove("show"); });
-    $("cop-api-save").addEventListener("click", function(){
-      SHEET_API_URL=($("cop-api-input").value||"").trim();
-      lsSet("cop_api_url", SHEET_API_URL);
-      $("cop-modal").classList.remove("show");
-      if(SHEET_API_URL){ setStatus("busy","Connecting…"); refreshList(true); }
-      else setStatus("idle","Not connected — open settings");
-    });
     setupArrange();
   }
 
@@ -682,7 +644,7 @@ body{margin:0;background:#e9eaec;}
     applyToForm(); render();
     $("cop-poster-select").value="";
     // a fresh poster is not written to the sheet until you edit it (keeps the sheet free of empty rows)
-    setStatus(SHEET_API_URL?"ok":"idle", SHEET_API_URL?"New poster — edit to save":"Not connected — open settings");
+    setStatus(SHEET_API_URL?"ok":"idle", SHEET_API_URL?"New poster — edit to save":"Offline");
   }
   function deletePoster(){
     if(!state.id){ newPoster(); return; }
