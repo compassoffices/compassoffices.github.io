@@ -2334,6 +2334,10 @@ body{margin:0;background:#e9eaec;}
 .cps-dot{width:9px;height:9px;border-radius:50%;background:#bbb;flex:0 0 auto;}
 .cps-dot.ok{background:#2BB673;}.cps-dot.busy{background:var(--o);}.cps-dot.err{background:#E5484D;}
 .cps-sync .t{flex:1;font-size:12.5px;color:var(--tx);}
+.cps-recon{flex:0 0 auto;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;border-radius:7px;color:#777;cursor:pointer;padding:0;}
+.cps-recon:hover{border-color:var(--o);color:var(--o);}
+.cps-recon.spin svg{animation:cps-spin .8s linear infinite;transform-origin:50% 50%;}
+@keyframes cps-spin{to{transform:rotate(360deg);}}
 
 .cps-label{font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin:0 0 10px;}
 .cps-group{margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #EFEFEF;}
@@ -2579,7 +2583,7 @@ body{margin:0;background:#e9eaec;}
     </div>
     <div class="cps-sub">Compass Offices · multi-template · A4</div>
 
-    <div class="cps-sync"><span class="cps-dot" id="cps-dot"></span><span class="t" id="cps-status">Connecting…</span></div>
+    <div class="cps-sync"><span class="cps-dot" id="cps-dot"></span><span class="t" id="cps-status">Connecting…</span><button class="cps-recon" id="cps-reconnect" type="button" title="Reconnect to the sheet" aria-label="Reconnect"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg></button></div>
 
     <!-- template picker -->
     <div class="cps-group">
@@ -2609,6 +2613,7 @@ body{margin:0;background:#e9eaec;}
           <select class="cps-select" id="f-region"><option>HK</option><option>AU</option><option>JP</option><option>VN</option><option>SG</option><option>Other</option></select>
         </div>
       </div>
+      <label class="cps-toggle" style="margin-top:4px;margin-bottom:0;"><input type="checkbox" id="cps-autosave"><span>Auto-save changes to the sheet</span></label>
     </div>
 
     <div class="cps-fmtbar" id="cps-fmtbar">
@@ -2926,7 +2931,8 @@ body{margin:0;background:#e9eaec;}
   }
   var state=blank();
   var local={hero:"",hero2:"",partner:"",wrap:"",pBrand:"",pHero:"",jSpeaker:""}; // upload previews, not persisted
-  var saveTimer=null, dirty=false;
+  var saveTimer=null, dirty=false, saving=false;
+  var AUTOSAVE = lsGet("cps_autosave")!=="0";   // default ON
 
   var TEXT=["name","kicker","headline","headSub","partnerName","partnerLogoUrl","heroUrl","hero2Url","subhead","desc","qrUrl","qrLabel","aboutHeading","aboutText","date","time","location",
     "pBrandUrl","pHeroUrl","pEyebrow","pHeadline","pSubhead","pValidity",
@@ -3258,7 +3264,17 @@ body{margin:0;background:#e9eaec;}
 
   /* ---- status / dirty ---- */
   function setStatus(kind,msg){ var d=$("cps-dot"); d.className="cps-dot"+(kind==="ok"?" ok":kind==="busy"?" busy":kind==="err"?" err":""); $("cps-status").textContent=msg; }
-  function markDirty(){ dirty=true; if(state.template!=="wrap"){ $("cps-save").textContent="Save to sheet *"; } }
+  function markDirty(){ dirty=true; if(state.template!=="wrap"){ $("cps-save").textContent="Save to sheet *"; } scheduleAutosave(); }
+  function canAutosave(){
+    if(state.template==="wrap") return false;
+    if(!SHEET_API_URL || SHEET_API_URL.indexOf("/exec")<0) return false;
+    return !!(state.id || state.name || state.headline || state.pHeadline || state.jHeadline);
+  }
+  function scheduleAutosave(){
+    if(!AUTOSAVE || !dirty || !canAutosave()) return;
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer=setTimeout(function(){ doSave(true); }, 1600);
+  }
 
   /* ---- buttons ---- */
   function bindButtons(){
@@ -3271,6 +3287,14 @@ body{margin:0;background:#e9eaec;}
     $("cps-png").addEventListener("click",function(){ exportImage("png"); });
     $("cps-jpg").addEventListener("click",function(){ exportImage("jpg"); });
     $("cps-print").addEventListener("click",printPoster);
+    var rb=$("cps-reconnect");
+    if(rb) rb.addEventListener("click",function(){
+      if(rb.classList.contains("spin")) return;
+      rb.classList.add("spin"); setStatus("busy","Connecting…");
+      refreshList(false).then(function(){ rb.classList.remove("spin"); });
+    });
+    var as=$("cps-autosave");
+    if(as){ as.checked=AUTOSAVE; as.addEventListener("change",function(){ AUTOSAVE=as.checked; lsSet("cps_autosave",AUTOSAVE?"1":"0"); if(AUTOSAVE&&dirty) scheduleAutosave(); else if(!AUTOSAVE&&saveTimer) clearTimeout(saveTimer); }); }
   }
 
   /* ---- export ---- */
@@ -3320,26 +3344,34 @@ body{margin:0;background:#e9eaec;}
     var data={}; Object.keys(state).forEach(function(k){ if(!META[k]) data[k]=state[k]; });
     return {id:state.id,name:state.name||state.headline||state.pHeadline||state.jHeadline||"Untitled",template:state.template,region:state.region,data:JSON.stringify(data)};
   }
-  function saveNow(){
+  function saveNow(){ doSave(false); }
+  function doSave(silent){
     if(state.template==="wrap") return;
-    if(!SHEET_API_URL || SHEET_API_URL.indexOf("/exec")<0){ setStatus("err","No sheet connected"); return; }
+    if(!SHEET_API_URL || SHEET_API_URL.indexOf("/exec")<0){ if(!silent) setStatus("err","No sheet connected"); return; }
+    if(saving){ if(saveTimer) clearTimeout(saveTimer); saveTimer=setTimeout(function(){ doSave(silent); }, 800); return; }
     if(!state.id) state.id="p_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
-    setStatus("busy","Saving…"); $("cps-save").disabled=true;
+    saving=true; dirty=false;                       // clean at send-time; edits during flight re-dirty
+    setStatus("busy", silent?"Auto-saving…":"Saving…"); if(!silent) $("cps-save").disabled=true;
     jsonp({action:"save",record:JSON.stringify(recordFromState())})
       .then(function(res){
-        $("cps-save").disabled=false;
-        if(res&&res.ok){ dirty=false; $("cps-save").textContent="Save to sheet"; setStatus("ok","Saved"); ensureOption(state.id,state.name||state.headline); $("cps-select").value=state.id; lsSet("cps_last",state.id); }
-        else setStatus("err","Save failed");
-      }).catch(function(e){ $("cps-save").disabled=false; setStatus("err",(e&&e.diag)?e.message:"Offline — not saved"); });
+        saving=false; $("cps-save").disabled=false;
+        if(res&&res.ok){
+          setStatus("ok", silent?"All changes saved":"Saved");
+          ensureOption(state.id,state.name||state.headline); $("cps-select").value=state.id; lsSet("cps_last",state.id);
+          $("cps-save").textContent = dirty ? "Save to sheet *" : "Save to sheet";
+          if(dirty) scheduleAutosave();             // typed more during the save → save again
+        } else { dirty=true; setStatus("err","Save failed"); }
+      }).catch(function(e){ saving=false; dirty=true; $("cps-save").disabled=false; setStatus("err",(e&&e.diag)?e.message:"Offline — not saved"); });
   }
   function refreshList(thenLast){
-    jsonp({action:"list"}).then(function(res){
+    return jsonp({action:"list"}).then(function(res){
       if(!res||!res.ok){ setStatus("err","Sheet error"); return; }
       var list=res.records||res.posters||[];
       var sel=$("cps-select"); sel.innerHTML="";
       var ph=document.createElement("option"); ph.value=""; ph.textContent=list.length?"— open a saved poster —":"— nothing saved yet —"; sel.appendChild(ph);
       list.sort(function(a,b){return (b.updatedAt||"").localeCompare(a.updatedAt||"");});
       list.forEach(function(r){ var o=document.createElement("option"); o.value=r.id; o.textContent=(r.name||r.id)+(r.template?"  ·  "+r.template:""); sel.appendChild(o); });
+      if(state.id) sel.value=state.id;            // keep showing the open poster after a reconnect
       setStatus("ok","Connected");
       if(thenLast){ var last=lsGet("cps_last"); if(last&&list.some(function(r){return String(r.id)===String(last);})) loadPoster(last); }
     }).catch(function(e){ setStatus("err",(e&&e.diag)?e.message:"Can't reach sheet"); });
