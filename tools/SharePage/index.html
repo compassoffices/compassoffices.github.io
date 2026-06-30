@@ -554,16 +554,25 @@ function loadPreset(p){
     highlights:[],agenda:[],speakers:[],listings:[],
     on:{partner:false,listings:false,highlights:true,agenda:false,speakers:false,about:false,offer:false,finalCta:true}
   };
-  S = Object.assign(base, JSON.parse(JSON.stringify(PRESETS[p])));
-  S.on = Object.assign(base.on, PRESETS[p].on||{});
+  // Start blank so each field shows its grey hint. Keep only the page structure
+  // (which sections are on, hero/background style) and the brand footer/contact.
+  S = JSON.parse(JSON.stringify(base));
+  const pr = PRESETS[p] || {};
+  ['heroStyle','pageBg','ftEmail','ftPhone','ftAddr','enquireEmail'].forEach(k=>{ if(pr[k]!==undefined && pr[k]!=='') S[k]=pr[k]; });
+  S.on = Object.assign({}, base.on, pr.on||{});
 }
 
 /* ===== form binding ===== */
 function syncInputs(){
   document.querySelectorAll('[data-k]').forEach(inp=>{
-    const v=S[inp.dataset.k] ?? "";
+    const k=inp.dataset.k;
+    const v=S[k] ?? "";
     if(inp.hasAttribute('data-img') && typeof v==='string' && v.startsWith('data:')){ inp.value=''; inp.placeholder='Image embedded — type a URL to replace'; }
-    else inp.value=v;
+    else {
+      inp.value=v;
+      const ex=PRESETS[curPreset] && PRESETS[curPreset][k];     // grey hint from the chosen type
+      if((v==='' || v==null) && typeof ex==='string' && ex){ inp.placeholder=ex; }
+    }
   });
   document.querySelectorAll('[data-toggle]').forEach(cb=>{ cb.checked = !!S.on[cb.dataset.toggle]; });
   document.querySelectorAll('#heroStyleSeg button').forEach(b=>b.classList.toggle('on', b.dataset.hs===S.heroStyle));
