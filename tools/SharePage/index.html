@@ -583,7 +583,7 @@ function bindStaticInputs(){
     b.addEventListener('click',()=>{ S.pageBg=b.dataset.bg; document.querySelectorAll('#pageBgSeg button').forEach(x=>x.classList.toggle('on',x===b)); queueRender(); });
   });
   document.querySelectorAll('#presetSeg button').forEach(b=>{
-    b.addEventListener('click',()=>{ loadPreset(b.dataset.p); syncInputs(); queueRender(true); });
+    b.addEventListener('click',()=>{ loadPreset(b.dataset.p); CLOUD.id=freshId(); CLOUD.name=''; const cn=document.getElementById('cloudName'); if(cn)cn.value=''; syncInputs(); queueRender(true); });
   });
   document.querySelectorAll('#devtabs button').forEach(b=>{
     b.addEventListener('click',()=>{ document.querySelectorAll('#devtabs button').forEach(x=>x.classList.toggle('on',x===b)); document.getElementById('phone').classList.toggle('desktop', b.dataset.d==='desktop'); });
@@ -1094,6 +1094,7 @@ function toast(msg){const t=document.getElementById('toast');document.getElement
 
 /* ===== cloud backend: Google Sheet (pages) + Drive (images) via Apps Script ===== */
 let CLOUD={url:'',name:'',id:''};
+function freshId(){return 'p'+Date.now()+Math.floor(Math.random()*1000);}
 function cstat(m){const el=document.getElementById('cloudStatus'); if(el) el.textContent=m||'';}
 function jsonp(base,params,timeout){
   return new Promise((res,rej)=>{
@@ -1120,7 +1121,9 @@ async function testBackend(){
 async function uploadToDrive(file){
   const data=await fileToDataUrl(file);
   const token='t'+Date.now()+Math.floor(Math.random()*1e5);
-  await postNoCors(CLOUD.url,{action:'upload',token,name:file.name,data});
+  if(!CLOUD.id) CLOUD.id=freshId();
+  const pname=CLOUD.name||((document.getElementById('cloudName')||{}).value||'');
+  await postNoCors(CLOUD.url,{action:'upload',token,name:file.name,data,project:CLOUD.id,pname});
   for(let i=0;i<25;i++){
     await new Promise(r=>setTimeout(r,800));
     try{const r=await jsonp(CLOUD.url,{action:'uploadStatus',token},8000); if(r&&r.url) return r.url;}catch(e){}
@@ -1138,7 +1141,7 @@ function handleUpload(file,setter){
 async function saveToSheet(){
   if(!CLOUD.url){cstat('Paste your backend URL first.');return;}
   const name=((document.getElementById('cloudName')||{}).value||'').trim()||pageSlug();
-  CLOUD.name=name; if(!CLOUD.id) CLOUD.id='p'+Date.now();
+  CLOUD.name=name; if(!CLOUD.id) CLOUD.id=freshId();
   cstat('Saving…');
   try{
     await postNoCors(CLOUD.url,{action:'save',id:CLOUD.id,name,type:curPreset,json:JSON.stringify({preset:curPreset,state:S})});
@@ -1151,7 +1154,7 @@ async function refreshList(){
     const r=await jsonp(CLOUD.url,{action:'list'},12000);
     const sel=document.getElementById('cloudList'); if(!sel) return;
     sel.innerHTML='<option value="">— pick a saved page —</option>';
-    ((r&&r.pages)||[]).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name+(p.type?' ('+p.type+')':'');sel.appendChild(o);});
+    ((r&&r.pages)||[]).forEach(p=>{const o=document.createElement('option');o.value=p.id;const d=p.updatedAt?(' · '+new Date(p.updatedAt).toLocaleDateString()):'';o.textContent=p.name+(p.type?' ('+p.type+')':'')+d;sel.appendChild(o);});
   }catch(e){}
 }
 async function loadFromSheet(){
@@ -1171,6 +1174,7 @@ bindStaticInputs();
 syncInputs();
 queueRender(true);
 (function(){
+  CLOUD.id=freshId();
   const cu=document.getElementById('cloudUrl'); if(cu) cu.addEventListener('input',e=>{CLOUD.url=e.target.value.trim();});
   const cn=document.getElementById('cloudName'); if(cn) cn.addEventListener('input',e=>{CLOUD.name=e.target.value;});
 })();
