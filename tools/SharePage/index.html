@@ -60,6 +60,11 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.imgrow{display:flex;gap:8px;align-items:center;}
+.imgrow input{flex:1;min-width:0;}
+.up{flex:none;cursor:pointer;font-size:12px;font-weight:700;color:var(--co-text-2);border:1.5px solid var(--co-line);border-radius:8px;padding:9px 12px;background:var(--co-paper);white-space:nowrap;transition:.15s;display:inline-flex;align-items:center;gap:6px;}
+.up:hover{border-color:var(--co-orange);color:var(--co-orange);background:var(--co-orange-wash);}
+.up svg{width:14px;height:14px;}
 
 /* repeatable rows */
 .rep{border:1px solid var(--co-line);border-radius:9px;padding:12px;margin-top:12px;position:relative;background:#FCFCFC;}
@@ -177,7 +182,9 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
         <div class="field"><label>Headline — line 1 <span class="hint">(light)</span></label><input type="text" data-k="hlLight" placeholder="Hands-on"></div>
         <div class="field"><label>Headline — line 2 <span class="hint">(bold)</span></label><input type="text" data-k="hlBold" placeholder="AI Workshop"></div>
         <div class="field"><label>Sub-headline</label><textarea data-k="subhead" placeholder="A practical, half-day session for Compass members — build, ship, and take it home."></textarea></div>
-        <div class="field"><label>Hero image URL <span class="hint">(optional — adds a photo banner)</span></label><input type="url" data-k="heroImg" placeholder="https://…/photo.jpg"></div>
+        <div class="field"><label>Hero image <span class="hint">(paste a URL, or upload to embed)</span></label>
+          <div class="imgrow"><input type="url" data-k="heroImg" data-img placeholder="https://…/photo.jpg"><label class="up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0l-4 4m4-4l4 4M5 20h14"/></svg>Upload<input type="file" accept="image/*" hidden data-upk="heroImg"></label></div>
+        </div>
         <div class="field"><label>Hero style</label>
           <div class="seg" id="heroStyleSeg" style="background:var(--co-fill)">
             <button data-hs="light" class="on">Light</button>
@@ -214,7 +221,9 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
       </summary>
       <div class="body">
         <div class="field"><label>Partner name</label><input type="text" data-k="partnerName" placeholder="Alibaba Cloud"></div>
-        <div class="field"><label>Partner logo URL <span class="hint">(transparent PNG/SVG works best)</span></label><input type="url" data-k="partnerLogo" placeholder="https://…/partner-logo.png"></div>
+        <div class="field"><label>Partner logo <span class="hint">(transparent PNG/SVG; URL or upload)</span></label>
+          <div class="imgrow"><input type="url" data-k="partnerLogo" data-img placeholder="https://…/partner-logo.png"><label class="up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0l-4 4m4-4l4 4M5 20h14"/></svg>Upload<input type="file" accept="image/*" hidden data-upk="partnerLogo"></label></div>
+        </div>
       </div>
     </details>
 
@@ -353,6 +362,7 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
       <div class="og-thumb"><img id="ogPreview" alt="link preview"></div>
       <p style="margin:12px 0 0;font-size:12px;color:var(--co-text-2)">Files will be named: <code id="fnHtml" style="background:var(--co-fill);padding:1px 6px;border-radius:5px">page.html</code> + <code id="fnImg" style="background:var(--co-fill);padding:1px 6px;border-radius:5px">page.jpg</code></p>
       <div id="ogWarn" style="display:none;margin-top:12px;padding:11px 13px;background:var(--co-orange-wash);border:1.5px solid var(--co-orange-tint);border-radius:9px;font-size:12px;color:var(--co-ink);line-height:1.5"><strong style="color:var(--co-orange)">Set the host URL above</strong> — without it the preview image link is relative, and WhatsApp can't show it in the chat.</div>
+      <p style="margin:12px 0 0;font-size:12px;color:var(--co-text-2);line-height:1.5"><strong>Sending the file itself on WhatsApp?</strong> Use <strong>Upload</strong> on each image so it embeds in the page — pasted URLs may not load when the file is opened from a chat. (Hosting the page and sharing the link instead? URLs are fine.)</p>
       <ol class="steps">
         <li>Click <strong>Download page</strong> and <strong>Preview image</strong> — both auto-named from your headline.</li>
         <li>Put the matching <code>.html</code> and <code>.jpg</code> in the same folder and publish (GitHub Pages, or upload to WordPress media). The shared name means several pages can share one folder.</li>
@@ -529,7 +539,11 @@ function loadPreset(p){
 
 /* ===== form binding ===== */
 function syncInputs(){
-  document.querySelectorAll('[data-k]').forEach(inp=>{ inp.value = S[inp.dataset.k] ?? ""; });
+  document.querySelectorAll('[data-k]').forEach(inp=>{
+    const v=S[inp.dataset.k] ?? "";
+    if(inp.hasAttribute('data-img') && typeof v==='string' && v.startsWith('data:')){ inp.value=''; inp.placeholder='Image embedded — type a URL to replace'; }
+    else inp.value=v;
+  });
   document.querySelectorAll('[data-toggle]').forEach(cb=>{ cb.checked = !!S.on[cb.dataset.toggle]; });
   document.querySelectorAll('#heroStyleSeg button').forEach(b=>b.classList.toggle('on', b.dataset.hs===S.heroStyle));
   document.querySelectorAll('#pageBgSeg button').forEach(b=>b.classList.toggle('on', b.dataset.bg===(S.pageBg||'grey')));
@@ -540,6 +554,9 @@ function syncInputs(){
 function bindStaticInputs(){
   document.querySelectorAll('[data-k]').forEach(inp=>{
     inp.addEventListener('input',()=>{ S[inp.dataset.k]=inp.value; queueRender(); });
+  });
+  document.querySelectorAll('[data-upk]').forEach(up=>{
+    up.addEventListener('change',()=>{ embedFile(up.files[0],(d)=>{ S[up.dataset.upk]=d; syncInputs(); queueRender(); }); up.value=''; });
   });
   document.querySelectorAll('[data-toggle]').forEach(cb=>{
     cb.addEventListener('change',()=>{ S.on[cb.dataset.toggle]=cb.checked; queueRender(); });
@@ -600,9 +617,10 @@ function renderSpeakers(){
     d.innerHTML=`<button class="rm">&times;</button>
       <div class="field" style="margin-top:2px"><label>Name</label><input type="text" data-f="name" value="${esc(s.name)}"></div>
       <div class="field"><label>Title / company</label><input type="text" data-f="title" value="${esc(s.title)}"></div>
-      <div class="field"><label>Photo URL <span class="hint">(optional)</span></label><input type="url" data-f="photo" value="${esc(s.photo)}"></div>`;
+      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'https://…/photo.jpg')}</div>`;
     d.querySelector('.rm').onclick=()=>{S.speakers.splice(i,1);renderSpeakers();queueRender();};
     d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{s[f.dataset.f]=f.value;queueRender();}));
+    d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;embedFile(up.files[0],(dd)=>{s[fld]=dd;renderSpeakers();queueRender();});up.value='';}));
     box.appendChild(d);
   });
 }
@@ -617,10 +635,10 @@ function renderListings(){
       <div class="field" style="margin-top:2px"><label>Location name</label><input type="text" data-f="location" value="${esc(l.location)}" placeholder="Wing On Centre"></div>
       <div class="field"><label>Location page link <span class="hint">(optional)</span></label><input type="url" data-f="link" value="${esc(l.link)}" placeholder="https://www.compassoffices.com/locations/…"></div>
       <div class="field"><label>Photos <span class="hint">(big + 2 small collage)</span></label>
-        <input type="url" data-f="big" value="${esc(l.big)}" placeholder="Large photo URL" style="margin-bottom:8px">
-        <div class="two"><input type="url" data-f="small1" value="${esc(l.small1)}" placeholder="Small photo 1"><input type="url" data-f="small2" value="${esc(l.small2)}" placeholder="Small photo 2"></div>
+        <div style="margin-bottom:8px">${imgField('big',l.big,'Large photo URL')}</div>
+        <div class="two">${imgField('small1',l.small1,'Small photo 1')}${imgField('small2',l.small2,'Small photo 2')}</div>
       </div>
-      <div class="field"><label>Floor plan URL <span class="hint">(optional)</span></label><input type="url" data-f="floor" value="${esc(l.floor)}" placeholder="Floor plan image URL"></div>
+      <div class="field"><label>Floor plan <span class="hint">(optional; URL or upload)</span></label>${imgField('floor',l.floor,'Floor plan image URL')}</div>
       <div class="two">
         <div class="field"><label>Room</label><input type="text" data-f="room" value="${esc(l.room)}" placeholder="Room 2758"></div>
         <div class="field"><label>Workstations</label><input type="text" data-f="seats" value="${esc(l.seats)}" placeholder="59 workstations"></div>
@@ -629,6 +647,7 @@ function renderListings(){
       <div class="field"><label>Price</label><input type="text" data-f="price" value="${esc(l.price)}" placeholder="HK$180,000"></div>`;
     d.querySelector('.rm').onclick=()=>{S.listings.splice(i,1);renderListings();queueRender();};
     d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{l[f.dataset.f]=f.value;queueRender();}));
+    d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;embedFile(up.files[0],(dd)=>{l[fld]=dd;renderListings();queueRender();});up.value='';}));
     box.appendChild(d);
   });
 }
@@ -638,6 +657,36 @@ function addListing(){S.listings.push({location:'',link:'',big:'',small1:'',smal
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function escAttr(s){return esc(s);}
 function nl2br(s){return esc(s).replace(/\n/g,'<br>');}
+
+/* read an image file into a data URI (always embeddable, no CORS) */
+function embedFile(file,cb){
+  if(!file) return;
+  if(file.size>5*1024*1024){ toast('Image is large (>5MB) — it may make the file heavy'); }
+  const r=new FileReader();
+  r.onload=()=>cb(r.result);
+  r.onerror=()=>toast('Could not read that image');
+  r.readAsDataURL(file);
+}
+const UP_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0l-4 4m4-4l4 4M5 20h14"/></svg>';
+/* markup for a URL input + Upload button inside a repeatable row (data-f / data-up) */
+function imgField(field,val,ph){
+  const embedded=(val||'').startsWith('data:');
+  return `<div class="imgrow"><input type="url" data-f="${field}" value="${embedded?'':escAttr(val)}" placeholder="${embedded?'Image embedded — type a URL to replace':ph}"><label class="up">${UP_ICON}Upload<input type="file" accept="image/*" hidden data-up="${field}"></label></div>`;
+}
+/* best-effort: turn remote <img> URLs into data URIs so the file is self-contained */
+async function embedRemote(html){
+  const urls=[...new Set([...html.matchAll(/<img[^>]+src="(https?:\/\/[^"]+)"/g)].map(m=>m[1]))];
+  let failed=0;
+  for(const u of urls){
+    try{
+      const res=await fetch(u,{mode:'cors'});
+      const blob=await res.blob();
+      const d=await new Promise((rs,rj)=>{const r=new FileReader();r.onload=()=>rs(r.result);r.onerror=rj;r.readAsDataURL(blob);});
+      html=html.split('"'+u+'"').join('"'+d+'"');
+    }catch(e){ failed++; }
+  }
+  return {html,failed,total:urls.length};
+}
 function slugify(s){return (s||'').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g,'').trim().replace(/[\s_]+/g,'-').replace(/-+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)||'compass-page';}
 function pageSlug(){return slugify([S.hlLight,S.hlBold].filter(Boolean).join(' ')||S.pageTitle||S.badge||'compass-page');}
 function ogImageUrl(){
@@ -992,7 +1041,18 @@ function renderOG(){
 
 /* ===== outputs ===== */
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},100);}
-function downloadPage(){const n=pageSlug()+'.html';dl(new Blob([buildPage(S)],{type:'text/html'}),n);toast('Page downloaded — '+n);}
+async function downloadPage(){
+  const n=pageSlug()+'.html';
+  let html=buildPage(S);
+  if(/<img[^>]+src="https?:\/\//.test(html)){
+    toast('Embedding images…');
+    try{ const r=await embedRemote(html); html=r.html;
+      if(r.failed) toast(r.failed+' of '+r.total+' image links could not be embedded — upload those, or host + share the link');
+      else toast('Page downloaded — '+n);
+    }catch(e){}
+  }else{ toast('Page downloaded — '+n); }
+  dl(new Blob([html],{type:'text/html'}),n);
+}
 function copyHTML(){navigator.clipboard.writeText(buildPage(S)).then(()=>toast('HTML copied to clipboard'),()=>toast('Copy failed'));}
 function downloadOG(){
   const n=pageSlug()+'.jpg';
