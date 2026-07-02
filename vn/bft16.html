@@ -356,68 +356,97 @@
       return pages;
     }
 
+    // ---- Display config (safe to tweak) ----
+    const SLIDE_MS   = 15000;          // time each page stays on screen
+    const REFRESH_MS = 5 * 60 * 1000;  // re-pull the Google Sheet every 5 minutes
+    const RETRY_MS   = 30000;          // if a load fails, retry after 30 seconds
+
     let slideshowData = [];
     let pages = [];
     let currentPage = 0;
     let slideshowInterval;
+    let refreshInterval;
+    let lastDataKey = "";
 
-    const slideshow = document.getElementById('slideshow');
-    const pageCounter = document.getElementById('pageCounter');
+    const slideshow = document.getElementById("slideshow");
+    const pageCounter = document.getElementById("pageCounter");
 
-    async function initSlideshow() {
-      if (!slideshowData.length) {
-        slideshowData = await fetchSheetData();
-        if (!slideshowData.length) {
-          slideshow.innerHTML = `<div style="color: red; font-size: 2vw;">Failed to load data</div>`;
-          return;
-        }
-      }
+    function restartTimeline() {
+      const bar = document.querySelector(".timeline-bar");
+      if (!bar) return;
+      bar.style.animation = "none";
+      bar.offsetHeight; // force reflow so the animation restarts
+      bar.style.animation = "loadProgress " + SLIDE_MS + "ms linear infinite";
+    }
 
+    function buildPages() {
       const itemsPerPage = calculateItemsPerPage();
       pages = createPages(slideshowData, itemsPerPage);
-
-      slideshow.innerHTML = '';
+      slideshow.innerHTML = "";
       pages.forEach(page => slideshow.appendChild(page));
-      currentPage = 0;
-      showPage(currentPage);
+      if (currentPage >= pages.length) currentPage = 0;
+      if (pages.length) showPage(currentPage);
+      restartTimeline();
+    }
 
-      const timelineBar = document.querySelector('.timeline-bar');
-      timelineBar.style.animation = 'none';
-      timelineBar.offsetHeight;
-      timelineBar.style.animation = 'loadProgress 15s linear infinite';
-
+    function startSlideshow() {
       clearInterval(slideshowInterval);
       slideshowInterval = setInterval(() => {
+        if (!pages.length) return;
         currentPage = (currentPage + 1) % pages.length;
         showPage(currentPage);
-        timelineBar.style.animation = 'none';
-        timelineBar.offsetHeight;
-        timelineBar.style.animation = 'loadProgress 15s linear infinite';
-      }, 15000);
+        restartTimeline();
+      }, SLIDE_MS);
+    }
+
+    // Fetch the sheet. On success, only rebuild if the data actually changed
+    // (so a routine refresh never interrupts the current slide). On failure,
+    // keep showing the last good data; on a failed FIRST load, retry quietly.
+    async function loadData(isRefresh) {
+      const data = await fetchSheetData();
+      if (data.length) {
+        const key = JSON.stringify(data);
+        if (key !== lastDataKey) {
+          lastDataKey = key;
+          slideshowData = data;
+          buildPages();
+        }
+        return;
+      }
+      if (!isRefresh && !slideshowData.length) {
+        slideshow.innerHTML = '<div style="color:#ff6600; font-size:2vw; padding-top:2vw;">Loading data\u2026</div>';
+        setTimeout(() => loadData(false), RETRY_MS);
+      }
     }
 
     function showPage(index) {
-      pages.forEach(p => p.classList.remove('active'));
+      pages.forEach(p => p.classList.remove("active"));
       const current = pages[index];
-      current.classList.add('active');
-      const rows = current.querySelectorAll('.row');
+      current.classList.add("active");
+      const rows = current.querySelectorAll(".row");
       rows.forEach((row, i) => {
-        row.className = 'row';
+        row.className = "row";
         setTimeout(() => {
-          row.classList.add('animate');
+          row.classList.add("animate");
         }, i * 100);
       });
-      pageCounter.textContent = `Page ${index + 1}/${pages.length}`;
+      pageCounter.textContent = "Page " + (index + 1) + "/" + pages.length;
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      initSlideshow();
+    async function init() {
+      await loadData(false);
+      startSlideshow();
+      clearInterval(refreshInterval);
+      refreshInterval = setInterval(() => loadData(true), REFRESH_MS);
+    }
 
+    document.addEventListener("DOMContentLoaded", () => {
+      init();
       let resizeTimeout;
-      window.addEventListener('resize', () => {
+      window.addEventListener("resize", () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-          initSlideshow();
+          if (slideshowData.length) buildPages();
         }, 300);
       });
     });
