@@ -233,7 +233,7 @@
   <div class="container">
     <div class="header">
       <div class="logo-container">
-        <img src="https://www.compassoffices.com/wp-content/uploads/excel/img/compassoffices-logo-web-2025_ow.png" alt="Company Logo" />
+        <img src="https://compassoffices.github.io/img/logo/compassoffices-logo-web-2025_ow.png" alt="Company Logo" />
       </div>
       <div class="headline">Company Information</div>
     </div>
@@ -251,7 +251,7 @@
           <span class="page-number" id="pageCounter">Page 1/1</span>
         </div>
         <div class="social-container">
-          <img src="https://www.compassoffices.com/wp-content/uploads/excel/img/linkedtre-qr.png" alt="QR Code" />
+          <img src="https://compassoffices.github.io/img/linktr-ee-compassoffices.svg" alt="QR Code" />
           <span>Follow us on <br> social media <br> for more updates</span>
         </div>
         <div class="timeline-bar"></div>
@@ -321,39 +321,58 @@
       }
     }
 
-    function calculateItemsPerPage() {
-      const content = document.getElementById('contentArea');
-      const sampleRow = document.createElement('div');
-      sampleRow.className = 'row';
-      sampleRow.style.visibility = 'hidden';
-      sampleRow.innerHTML = `
-        <span class="company-name">Sample Company Name<br>That Is Quite Long</span>
-        <span class="tax-code"><span class="tax-label">Tax:</span> 123</span>`;
-      content.appendChild(sampleRow);
-      const rowHeight = sampleRow.offsetHeight;
-      content.removeChild(sampleRow);
-      const availableHeight = content.clientHeight;
-      return Math.max(1, Math.floor(availableHeight / rowHeight));
+    function makeRow(entry) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const name = document.createElement("span");
+      name.className = "company-name";
+      name.textContent = entry.company || "N/A";
+      const tax = document.createElement("span");
+      tax.className = "tax-code";
+      const label = document.createElement("span");
+      label.className = "tax-label";
+      label.textContent = "Tax: ";
+      tax.appendChild(label);
+      tax.appendChild(document.createTextNode(entry.tax || "N/A"));
+      row.appendChild(name);
+      row.appendChild(tax);
+      return row;
     }
 
-    function createPages(data, itemsPerPage) {
-      const pages = [];
-      for (let i = 0; i < data.length; i += itemsPerPage) {
-        const pageData = data.slice(i, i + itemsPerPage);
-        const page = document.createElement('div');
-        page.className = 'page';
-        pageData.forEach(entry => {
-          const row = document.createElement('div');
-          row.className = 'row';
-          row.innerHTML = `
-            <span class="company-name">${entry.company || 'N/A'}</span>
-            <span class="tax-code"><span class="tax-label">Tax: </span>${entry.tax || 'N/A'}</span>
-          `;
-          page.appendChild(row);
-        });
-        pages.push(page);
+    // Group entries into pages by MEASURING real row heights against the true
+    // usable height (content box minus the footer padding). This fills the
+    // screen and never overflows, whether names are one or two lines.
+    function paginate(data) {
+      const content = document.getElementById("contentArea");
+      const cs = getComputedStyle(content);
+      const available = content.clientHeight
+        - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+
+      // Hidden gauge styled like a real page but with natural (auto) height.
+      const gauge = document.createElement("div");
+      gauge.className = "page";
+      gauge.style.cssText = "display:flex;flex-direction:column;height:auto;visibility:hidden;position:absolute;top:0;left:-99999px;";
+      gauge.style.width = (content.clientWidth
+        - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) + "px";
+      content.appendChild(gauge);
+
+      const groups = [];
+      let current = [];
+      for (const entry of data) {
+        const row = makeRow(entry);
+        gauge.appendChild(row);
+        if (current.length > 0 && gauge.offsetHeight > available) {
+          gauge.removeChild(row);
+          groups.push(current);
+          current = [];
+          gauge.innerHTML = "";
+          gauge.appendChild(row);
+        }
+        current.push(entry);
       }
-      return pages;
+      if (current.length) groups.push(current);
+      content.removeChild(gauge);
+      return groups;
     }
 
     // ---- Display config (safe to tweak) ----
@@ -380,8 +399,13 @@
     }
 
     function buildPages() {
-      const itemsPerPage = calculateItemsPerPage();
-      pages = createPages(slideshowData, itemsPerPage);
+      const groups = paginate(slideshowData);
+      pages = groups.map(group => {
+        const page = document.createElement("div");
+        page.className = "page";
+        group.forEach(entry => page.appendChild(makeRow(entry)));
+        return page;
+      });
       slideshow.innerHTML = "";
       pages.forEach(page => slideshow.appendChild(page));
       if (currentPage >= pages.length) currentPage = 0;
