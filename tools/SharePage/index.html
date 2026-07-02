@@ -40,6 +40,14 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 
 /* ---------- form pane ---------- */
 .form{padding:18px 22px 120px;overflow-y:auto;max-height:calc(100vh - 60px);border-right:1px solid var(--co-line);}
+.langedit{background:var(--co-paper);border:1px solid var(--co-line);border-radius:var(--co-radius);padding:12px 14px;margin-bottom:12px;}
+.langedit .le-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.langedit .le-label{font-size:12px;font-weight:800;color:var(--co-text);}
+.langedit .le-hint{margin-top:9px;font-size:11px;color:var(--co-muted);line-height:1.5;}
+.langedit.editing{border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
+#langSeg button{color:var(--co-text-2);}
+#langSeg button.enabled:not(.editing){color:var(--co-orange);}
+#langSeg button.editing{background:var(--co-orange);color:#fff;box-shadow:0 3px 10px rgba(255,102,0,.3);}
 .acc{background:var(--co-paper);border:1px solid var(--co-line);border-radius:var(--co-radius);margin-bottom:12px;overflow:hidden;}
 .acc>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;padding:15px 17px;font-weight:700;font-size:14px;user-select:none;}
 .acc>summary::-webkit-details-marker{display:none;}
@@ -120,6 +128,10 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .wa-copy svg{width:13px;height:13px;}
 .wa-copy:hover{background:var(--co-orange-dk);}
 .wa-body{padding:12px;font-size:12.5px;line-height:1.55;color:var(--co-text);white-space:pre-wrap;word-break:break-word;max-height:230px;overflow:auto;}
+.wa-langsel{display:none;gap:4px;padding:2px 12px 8px;}
+.wa-langsel button{border:1px solid var(--co-line);background:var(--co-paper);color:var(--co-text-2);font:inherit;font-size:11px;font-weight:700;padding:4px 11px;border-radius:999px;cursor:pointer;transition:.15s;}
+.wa-langsel button:hover{border-color:var(--co-orange);color:var(--co-orange);}
+.wa-langsel button.on{background:var(--co-orange);border-color:var(--co-orange);color:#fff;}
 .og-thumb img{width:100%;display:block;}
 .steps{margin:14px 0 0;padding:0;list-style:none;counter-reset:s;}
 .steps li{position:relative;padding:0 0 11px 30px;font-size:12px;color:var(--co-text-2);line-height:1.5;}
@@ -165,6 +177,18 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 
   <!-- ============ FORM ============ -->
   <div class="form" id="form">
+
+    <div class="langedit">
+      <div class="le-row"><span class="le-label">Editing language</span>
+        <div class="seg" id="langSeg" style="background:var(--co-fill)">
+          <button data-l="en">EN</button>
+          <button data-l="tc">繁 TC</button>
+          <button data-l="sc">简 SC</button>
+          <button data-l="jp">日 JP</button>
+        </div>
+      </div>
+      <div class="le-hint" id="leHint">Pick a language and translate the fields — a language toggle appears on the page only for languages you actually fill in. Blank fields fall back to English. To drop a language, clear its fields.</div>
+    </div>
 
     <details class="acc" open>
       <summary><span class="nib"></span>Page &amp; sharing<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></summary>
@@ -390,6 +414,7 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
       <p>Click <strong>Download page</strong> and send the <code style="background:var(--co-fill);padding:1px 6px;border-radius:5px" id="fnHtml">page.html</code> straight to WhatsApp as a file.</p>
       <div class="wa">
         <div class="wa-top"><span class="wa-title">Message to send with it</span><button class="wa-copy" onclick="copyWA()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy</button></div>
+        <div class="wa-langsel" id="waLangSel"></div>
         <div class="wa-body" id="waPreview"></div>
       </div>
       <p style="margin:2px 0 0;font-size:11px;color:var(--co-muted)">Built from your fields — edit any field and it updates. <code style="background:var(--co-fill);padding:0 4px;border-radius:4px">*text*</code> turns bold in WhatsApp.</p>
@@ -578,6 +603,7 @@ function loadPreset(p){
     liTitle:"",enquireEmail:"hksales@compassoffices.com",
     ftEmail:"www.compassoffices.com",ftPhone:"",ftAddr:"Compass Offices · Hong Kong",
     highlights:[],agenda:[],speakers:[],listings:[],
+    tr:{tc:{},sc:{},jp:{}},langs:['en'],
     on:{partner:false,listings:false,highlights:true,agenda:false,speakers:false,about:false,offer:false,finalCta:true}
   };
   // Load the type's worked example so you can see how it looks; use "Clear fields"
@@ -591,12 +617,13 @@ function loadPreset(p){
 function syncInputs(){
   document.querySelectorAll('[data-k]').forEach(inp=>{
     const k=inp.dataset.k;
-    const v=S[k] ?? "";
-    if(inp.hasAttribute('data-img') && typeof v==='string' && v.startsWith('data:')){ inp.value=''; inp.placeholder='Image embedded — type a URL to replace'; }
+    const isImg=inp.hasAttribute('data-img');
+    const v = isImg ? (S[k]??'') : trGet(k);
+    if(isImg && typeof v==='string' && v.startsWith('data:')){ inp.value=''; inp.placeholder='Image embedded — type a URL to replace'; }
     else {
       inp.value=v;
-      const ex=PRESETS[curPreset] && PRESETS[curPreset][k];     // grey hint from the chosen type
-      if((v==='' || v==null) && typeof ex==='string' && ex){ inp.placeholder=ex; }
+      if(!isImg && curLang!=='en'){ const en=trEN(k); if(en) inp.placeholder='EN: '+en; }   // show the English source to translate from
+      else { const ex=PRESETS[curPreset] && PRESETS[curPreset][k]; if((v===''||v==null)&&typeof ex==='string'&&ex){ inp.placeholder=ex; } }
     }
   });
   document.querySelectorAll('[data-toggle]').forEach(cb=>{ cb.checked = !!S.on[cb.dataset.toggle]; });
@@ -608,7 +635,10 @@ function syncInputs(){
 
 function bindStaticInputs(){
   document.querySelectorAll('[data-k]').forEach(inp=>{
-    inp.addEventListener('input',()=>{ S[inp.dataset.k]=inp.value; queueRender(); });
+    inp.addEventListener('input',()=>{ const k=inp.dataset.k; if(inp.hasAttribute('data-img')) S[k]=inp.value; else trSet(k,inp.value); queueRender(); });
+  });
+  document.querySelectorAll('#langSeg button').forEach(b=>{
+    b.addEventListener('click',()=>setEditLang(b.dataset.l,true));
   });
   document.querySelectorAll('[data-upk]').forEach(up=>{
     up.addEventListener('change',()=>{ handleUpload(up.files[0],(d)=>{ S[up.dataset.upk]=d; syncInputs(); queueRender(); }); up.value=''; });
@@ -633,7 +663,7 @@ function bindStaticInputs(){
     b.addEventListener('click',()=>{ S.pageBg=b.dataset.bg; document.querySelectorAll('#pageBgSeg button').forEach(x=>x.classList.toggle('on',x===b)); queueRender(); });
   });
   document.querySelectorAll('#presetSeg button').forEach(b=>{
-    b.addEventListener('click',()=>{ loadPreset(b.dataset.p); CLOUD.id=freshId(); CLOUD.name=''; const cn=document.getElementById('cloudName'); if(cn)cn.value=''; syncInputs(); queueRender(true); });
+    b.addEventListener('click',()=>{ loadPreset(b.dataset.p); CLOUD.id=freshId(); CLOUD.name=''; const cn=document.getElementById('cloudName'); if(cn)cn.value=''; resetLangUI(); syncInputs(); queueRender(true); });
   });
   document.querySelectorAll('#devtabs button').forEach(b=>{
     b.addEventListener('click',()=>{ document.querySelectorAll('#devtabs button').forEach(x=>x.classList.toggle('on',x===b)); document.getElementById('phone').classList.toggle('desktop', b.dataset.d==='desktop'); });
@@ -644,14 +674,15 @@ function bindStaticInputs(){
 function renderHighlights(){
   const box=document.getElementById('highlightRows'); box.innerHTML='';
   S.highlights.forEach((h,i)=>{
+    const p='highlights.'+i+'.';
     const d=document.createElement('div'); d.className='rep';
     d.innerHTML=`<button class="rm" title="Remove">&times;</button>
       <div class="field" style="margin-top:2px"><label>Icon</label><div class="iconpick">${HL_ICONS.map(ic=>`<button data-ic="${ic}" class="${h.icon===ic?'on':''}">${svg(I[ic])}</button>`).join('')}</div></div>
-      <div class="field"><label>Title</label><input type="text" data-f="title" value="${esc(h.title)}"></div>
-      <div class="field"><label>Text</label><textarea data-f="text">${esc(h.text)}</textarea></div>`;
+      <div class="field"><label>Title</label><input type="text" data-f="title" value="${fv(p+'title')}"${fph(p+'title','')}></div>
+      <div class="field"><label>Text</label><textarea data-f="text"${fph(p+'text','')}>${fv(p+'text')}</textarea></div>`;
     d.querySelector('.rm').onclick=()=>{S.highlights.splice(i,1);renderHighlights();queueRender();};
     d.querySelectorAll('.iconpick button').forEach(b=>b.onclick=()=>{h.icon=b.dataset.ic;d.querySelectorAll('.iconpick button').forEach(x=>x.classList.toggle('on',x===b));queueRender();});
-    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{h[f.dataset.f]=f.value;queueRender();}));
+    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{trSet(p+f.dataset.f,f.value);queueRender();}));
     box.appendChild(d);
   });
 }
@@ -661,14 +692,15 @@ function addHighlight(){S.highlights.push({icon:'check',title:'',text:''});rende
 function renderAgenda(){
   const box=document.getElementById('agendaRows'); box.innerHTML='';
   S.agenda.forEach((a,i)=>{
+    const p='agenda.'+i+'.';
     const d=document.createElement('div'); d.className='rep';
     d.innerHTML=`<button class="rm">&times;</button>
       <div class="two" style="margin-top:2px">
-        <div class="field"><label>Time</label><input type="text" data-f="time" value="${esc(a.time)}"></div>
-        <div class="field"><label>Activity</label><input type="text" data-f="activity" value="${esc(a.activity)}"></div>
+        <div class="field"><label>Time</label><input type="text" data-f="time" value="${fv(p+'time')}"${fph(p+'time','')}></div>
+        <div class="field"><label>Activity</label><input type="text" data-f="activity" value="${fv(p+'activity')}"${fph(p+'activity','')}></div>
       </div>`;
     d.querySelector('.rm').onclick=()=>{S.agenda.splice(i,1);renderAgenda();queueRender();};
-    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{a[f.dataset.f]=f.value;queueRender();}));
+    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{trSet(p+f.dataset.f,f.value);queueRender();}));
     box.appendChild(d);
   });
 }
@@ -678,13 +710,14 @@ function addAgenda(){S.agenda.push({time:'',activity:''});renderAgenda();queueRe
 function renderSpeakers(){
   const box=document.getElementById('speakerRows'); box.innerHTML='';
   S.speakers.forEach((s,i)=>{
+    const p='speakers.'+i+'.';
     const d=document.createElement('div'); d.className='rep';
     d.innerHTML=`<button class="rm">&times;</button>
-      <div class="field" style="margin-top:2px"><label>Name</label><input type="text" data-f="name" value="${esc(s.name)}"></div>
-      <div class="field"><label>Title / company</label><input type="text" data-f="title" value="${esc(s.title)}"></div>
+      <div class="field" style="margin-top:2px"><label>Name</label><input type="text" data-f="name" value="${fv(p+'name')}"${fph(p+'name','')}></div>
+      <div class="field"><label>Title / company</label><input type="text" data-f="title" value="${fv(p+'title')}"${fph(p+'title','')}></div>
       <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'https://…/photo.jpg')}</div>`;
     d.querySelector('.rm').onclick=()=>{S.speakers.splice(i,1);renderSpeakers();queueRender();};
-    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{s[f.dataset.f]=f.value;queueRender();}));
+    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{ if(f.dataset.f==='photo') s.photo=f.value; else trSet(p+f.dataset.f,f.value); queueRender(); }));
     d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;handleUpload(up.files[0],(dd)=>{s[fld]=dd;renderSpeakers();queueRender();});up.value='';}));
     box.appendChild(d);
   });
@@ -694,10 +727,12 @@ function addSpeaker(){S.speakers.push({name:'',title:'',photo:''});renderSpeaker
 /* ===== repeatable: property listings (broker) ===== */
 function renderListings(){
   const box=document.getElementById('listingRows'); if(!box) return; box.innerHTML='';
+  const RAW={link:1,big:1,small1:1,small2:1,floor:1};
   S.listings.forEach((l,i)=>{
+    const p='listings.'+i+'.';
     const d=document.createElement('div'); d.className='rep';
     d.innerHTML=`<button class="rm">&times;</button>
-      <div class="field" style="margin-top:2px"><label>Location name</label><input type="text" data-f="location" value="${esc(l.location)}" placeholder="Wing On Centre"></div>
+      <div class="field" style="margin-top:2px"><label>Location name</label><input type="text" data-f="location" value="${fv(p+'location')}"${fph(p+'location','Wing On Centre')}></div>
       <div class="field"><label>Location page link <span class="hint">(optional)</span></label><input type="url" data-f="link" value="${esc(l.link)}" placeholder="https://www.compassoffices.com/locations/…"></div>
       <div class="field"><label>Photos <span class="hint">(big + 2 small collage)</span></label>
         <div style="margin-bottom:8px">${imgField('big',l.big,'Large photo URL')}</div>
@@ -705,13 +740,13 @@ function renderListings(){
       </div>
       <div class="field"><label>Floor plan <span class="hint">(optional; URL or upload)</span></label>${imgField('floor',l.floor,'Floor plan image URL')}</div>
       <div class="two">
-        <div class="field"><label>Room</label><input type="text" data-f="room" value="${esc(l.room)}" placeholder="Room 2758"></div>
-        <div class="field"><label>Workstations</label><input type="text" data-f="seats" value="${esc(l.seats)}" placeholder="59 workstations"></div>
+        <div class="field"><label>Room</label><input type="text" data-f="room" value="${fv(p+'room')}"${fph(p+'room','Room 2758')}></div>
+        <div class="field"><label>Workstations</label><input type="text" data-f="seats" value="${fv(p+'seats')}"${fph(p+'seats','59 workstations')}></div>
       </div>
-      <div class="field"><label>Feature</label><input type="text" data-f="feature" value="${esc(l.feature)}" placeholder="Dedicated meeting room + own pantry"></div>
-      <div class="field"><label>Price</label><input type="text" data-f="price" value="${esc(l.price)}" placeholder="HK$180,000"></div>`;
+      <div class="field"><label>Feature</label><input type="text" data-f="feature" value="${fv(p+'feature')}"${fph(p+'feature','Dedicated meeting room + own pantry')}></div>
+      <div class="field"><label>Price</label><input type="text" data-f="price" value="${fv(p+'price')}"${fph(p+'price','HK$180,000')}></div>`;
     d.querySelector('.rm').onclick=()=>{S.listings.splice(i,1);renderListings();queueRender();};
-    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{l[f.dataset.f]=f.value;queueRender();}));
+    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{ const fld=f.dataset.f; if(RAW[fld]) l[fld]=f.value; else trSet(p+fld,f.value); queueRender(); }));
     d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;handleUpload(up.files[0],(dd)=>{l[fld]=dd;renderListings();queueRender();});up.value='';}));
     box.appendChild(d);
   });
@@ -722,6 +757,23 @@ function addListing(){S.listings.push({location:'',link:'',big:'',small1:'',smal
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function escAttr(s){return esc(s);}
 function nl2br(s){return esc(s).replace(/\n/g,'<br>');}
+
+/* ===== multi-language (TC / SC / JP) ===== */
+const LANGS=['en','tc','sc','jp'];
+const LANGLABEL={en:'EN',tc:'\u7E41',sc:'\u7B80',jp:'\u65E5'};
+const LANGCODE={en:'en',tc:'zh-Hant',sc:'zh-Hans',jp:'ja'};   // per-span lang → correct regional Han glyphs
+let curLang='en';
+function pget(o,path){return path.split('.').reduce((a,k)=>(a==null?a:a[k]), o);}
+function pset(o,path,v){const ks=path.split('.');let a=o;for(let i=0;i<ks.length-1;i++){if(a[ks[i]]==null)a[ks[i]]={};a=a[ks[i]];}a[ks[ks.length-1]]=v;}
+function trGet(path){ return curLang==='en' ? (pget(S,path)??'') : ((S.tr&&S.tr[curLang]&&S.tr[curLang][path])??''); }
+function trSet(path,v){ if(curLang==='en'){pset(S,path,v);} else { S.tr=S.tr||{}; S.tr[curLang]=S.tr[curLang]||{}; if(v==='') delete S.tr[curLang][path]; else S.tr[curLang][path]=v; } }
+function trEN(path){ return pget(S,path)??''; }
+function fv(path){ return esc(trGet(path)); }                                   // row field value (translated)
+function fph(path,stat){ const en=trEN(path); const p=(curLang!=='en'&&en)?en:(stat||''); return p?' placeholder="'+escAttr(p)+'"':''; }
+function langHasContent(l){ return l!=='en' && S.tr && S.tr[l] && Object.keys(S.tr[l]).length>0; }
+function refreshLangTabs(){ document.querySelectorAll('#langSeg button').forEach(b=>{ const l=b.dataset.l; b.classList.toggle('editing', l===curLang); b.classList.toggle('enabled', langHasContent(l)); }); }
+function resetLangUI(){ curLang='en'; refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.remove('editing'); }
+function setEditLang(l,rerender){ if(LANGS.indexOf(l)<0) return; curLang=l; refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.toggle('editing',l!=='en'); syncInputs(); if(rerender) queueRender(true); }
 
 /* read an image file into a data URI (always embeddable, no CORS) */
 function embedFile(file,cb){
@@ -785,7 +837,8 @@ function pageCanonicalUrl(){
 }
 
 /* ===== OUTPUT PAGE GENERATOR ===== */
-function buildPage(S){
+function buildPage(S,opts){
+  opts=opts||{};
   const dark = S.heroStyle==='dark', orange = S.heroStyle==='orange';
   const heroBg = dark?'#1A1A1A':orange?'#FF6600':'#FFFFFF';
   const heroInk = (dark||orange)?'#FFFFFF':'#1A1A1A';
@@ -795,16 +848,33 @@ function buildPage(S){
   const heroLogo = (dark||orange)?LOGO_DARK:LOGO_LIGHT;
   const ctaOnHero = orange ? 'background:#1A1A1A;color:#fff' : 'background:#FF6600;color:#fff';
 
+  // a language appears on the page only once it actually has translated content
+  const tr=S.tr||{};
+  const trLangs=['tc','sc','jp'].filter(l=>tr[l]&&Object.keys(tr[l]).length);
+  const activeLangs=['en',...trLangs];
+  const multiLang=trLangs.length>0;
+  // emit a translatable text: plain when single-language, else one span per active language (fallback to EN)
+  const T=(path,opt)=>{
+    opt=opt||{};
+    const enStr=String(pget(S,path)??'');
+    const fmt=opt.nl2br?nl2br:esc;
+    if(!multiLang) return fmt(enStr);
+    return activeLangs.map(l=>{
+      const v=l==='en'?enStr:((tr[l]&&tr[l][path])||enStr);
+      return `<span class="l l-${l}" lang="${LANGCODE[l]}">${fmt(v)}</span>`;
+    }).join('');
+  };
+
   const title = esc(S.pageTitle||((S.hlLight+' '+S.hlBold).trim())||'Compass Offices');
   const ogT = esc(S.ogTitle|| (S.hlLight+' '+S.hlBold).trim() || S.pageTitle || 'Compass Offices');
   const ogD = esc(S.ogDesc|| S.subhead || '');
   const ogImg = esc(ogImageUrl());
   const ogUrl = esc(pageCanonicalUrl());
 
-  const chip=(ic,txt)=> txt? `<span class="chip">${svg(I[ic],2)}<span>${esc(txt)}</span></span>`:'';
-  const heroChips=[chip('calendar',S.date),chip('clock',S.time),chip('pin',S.venue)].join('');
+  const chip=(ic,path)=>{ const v=pget(S,path); return v? `<span class="chip">${svg(I[ic],2)}<span>${T(path)}</span></span>`:''; };
+  const heroChips=[chip('calendar','date'),chip('clock','time'),chip('pin','venue')].join('');
 
-  const cta = (label,url,style)=> (label? `<a class="cta" style="${style}" href="${url?escAttr(url):'#'}"${url?' target="_blank" rel="noopener"':''}>${esc(label)}<span class="cta-ic">${svg(I.arrow,2.2)}</span></a>`:'');
+  const cta = (labelPath,url,style)=>{ const label=pget(S,labelPath); return label? `<a class="cta" style="${style}" href="${url?escAttr(url):'#'}"${url?' target="_blank" rel="noopener"':''}>${T(labelPath)}<span class="cta-ic">${svg(I.arrow,2.2)}</span></a>`:''; };
 
   // header co-brand
   let header = `<header class="pg-head"><span class="hl">${LOGO_LIGHT}</span>`;
@@ -817,21 +887,21 @@ function buildPage(S){
 
   // hero
   let hero = `<section class="hero" style="background:${heroBg};color:${heroInk}">`;
-  if(S.badge) hero+=`<span class="badge" style="background:${badgeBg};color:${badgeInk}">${esc(S.badge)}</span>`;
+  if(S.badge) hero+=`<span class="badge" style="background:${badgeBg};color:${badgeInk}">${T('badge')}</span>`;
   if(S.hlLight||S.hlBold){
     hero+=`<h1>`;
-    if(S.hlLight) hero+=`<span class="lite">${esc(S.hlLight)}</span>`;
-    if(S.hlBold) hero+=`<span class="bold">${esc(S.hlBold)}</span>`;
+    if(S.hlLight) hero+=`<span class="lite">${T('hlLight')}</span>`;
+    if(S.hlBold) hero+=`<span class="bold">${T('hlBold')}</span>`;
     hero+=`</h1>`;
   }
-  if(S.subhead) hero+=`<p class="sub" style="color:${heroSub}">${nl2br(S.subhead)}</p>`;
+  if(S.subhead) hero+=`<p class="sub" style="color:${heroSub}">${T('subhead',{nl2br:true})}</p>`;
   if(heroChips) hero+=`<div class="chips">${heroChips}</div>`;
-  hero+=cta(S.ctaLabel,S.ctaUrl,ctaOnHero);
+  hero+=cta('ctaLabel',S.ctaUrl,ctaOnHero);
   if(S.heroImg) hero+=`<div class="heroimg"><img src="${escAttr(S.heroImg)}" alt=""></div>`;
   hero+=`</section>`;
 
   // sections
-  const eyebrow=(t)=>`<span class="eye">${MARK}<span>${esc(t)}</span></span>`;
+  const eyebrow=(path,def)=>{ const raw=pget(S,path); const inner=raw?T(path):esc(def); return `<span class="eye">${MARK}<span>${inner}</span></span>`; };
   let body='';
 
   if(S.on.listings && S.listings.length){
@@ -852,14 +922,15 @@ function buildPage(S){
         `<div class="col">${smalls.map(s=>`<div class="sm"><img src="${escAttr(s)}" alt=""></div>`).join('')}</div>`+
       `</div>`;
     };
-    const one=(l)=>{
+    const one=(l,i)=>{
+      const p='listings.'+i+'.';
       const enq=enqMail(l);
-      const name = l.link? `<a href="${escAttr(l.link)}" target="_blank" rel="noopener">${esc(l.location)}</a>` : esc(l.location);
+      const name = l.link? `<a href="${escAttr(l.link)}" target="_blank" rel="noopener">${T(p+'location')}</a>` : T(p+'location');
       const info=`<div class="l-info">`+
-        (l.room?`<div class="l-room">${esc(l.room)}</div>`:'')+
-        (l.seats?`<div class="l-seats">${esc(l.seats)}</div>`:'')+
-        (l.feature?`<div class="l-feat">${esc(l.feature)}</div>`:'')+
-        (l.price?`<div class="l-price">${esc(l.price)} <span>/ month</span></div>`:'')+
+        (l.room?`<div class="l-room">${T(p+'room')}</div>`:'')+
+        (l.seats?`<div class="l-seats">${T(p+'seats')}</div>`:'')+
+        (l.feature?`<div class="l-feat">${T(p+'feature')}</div>`:'')+
+        (l.price?`<div class="l-price">${T(p+'price')} <span>/ month</span></div>`:'')+
         (enq?`<a class="l-enq" href="${escAttr(enq)}">Enquire${svg(I.arrow,2.2)}</a>`:'')+
       `</div>`;
       const detail = l.floor
@@ -868,42 +939,42 @@ function buildPage(S){
       return `<div class="listing">${l.location?`<h2 class="l-name">${name}</h2>`:''}${collage(l)}${detail}</div>`;
     };
     body+=`<section class="sec listings-sec"><div class="inner">`+
-      (S.liTitle?`${eyebrow(S.liTitle)}`:'')+
+      (S.liTitle?`${eyebrow('liTitle','')}`:'')+
       S.listings.map(one).join('<div class="l-rule"></div>')+
       `</div></section>`;
   }
 
   if(S.on.highlights && S.highlights.length){
-    body+=`<section class="sec"><div class="inner">${eyebrow(S.hlTitle||'Highlights')}<div class="cards">`+
-      S.highlights.map(h=>`<div class="card"><span class="cic">${svg(I[h.icon]||I.check,1.9)}</span><div><h3>${esc(h.title)}</h3>${h.text?`<p>${nl2br(h.text)}</p>`:''}</div></div>`).join('')+
+    body+=`<section class="sec"><div class="inner">${eyebrow('hlTitle','Highlights')}<div class="cards">`+
+      S.highlights.map((h,i)=>`<div class="card"><span class="cic">${svg(I[h.icon]||I.check,1.9)}</span><div><h3>${T('highlights.'+i+'.title')}</h3>${h.text?`<p>${T('highlights.'+i+'.text',{nl2br:true})}</p>`:''}</div></div>`).join('')+
       `</div></div></section>`;
   }
   if(S.on.agenda && S.agenda.length){
-    body+=`<section class="sec alt"><div class="inner">${eyebrow(S.agTitle||'Agenda')}<div class="agenda">`+
-      S.agenda.map(a=>`<div class="arow"><span class="atime">${esc(a.time)}</span><span class="aact">${esc(a.activity)}</span></div>`).join('')+
+    body+=`<section class="sec alt"><div class="inner">${eyebrow('agTitle','Agenda')}<div class="agenda">`+
+      S.agenda.map((a,i)=>`<div class="arow"><span class="atime">${T('agenda.'+i+'.time')}</span><span class="aact">${T('agenda.'+i+'.activity')}</span></div>`).join('')+
       `</div></div></section>`;
   }
   if(S.on.speakers && S.speakers.length){
-    body+=`<section class="sec"><div class="inner">${eyebrow(S.spTitle||'Speakers')}<div class="speakers">`+
-      S.speakers.map(s=>`<div class="sp">${s.photo?`<img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}">`:`<span class="spav">${esc((s.name||'?').trim().charAt(0))}</span>`}<div><h3>${esc(s.name)}</h3>${s.title?`<p>${esc(s.title)}</p>`:''}</div></div>`).join('')+
+    body+=`<section class="sec"><div class="inner">${eyebrow('spTitle','Speakers')}<div class="speakers">`+
+      S.speakers.map((s,i)=>`<div class="sp">${s.photo?`<img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}">`:`<span class="spav">${esc((s.name||'?').trim().charAt(0))}</span>`}<div><h3>${T('speakers.'+i+'.name')}</h3>${s.title?`<p>${T('speakers.'+i+'.title')}</p>`:''}</div></div>`).join('')+
       `</div></div></section>`;
   }
   if(S.on.about && (S.abBody||S.abTitle)){
-    body+=`<section class="sec alt"><div class="inner narrow">${eyebrow(S.abTitle||'About')}<p class="prose">${nl2br(S.abBody)}</p></div></section>`;
+    body+=`<section class="sec alt"><div class="inner narrow">${eyebrow('abTitle','About')}<p class="prose">${T('abBody',{nl2br:true})}</p></div></section>`;
   }
   if(S.on.offer && (S.ofTitle||S.ofBody||S.ofCode)){
     body+=`<section class="sec"><div class="inner"><div class="offer">`+
-      (S.ofTitle?`<h2 class="offer-h">${esc(S.ofTitle)}</h2>`:'')+
-      (S.ofBody?`<p class="offer-p">${nl2br(S.ofBody)}</p>`:'')+
+      (S.ofTitle?`<h2 class="offer-h">${T('ofTitle')}</h2>`:'')+
+      (S.ofBody?`<p class="offer-p">${T('ofBody',{nl2br:true})}</p>`:'')+
       (S.ofCode?`<div class="code"><span class="code-l">Code</span><span class="code-v">${esc(S.ofCode)}</span></div>`:'')+
-      (S.ofValid?`<p class="valid">Valid until ${esc(S.ofValid)}</p>`:'')+
-      (S.ofTerms?`<p class="terms">${nl2br(S.ofTerms)}</p>`:'')+
+      (S.ofValid?`<p class="valid">Valid until ${T('ofValid')}</p>`:'')+
+      (S.ofTerms?`<p class="terms">${T('ofTerms',{nl2br:true})}</p>`:'')+
       `</div></div></section>`;
   }
   if(S.on.finalCta && (S.finalLine||S.ctaLabel)){
     body+=`<section class="finalcta"><div class="inner narrow">`+
-      (S.finalLine?`<h2>${esc(S.finalLine)}</h2>`:'')+
-      cta(S.ctaLabel,S.ctaUrl,'background:#FF6600;color:#fff')+
+      (S.finalLine?`<h2>${T('finalLine')}</h2>`:'')+
+      cta('ctaLabel',S.ctaUrl,'background:#FF6600;color:#fff')+
       `</div></section>`;
   }
 
@@ -913,9 +984,18 @@ function buildPage(S){
   const fc=[];
   if(S.ftEmail){const v=S.ftEmail.trim(); if(v.includes('@')){fc.push(`<a href="mailto:${escAttr(v)}">${esc(v)}</a>`);}else{const href=/^https?:\/\//i.test(v)?v:'https://'+v; fc.push(`<a href="${escAttr(href)}" target="_blank" rel="noopener">${esc(v)}</a>`);}}
   if(S.ftPhone) fc.push(`<span>${esc(S.ftPhone)}</span>`);
-  if(S.ftAddr) fc.push(`<span>${esc(S.ftAddr)}</span>`);
+  if(S.ftAddr) fc.push(`<span>${T('ftAddr')}</span>`);
   if(fc.length) foot+=`<div class="fcontact">${fc.join('<span class="dot">·</span>')}</div>`;
   foot+=`<div class="copy">© ${new Date().getFullYear()} Compass Offices</div></footer>`;
+
+  // pure-CSS language switch (only when translations exist) — works with no JS
+  const shown=(opts.viewLang && activeLangs.indexOf(opts.viewLang)>-1)?opts.viewLang:'en';
+  let langRadios='', langBar='', langSync='';
+  if(multiLang){
+    langRadios=activeLangs.map(l=>`<input class="langswitch" type="radio" name="pglang" id="L-${l}"${l===shown?' checked':''}>`).join('');
+    langBar=`<div class="langbar"><div class="langgroup">`+activeLangs.map(l=>`<label for="L-${l}">${LANGLABEL[l]}</label>`).join('')+`</div></div>`;
+    if(opts.preview) langSync=`<script>document.addEventListener('change',function(e){if(e.target&&e.target.name==='pglang'){try{parent.postMessage({shareLang:e.target.id.replace('L-','')},'*');}catch(x){}}});<\/script>`;
+  }
 
   const css = PAGE_CSS;
 
@@ -944,7 +1024,7 @@ ${ogUrl?`<meta property="og:url" content="${ogUrl}">`:''}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${css}</style>
-</head><body class="co" style="background:${({grey:'#F5F5F5',warm:'#FFF3EB',white:'#FFFFFF'}[S.pageBg]||'#F5F5F5')}"><main class="pg">${header}${hero}${body}${foot}</main></body></html>`;
+</head><body class="co" style="background:${({grey:'#F5F5F5',warm:'#FFF3EB',white:'#FFFFFF'}[S.pageBg]||'#F5F5F5')}">${langRadios}<main class="pg">${langBar}${header}${hero}${body}${foot}</main>${langSync}</body></html>`;
 }
 
 /* ===== output page CSS ===== */
@@ -952,6 +1032,21 @@ const PAGE_CSS = `
 :root{--o:#FF6600;--odk:#E55A00;--ink:#1A1A1A;--tx:#333333;--tx2:#555555;--mut:#888888;--line:#E5E5E5;--fill:#EFEFEF;--wash:#FFF3EB;}
 *,*::before,*::after{box-sizing:border-box;margin:0;}
 body.co{font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;color:var(--ink);background:#fff;line-height:1.55;-webkit-font-smoothing:antialiased;}
+/* pure-CSS language switch (no JS) */
+.langswitch{position:absolute;width:0;height:0;opacity:0;pointer-events:none;}
+.l{display:none;}
+.l-en{display:inline;}   /* default language stays visible even if a viewer ignores :checked (never blank) */
+#L-en:checked~main .l,#L-tc:checked~main .l,#L-sc:checked~main .l,#L-jp:checked~main .l{display:none;}
+#L-en:checked~main .l-en,#L-tc:checked~main .l-tc,#L-sc:checked~main .l-sc,#L-jp:checked~main .l-jp{display:inline;}
+/* regional Han / JP glyphs follow each span's own lang attribute */
+.pg :lang(zh-Hant){font-family:'Hanken Grotesk','PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;}
+.pg :lang(zh-Hans){font-family:'Hanken Grotesk','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif;}
+.pg :lang(ja){font-family:'Hanken Grotesk','Hiragino Sans','Noto Sans JP','Yu Gothic',sans-serif;}
+.langbar{display:flex;justify-content:flex-end;padding:11px 14px;background:#fff;border-bottom:1px solid var(--line);}
+.langgroup{display:inline-flex;background:var(--fill);border-radius:999px;padding:3px;gap:2px;}
+.langgroup label{font-size:12.5px;font-weight:700;color:var(--tx2);padding:6px 14px;border-radius:999px;cursor:pointer;user-select:none;-webkit-user-select:none;line-height:1;transition:.18s;}
+.langgroup label:hover{color:var(--ink);}
+#L-en:checked~main .langgroup label[for=L-en],#L-tc:checked~main .langgroup label[for=L-tc],#L-sc:checked~main .langgroup label[for=L-sc],#L-jp:checked~main .langgroup label[for=L-jp]{background:var(--o);color:#fff;box-shadow:0 2px 8px rgba(255,102,0,.32);}
 .pg{max-width:720px;margin:0 auto;background:#fff;box-shadow:0 0 50px rgba(0,0,0,.05);}
 img{max-width:100%;display:block;}
 a{color:inherit;}
@@ -1109,12 +1204,12 @@ function queueRender(now){
   ogTimer=setTimeout(renderOG, 650);
 }
 function renderPage(){
-  lastPageHTML=buildPage(S);
+  lastPageHTML=buildPage(S,{viewLang:curLang,preview:true});
   document.getElementById('preview').srcdoc=lastPageHTML;
   const slug=pageSlug();
   const fh=document.getElementById('fnHtml'); if(fh) fh.textContent=slug+'.html';
   const fi=document.getElementById('fnImg'); if(fi) fi.textContent=slug+'.jpg';
-  const wp=document.getElementById('waPreview'); if(wp) wp.textContent=waMessage(S);
+  const wp=document.getElementById('waPreview'); if(wp) renderMessage();
 }
 let lastOGCanvas=null;
 function renderOG(){
@@ -1148,36 +1243,49 @@ async function downloadPage(){
 }
 function copyHTML(){navigator.clipboard.writeText(buildPage(S)).then(()=>toast('HTML copied to clipboard'),()=>toast('Copy failed'));}
 
-/* ===== WhatsApp / chat blurb, tailored per type ===== */
-function waMessage(S){
-  const clean=s=>(s||'').replace(/\s+/g,' ').trim();
+/* ===== WhatsApp / chat blurb, tailored per type and per language ===== */
+function waMessage(S,lang){
+  lang=lang||curLang||'en';
+  const res=(path)=>{ let v = lang==='en' ? pget(S,path) : ((S.tr&&S.tr[lang]&&S.tr[lang][path]) || pget(S,path)); return v||''; };
+  const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
+  const r=path=>clean(res(path));
   const E={party:'\u{1F389}',spark:'\u{2728}',gift:'\u{1F381}',bldg:'\u{1F3E2}',mega:'\u{1F4E3}',
-           cal:'\u{1F4C5}',clock:'\u{1F552}',pin:'\u{1F4CD}',key:'\u{1F511}',point:'\u{1F449}',mail:'\u{1F4E7}',tag:'\u{1F3F7}\u{FE0F}'};
-  const head=clean([S.hlLight,S.hlBold].filter(Boolean).join(' ')||S.badge||S.pageTitle||'Compass Offices');
-  const sub=clip(clean(S.subhead),220);
+           cal:'\u{1F4C5}',clock:'\u{1F552}',pin:'\u{1F4CD}',key:'\u{1F511}',point:'\u{1F449}',tag:'\u{1F3F7}\u{FE0F}'};
+  const LBL={
+    en:{avail:'Available now',code:'Code',valid:'Valid until',register:'Register',enquire:'Enquire',claim:'Claim offer',redeem:'Redeem now'},
+    tc:{avail:'\u73FE\u6B63\u63A8\u51FA',code:'\u512A\u60E0\u78BC',valid:'\u6709\u6548\u671F\u81F3',register:'\u7ACB\u5373\u5831\u540D',enquire:'\u7ACB\u5373\u67E5\u8A62',claim:'\u9818\u53D6\u512A\u60E0',redeem:'\u7ACB\u5373\u5151\u63DB'},
+    sc:{avail:'\u73B0\u6B63\u63A8\u51FA',code:'\u4F18\u60E0\u7801',valid:'\u6709\u6548\u671F\u81F3',register:'\u7ACB\u5373\u62A5\u540D',enquire:'\u7ACB\u5373\u54A8\u8BE2',claim:'\u9886\u53D6\u4F18\u60E0',redeem:'\u7ACB\u5373\u5151\u6362'},
+    jp:{avail:'\u73FE\u5728\u53D7\u4ED8\u4E2D',code:'\u30B3\u30FC\u30C9',valid:'\u6709\u52B9\u671F\u9650',register:'\u4ECA\u3059\u3050\u767B\u9332',enquire:'\u304A\u554F\u3044\u5408\u308F\u305B',claim:'\u7279\u5178\u3092\u53D7\u3051\u53D6\u308B',redeem:'\u4ECA\u3059\u3050\u4EA4\u63DB'}
+  };
+  const lb=LBL[lang]||LBL.en;
+  const head=(r('hlLight')&&r('hlBold'))?r('hlLight')+' '+r('hlBold'):(r('hlLight')||r('hlBold')||r('badge')||clean(S.pageTitle)||'Compass Offices');
+  const sub=clip(r('subhead'),220);
   const link=((S.ctaUrl||'').trim()||pageCanonicalUrl()).replace(/^(mailto:|tel:)/i,'');
-  const ctaWord=clean(S.ctaLabel)||({redeem:'Redeem now',broker:'Enquire',promo:'Claim offer'}[curPreset]||'Register');
+  const ctaWord=r('ctaLabel')||({redeem:lb.redeem,broker:lb.enquire,promo:lb.claim}[curPreset]||lb.register);
   const lead={event:E.party,promo:E.spark,redeem:E.gift,broker:E.bldg}[curPreset]||E.mega;
   const L=[]; L.push(lead+' *'+head+'*'); if(sub) L.push('',sub);
 
   if(curPreset==='broker'){
-    const rooms=(S.listings||[]).filter(l=>l.location||l.room).slice(0,3).map(l=>{
-      const bits=[l.room,l.seats,l.price].map(clean).filter(Boolean).join(' \u00B7 ');
-      return E.pin+' '+clean(l.location)+(bits?' \u2014 '+bits:'');
+    const rooms=[];
+    (S.listings||[]).forEach((l,i)=>{
+      if(rooms.length>=3) return;
+      if(!(l.location||l.room)) return;
+      const bits=[r('listings.'+i+'.room'),r('listings.'+i+'.seats'),r('listings.'+i+'.price')].filter(Boolean).join(' \u00B7 ');
+      rooms.push(E.pin+' '+r('listings.'+i+'.location')+(bits?' \u2014 '+bits:''));
     });
-    if(rooms.length) L.push('','*Available now:*',...rooms);
+    if(rooms.length) L.push('','*'+lb.avail+'*',...rooms);
   } else {
     if(curPreset==='promo'||curPreset==='redeem'){
       const off=[];
-      if(S.ofTitle) off.push(E.tag+' '+clean(S.ofTitle));
-      if(S.ofCode)  off.push(E.key+' Code: '+clean(S.ofCode));
-      if(S.ofValid) off.push(E.cal+' Valid until '+clean(S.ofValid));
+      if(res('ofTitle')) off.push(E.tag+' '+r('ofTitle'));
+      if(res('ofCode'))  off.push(E.key+' '+lb.code+': '+r('ofCode'));
+      if(res('ofValid')) off.push(E.cal+' '+lb.valid+' '+r('ofValid'));
       if(off.length) L.push('',...off);
     }
     const d=[];
-    if(S.date)  d.push(E.cal+' '+clean(S.date));
-    if(S.time)  d.push(E.clock+' '+clean(S.time));
-    if(S.venue) d.push(E.pin+' '+clean(S.venue));
+    if(res('date'))  d.push(E.cal+' '+r('date'));
+    if(res('time'))  d.push(E.clock+' '+r('time'));
+    if(res('venue')) d.push(E.pin+' '+r('venue'));
     if(d.length) L.push('',...d);
   }
   if(link) L.push('',E.point+' '+ctaWord+': '+link);
@@ -1185,14 +1293,30 @@ function waMessage(S){
 
   return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
-function copyWA(){navigator.clipboard.writeText(waMessage(S)).then(()=>toast('WhatsApp message copied'),()=>toast('Copy failed'));}
+let msgLang='en';
+function activeMsgLangs(){ return ['en',...['tc','sc','jp'].filter(l=>S.tr&&S.tr[l]&&Object.keys(S.tr[l]).length)]; }
+function renderMessage(){
+  const langs=activeMsgLangs();
+  if(langs.indexOf(msgLang)<0) msgLang='en';
+  const sel=document.getElementById('waLangSel');
+  if(sel){
+    if(langs.length>1){
+      sel.style.display='flex';
+      sel.innerHTML=langs.map(l=>`<button data-ml="${l}" class="${l===msgLang?'on':''}">${LANGLABEL[l]}</button>`).join('');
+      sel.querySelectorAll('button').forEach(b=>b.onclick=()=>{ msgLang=b.dataset.ml; renderMessage(); });
+    } else { sel.style.display='none'; sel.innerHTML=''; }
+  }
+  const wp=document.getElementById('waPreview'); if(wp) wp.textContent=waMessage(S,msgLang);
+}
+function copyWA(){navigator.clipboard.writeText(waMessage(S,msgLang)).then(()=>toast('WhatsApp message copied'),()=>toast('Copy failed'));}
 function clearFields(){
-  const keep={heroStyle:1,pageBg:1,ftEmail:1,ftPhone:1,ftAddr:1,enquireEmail:1,on:1};
+  const keep={heroStyle:1,pageBg:1,ftEmail:1,ftPhone:1,ftAddr:1,enquireEmail:1,on:1,tr:1,langs:1};
   Object.keys(S).forEach(k=>{
     if(keep[k]) return;
     if(Array.isArray(S[k])) S[k]=[];
     else if(typeof S[k]==='string') S[k]='';
   });
+  S.tr={tc:{},sc:{},jp:{}}; S.langs=['en']; resetLangUI();
   syncInputs(); queueRender(true); toast('Fields cleared — grey hints show what to type');
 }
 function downloadOG(){
@@ -1203,7 +1327,7 @@ function downloadOG(){
   html2canvas(node,{width:1200,height:630,scale:1,backgroundColor:null,useCORS:true,logging:false}).then(finish).catch(()=>toast('Preview render failed'));
 }
 function exportSettings(){const data={preset:curPreset,state:S};dl(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),pageSlug()+'.json');toast('Settings exported');}
-function importSettings(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);curPreset=d.preset||'event';S=d.state;syncInputs();queueRender(true);toast('Settings loaded');}catch(e){toast('Could not read that file');}};r.readAsText(f);input.value='';}
+function importSettings(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);curPreset=d.preset||'event';S=d.state;if(!S.tr)S.tr={tc:{},sc:{},jp:{}};if(!S.langs||!S.langs.length)S.langs=['en'];resetLangUI();syncInputs();queueRender(true);toast('Settings loaded');}catch(e){toast('Could not read that file');}};r.readAsText(f);input.value='';}
 
 let toastTimer=null;
 function toast(msg){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -1279,7 +1403,7 @@ async function loadFromSheet(){
   cstat('Loading…');
   try{
     const r=await jsonp(CLOUD.url,{action:'load',id},12000);
-    if(r&&r.page&&r.page.state){curPreset=r.page.preset||curPreset;S=r.page.state;CLOUD.id=id;const opt=sel.selectedOptions&&sel.selectedOptions[0];CLOUD.name=(opt&&opt.dataset.name)||r.page.name||'';const cn=document.getElementById('cloudName');if(cn)cn.value=CLOUD.name;syncInputs();queueRender(true);cstat('Loaded — edit and Save to update it.');}
+    if(r&&r.page&&r.page.state){curPreset=r.page.preset||curPreset;S=r.page.state;if(!S.tr)S.tr={tc:{},sc:{},jp:{}};if(!S.langs||!S.langs.length)S.langs=['en'];CLOUD.id=id;const opt=sel.selectedOptions&&sel.selectedOptions[0];CLOUD.name=(opt&&opt.dataset.name)||r.page.name||'';const cn=document.getElementById('cloudName');if(cn)cn.value=CLOUD.name;resetLangUI();syncInputs();queueRender(true);cstat('Loaded — edit and Save to update it.');}
     else cstat('That page came back empty.');
   }catch(e){cstat('Load failed.');}
 }
@@ -1288,10 +1412,12 @@ async function loadFromSheet(){
 loadPreset('event');
 bindStaticInputs();
 syncInputs();
+refreshLangTabs();
 queueRender(true);
 (function(){
   CLOUD.id=freshId();
   const cn=document.getElementById('cloudName'); if(cn) cn.addEventListener('input',e=>{CLOUD.name=e.target.value;});
+  window.addEventListener('message',function(e){ if(e&&e.data&&e.data.shareLang) setEditLang(e.data.shareLang,false); });
   if(CLOUD.url) testBackend();
 })();
 
