@@ -463,6 +463,11 @@ function applyLocationData(p){
     const btn = document.getElementById('house-rules-toggle');
     if(btn) btn.classList.toggle('on', HOUSE_RULES_ON);
   }
+  if(typeof p.page_url_on === 'boolean'){
+    PAGE_URL_ON = p.page_url_on;
+    const btn = document.getElementById('page-url-toggle');
+    if(btn) btn.classList.toggle('on', PAGE_URL_ON);
+  }
   if(typeof p.base_discount_on === 'boolean'){
     BASE_DISCOUNT_ON = p.base_discount_on;
     const btn = document.getElementById('base-discount-toggle');

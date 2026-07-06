@@ -6,6 +6,7 @@ let AUS_DISCOUNT = 30;       // Base Discount %
 let BASE_DISCOUNT_ON = true; // toggle: apply Base Discount in ausCalc
 let DEPOSIT_NOTE_ON  = true; // toggle: render deposit/tax note below pricing
 let HOUSE_RULES_ON   = true; // toggle: render clickable House Rules link in slide footer
+let PAGE_URL_ON      = true; // toggle: show the location page link (footer + email)
 const HOUSE_RULES_URL_BASE = 'https://www.compassoffices.com/house-rules/';
 const AUS_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRd-V3Vpc_MDnb2D40okL0DMH9nz3CWNyC1RZUx1qXTw9AbCIiGr5_LvgKHLe42txC2LHh3ABiGsATv/pub?gid=0&single=true&output=csv';
 let _AUS_MONTHS = []; // detected month columns e.g. ['May-2026','Jun-2026',...]
@@ -472,13 +473,23 @@ function toggleDepositNote(){
 // A clickable link in the slide footer to the public House Rules page. The
 // page localises itself via ?lang= (zh-hant / zh-hans / ja); English uses the
 // base URL. The on/off state persists with the card JSON, like the toggles above.
-function houseRulesUrl(){
-  return HOUSE_RULES_URL_BASE + (LANG && LANG !== 'en' ? '?lang=' + LANG : '');
+function houseRulesUrl(lang){
+  lang = lang || LANG;
+  return HOUSE_RULES_URL_BASE + (lang && lang !== 'en' ? '?lang=' + lang : '');
 }
 function toggleHouseRules(){
   HOUSE_RULES_ON = !HOUSE_RULES_ON;
   const btn = document.getElementById('house-rules-toggle');
   if(btn) btn.classList.toggle('on', HOUSE_RULES_ON);
+  gen();
+}
+// ── Location page link ────────────────────────────────────────────────────
+// Show/hide the location page URL (Page URL field) on the slide footer AND
+// the email's "View Location Page" button. Persists with the card JSON.
+function togglePageUrl(){
+  PAGE_URL_ON = !PAGE_URL_ON;
+  const btn = document.getElementById('page-url-toggle');
+  if(btn) btn.classList.toggle('on', PAGE_URL_ON);
   gen();
 }
 function toggleBaseDiscount(){

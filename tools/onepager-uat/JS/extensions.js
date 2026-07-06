@@ -149,7 +149,7 @@ function buildStateSnapshot(){
     fp_plans:FP_PLANS.map(p=>({url:p.url,label:p.label})),
     fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_data_url:FP_DATA_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
     office_lookup_region:AX_REGION,office_lookup_centre:AUS_CENTRE_FILTER,aus_selected:Array.from(AUS_SELECTED),aus_fp_auto_added:Array.from(_AUS_FP_AUTO_ADDED),
-    deposit_note_on:DEPOSIT_NOTE_ON,house_rules_on:HOUSE_RULES_ON,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
+    deposit_note_on:DEPOSIT_NOTE_ON,house_rules_on:HOUSE_RULES_ON,page_url_on:PAGE_URL_ON,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
@@ -266,6 +266,11 @@ function restoreStateSnapshot(state){
     HOUSE_RULES_ON = state.house_rules_on;
     const btn = document.getElementById('house-rules-toggle');
     if(btn) btn.classList.toggle('on', HOUSE_RULES_ON);
+  }
+  if(typeof state.page_url_on === 'boolean'){
+    PAGE_URL_ON = state.page_url_on;
+    const btn = document.getElementById('page-url-toggle');
+    if(btn) btn.classList.toggle('on', PAGE_URL_ON);
   }
   if(typeof state.base_discount_on === 'boolean'){
     BASE_DISCOUNT_ON = state.base_discount_on;
@@ -1994,6 +1999,7 @@ const EMAIL_I18N = {
     tour_n:           i => `Tour ${i} →`,
     view_tour:        'View Virtual Tour →',
     view_location:    'View Location Page →',
+    house_rules:      'House Rules',
     questions:        'If you have any questions or would like to discuss further, please do not hesitate to reach out directly. I am available by mobile or email and would be happy to speak with you.',
     look_forward:     'I look forward to the opportunity to assist you further.',
     best_regards:     'Best regards,',
@@ -2029,6 +2035,7 @@ const EMAIL_I18N = {
     tour_n:           i => `參觀路線 ${i} →`,
     view_tour:        '查看虛擬參觀 →',
     view_location:    '查看地點頁面 →',
+    house_rules:      '服務守則',
     questions:        '如有任何疑問或希望進一步討論，歡迎隨時透過電話或電郵直接與我聯絡，我將樂意為您解答。',
     look_forward:     '期待有機會為您提供更多協助。',
     best_regards:     '此致',
@@ -2064,6 +2071,7 @@ const EMAIL_I18N = {
     tour_n:           i => `参观线路 ${i} →`,
     view_tour:        '查看虚拟参观 →',
     view_location:    '查看地点页面 →',
+    house_rules:      '服务守则',
     questions:        '如有任何疑问或希望进一步沟通，欢迎随时通过电话或邮件直接与我联系，我将很乐意为您解答。',
     look_forward:     '期待有机会为您提供更多协助。',
     best_regards:     '此致',
@@ -2099,6 +2107,7 @@ const EMAIL_I18N = {
     tour_n:           i => `内見 ${i} →`,
     view_tour:        'バーチャル内見を見る →',
     view_location:    '拠点ページを見る →',
+    house_rules:      'ハウスルール',
     questions:        'ご不明な点などございましたら、お気軽にご連絡ください。',
     look_forward:     '引き続きよろしくお願いいたします。',
     best_regards:     '',
@@ -2367,7 +2376,7 @@ function buildEmailHTML(toName, fromName, company){
   </td></tr>
 </table>` : '';
 
-    const pageBtn = loc.pageUrl ? `
+    const pageBtn = (PAGE_URL_ON && loc.pageUrl) ? `
 <table class="em-pagebtn" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:12px 0;">
   <tr><td><a href="${loc.pageUrl}" target="_blank" class="em-btn-page" style="display:inline-block;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:${FF};font-size:13px;font-weight:700;text-decoration:none;">${T.view_location}</a></td></tr>
 </table>` : '';
@@ -2498,6 +2507,7 @@ function buildEmailHTML(toName, fromName, company){
     <td class="em-foot-pad" style="padding:0 36px 32px;">
       <p style="margin:0 0 12px;font-family:${FF};font-size:13.5px;color:#555;line-height:1.65;">${T.questions}</p>
       <p style="margin:0 0 18px;font-family:${FF};font-size:13.5px;color:#555;line-height:1.65;">${T.look_forward}</p>
+      ${HOUSE_RULES_ON?`<p style="margin:0 0 18px;font-family:${FF};font-size:12.5px;line-height:1.6;"><a href="${houseRulesUrl(emailLang)}" target="_blank" style="color:#FF6600;font-weight:700;text-decoration:none;">${T.house_rules} →</a></p>`:''}
       <p style="margin:0;font-family:${FF};font-size:13.5px;color:#1a1a1a;line-height:1.7;">${T.best_regards}<br>
         <strong style="font-size:15px;color:#FF6600;">${fromName||'[Your Name]'}</strong><br>
         <span style="font-size:12px;color:#888;">${T.company_suffix}</span>
@@ -2560,10 +2570,12 @@ function buildEmailPlainText(toName, fromName, company){
       body += `\n${T.pt_tour(loc.tours.length)}\n`;
       loc.tours.forEach((u,i)=>{ body += (loc.tours.length>1 ? T.pt_tour_n(i+1) : '') + u + '\n'; });
     }
-    if(loc.pageUrl) body += `\n${T.pt_loc_page}${loc.pageUrl}\n`;
+    if(PAGE_URL_ON && loc.pageUrl) body += `\n${T.pt_loc_page}${loc.pageUrl}\n`;
   });
 
   body += `\n${'─'.repeat(40)}\n`;
+  // House Rules link in the plain-text sign-off (matches email language)
+  if(HOUSE_RULES_ON) body += `${T.house_rules}: ${houseRulesUrl(getEmailLang())}\n\n`;
   body += `${T.pt_questions}\n\n${T.pt_best_regards}\n${fromName||'[Your Name]'}\nCompass Offices`;
   return body;
 }
