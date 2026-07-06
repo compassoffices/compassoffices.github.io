@@ -1,0 +1,2543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Compass Offices — One-Pager Builder</title>
+  <link rel="icon" type="image/png" href="https://www.compassoffices.com/wp-content/uploads/2025/09/compassoffices-logo-web-2025_icon-o-scaled.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --o:#FF6600;--olt:#FFF3EB;
+  --blk:#1A1A1A;--drk:#333;--mid:#555;--lt:#888;--xlt:#BBBBBB;
+  --bd:#E5E5E5;--bg:#F5F5F5;--wh:#FFFFFF;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;
+     background:var(--bg);color:var(--drk);min-height:100vh;overflow-x:hidden;
+     -webkit-font-smoothing:antialiased;}
+header{background:var(--wh);border-bottom:1px solid var(--bd);height:54px;
+       padding:0 22px;display:flex;align-items:center;justify-content:space-between;z-index:300;}
+.hbrand{display:flex;align-items:center;gap:12px;}
+.hlogo img{height:20px;display:block;}
+.hlogo-fb{font-size:14px;font-weight:800;color:var(--o);display:none;}
+.hdiv{width:1px;height:16px;background:var(--bd);}
+.htag{font-size:11px;font-weight:600;color:var(--xlt);text-transform:uppercase;letter-spacing:.09em;}
+.lang-sw{display:flex;gap:1px;background:var(--bg);border:1.5px solid var(--bd);border-radius:8px;padding:2px;flex-shrink:0;overflow:hidden;}
+.lbtn{padding:5px 8px;border:none;background:transparent;color:var(--xlt);
+      font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;font-family:inherit;transition:all .12s;white-space:nowrap;line-height:1.2;}
+.lbtn:hover{color:var(--drk);background:rgba(0,0,0,.04);}
+.lbtn.on{background:var(--o);color:#fff;box-shadow:0 1px 4px rgba(255,102,0,.28);}
+.hbtn{padding:8px 18px;font-size:13px;font-weight:700;border-radius:6px;cursor:pointer;
+      font-family:inherit;border:none;background:var(--o);color:var(--wh);transition:background .15s;}
+.hbtn:hover{background:#e55a00;}
+
+/* ─── Queue split button (Queue + chevron) ──────────────────
+   The two buttons share a single outer border so they read as
+   one cohesive control. Hover/active states are applied to
+   the wrapper (.queue-split) instead of each half. A thin
+   1px divider sits between the halves.
+*/
+.queue-split{
+  display: inline-flex;
+  align-items: stretch;
+  border: 1.5px solid var(--bd);
+  border-radius: 6px;
+  background: transparent;
+  overflow: visible; /* let the badge stick out */
+  transition: border-color .15s, background .15s, box-shadow .15s;
+  position: relative;
+}
+.queue-split:hover{
+  border-color: var(--o);
+}
+.queue-split.has-items{
+  border-color: var(--o);
+  background: var(--olt);
+}
+.queue-split-btn{
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mid);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: background .12s, color .12s;
+  position: relative;
+  border-radius: 0;
+}
+.queue-split-btn:first-child{ border-top-left-radius: 4.5px; border-bottom-left-radius: 4.5px; }
+.queue-split-btn:last-child { border-top-right-radius: 4.5px; border-bottom-right-radius: 4.5px; }
+.queue-split-btn:hover{
+  background: rgba(255, 102, 0, 0.08);
+  color: var(--o);
+}
+.queue-split.has-items .queue-split-btn{ color: var(--o); }
+.queue-split.has-items .queue-split-btn:hover{ background: rgba(255, 102, 0, 0.14); }
+.queue-split-btn.chevron{
+  padding: 8px 10px;
+  border-left: 1px solid var(--bd);
+}
+.queue-split.has-items .queue-split-btn.chevron{
+  border-left-color: rgba(255, 102, 0, 0.35);
+}
+.queue-split-btn.chevron svg{
+  transition: transform .2s;
+}
+.queue-split.panel-open .queue-split-btn.chevron svg{
+  transform: rotate(180deg);
+}
+.queue-count-badge{
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  background: var(--o);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  pointer-events: none;
+}
+
+/* ─── Custom hover tooltip ──────────────────────────────────
+   Triggered by `data-tooltip="..."` attribute on any element.
+   Set the attribute via JS or HTML, or use `data-i18n-title="key"`
+   to have applyI18n() set it from the i18n dictionary.
+   - Appears instantly on hover (no native 1s delay)
+   - Multi-line capable (wraps inside max-width)
+   - Dark branded look, drop-shadow, fade-in
+   - Positioned below the element by default; add
+     `data-tooltip-pos="above"` to flip it.
+*/
+[data-tooltip]{position:relative;}
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after{
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(26,26,26,0.96);
+  color: #fff;
+  padding: 7px 11px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: inherit;
+  line-height: 1.45;
+  white-space: normal;
+  width: max-content;
+  max-width: 280px;
+  text-align: center;
+  letter-spacing: 0;
+  text-transform: none;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltipFadeIn 0.16s ease-out forwards;
+  animation-delay: 0.05s;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.08);
+}
+[data-tooltip]:hover::before,
+[data-tooltip]:focus-visible::before{
+  content: '';
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid rgba(26,26,26,0.96);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltipFadeIn 0.16s ease-out forwards;
+  animation-delay: 0.05s;
+}
+/* Flip orientation when data-tooltip-pos="above" */
+[data-tooltip][data-tooltip-pos="above"]:hover::after,
+[data-tooltip][data-tooltip-pos="above"]:focus-visible::after{
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+[data-tooltip][data-tooltip-pos="above"]:hover::before,
+[data-tooltip][data-tooltip-pos="above"]:focus-visible::before{
+  top: auto;
+  bottom: calc(100% + 3px);
+  border-bottom: none;
+  border-top: 5px solid rgba(26,26,26,0.96);
+}
+/* above-start: above + left-aligned to chip edge so it extends rightward.
+   Use when the chip can be near the left edge and centering would bleed
+   off-screen (e.g. multi-floor centre chips in Office Lookup). */
+[data-tooltip][data-tooltip-pos="above-start"]:hover::after,
+[data-tooltip][data-tooltip-pos="above-start"]:focus-visible::after{
+  top: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+  transform: none;
+  animation: tooltipFadeInStart 0.16s ease-out forwards;
+  animation-delay: 0.05s;
+}
+[data-tooltip][data-tooltip-pos="above-start"]:hover::before,
+[data-tooltip][data-tooltip-pos="above-start"]:focus-visible::before{
+  top: auto;
+  bottom: calc(100% + 3px);
+  left: 14px;
+  transform: none;
+  border-bottom: none;
+  border-top: 5px solid rgba(26,26,26,0.96);
+  animation: tooltipFadeInStart 0.16s ease-out forwards;
+  animation-delay: 0.05s;
+}
+@keyframes tooltipFadeInStart{
+  from{opacity:0;transform:translateY(-3px);}
+  to  {opacity:1;transform:translateY(0);}
+}
+@keyframes tooltipFadeIn{
+  from{opacity:0;transform:translateX(-50%) translateY(-3px);}
+  to  {opacity:1;transform:translateX(-50%) translateY(0);}
+}
+/* Hide tooltips on touch-only devices (no real hover) — they'd flash
+   awkwardly on tap. Screen-readers still get aria-label. */
+@media (hover: none){
+  [data-tooltip]:hover::after,
+  [data-tooltip]:hover::before{display:none;}
+}
+.app{display:grid;grid-template-columns:400px 1fr;height:calc(100vh - 54px);}
+.sidebar{background:var(--wh);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;}
+.tabnav{display:flex;border-bottom:1px solid var(--bd);flex-shrink:0;}
+.tab{flex:1;padding:13px 4px 11px;font-size:11px;font-weight:700;text-transform:uppercase;
+     letter-spacing:.06em;border:none;background:transparent;cursor:pointer;color:var(--xlt);
+     border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:inherit;}
+.tab:hover{color:var(--drk);}
+.tab.on{color:var(--o);border-bottom-color:var(--o);}
+.panels{flex:1;overflow-y:auto;}
+
+/* Proposal info strip — always-visible bar above the tabs */
+.proposal-strip{
+  display:flex;align-items:center;gap:0;height:44px;
+  padding:0 14px;
+  margin:6px 10px 0;
+  background:var(--olt);
+  border:1px solid rgba(255,102,0,.18);
+  border-radius:10px;
+  flex-shrink:0;
+}
+/* strip-fields must be flex so both field divs sit side-by-side on desktop */
+#strip-fields{display:flex;align-items:center;flex:1;min-width:0;}
+.proposal-strip-field{
+  display:flex;align-items:center;flex:1;min-width:0;
+}
+.proposal-strip input{
+  flex:1;min-width:0;
+  border:none;border-radius:0;background:transparent;
+  font-size:13px;font-weight:500;color:var(--drk);font-family:inherit;
+  outline:none;padding:8px 12px;
+  transition:color .15s;
+}
+.proposal-strip input::placeholder{
+  color:var(--o);font-weight:700;font-size:11px;
+  text-transform:uppercase;letter-spacing:.07em;opacity:1;
+}
+.proposal-strip input:focus::placeholder{opacity:.4;}
+.proposal-strip input:focus{color:var(--drk);}
+.proposal-strip-div{
+  width:1px;height:20px;background:rgba(255,102,0,.2);
+  margin:0 10px;flex-shrink:0;
+}
+
+#aus-selected-sticky{
+  background:var(--olt);
+  border-bottom:2px solid rgba(255,102,0,.2);
+  display:none; /* hidden when no selection */
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+#aus-selected-sticky .aus-sticky-count{
+  font-size:9px;font-weight:800;color:var(--o);text-align:center;
+  padding:2px 0 3px;letter-spacing:.04em;text-transform:uppercase;
+}
+@keyframes rowFlash{
+  0%  { background:rgba(255,102,0,.18); box-shadow:inset 0 0 0 2px rgba(255,102,0,.35); }
+  70% { background:rgba(255,102,0,.06); box-shadow:inset 0 0 0 1px rgba(255,102,0,.15); }
+  100%{ background:transparent; box-shadow:none; }
+}
+.pr-row-new{ animation:rowFlash 1.4s ease-out forwards; }
+.panel{display:none;padding:20px 18px 32px;}
+.panel.on{display:block;}
+.slabel{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+        color:var(--xlt);margin:18px 0 10px;display:flex;align-items:center;gap:7px;}
+.slabel:first-child{margin-top:0;}
+.slabel::after{content:'';flex:1;height:1px;background:var(--bd);}
+.slabel.has-toggle::after{display:none;}
+.field{margin-bottom:12px;}
+.fl{display:block;font-size:10.5px;font-weight:600;color:var(--lt);margin-bottom:5px;letter-spacing:.01em;}
+input[type=text],input[type=url],textarea,select{
+  width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:6px;
+  font-size:14px;font-family:inherit;color:var(--drk);background:var(--wh);
+  outline:none;transition:border-color .15s;line-height:1.45;}
+input:focus,textarea:focus,select:focus{border-color:var(--o);}
+textarea{resize:vertical;min-height:60px;}
+select{appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23BBB' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.frow .field{margin-bottom:0;}
+.lib-load-row{display:flex;gap:6px;align-items:stretch;margin-bottom:0;}
+.lib-drop-zone{flex:1;min-height:38px;padding:7px 10px;border:1.5px dashed var(--bd);border-radius:6px;background:var(--wh);color:var(--lt);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;font-family:inherit;}
+.lib-drop-zone:hover,.lib-drop-zone.drag-over{border-color:var(--o);color:var(--o);background:var(--olt);}
+.lib-drop-zone b{font-weight:800;color:var(--drk);}
+.lib-file-btn{flex-shrink:0;padding:7px 12px;border:1.5px solid var(--bd);border-radius:6px;background:var(--wh);color:var(--lt);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;font-family:inherit;}
+.lib-file-btn:hover{border-color:var(--o);color:var(--o);}
+.lib-server-btn{flex-shrink:0;padding:7px 11px;border:1.5px solid var(--bd);border-radius:6px;background:var(--wh);color:var(--lt);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;font-family:inherit;}
+.lib-server-btn:hover{border-color:var(--o);color:var(--o);}
+.note-txt code{background:var(--bg);border:1px solid var(--bd);border-radius:3px;padding:1px 4px;font-size:10px;font-family:monospace;color:var(--mid);}
+.json-search-wrap{position:relative;}
+.json-search{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:6px;font-size:14px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;transition:border-color .15s;}
+.json-search:focus{border-color:var(--o);}
+.json-search-ico{display:none;}
+.json-dropdown{position:absolute;z-index:500;top:calc(100% + 4px);left:0;right:-82px;background:var(--wh);border:1px solid var(--bd);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;display:none;}
+.json-dropdown.open{display:block;}
+.lib-drop-zone{border:2px dashed var(--bd);border-radius:8px;transition:border-color .15s,background .15s;cursor:pointer;}
+.lib-drop-active,.lib-drop-zone:hover{border-color:var(--o);background:var(--olt);}
+.json-opt{padding:9px 12px;font-size:13px;color:var(--drk);cursor:pointer;border-bottom:1px solid var(--bd);transition:background .1s;display:flex;align-items:center;gap:8px;}
+.json-opt:last-child{border-bottom:none;}
+.json-opt:hover{background:var(--olt);color:var(--o);}
+.json-opt .json-city{font-size:10px;color:var(--xlt);margin-left:auto;flex-shrink:0;}
+.note-txt{font-size:11px;color:var(--xlt);line-height:1.5;margin-top:3px;}
+.smsg{font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-weight:500;line-height:1.45;}
+.s-info{background:#FFF7F0;color:#CC5200;border:1px solid #FFD9B8;}
+.s-ok{background:#F0FDF4;color:#166534;border:1px solid #BBF7D0;}
+.s-err{background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;}
+.amen-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.amen-item{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1.5px solid var(--bd);border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;color:var(--lt);transition:all .15s;user-select:none;}
+.amen-item:hover{border-color:var(--o);color:var(--drk);}
+.amen-item.on{border-color:var(--o);color:var(--drk);background:var(--olt);}
+.amen-item .aico{width:16px;height:16px;flex-shrink:0;color:var(--bd);transition:color .15s;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.amen-item.on .aico,.amen-item:hover .aico{color:var(--o);}
+.amen-item .aico svg{width:15px;height:15px;flex-shrink:0;}
+.amen-item .aico img{width:15px !important;height:15px !important;max-width:15px !important;max-height:15px !important;object-fit:contain;flex-shrink:0;display:block;}
+.ben-list{display:flex;flex-direction:column;gap:5px;}
+.ben-row{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1.5px solid var(--bd);border-radius:8px;background:var(--wh);transition:border-color .15s;position:relative;}
+.ben-row.on{border-color:var(--o);background:var(--olt);}
+.ben-toggle{width:30px;height:18px;border-radius:20px;background:var(--bd);border:none;cursor:pointer;position:relative;flex-shrink:0;transition:background .2s;}
+.ben-toggle.on{background:var(--o);}
+.ben-toggle::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.ben-toggle.on::after{left:calc(100% - 16px);}
+.ben-ico-btn{width:26px;height:26px;flex-shrink:0;border:1px solid var(--bd);border-radius:6px;background:var(--wh);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--xlt);transition:all .15s;padding:0;overflow:hidden;}
+.ben-ico-btn:hover{border-color:var(--o);color:var(--o);}
+.ben-ico-btn svg{width:14px;height:14px;pointer-events:none;flex-shrink:0;}
+.ben-ico-btn img.co-icon-img{width:16px !important;height:16px !important;max-width:16px !important;max-height:16px !important;object-fit:contain;flex-shrink:0;display:block;}
+.ben-row.on .ben-ico-btn{color:var(--o);}
+.ben-input{flex:1;border:none;background:transparent;font-family:inherit;font-size:12.5px;color:var(--drk);outline:none;padding:0;min-width:0;}
+.ben-input::placeholder{color:var(--xlt);}
+.ben-del{width:18px;height:18px;background:transparent;border:none;color:var(--xlt);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:3px;transition:color .15s;padding:0;}
+.ben-del:hover{color:#DC2626;}
+.ben-add{width:100%;padding:8px;border:1px dashed var(--bd);border-radius:8px;background:transparent;color:var(--xlt);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.ben-add:hover{border-color:var(--o);color:var(--o);}
+.ico-picker{position:fixed;z-index:9999;background:var(--wh);border:1px solid var(--bd);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.15);padding:0;width:300px;display:none;overflow:hidden;}
+.ico-picker.open{display:block;}
+.ico-picker-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--xlt);margin-bottom:8px;}
+.ico-picker-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;}
+.ico-opt{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 3px;border:1.5px solid transparent;border-radius:6px;cursor:pointer;transition:all .12s;}
+.ico-opt:hover{border-color:var(--o);background:var(--olt);}
+.ico-opt.sel{border-color:var(--o);background:var(--olt);}
+.ico-opt svg{width:18px;height:18px;color:var(--drk);}
+.ico-opt img{width:18px !important;height:18px !important;max-width:18px !important;max-height:18px !important;object-fit:contain;display:block;}
+.ico-opt:hover svg,.ico-opt.sel svg{color:var(--o);}
+.ico-opt span{font-size:8px;color:var(--xlt);text-align:center;line-height:1.2;}
+.tr-list{display:flex;flex-direction:column;gap:5px;}
+.tr-row{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1.5px solid var(--bd);border-radius:8px;background:var(--wh);}
+.tr-ico-btn{width:32px;height:32px;flex-shrink:0;border:1.5px solid var(--o);border-radius:8px;background:var(--olt);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--o);transition:all .15s;padding:0;overflow:hidden;}
+.tr-ico-btn:hover{background:var(--o);color:var(--wh);}
+.tr-ico-btn svg{width:16px;height:16px;pointer-events:none;flex-shrink:0;}
+.tr-ico-btn img.co-icon-img{width:18px !important;height:18px !important;max-width:18px !important;max-height:18px !important;object-fit:contain;display:block;flex-shrink:0;}
+.tr-input{flex:1;border:none;background:transparent;font-family:inherit;font-size:12.5px;color:var(--drk);outline:none;padding:0;min-width:0;}
+.tr-input::placeholder{color:var(--xlt);}
+.tr-rich-mini{display:flex;gap:2px;flex-shrink:0;}
+.tr-rich-editor{width:100%;padding:5px 9px;border:1px solid var(--bd);border-radius:6px;font-size:12.5px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;line-height:1.5;min-height:30px;transition:border-color .15s;}
+.tr-rich-editor:focus{border-color:var(--o);}
+.tr-rich-editor:empty:before{content:attr(placeholder);color:var(--xlt);pointer-events:none;}
+.tr-rich-editor b{font-weight:700;}
+.tr-rich-editor small{font-size:.75em;color:var(--lt);}
+.tr-rich-editor [style*="color"]{color:#FF6600;}
+.tr-del{width:18px;height:18px;background:transparent;border:none;color:var(--xlt);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:3px;transition:color .15s;padding:0;}
+.tr-del:hover{color:#DC2626;}
+.tr-add{width:100%;padding:8px;border:1px dashed var(--bd);border-radius:8px;background:transparent;color:var(--xlt);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.tr-add:hover{border-color:var(--o);color:var(--o);}
+.sep-opt{padding:5px 12px;border:1.5px solid var(--bd);border-radius:6px;background:var(--wh);color:var(--mid);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s;}
+.sep-opt:hover{border-color:var(--o);color:var(--o);}
+.sep-opt.on{background:var(--o);border-color:var(--o);color:var(--wh);font-weight:700;}
+.pr-row{border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:8px;background:var(--bg);transition:border-color .1s;}
+/* ── Collapsible pricing rows ──────────────────────────────────────────── */
+/* pr-row-summary removed — inline summary now lives directly in pr-head */
+/* ── Inline price edit inside collapsed row header ───────────────────── */
+.pr-inline-price{
+  width:80px;border:1.5px solid rgba(255,102,0,.3);border-radius:6px;
+  padding:2px 7px;font-size:11.5px;font-weight:700;color:var(--o);
+  background:rgba(255,102,0,.05);font-family:inherit;outline:none;
+  text-align:center;cursor:text;vertical-align:middle;
+  transition:border-color .12s,background .12s;
+}
+.pr-inline-price:focus{border-color:var(--o);background:#fff;}
+.pr-inline-price::placeholder{color:rgba(255,102,0,.3);font-weight:400;}
+.pr-row.pr-collapsed .frow{display:none;}
+.pr-collapse-btn{
+  width:22px;height:22px;border:1.5px solid var(--o);border-radius:5px;
+  background:var(--o);color:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;padding:0;transition:all .12s;
+}
+.pr-collapse-btn:hover{background:#e55000;border-color:#e55000;}
+.pr-collapse-btn svg{transition:transform .18s;}
+/* Collapsed state — orange outline invites expansion */
+.pr-row.pr-collapsed .pr-collapse-btn{background:transparent;border-color:var(--o);color:var(--o);}
+.pr-row.pr-collapsed .pr-collapse-btn:hover{background:var(--olt);}
+.pr-row.pr-collapsed .pr-collapse-btn svg{transform:rotate(-90deg);}
+/* ── Autosave indicator & restore banner ─────────────────────────────── */
+#autosave-indicator{position:fixed;bottom:14px;right:18px;z-index:9999;font-size:10px;color:var(--o);background:rgba(255,255,255,.95);border:1px solid rgba(255,102,0,.25);border-radius:20px;padding:3px 11px;opacity:0;transition:opacity .4s;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+#autosave-indicator.show{opacity:1;}
+#autosave-banner{display:none;padding:8px 16px;background:var(--olt);border-bottom:1.5px solid var(--o);align-items:center;gap:10px;font-size:11.5px;flex-wrap:wrap;}
+#autosave-banner .ab-time{font-weight:700;color:var(--o);}
+#autosave-banner button{padding:3px 12px;border-radius:6px;border:1.5px solid var(--o);background:transparent;color:var(--o);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
+#autosave-banner button.ab-restore{background:var(--o);color:#fff;}
+/* ── Drag-to-reorder rows ─────────────────────────────────────────────── */
+/* ── Drag-to-reorder rows — CSS removed (drag disabled; ↑↓ buttons kept) ── */
+/* ── Long content safety on slide title area ──────────────────────────── */
+.sl-name{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+/* ── Mobile UX improvements ──────────────────────────────────────────────
+   Targets ≤768px. Improves header, tabbar, touch targets, drawer.        */
+
+/* More drawer (bottom sheet) */
+#mob-more-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;-webkit-tap-highlight-color:transparent;}
+#mob-more-overlay.open{display:block;}
+#mob-more-drawer{position:fixed;bottom:0;left:0;right:0;z-index:801;background:#fff;border-radius:20px 20px 0 0;padding:0 0 env(safe-area-inset-bottom,0);transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);box-shadow:0 -4px 32px rgba(0,0,0,.18);}
+#mob-more-drawer.open{transform:translateY(0);}
+.mob-drawer-handle{width:36px;height:4px;background:var(--bd);border-radius:2px;margin:12px auto 4px;}
+.mob-drawer-title{font-size:11px;font-weight:700;color:var(--xlt);text-transform:uppercase;letter-spacing:.08em;padding:8px 20px 4px;}
+.mob-drawer-lang{display:flex;gap:6px;padding:8px 20px 4px;flex-wrap:wrap;}
+.mob-drawer-lang .lbtn{flex:1;min-width:60px;padding:10px 8px;font-size:14px;font-weight:700;border-radius:10px;text-align:center;}
+.mob-drawer-lang .lbtn.on{background:var(--o);color:#fff;border-color:var(--o);}
+.mob-drawer-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 20px 20px;}
+.mob-drawer-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 8px;background:var(--bg);border:1.5px solid var(--bd);border-radius:14px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;color:var(--mid);-webkit-tap-highlight-color:transparent;transition:all .12s;}
+.mob-drawer-btn:active{background:var(--olt);border-color:var(--o);color:var(--o);}
+.mob-drawer-btn svg{opacity:.7;}
+.mob-drawer-btn.primary{background:var(--o);color:#fff;border-color:var(--o);}
+.mob-drawer-btn.primary svg{opacity:1;}
+.mob-drawer-btn.primary:active{background:#e55a00;}
+/* Drawer proposal inputs */
+.mob-drawer-proposal{padding:4px 20px 12px;}
+.mob-drawer-prop-field{margin-bottom:10px;}
+.mob-drawer-prop-label{font-size:9.5px;font-weight:800;color:var(--o);text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:5px;}
+.mob-drawer-prop-input{width:100%;border:1.5px solid var(--bd);border-radius:10px;padding:11px 14px;font-size:15px;font-family:inherit;color:var(--drk);background:#fff;outline:none;box-sizing:border-box;transition:border-color .15s;}
+.mob-drawer-prop-input:focus{border-color:var(--o);}
+.mob-drawer-prop-input::placeholder{color:var(--o);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.07em;}
+.mob-drawer-prop-input:focus::placeholder{opacity:.35;}
+
+/* Desktop-only: strip toggle + summary never visible — mobile @media overrides below */
+#strip-toggle{display:none;}
+#strip-summary{display:none;}
+@media(max-width:768px){
+  /* ── Header ── */
+  header{height:52px;padding:0 14px;}
+  .hlogo img{height:20px;}
+  .htag{display:block;font-size:10px;font-weight:700;color:var(--xlt);letter-spacing:.06em;text-transform:uppercase;}
+  .hdiv{display:block;width:1px;height:14px;}
+  /* Hide all header buttons except print + show mob-only buttons */
+  .hbtn:not(#hbtn-print){display:none;}
+  #hbtn-print{display:flex;padding:8px 14px;font-size:12.5px;}
+  .queue-split{display:none;}
+  /* Show mobile email + hamburger */
+  #hbtn-mob-email{display:flex !important;}
+  #hbtn-more{display:flex !important;align-items:center;justify-content:center;width:38px;height:38px;border:1.5px solid var(--bd);border-radius:10px;background:var(--wh);color:var(--mid);cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0;}
+  #hbtn-more:active{border-color:var(--o);color:var(--o);background:var(--olt);}
+  /* Show strip toggle on mobile (comes after global display:none above, so wins) */
+  #strip-toggle{display:flex;}
+  #profile-btn{display:none;}
+  .tip-icon{display:none;}
+  /* Hide desktop language switcher */
+  .lang-sw{display:none;}
+  /* ── App layout ── */
+  .app{padding-top:52px;padding-bottom:72px;}
+  /* ── Proposal strip — hidden on mobile (lives in hamburger drawer) ── */
+  .proposal-strip{display:none !important;}
+  .proposal-strip-field{display:flex;flex-direction:column;gap:3px;padding:10px 16px 10px 16px;}
+  .proposal-strip-div{display:none;}
+  .proposal-strip input{
+    max-width:none;font-size:16px;padding:8px 12px;
+    border:1.5px solid var(--bd);border-radius:10px;background:#fff;
+  }
+  .proposal-strip input:focus{border-color:var(--o);box-shadow:none;}
+  /* Summary — shown when collapsed */
+  #strip-summary{
+    display:flex;align-items:center;min-height:44px;
+    padding:0 44px 0 16px;font-size:12.5px;
+    color:var(--mid);background:var(--olt);
+    cursor:pointer;-webkit-tap-highlight-color:transparent;
+    border-bottom:1px solid rgba(255,102,0,.12);
+  }
+  #strip-summary:active{background:#fde8d5;}
+  /* Fields wrapper — block on mobile for collapse animation */
+  #strip-fields{display:block;overflow:hidden;transition:max-height .24s cubic-bezier(.4,0,.2,1);}
+  #strip-fields.collapsed{max-height:0 !important;}
+  /* Toggle chevron */
+  #strip-toggle{
+    position:absolute;right:8px;top:6px;
+    width:32px;height:32px;border:none;background:transparent;
+    cursor:pointer;color:var(--o);
+    display:flex;align-items:center;justify-content:center;
+    border-radius:8px;-webkit-tap-highlight-color:transparent;z-index:2;
+  }
+  #strip-toggle:active{background:rgba(255,102,0,.1);}
+  #strip-toggle svg{transition:transform .22s;}
+  #strip-toggle.collapsed svg{transform:rotate(-90deg);}
+  /* ── Autosave banner ── */
+  #autosave-banner{gap:8px;padding:10px 14px;font-size:11px;}
+  #autosave-banner button{padding:6px 12px;font-size:11px;}
+  /* ── Bottom tabbar ── */
+  .mob-tabbar{height:72px;padding-bottom:env(safe-area-inset-bottom,0);}
+  .mob-tab{font-size:10px;gap:4px;padding:0 4px;border-radius:0;min-width:0;transition:color .12s;}
+  .mob-tab svg{width:24px;height:24px;stroke-width:1.7;}
+  .mob-tab.on{color:var(--o);}
+  .mob-tab.on svg{stroke:var(--o);}
+  /* ── Touch targets ── */
+  .hbtn svg{width:16px;height:16px;}
+  /* ── Office lookup table ── */
+  #aus-office-list{-webkit-overflow-scrolling:touch;}
+  #aus-office-list table{min-width:440px;}
+  /* ── Preview ── */
+  .preview .contact-slide{border-radius:0;}
+  /* ── Queue panel — full width on mobile ── */
+  #queue-panel{left:8px !important;right:8px !important;width:auto !important;bottom:80px !important;max-height:62vh !important;}
+}
+
+/* Only show hamburger + mob email on mobile */
+#hbtn-more{display:none;}
+#hbtn-mob-email{display:none;align-items:center;justify-content:center;width:38px;height:38px;border:1.5px solid var(--bd);border-radius:10px;background:var(--wh);color:var(--mid);cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0;}
+#hbtn-mob-email:active{border-color:var(--o);color:var(--o);background:var(--olt);}
+/* strip-toggle and strip-summary hidden via rules BEFORE @media below */
+.pr-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.pr-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--xlt);}
+img.co-icon-img{display:block;}
+.sl-amen-cell img.co-icon-img,.sl-icell img.co-icon-img,.p2-amen-cell img.co-icon-img,.sl-ticon-img{width:calc(var(--fs)*1.05);height:calc(var(--fs)*1.05);flex-shrink:0;object-fit:contain;display:block;}
+.sl-merit img.co-icon-img{width:calc(var(--fs)*0.85);height:calc(var(--fs)*0.85);flex-shrink:0;object-fit:contain;display:block;}
+.sl-ticon-img{width:calc(var(--fs)*0.9)!important;height:calc(var(--fs)*0.9)!important;object-fit:contain !important;}
+.mob-preview-btn{display:none;padding:10px 16px;border:1.5px solid var(--bd);border-radius:8px;background:var(--wh);color:var(--mid);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;align-items:center;gap:6px;}
+.mob-preview-btn:hover{border-color:var(--o);color:var(--o);}
+.mob-preview-btn.showing{background:var(--o);border-color:var(--o);color:#fff;}
+@media(max-width:768px){
+  header{height:50px;padding:0 12px;position:fixed;top:0;left:0;right:0;z-index:400;}
+  .htag{display:none;}.hdiv{display:none;}
+  .hlogo img{height:18px;}
+  .lang-sw{gap:1px;padding:2px;}
+  .lbtn{padding:4px 7px;font-size:11px;}
+  .hbtn{padding:6px 10px;font-size:12px;}
+  .hbtn span{display:none;}
+  .hbtn svg{display:block;}
+  body{overflow:hidden;position:fixed;width:100%;height:100%;}
+  .app{display:block;height:100dvh;padding-top:50px;padding-bottom:64px;}
+  .sidebar{width:100%;height:100%;border-right:none;display:flex;flex-direction:column;}
+  .tabnav{display:none;}
+  .panels{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .panel{padding:16px 16px 24px;}
+  input[type=text],input[type=url],textarea,select{font-size:16px;padding:11px 14px;border-radius:8px;}
+  .frow{grid-template-columns:1fr;gap:8px;}
+  .gen-wrap{display:none;}
+  .preview{position:fixed;top:50px;left:0;right:0;bottom:64px;z-index:300;overflow-y:auto;padding:0;background:#fff;-webkit-overflow-scrolling:touch;}
+  .preview.mob-hidden{display:none;}
+  .preview .pmeta{display:none;}
+  .preview .slide-wrap{max-width:100%;margin:0;}
+  .preview .slide,.preview .slide2{border-radius:0;box-shadow:none;border:none;border-bottom:8px solid #eee;}
+  .preview p[style*="text-align:center"]{display:none;}
+  .mob-preview-btn{display:none;}
+  .slide-wrap{max-width:100%;}
+  .slabel{font-size:11px;margin:20px 0 12px;}
+  .fl{font-size:12px;margin-bottom:6px;}
+  .ben-row{padding:10px 12px;}
+  .ben-toggle{width:36px;height:22px;}
+  .ben-toggle::after{width:18px;height:18px;}
+  .ben-toggle.on::after{left:calc(100% - 20px);}
+  .ben-input{font-size:14px;}
+  .ben-add{padding:12px;font-size:14px;}
+  .tr-rich-editor{font-size:14px;min-height:40px;}
+  .tr-add{padding:12px;font-size:14px;}
+  .uparea{padding:24px 16px;font-size:14px;}
+  .thumbrow{grid-template-columns:repeat(3,1fr);gap:8px;}
+  .pr-row{padding:14px;}
+  .add-row{padding:12px;font-size:14px;}
+  .amen-grid{grid-template-columns:1fr 1fr;gap:6px;}
+  .amen-item{padding:10px 12px;font-size:13px;}
+  .spec-rb{padding:3px 8px;font-size:11px;}
+  .rich-btn{padding:5px 10px;font-size:12px;}
+  .spec-rich-editor{min-height:40px;font-size:14px;}
+  .slabel:first-child{margin-top:0;}
+  .ben-pos-toggle{gap:6px;}
+  .ben-pos-btn{padding:8px 4px;font-size:11px;}
+  .preview.mob-hidden{display:none;}
+}
+.mob-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--wh);border-top:1px solid var(--bd);z-index:500;align-items:stretch;}
+.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:transparent;color:var(--xlt);font-size:9.5px;font-weight:700;font-family:inherit;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;transition:color .15s;-webkit-tap-highlight-color:transparent;padding:0;}
+.mob-tab svg{width:22px;height:22px;stroke-width:1.8;}
+.mob-tab.on{color:var(--o);}
+.mob-tab.on svg{stroke:var(--o);}
+.mob-tab-action{color:var(--o);border-left:1px solid var(--bd);}
+@media(max-width:768px){.mob-tabbar{display:flex;}}
+.mob-fab{display:none;position:fixed;right:16px;bottom:80px;z-index:600;width:52px;height:52px;border-radius:50%;background:var(--o);border:none;color:#fff;box-shadow:0 4px 16px rgba(255,102,0,.45);cursor:pointer;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;transition:transform .15s,box-shadow .15s;}
+.mob-fab:active{transform:scale(.93);}
+@media(max-width:768px){.mob-fab{display:flex;}}
+.mob-preview-banner{display:none;background:var(--o);color:#fff;padding:10px 16px;font-size:13px;font-weight:700;align-items:center;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent;border-bottom:2px solid rgba(0,0,0,.1);}
+@media(max-width:768px){.mob-preview-banner{display:flex;}}
+.spec-rich-wrap{display:flex;flex-direction:column;gap:3px;}
+.spec-rich-bar{display:flex;gap:2px;}
+.spec-rb{padding:1px 6px;border:1px solid var(--bd);border-radius:4px;background:var(--wh);font-size:9.5px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--mid);transition:all .1s;line-height:1.3;}
+.spec-rb:hover{border-color:var(--o);color:var(--o);}
+.spec-rb.orange{color:var(--o);border-color:var(--o);}
+.spec-rich-editor,.rich-editor,.tr-rich-editor{white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;}
+.spec-rich-editor{padding:5px 9px;border:1px solid var(--bd);border-radius:6px;font-size:11.5px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;line-height:1.45;transition:border-color .15s;}
+.spec-rich-editor:focus{border-color:var(--o);}
+.spec-rich-editor:empty:before{content:attr(placeholder);color:var(--xlt);pointer-events:none;}
+.spec-rich-editor b{font-weight:700;}
+.spec-rich-editor small{font-size:.75em;color:var(--lt);}
+.sl-spec-val small{font-size:.75em;color:var(--lt);}
+.sl-custom-body small{font-size:.8em;color:var(--lt);}
+.init-cell small{font-size:.8em;}
+.rich-wrap{display:flex;flex-direction:column;gap:4px;}
+.rich-toolbar{display:flex;gap:3px;}
+.rich-btn{padding:3px 8px;border:1px solid var(--bd);border-radius:4px;background:var(--wh);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--mid);transition:all .12s;line-height:1.4;}
+.rich-btn:hover{border-color:var(--o);color:var(--o);}
+.rich-btn.orange{color:var(--o);border-color:var(--o);}
+.rich-editor{min-height:48px;padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font-size:13.5px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;line-height:1.5;transition:border-color .15s;}
+.rich-editor:focus{border-color:var(--o);}
+.rich-editor:empty:before{content:attr(placeholder);color:var(--xlt);pointer-events:none;}
+.rich-editor b{font-weight:700;}
+.rich-editor small{font-size:.75em;color:var(--lt);}
+.rich-editor [style*="color"]{color:#FF6600;}
+.del-btn{width:22px;height:22px;background:transparent;border:1px solid var(--bd);border-radius:4px;color:var(--xlt);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.del-btn:hover{border-color:#DC2626;color:#DC2626;background:#FEF2F2;}
+.add-row{width:100%;padding:9px;border:1px dashed var(--bd);border-radius:8px;background:transparent;color:var(--xlt);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:4px;}
+.add-row:hover{border-color:var(--o);color:var(--o);}
+.uparea{border:1.5px dashed var(--bd);border-radius:10px;padding:16px;text-align:center;cursor:pointer;font-size:13px;color:var(--xlt);transition:all .15s;}
+.uparea:hover{border-color:var(--o);color:var(--o);}
+.uparea input{display:none;}
+.uparea em{font-style:normal;display:flex;align-items:center;justify-content:center;margin-bottom:6px;color:var(--xlt);}
+.uparea:hover em{color:var(--o);}
+.uparea small{font-size:11px;color:#CCC;margin-top:3px;display:block;}
+.thumbrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;}
+.thumb{aspect-ratio:4/3;border-radius:8px;overflow:hidden;position:relative;background:var(--bd);}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.thumb .trm{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:3px;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#fp-prev img,#pl-prev img{border-radius:8px;border:1px solid var(--bd);max-width:100%;}
+#pl-prev img{max-height:50px;height:auto;}
+.gen-wrap{padding:12px 18px 16px;border-top:1px solid var(--bd);background:var(--wh);flex-shrink:0;}
+.gen-btn{width:100%;padding:12px;background:var(--o);border:none;border-radius:10px;color:var(--wh);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;}
+.gen-btn:hover{background:#e55a00;transform:translateY(-1px);}
+.preview{background:#DEDEDE;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:28px 24px 40px;gap:16px;}
+.pmeta{width:100%;max-width:1040px;display:flex;align-items:center;justify-content:space-between;}
+.pmeta-lbl{font-size:11px;font-weight:700;color:var(--xlt);text-transform:uppercase;letter-spacing:.08em;}
+.slide-wrap{width:100%;max-width:1040px;}
+.slide{--fs:16px;width:100%;aspect-ratio:297/210;background:var(--wh);border-radius:8px;overflow:hidden;box-shadow:0 4px 8px rgba(0,0,0,.08),0 12px 40px rgba(0,0,0,.14);border:1px solid var(--bd);display:grid;grid-template-rows:auto 1fr auto;font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;font-size:var(--fs);line-height:1;padding:3px;}
+.sl-top{background:var(--wh);border-bottom:2px solid var(--bd);padding:calc(var(--fs)*0.85) calc(var(--fs)*1.5);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:calc(var(--fs)*0.9);flex-shrink:0;border-radius:5px 5px 0 0;}
+.sl-logos{display:flex;align-items:center;gap:calc(var(--fs)*0.6);flex-shrink:0;}
+.sl-cologo img{height:calc(var(--fs)*2.2);display:block;}
+.sl-cologo-fb{font-size:calc(var(--fs)*1.1);font-weight:800;color:var(--o);}
+.sl-logo-sep{font-size:calc(var(--fs)*1.1);font-weight:300;color:var(--xlt);margin:0 4px;}
+.sl-partner img{height:calc(var(--fs)*1.8);display:block;opacity:.88;}
+.sl-title-block{min-width:0;overflow:hidden;padding-left:calc(var(--fs)*1.0);border-left:4px solid var(--o);}
+.sl-title{font-size:calc(var(--fs)*1.8);font-weight:800;color:var(--blk);letter-spacing:-.02em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sl-addr-row{display:flex;align-items:center;gap:calc(var(--fs)*0.5);margin-top:calc(var(--fs)*0.22);overflow:hidden;}
+.sl-addr{font-size:calc(var(--fs)*0.88);color:var(--lt);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.sl-floor-inline{font-size:calc(var(--fs)*0.78);font-weight:700;color:var(--drk);background:#F0F0F0;border-radius:5px;padding:3px calc(var(--fs)*0.5);white-space:nowrap;flex-shrink:0;}
+.sl-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;}
+.sl-city{font-size:calc(var(--fs)*0.78);font-weight:700;color:var(--o);letter-spacing:.05em;text-transform:uppercase;border:1.5px solid var(--o);padding:4px calc(var(--fs)*0.7);border-radius:20px;white-space:nowrap;}
+.sl-body{display:grid;grid-template-columns:24% 1fr 35%;overflow:hidden;min-height:0;}
+.sl-photos{border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;}
+.sl-ph-stack{flex:1 1 0;display:flex;flex-direction:column;gap:calc(var(--fs)*0.18);padding:calc(var(--fs)*0.22) calc(var(--fs)*0.22) calc(var(--fs)*0.18);min-height:0;overflow:hidden;background:var(--wh);}
+.sl-ph-cell{flex:1 1 0;overflow:hidden;background:#E8E8E8;min-height:0;border-radius:calc(var(--fs)*0.35);}
+.sl-ph-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+.noph{width:100%;height:100%;background:#F0F0F0;display:flex;align-items:center;justify-content:center;}
+.noph svg{width:26%;opacity:.18;}
+.sl-amen-below{flex-shrink:0;padding:calc(var(--fs)*0.3) calc(var(--fs)*0.4) calc(var(--fs)*0.35);border-top:1px solid var(--bd);background:var(--wh);}
+.sl-amen-below-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:calc(var(--fs)*0.18) calc(var(--fs)*0.1);}
+.sl-amen-cell{display:flex;flex-direction:column;align-items:center;gap:2px;overflow:hidden;}
+.sl-amen-cell svg,.sl-amen-cell img{width:calc(var(--fs)*1.05);height:calc(var(--fs)*1.05);color:var(--o);flex-shrink:0;}
+.sl-amen-cell span{font-size:calc(var(--fs)*0.44);color:var(--xlt);text-align:center;line-height:1.2;word-break:break-word;white-space:normal;overflow:visible;width:100%;}
+.sl-specs{padding:calc(var(--fs)*0.6) calc(var(--fs)*1.0);border-right:1px solid var(--bd);display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+.sl-specs-inner{flex:1;overflow:visible;display:flex;flex-direction:column;gap:calc(var(--fs)*0.42);}
+.sl-section{display:flex;flex-direction:column;min-height:0;}
+.sl-section.grow{overflow:hidden;flex:1 1 0;}
+.sl-section.shrink{overflow:visible;flex-shrink:0;flex:0 0 auto;}
+.sl-sec{font-size:calc(var(--fs)*0.68);font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--o);margin-bottom:calc(var(--fs)*0.15);flex-shrink:0;}
+.sl-specs-grid{display:grid;gap:calc(var(--fs)*0.14) calc(var(--fs)*0.18);}
+.sl-spec-card{display:flex;flex-direction:column;gap:1px;min-width:0;padding:calc(var(--fs)*0.2) calc(var(--fs)*0.28);background:#F7F7F7;border-radius:4px;border:1px solid #ECECEC;overflow:hidden;}
+.sl-spec-lbl{font-size:calc(var(--fs)*0.52);font-weight:700;color:#C8C8C8;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
+.sl-spec-val{font-size:calc(var(--fs)*0.85);font-weight:500;color:var(--drk);line-height:1.35;word-break:break-word;}
+.sl-spec-val b{font-weight:800;color:var(--blk);}
+.sl-spec-val [style*="color"]{color:#FF6600 !important;}
+.sl-spec-val div,.sl-spec-val p{display:inline;}
+.sl-specs-grid[data-size="md"] .sl-spec-val{font-size:calc(var(--fs)*0.8);}
+.sl-specs-grid[data-size="sm"] .sl-spec-val{font-size:calc(var(--fs)*0.74);}
+.sl-specs-grid[data-size="xs"] .sl-spec-val{font-size:calc(var(--fs)*0.68);}
+.sl-trans-grid{display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--fs)*0.14) calc(var(--fs)*0.38);}
+.sl-trans{display:flex;align-items:center;gap:calc(var(--fs)*0.38);padding:calc(var(--fs)*0.15) 0;}
+.sl-ticon{width:calc(var(--fs)*1.15);height:calc(var(--fs)*1.15);flex-shrink:0;color:var(--o);}
+.sl-trans-txt{font-size:calc(var(--fs)*0.82);color:var(--mid);line-height:1.35;}
+.sl-trans-txt b{font-weight:700;color:var(--drk);}
+.sl-trans-txt small{font-size:.8em;color:var(--lt);}
+.sl-trans-txt [style*="color"]{color:#FF6600 !important;}
+.sl-icon-grid{display:flex;flex-wrap:wrap;gap:calc(var(--fs)*0.2);}
+.sl-icell{display:flex;flex-direction:column;align-items:center;gap:3px;width:calc(11.1% - calc(var(--fs)*0.2));}
+.sl-icell svg,.sl-icell img{width:calc(var(--fs)*1.1);height:calc(var(--fs)*1.1);color:var(--o);}
+.sl-icell span{font-size:calc(var(--fs)*0.48);color:var(--xlt);text-align:center;line-height:1.2;word-break:break-word;}
+.sl-right{padding:calc(var(--fs)*0.6) calc(var(--fs)*0.7);display:flex;flex-direction:column;gap:calc(var(--fs)*0.42);overflow:hidden;min-width:0;}
+.sl-fp{border:1px solid var(--bd);border-radius:7px;overflow:hidden;background:#FFFFFF;display:flex;align-items:stretch;justify-content:center;min-height:0;}
+.sl-fp-collage{display:grid;width:100%;height:100%;gap:1px;background:#fff;border-radius:5px;overflow:hidden;}
+.sl-fp-collage img{width:100%;height:100%;object-fit:contain;display:block;background:#fff;min-height:0;}
+.sl-fp img{width:100%;height:100%;object-fit:contain;display:block;}
+.sl-fp-ph{font-size:calc(var(--fs)*0.68);color:#CCC;text-align:center;padding:8px;}
+.sl-merits-wrap{flex-shrink:0;display:flex;flex-direction:column;}
+.sl-merits-ttl{font-size:calc(var(--fs)*0.68);font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--o);margin-bottom:calc(var(--fs)*0.2);flex-shrink:0;}
+.sl-merits{list-style:none;display:flex;flex-direction:column;gap:calc(var(--fs)*0.18);flex-shrink:1;min-height:0;overflow:hidden;}
+.sl-merits.two-col{display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--fs)*0.16) calc(var(--fs)*0.3);}
+.sl-merit{display:flex;align-items:flex-start;gap:calc(var(--fs)*0.28);overflow:hidden;flex-shrink:0;}
+.sl-merit svg,.sl-merit img{width:calc(var(--fs)*0.85);height:calc(var(--fs)*0.85);flex-shrink:0;color:var(--o);}
+.sl-merit span{flex:1;color:var(--mid);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sl-custom-block{flex-shrink:0;padding-top:calc(var(--fs)*0.25);}
+.sl-custom-title{font-size:calc(var(--fs)*0.66);font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--o);margin-bottom:calc(var(--fs)*0.12);}
+.sl-custom-body{font-size:calc(var(--fs)*0.75);color:var(--mid);line-height:1.5;word-break:break-word;}
+.sl-custom-body b{font-weight:700;color:var(--drk);}
+.sl-custom-body [style*="color"]{color:#FF6600 !important;}
+.sl-foot{border-top:1px solid var(--bd);padding:calc(var(--fs)*0.45) calc(var(--fs)*1.4);flex-shrink:0;border-radius:0 0 5px 5px;}
+.sl-ptbl{width:100%;border-collapse:collapse;}
+.sl-ptbl thead tr{border-bottom:1px solid var(--bd);}
+.sl-ptbl th{font-size:calc(var(--fs)*0.68);font-weight:700;color:var(--xlt);text-transform:uppercase;letter-spacing:.06em;padding:calc(var(--fs)*0.35) calc(var(--fs)*0.55);text-align:left;}
+.sl-ptbl th:first-child{padding-left:0;}
+.sl-ptbl tbody tr{border-bottom:1px solid var(--bd);}
+.sl-ptbl tbody tr:last-child{border-bottom:none;}
+.sl-ptbl td{font-size:calc(var(--fs)*0.85);padding:calc(var(--fs)*0.38) calc(var(--fs)*0.55);color:var(--drk);vertical-align:middle;line-height:1.3;}
+.sl-ptbl td:first-child{padding-left:0;}
+.sl-ptbl td.acc{color:var(--o);font-weight:700;}
+.sl-ptbl td.init-cell{white-space:normal;line-height:1.45;vertical-align:top;}
+.sl-ptbl td.init-cell b{font-weight:700;color:var(--drk);}
+.sl-ptbl td.init-cell [style*="color"]{color:#FF6600 !important;}
+.sl-url{margin-top:calc(var(--fs)*0.28);text-align:right;font-size:calc(var(--fs)*0.58);color:var(--xlt);}
+.sl-deposit-note{font-size:calc(var(--fs)*0.6);color:var(--lt);font-style:italic;line-height:1.4;margin-top:calc(var(--fs)*0.28);padding-top:calc(var(--fs)*0.18);border-top:1px dashed var(--bd);}
+.slide2{--fs:16px;width:100%;aspect-ratio:297/210;background:var(--wh);border-radius:8px;overflow:hidden;box-shadow:0 4px 8px rgba(0,0,0,.08),0 12px 40px rgba(0,0,0,.14);border:1px solid var(--bd);display:grid;grid-template-rows:auto 1fr auto;font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;font-size:var(--fs);line-height:1;padding:3px;}
+
+/* ── Contact Page (Page 3 — "Let's talk") ───────────────────────────────
+   Same width/aspect-ratio as .slide so preview scales identically.
+   All sizing uses em so it stays proportional between preview and print.  */
+.contact-slide{
+  --fs:16px;
+  width:100%;aspect-ratio:297/210;
+  background:#2d2d2d;position:relative;overflow:hidden;
+  font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;
+  font-size:var(--fs);
+  border-radius:8px;
+  box-shadow:0 4px 8px rgba(0,0,0,.08),0 12px 40px rgba(0,0,0,.14);
+}
+.ct-bg{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;pointer-events:none;}
+/* Single large compass element — positioned right-center, base at slide bottom */
+.ct-bg-element{
+  position:absolute;height:130%;width:auto;
+  top:50%;left:28%;transform:translateY(-50%);
+  opacity:0.13;pointer-events:none;z-index:0;
+  filter:brightness(0) invert(1);
+}
+.ct-logo{position:absolute;top:5%;left:3.8%;z-index:2;}
+.ct-logo img{height:2.1em;width:auto;display:block;}
+.ct-heading{
+  position:absolute;top:26%;left:3.8%;
+  font-size:4.3em;font-weight:300;
+  color:#fff;letter-spacing:-.02em;line-height:1;z-index:2;
+}
+.ct-bottom{position:absolute;bottom:0;left:0;right:0;z-index:2;padding:0 3.8% 3.5%;}
+.ct-divider{height:1px;background:rgba(255,255,255,.18);margin-bottom:3%;}
+.ct-row{display:flex;align-items:center;justify-content:space-between;gap:2em;}
+.ct-person{display:flex;align-items:center;gap:1em;flex:1;min-width:0;}
+.ct-photo{width:3.8em;height:3.8em;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3);flex-shrink:0;}
+.ct-name{font-size:1.8em;font-weight:700;color:#fff;line-height:1.2;margin-bottom:.25em;white-space:nowrap;}
+.ct-fname{border-bottom:2.5px solid #FF6600;padding-bottom:1px;}
+.ct-job{font-size:.85em;color:rgba(255,255,255,.6);line-height:1.45;max-width:22em;}
+.ct-contact{text-align:right;flex-shrink:0;}
+.ct-phone{font-size:1.7em;font-weight:600;color:#fff;margin-bottom:.4em;white-space:nowrap;}
+.ct-email{font-size:1em;color:#fff;border-bottom:1.5px solid #FF6600;display:inline;padding-bottom:1px;word-break:break-all;}
+/* Social row */
+.ct-social{margin-top:1.1em;display:flex;align-items:center;gap:1.4em;flex-wrap:wrap;}
+.ct-soc-item{display:flex;align-items:center;gap:.45em;}
+.ct-soc-icon{width:1.4em;height:1.4em;flex-shrink:0;display:block;border-radius:.22em;}
+.ct-soc-handle{font-size:.72em;color:rgba(255,255,255,.8);white-space:nowrap;}
+
+/* Profile button in header */
+#profile-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:50%;border:1.5px solid var(--bd);
+  background:transparent;cursor:pointer;transition:all .15s;flex-shrink:0;padding:0;
+  overflow:hidden;position:relative;
+}
+#profile-btn.has-photo{ border-color:var(--o); }
+#profile-btn:hover{ border-color:var(--o);background:var(--olt); }
+#profile-btn.setup-pulse{ animation:profilePulse 2s ease-in-out infinite; }
+@keyframes profilePulse{
+  0%,100%{ border-color:var(--bd);box-shadow:none; }
+  50%{ border-color:var(--o);box-shadow:0 0 0 3px rgba(255,102,0,.18); }
+}
+#profile-btn img{ width:100%;height:100%;object-fit:cover;border-radius:50%; }
+
+/* First-time setup banner */
+#profile-setup-banner{
+  background:var(--olt);border-bottom:1px solid rgba(255,102,0,.2);
+  padding:7px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;
+  font-size:11.5px;color:var(--drk);
+}
+#profile-setup-banner a{ color:var(--o);font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap; }
+#profile-setup-banner a:hover{ text-decoration:underline; }
+
+/* ── Profile modal ── */
+#profile-modal{
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;
+  display:none;align-items:flex-end;justify-content:center;
+  background:rgba(0,0,0,.5);backdrop-filter:blur(4px);
+}
+@media(min-width:541px){
+  #profile-modal{ align-items:center; }
+}
+.profile-modal-inner{
+  background:var(--wh);border-radius:16px 16px 0 0;
+  width:100%;max-width:560px;
+  box-shadow:0 -4px 30px rgba(0,0,0,.2);
+  display:flex;flex-direction:column;
+  max-height:92dvh;overflow:hidden;
+}
+@media(min-width:541px){
+  .profile-modal-inner{
+    border-radius:16px;
+    width:min(560px,95vw);
+    max-height:90vh;
+    box-shadow:0 8px 40px rgba(0,0,0,.25);
+  }
+}
+.profile-modal-head{
+  padding:14px 20px 12px;border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+/* Drag handle (mobile sheet indicator) */
+.profile-modal-head::before{
+  display:none;
+}
+@media(max-width:540px){
+  .profile-modal-head{
+    padding-top:16px;
+    flex-direction:column;align-items:stretch;gap:10px;
+  }
+  .profile-modal-head::before{
+    display:block;
+    content:'';width:40px;height:4px;border-radius:99px;
+    background:var(--bd);margin:0 auto 4px;
+  }
+  .profile-modal-head > div{ display:flex;align-items:center;justify-content:space-between; }
+}
+.profile-modal-head h3{ font-size:14px;font-weight:800;color:var(--drk);margin:0; }
+.profile-modal-body{ padding:16px 20px 8px;overflow-y:auto;flex:1; }
+.profile-modal-foot{
+  padding:12px 20px 16px;border-top:1px solid var(--bd);
+  display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;
+}
+/* 2-column → 1-column on mobile */
+.pf-row-2{display:flex;gap:10px;}
+@media(max-width:540px){
+  .pf-row-2{ flex-direction:column;gap:8px; }
+  .profile-modal-body{ padding:12px 16px 8px; }
+  .profile-modal-foot{ padding:10px 16px 20px; }
+}
+/* Section label */
+.pf-section-label{
+  font-size:10.5px;font-weight:700;color:var(--xlt);
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;margin-top:4px;
+}
+/* Better input styling in profile modal */
+.profile-modal-body .field{margin-bottom:10px;}
+.profile-modal-body .field input{
+  border:1.5px solid var(--bd);border-radius:8px;
+  padding:9px 12px;font-size:13px;font-family:inherit;
+  outline:none;width:100%;box-sizing:border-box;
+  background:var(--wh);color:var(--drk);transition:border-color .15s;
+}
+.profile-modal-body .field input:focus{ border-color:var(--o);box-shadow:0 0 0 3px rgba(255,102,0,.1); }
+.profile-modal-body .field input::placeholder{ color:var(--lt); }
+.profile-modal-body .fl{font-size:11.5px;font-weight:700;color:var(--xlt);margin-bottom:5px;display:flex;align-items:center;gap:5px;}
+/* Social grid — 2 cols */
+.pf-social-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:400px){
+  .pf-social-grid{ grid-template-columns:1fr; }
+}
+/* Photo upload circle */
+.profile-photo-wrap{
+  display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:16px;
+}
+.profile-photo-ring{
+  width:84px;height:84px;border-radius:50%;
+  border:2px dashed var(--bd);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;transition:border-color .15s,background .15s;position:relative;background:var(--bg);
+}
+.profile-photo-ring:hover{ border-color:var(--o);background:var(--olt); }
+.profile-photo-ring img{ width:100%;height:100%;object-fit:cover;border-radius:50%; }
+.profile-photo-ring .ppr-placeholder{ color:var(--xlt);display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px; }
+.p2-top{background:var(--wh);border-bottom:2px solid var(--bd);padding:calc(var(--fs)*0.55) calc(var(--fs)*1.4);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:calc(var(--fs)*0.7);flex-shrink:0;border-radius:5px 5px 0 0;}
+.p2-body{display:grid;grid-template-columns:1fr 28%;overflow:hidden;min-height:0;}
+.p2-fp-area{padding:calc(var(--fs)*0.6) calc(var(--fs)*0.8) calc(var(--fs)*0.6) calc(var(--fs)*1.0);display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;background:var(--wh);border-right:1px solid var(--bd);}
+.p2-fp{max-width:100%;max-height:100%;object-fit:contain;display:block;border-radius:8px;}
+.p2-fp-area img{max-width:100%;max-height:100%;object-fit:contain;display:block;}
+.p2-fp-area .sl-fp-collage{width:100%;height:100%;}
+.p2-fp-ph{color:#CCC;text-align:center;font-size:calc(var(--fs)*0.85);padding:20px;border:2px dashed #DDD;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.p2-right{display:flex;flex-direction:column;overflow:hidden;}
+.p2-photos{flex:1 1 0;display:flex;flex-direction:column;gap:calc(var(--fs)*0.18);padding:calc(var(--fs)*0.22) calc(var(--fs)*0.22) calc(var(--fs)*0.18);min-height:0;overflow:hidden;background:var(--wh);}
+.p2-ph-cell{flex:1 1 0;overflow:hidden;background:#E8E8E8;min-height:0;border-radius:calc(var(--fs)*0.35);}
+.p2-ph-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+.p2-noph{width:100%;height:100%;background:#F0F0F0;display:flex;align-items:center;justify-content:center;}
+.p2-noph svg{width:26%;opacity:.15;}
+.p2-amen{flex-shrink:0;padding:calc(var(--fs)*0.28) calc(var(--fs)*0.35) calc(var(--fs)*0.3);border-top:1px solid var(--bd);background:var(--wh);}
+.p2-amen-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:calc(var(--fs)*0.15) calc(var(--fs)*0.08);}
+.p2-amen-cell{display:flex;flex-direction:column;align-items:center;gap:2px;overflow:hidden;}
+.p2-amen-cell svg,.p2-amen-cell img{width:calc(var(--fs)*1.0);height:calc(var(--fs)*1.0);color:var(--o);}
+.p2-amen-cell span{font-size:calc(var(--fs)*0.42);color:var(--xlt);text-align:center;line-height:1.2;white-space:normal;word-break:break-word;width:100%;}
+.p2-foot{border-top:1px solid var(--bd);padding:calc(var(--fs)*0.32) calc(var(--fs)*1.4);display:flex;align-items:center;justify-content:flex-end;flex-shrink:0;border-radius:0 0 5px 5px;}
+.p2-url{font-size:calc(var(--fs)*0.58);color:var(--xlt);}
+.spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .65s linear infinite;display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── Office Lookup loading bar ──────────────────────────────
+   Thin indeterminate progress bar shown above the office list
+   while a region's Availability Report CSV is being fetched.
+   Visual feedback so the user knows the region click registered
+   and data is on its way (network latency can be 0.5–2 s).
+*/
+/* Floor chip active: pop-scale on selection + persistent glow */
+
+/* ── Add Selected to Rows — pending-add pulse reminder ────────────────── */
+@keyframes ausAddPulse{
+  0%,100%{transform:scale(1);background:#FF6600;box-shadow:0 2px 8px rgba(255,102,0,.35);}
+  40% {transform:scale(1.048);background:#FF3300;box-shadow:0 4px 22px rgba(255,51,0,.7),0 0 0 6px rgba(255,51,0,.13);}
+  100%{transform:scale(1);background:#FF6600;box-shadow:0 2px 8px rgba(255,102,0,.35);}
+}
+.aus-add-pending{
+  animation:ausAddPulse 1.8s ease-in-out infinite;
+}
+@keyframes floorBtnPop{
+  0%  {transform:scale(1);}
+  40% {transform:scale(1.2);box-shadow:0 0 12px rgba(255,102,0,.55);}
+  100%{transform:scale(1);box-shadow:0 0 6px rgba(255,102,0,.35);}
+}
+.floor-btn-active{
+  animation:floorBtnPop .35s ease-out forwards;
+  box-shadow:0 0 6px rgba(255,102,0,.35);
+}
+.aus-loading-bar{
+  height: 3px;
+  background: rgba(255, 102, 0, 0.10);
+  position: relative;
+  overflow: hidden;
+  display: none;
+}
+.aus-loading-bar.on{ display: block; }
+.aus-loading-bar::after{
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, var(--o) 50%, transparent 100%);
+  animation: ausLoadingSlide 1.15s ease-in-out infinite;
+}
+@keyframes ausLoadingSlide{
+  0%   { left: -40%; }
+  60%  { left: 100%; }
+  100% { left: 100%; }
+}
+
+/* ── Floor Plan Room Layout Editor (MS-Paint-style annotation tool) ─────── */
+#fp-editor-modal{position:fixed;top:0;left:0;right:0;bottom:0;z-index:10002;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;}
+.fpe-inner{background:#1e1e1e;border-radius:14px;width:min(980px,97vw);max-height:95vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.6);}
+.fpe-head{padding:12px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0;}
+.fpe-head h3{margin:0;color:#fff;font-size:14px;font-weight:800;flex:1;}
+.fpe-head .fpe-hint{font-size:10px;color:rgba(255,255,255,.35);white-space:nowrap;}
+.fpe-toolbar{padding:8px 14px;display:flex;align-items:center;gap:8px;background:#161616;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;flex-wrap:wrap;}
+.fpe-mode-group{display:flex;border-radius:7px;overflow:hidden;border:1.5px solid rgba(255,255,255,.18);}
+.fpe-mode-btn{padding:5px 14px;border:none;background:transparent;color:rgba(255,255,255,.45);font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:5px;}
+.fpe-mode-btn.on{background:#FF6600;color:#fff;}
+.fpe-sep{width:1px;background:rgba(255,255,255,.12);height:22px;margin:0 2px;flex-shrink:0;}
+.fpe-swatch{width:20px;height:20px;border-radius:50%;border:2.5px solid transparent;cursor:pointer;transition:transform .1s,border-color .1s;flex-shrink:0;}
+.fpe-swatch.on{border-color:#fff;transform:scale(1.22);}
+.fpe-label-inp{flex:1;min-width:100px;max-width:200px;padding:5px 10px;border:1.5px solid rgba(255,255,255,.2);border-radius:7px;background:rgba(255,255,255,.07);color:#fff;font-size:12px;font-family:inherit;outline:none;}
+.fpe-label-inp::placeholder{color:rgba(255,255,255,.22);}
+.fpe-label-inp:focus{border-color:#FF6600;}
+.fpe-btn{padding:5px 12px;border:1.5px solid rgba(255,255,255,.2);border-radius:7px;background:transparent;color:rgba(255,255,255,.65);font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.fpe-btn:hover{border-color:rgba(255,255,255,.5);color:#fff;}
+.fpe-btn:disabled{opacity:.28;cursor:not-allowed;}
+.fpe-btn.del{border-color:rgba(220,50,50,.4);color:#ef9a9a;}
+.fpe-btn.del:hover:not(:disabled){border-color:#ef5350;color:#ef5350;}
+.fpe-btn.apply{border-color:#FF6600;background:#FF6600;color:#fff;}
+.fpe-btn.apply:hover{background:#e55a00;}
+.fpe-canvas-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:16px;background:#262626;overflow:hidden;}
+#fpe-canvas{display:block;max-width:100%;height:auto;border-radius:6px;cursor:crosshair;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+.fpe-status{padding:5px 18px;font-size:10px;color:rgba(255,255,255,.3);background:#161616;border-top:1px solid rgba(255,255,255,.07);flex-shrink:0;}
+/* Per-row Edit button in office lookup */
+.fpe-row-btn{padding:2px 8px;font-size:10px;border:1px solid var(--o);border-radius:4px;background:transparent;color:var(--o);cursor:pointer;font-weight:700;font-family:inherit;line-height:1.6;white-space:nowrap;transition:all .12s;}
+.fpe-row-btn:hover{background:var(--o);color:#fff;}
+.fpe-row-btn.edited{background:var(--o);color:#fff;}
+.fpe-annotated-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--o);margin-left:3px;vertical-align:middle;}
+
+/* ─── Compass overlay (page 2 bottom-left of floor plan) ──
+   Absolutely positioned inside .p2-fp-area (position:relative).
+   The img has its own transform so it stays centred while rotating. */
+.p2-fp-area{ position:relative; }
+.sl-compass{
+  position:absolute;bottom:12px;left:12px;
+  width:62px;height:auto;border-radius:50px;
+  background:rgba(255,255,255,.78);
+  box-shadow:0 1px 5px rgba(0,0,0,.22);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:none;z-index:6;padding:4px 5px 3px;box-sizing:border-box;gap:1px;
+}
+.sl-compass img{
+  width:52px;height:52px;object-fit:contain;display:block;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.15));
+}
+.sl-compass-dir{
+  font-size:8.5px;font-weight:800;color:#555;letter-spacing:.06em;
+  line-height:1;text-align:center;font-family:'Hanken Grotesk','Helvetica Neue',Arial,sans-serif;
+}
+
+/* ─── Compass control dial (inside the form) ──────────────
+   The circle is a drag handle; pointer changes to crosshair
+   so users understand it's interactable. The inner img uses
+   transform:rotate() synced to COMPASS_ANGLE live. */
+.compass-dial-wrap{
+  display:inline-block;position:relative;
+  width:62px;height:62px;cursor:crosshair;flex-shrink:0;
+  border-radius:50%;border:1.5px solid var(--bd);
+  background:var(--bg);
+  transition:border-color .15s;
+}
+.compass-dial-wrap:hover{ border-color:var(--o); }
+.compass-dial-wrap svg{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  opacity:0;pointer-events:none;
+}
+.compass-dial-preview{
+  width:42px;height:42px;
+  position:absolute;top:50%;left:50%;
+  /* translate must stay combined with rotate — overriding only rotate
+     in JS would displace the image from centre. */
+  transform:translate(-50%,-50%) rotate(0deg);
+  transform-origin:50% 50%;
+  object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.18));
+  user-select:none;-webkit-user-select:none;
+}
+
+/* ─── Floor Plan 2D/3D switch ──────────────────────────────
+   Compact segmented control inside the Floor Plan Room # panel.
+   Each half is a button — active one is filled orange, inactive is
+   a quiet outline. Single shared border so it reads as one switch.
+   Wrapper only visible when FP_HAS_3D = true (probe found a same-
+   dimension 3D variant alongside the 2D master). */
+.fp-3d-seg{display:inline-flex;border:1.5px solid var(--bd);border-radius:6px;overflow:hidden;}
+.fp-3d-seg button{border:none;background:transparent;cursor:pointer;font-family:inherit;padding:4px 14px;font-size:11px;font-weight:800;color:var(--xlt);transition:background .12s,color .12s;letter-spacing:.02em;}
+.fp-3d-seg button.active{background:var(--o);color:#fff;}
+.fp-3d-seg button:not(.active):hover{background:var(--olt);color:var(--o);}
+.sl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;}
+.sl-empty svg{width:48px;height:48px;color:var(--bd);}
+.sl-empty p{font-size:15px;font-weight:500;color:var(--xlt);}
+.sl-empty small{font-size:12px;color:#CCC;}
+.spec-hide-btn{margin-left:auto;padding:1px 6px;border:1px solid var(--bd);border-radius:10px;background:var(--wh);cursor:pointer;color:var(--xlt);display:flex;align-items:center;justify-content:center;gap:2px;font-size:9px;font-weight:700;font-family:inherit;flex-shrink:0;transition:all .12s;white-space:nowrap;}
+.spec-hide-btn:hover{border-color:#DC2626;color:#DC2626;}
+.spec-field-hidden .spec-rich-editor,.spec-field-hidden input{opacity:.3;pointer-events:none;}
+.spec-field-hidden .spec-hide-btn{border-color:var(--o);color:var(--o);background:var(--olt);}
+.spec-field-hidden .fl{color:var(--xlt);}
+.spec-field-hidden .spec-rich-bar{opacity:.3;pointer-events:none;}
+.ben-pos-toggle{display:flex;gap:4px;margin-bottom:10px;}
+.ben-pos-btn{flex:1;padding:5px 4px;border:1.5px solid var(--bd);border-radius:6px;background:var(--wh);color:var(--xlt);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s;text-align:center;}
+.ben-pos-btn:hover{border-color:var(--o);color:var(--o);}
+.ben-pos-btn.on{border-color:var(--o);background:var(--olt);color:var(--o);}
+.ph-slots{display:flex;flex-direction:column;gap:8px;}
+.ph-slots-sm{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.ph-slot{position:relative;border:1.5px dashed var(--bd);border-radius:10px;background:var(--bg);cursor:pointer;transition:border-color .15s,background .15s;overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;}
+.ph-slot:hover{border-color:var(--o);background:var(--olt);}
+.ph-slot.has-photo{border-style:solid;border-color:var(--bd);background:transparent;}
+.ph-slot-hero{aspect-ratio:16/8;}
+.ph-slot-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--xlt);font-size:12px;font-weight:600;pointer-events:none;padding:12px;text-align:center;}
+.ph-slot-rm{position:absolute;top:6px;right:6px;width:22px;height:22px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;}
+.ph-slot-rm:hover{background:rgba(200,0,0,.8);}
+@media(max-width:768px){.ph-slot{aspect-ratio:4/3;}.ph-slot-hero{aspect-ratio:16/9;}.ph-slot-empty{font-size:14px;gap:6px;}}
+.media-card{border:1px solid var(--bd);border-radius:12px;overflow:hidden;background:var(--wh);margin-bottom:10px;}
+.media-card-preview{position:relative;cursor:pointer;background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:80px;transition:background .15s;}
+.media-card-preview:hover{background:#ECECEC;}
+.media-card-preview img{max-width:100%;max-height:100px;object-fit:contain;display:block;border-radius:0;}
+.media-card-preview.has-img img{width:100%;max-height:130px;object-fit:cover;}
+.media-card-preview.logo-preview img{max-height:52px;object-fit:contain;padding:12px 16px;}
+.media-card-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 12px;color:var(--xlt);font-size:12px;font-weight:600;pointer-events:none;}
+.media-card-empty svg{opacity:.25;}
+.media-card-bar{display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--bd);background:var(--wh);}
+.media-card-label{font-size:11px;font-weight:700;color:var(--mid);flex:1;}
+.media-card-actions{display:flex;gap:4px;align-items:center;}
+.mc-url-btn{padding:3px 8px;border:1px solid var(--bd);border-radius:5px;background:var(--wh);color:var(--lt);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s;display:flex;align-items:center;gap:3px;white-space:nowrap;}
+.mc-url-btn:hover,.mc-url-btn.on{border-color:var(--o);color:var(--o);background:var(--olt);}
+.mc-upload-btn{padding:3px 8px;border:1px solid var(--bd);border-radius:5px;background:var(--wh);color:var(--lt);font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s;display:flex;align-items:center;gap:3px;white-space:nowrap;}
+.mc-upload-btn:hover{border-color:var(--o);color:var(--o);}
+.mc-rm-btn{width:22px;height:22px;border:1px solid var(--bd);border-radius:5px;background:var(--wh);color:var(--xlt);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;flex-shrink:0;}
+.mc-rm-btn:hover{border-color:#DC2626;color:#DC2626;background:#FEF2F2;}
+.mc-url-row{display:none;padding:0 10px 10px;}
+.mc-url-row.open{display:flex;gap:6px;align-items:center;}
+.mc-url-input{flex:1;padding:7px 10px;border:1px solid var(--bd);border-radius:6px;font-size:12px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;transition:border-color .15s;}
+.mc-url-input:focus{border-color:var(--o);}
+.mc-url-input::placeholder{color:var(--xlt);}
+.mc-url-go{padding:7px 12px;border:none;border-radius:6px;background:var(--o);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}
+.lib-city-chip{padding:3px 10px;border:1.5px solid var(--bd);border-radius:20px;background:var(--wh);color:var(--lt);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s;white-space:nowrap;}
+.lib-city-chip:hover,.lib-city-chip.on{border-color:var(--o);color:var(--o);background:var(--olt);}
+.city-combo-wrap{position:relative;}
+.city-dropdown{position:absolute;top:100%;left:0;right:0;z-index:200;background:var(--wh);border:1px solid var(--bd);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);max-height:200px;overflow-y:auto;display:none;margin-top:2px;}
+.city-dropdown.open{display:block;}
+.city-opt{padding:8px 12px;font-size:13px;cursor:pointer;color:var(--drk);}
+.city-opt:hover,.city-opt.focused{background:var(--olt);color:var(--o);}
+/* ── CLICK-TO-EDIT flash ── */
+@keyframes editFlash{0%{background:var(--olt)}60%{background:var(--olt)}100%{background:transparent}}
+.edit-flash{animation:editFlash 1.2s ease-out;}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbrand">
+    <div class="hlogo">
+      <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ob.svg" onerror="this.style.display='none';document.querySelector('.hlogo-fb').style.display='block'" alt="">
+      <span class="hlogo-fb">Compass Offices</span>
+    </div>
+    <div class="hdiv"></div>
+    <span class="htag">One-Pager Builder</span>
+    <button class="tip-icon" data-i18n-title="tt_chrome" aria-label="Browser recommendation" type="button"
+      style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:transparent;border:1.5px solid var(--bd);color:var(--xlt);cursor:help;transition:all .15s;flex-shrink:0;margin-left:2px;padding:0;"
+      onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)';this.style.background='var(--olt)'"
+      onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)';this.style.background='transparent'">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/>
+        <path d="M9 18h6"/>
+        <path d="M10 22h4"/>
+      </svg>
+    </button>
+    <!-- Staff profile button — sets up the Page 3 "Let's talk" contact slide -->
+    <button id="profile-btn" onclick="openProfileModal()" title="Set up your contact page (Page 3 — Let's talk)" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--xlt)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </button>
+  </div>
+  <div class="lang-sw">
+    <button class="lbtn on" onclick="setLang('en')">EN</button>
+    <button class="lbtn" onclick="setLang('zh-hant')">繁體</button>
+    <button class="lbtn" onclick="setLang('zh-hans')">简体</button>
+    <button class="lbtn" onclick="setLang('ja')">日本語</button>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <!-- Shown only when re-editing a queue item -->
+    <div id="queue-edit-bar" style="display:none;align-items:center;gap:6px;padding:4px 10px;background:#fff8f0;border:1.5px solid var(--o);border-radius:8px;">
+      <span style="font-size:11px;font-weight:600;color:var(--o);white-space:nowrap;" id="queue-edit-label">Editing queue item</span>
+      <button onclick="queueUpdateCurrent()" id="queue-update-btn" style="padding:4px 10px;background:var(--o);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Update &amp; Back
+      </button>
+      <button onclick="queueCancelEdit()" style="padding:4px 8px;background:transparent;color:var(--xlt);border:1px solid var(--bd);border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;">Cancel</button>
+    </div>
+    <button class="hbtn" onclick="newCard()" style="background:transparent;color:var(--xlt);border:1.5px solid var(--bd);" data-i18n-title="tt_new_card">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <span data-i18n="btn_new_card">New Card</span>
+    </button>
+    <button class="hbtn" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd)" onclick="downloadCurrentJSON()" data-i18n-title="tt_save_card">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span data-i18n="btn_save_card">Save Card</span>
+    </button>
+    <div class="queue-split" id="queue-split">
+      <button class="queue-split-btn" id="queue-btn" onclick="addToQueue()" data-i18n-title="tt_queue_add">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>+ Queue</span>
+        <span id="queue-count" class="queue-count-badge" style="display:none;"></span>
+      </button>
+      <button class="queue-split-btn chevron" id="queue-open-btn" onclick="toggleQueuePanel()" data-i18n-title="tt_queue_open">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+    </div>
+    <button class="hbtn" onclick="openEmailModal()" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg> <span>Email</span></button>
+    <!-- Mobile-only: email icon + hamburger menu trigger -->
+    <button id="hbtn-mob-email" onclick="openEmailModal()" title="Email template" aria-label="Email">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+    </button>
+    <button id="hbtn-more" onclick="openMobMore()" title="Menu" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6"  x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <button class="hbtn" id="hbtn-print" onclick="printSlide()" style="background:var(--o);color:#fff;border:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span data-i18n="btn_print">Print / Save PDF</span>
+    </button>
+  </div>
+</header>
+
+<div id="autosave-banner">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+  <span><span data-i18n="autosave_banner_text">Unsaved proposal found — last saved</span> <span id="autosave-time" class="ab-time"></span></span>
+  <button class="ab-restore" onclick="_autosaveRestore()" data-i18n="autosave_restore">Restore</button>
+  <button onclick="_autosaveDismiss()" data-i18n="autosave_dismiss">Dismiss</button>
+</div>
+<div class="app">
+<div class="sidebar">
+  <!-- Always-visible proposal info strip — above tabs, below header -->
+  <div class="proposal-strip">
+    <!-- Mobile: compact summary shown when strip is collapsed -->
+    <div id="strip-summary" onclick="_stripToggle()" style="display:none;"></div>
+    <!-- Toggle chevron (mobile only) -->
+    <button id="strip-toggle" onclick="_stripToggle()" title="Show/hide client details" aria-label="Toggle client details">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <!-- Collapsible fields wrapper -->
+    <div id="strip-fields">
+      <div class="proposal-strip-field">
+        <input type="text" id="company-name" placeholder="Proposal For"
+          oninput="COMPANY_NAME=this.value;_stripUpdatePreview()"
+          autocomplete="organization">
+      </div>
+      <div class="proposal-strip-div"></div>
+      <div class="proposal-strip-field">
+        <input type="text" id="client-name" placeholder="Client Name"
+          oninput="CLIENT_NAME=this.value;_stripUpdatePreview()"
+          autocomplete="name">
+      </div>
+    </div>
+  </div>
+  <!-- First-time profile setup nudge — shown until profile is saved -->
+  <div id="profile-setup-banner" style="display:none;">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--o)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span style="flex:1;">Add your details to include a "Let's talk" page in your PDFs.</span>
+    <a onclick="openProfileModal();document.getElementById('profile-setup-banner').style.display='none'">Set up</a>
+    <span style="color:var(--bd);margin:0 4px;">·</span>
+    <a onclick="document.getElementById('profile-setup-banner').style.display='none';sessionStorage.setItem('profile_banner_dismissed','1')">Later</a>
+  </div>
+  <div class="tabnav">
+    <button class="tab" id="t-loc" onclick="openTab('loc')" data-i18n="tab_loc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Location</button>
+    <button class="tab" id="t-specs" onclick="openTab('specs')" data-i18n="tab_specs"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Specs</button>
+    <button class="tab on" id="t-price" onclick="openTab('price')" data-i18n="tab_price"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Pricing</button>
+    <button class="tab" id="t-media" onclick="openTab('media')" data-i18n="tab_media"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Media</button>
+  </div>
+  <div class="panels">
+
+    <!-- LOCATION PANEL -->
+    <div class="panel" id="p-loc">
+      <div id="fetch-status"></div>
+      <div class="slabel" data-i18n="sec_library" style="margin-bottom:6px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Location Library
+      </div>
+
+      <!-- City chips ABOVE search for easy filtering -->
+      <div id="lib-city-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px;"></div>
+
+      <!-- Search row: full-width input + insert button -->
+      <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+        <div class="json-search-wrap" style="flex:1;min-width:0;position:relative;">
+          <input class="json-search" id="json-search" type="text" data-i18n-placeholder="lib_search_ph" placeholder="Search by name or city…" oninput="filterJsonLib(this.value);toggleSearchClear(this.value)" onfocus="showJsonDropdown()" autocomplete="off" style="padding-left:12px;padding-right:56px;width:100%;box-sizing:border-box;">
+          <button id="search-clear-btn" onclick="clearJsonSearch()" title="Clear" style="position:absolute;right:28px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;color:var(--xlt);padding:3px;display:none;align-items:center;line-height:1;transition:color .15s;z-index:2;" onmouseover="this.style.color='var(--drk)'" onmouseout="this.style.color='var(--xlt)'"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>
+          <button onclick="reloadLibFromServer()" title="Reload from server" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;color:var(--xlt);padding:3px;display:flex;align-items:center;transition:color .15s;" onmouseover="this.style.color='var(--o)'" onmouseout="this.style.color='var(--xlt)'" id="lib-reload-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
+          <div class="json-dropdown" id="json-dropdown"></div>
+        </div>
+        <label class="lib-drop-zone lib-file-btn" id="lib-drop-zone" title="Click or drag JSON files here" style="flex-shrink:0;padding:7px 10px;display:flex;align-items:center;gap:5px;">
+          <input type="file" accept=".json,application/json" multiple style="display:none" onchange="loadJsonFiles(event)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span data-i18n="btn_add_files">Insert Card</span>
+        </label>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <p class="note-txt" id="lib-status-txt" style="margin:0;"></p>
+        <button onclick="clearJsonLib()" title="Clear all" style="border:none;background:transparent;cursor:pointer;color:var(--xlt);font-size:10px;font-weight:600;font-family:inherit;padding:0;display:flex;align-items:center;gap:3px;transition:color .15s;" onmouseover="this.style.color='#DC2626'" onmouseout="this.style.color='var(--xlt)'">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          <span data-i18n="lib_clear_library">Clear library</span>
+        </button>
+      </div>
+
+      <!-- Loaded Card Preview Panel -->
+      <div id="loaded-card-panel" style="display:none;margin-bottom:14px;">
+        <div style="border:1.5px solid var(--o);border-radius:10px;overflow:hidden;background:var(--wh);">
+          <div style="background:var(--olt);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div style="display:flex;align-items:center;gap:7px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-size:11px;font-weight:800;color:var(--o);text-transform:uppercase;letter-spacing:.06em" data-i18n-loaded-label>Loaded</span>
+            </div>
+            <button onclick="clearLoadedCard()" style="border:none;background:transparent;cursor:pointer;color:var(--xlt);font-size:10px;font-weight:700;font-family:inherit;padding:2px 6px;border-radius:4px;transition:all .12s;display:flex;align-items:center;gap:3px;" onmouseover="this.style.color='#DC2626'" onmouseout="this.style.color='var(--xlt)'">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
+          </div>
+          <div style="padding:10px 12px 12px;">
+            <div id="loaded-card-name" style="font-size:14px;font-weight:800;color:var(--blk);margin-bottom:3px;"></div>
+            <div id="loaded-card-meta" style="font-size:11px;color:var(--lt);display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+            <div id="loaded-card-specs" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slabel" data-i18n="sec_name_loc">Name &amp; Location</div>
+      <div class="field">
+        <label class="fl" id="lbl-name">Name</label>
+        <input type="text" oninput="genDebounced(300);" id="n-main" placeholder="China Building">
+      </div>
+      <div class="frow">
+        <div class="field"><label class="fl" data-i18n="lbl_city">City</label>
+          <div class="city-combo-wrap">
+            <input type="text" id="city" autocomplete="off" placeholder="Hong Kong" oninput="filterCityDropdown(this.value);gen();" onfocus="showCityDropdown(this.value)" onblur="setTimeout(hideCityDropdown,150)" onkeydown="cityKeyNav(event)">
+            <div class="city-dropdown" id="city-dropdown"></div>
+          </div>
+        </div>
+        <div class="field"><label class="fl" data-i18n="lbl_floor">Floor / Unit</label>
+          <input type="text" oninput="genDebounced(300);" id="floor" placeholder="18-19F">
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-addr">Address</label>
+        <input type="text" oninput="genDebounced(300);" id="addr" placeholder="29 Queen's Road Central, Central">
+      </div>
+
+      <div class="slabel" data-i18n="sec_transport">Transport Access</div>
+      <p class="note-txt" data-i18n="note_transport" style="margin-bottom:8px">Add lines, pick icon, edit text.</p>
+      <div class="tr-list" id="tr-list"></div>
+      <button class="tr-add" onclick="addTransport()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-i18n="btn_add_transport">Add Transport Line</span>
+      </button>
+
+      <div class="slabel" data-i18n="sec_custom" style="margin-top:16px">Custom Info Block</div>
+      <div style="display:flex;gap:5px;margin-bottom:8px;">
+        <button class="ben-pos-btn on" id="cpos-below" onclick="setCustomPos('below')" data-i18n="lbl_cpos_below">Transport → Custom</button>
+        <button class="ben-pos-btn" id="cpos-above" onclick="setCustomPos('above')" data-i18n="lbl_cpos_above">Custom → Transport</button>
+      </div>
+      <div class="field">
+        <label class="fl" data-i18n="lbl_custom_title">Section Title</label>
+        <input type="text" oninput="genDebounced(400);" id="custom-title" placeholder="募集概要">
+      </div>
+      <div class="field">
+        <label class="fl" data-i18n="lbl_custom_body">Content <span style="font-weight:400;color:var(--xlt);text-transform:none;font-size:9.5px">(select text → B or <svg width="8" height="8" viewBox="0 0 8 8" style="display:inline-block;vertical-align:middle;margin:0 1px"><circle cx="4" cy="4" r="4" fill="#FF6600"/></svg>)</span></label>
+        <div class="rich-wrap">
+          <div class="rich-toolbar">
+            <button class="rich-btn" onmousedown="event.preventDefault();richCmd('bold','custom-body-editor')"><b>B</b></button>
+            <button class="rich-btn orange" onmousedown="event.preventDefault();richCmd('orange','custom-body-editor')"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#FF6600"/></svg> Orange</button>
+            <button class="rich-btn" onmousedown="event.preventDefault();richCmd('black','custom-body-editor')" style="color:#333"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#333"/></svg> Black</button>
+            <button class="rich-btn" onmousedown="event.preventDefault();richCmd('small','custom-body-editor')" title="Smaller">S↓</button>
+            <button class="rich-btn" onmousedown="event.preventDefault();richCmd('clear','custom-body-editor')">✕ Clear</button>
+          </div>
+          <div class="rich-editor" id="custom-body-editor" contenteditable="true" style="min-height:72px" oninput="document.getElementById('custom-body').value=this.innerHTML;genDebounced(600);" placeholder=""></div>
+        </div>
+        <input type="hidden" id="custom-body">
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label class="fl" data-i18n="lbl_purl">Page URL (footer)</label>
+        <input type="text" oninput="gen()" id="purl" placeholder="https://www.compassoffices.com/locations/…">
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label class="fl" style="display:flex;align-items:center;gap:5px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Virtual Tour URL(s)
+        </label>
+        <input type="url" id="matterport" placeholder="https://my.matterport.com/show/?m=… (comma separate multiple)" style="font-size:11.5px;">
+        <p class="note-txt" style="margin-top:3px;">Used in email template — not shown on slide</p>
+      </div>
+    </div>
+
+    <!-- SPECS PANEL -->
+    <div class="panel" id="p-specs">
+      <p class="note-txt" data-i18n="note_specs" style="margin-bottom:14px">Auto-filled when you Fetch. Edit any field freely.</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--xlt);display:flex;align-items:center;gap:6px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Building Details
+        </span>
+        <button id="specs-master-toggle" onclick="toggleShowSpecs()" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;border:1.5px solid var(--o);background:var(--olt);color:var(--o);cursor:pointer;font-family:inherit;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:all .15s;">
+          <svg id="specs-master-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span id="specs-master-txt">Showing on slide</span>
+        </button>
+      </div>
+      <div style="height:1px;background:var(--bd);margin-bottom:14px;"></div>
+      <div class="field">
+        <label class="fl" id="lbl-struct" style="display:flex;align-items:center;gap:4px">Structure<button class="spec-hide-btn" onclick="toggleSpecField('s-struct',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-struct')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-struct')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-struct')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-struct')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-struct')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-struct" contenteditable="true" style="min-height:44px" oninput="onSpecInput()" placeholder="Steel frame, seismic isolation, B3-11F"></div>
+        </div>
+      </div>
+      <div class="frow">
+      <div class="field">
+        <label class="fl" id="lbl-comp" style="display:flex;align-items:center;gap:4px">Completion<button class="spec-hide-btn" onclick="toggleSpecField('s-comp',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-comp')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-comp')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-comp')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-comp')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-comp')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-comp" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="2025"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-ceil" style="display:flex;align-items:center;gap:4px">Ceiling Height<button class="spec-hide-btn" onclick="toggleSpecField('s-ceil',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-ceil')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-ceil')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-ceil')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-ceil')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-ceil')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-ceil" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="2.9m"></div>
+        </div>
+      </div>
+      </div>
+      <div class="frow">
+      <div class="field">
+        <label class="fl" id="lbl-fa" style="display:flex;align-items:center;gap:4px">Floor Area<button class="spec-hide-btn" onclick="toggleSpecField('s-fa',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-fa')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-fa')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-fa')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-fa')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-fa')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-fa" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="390 tsubo"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-ca" style="display:flex;align-items:center;gap:4px">Common Area<button class="spec-hide-btn" onclick="toggleSpecField('s-ca',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-ca')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-ca')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-ca')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-ca')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-ca')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-ca" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="60 tsubo"></div>
+        </div>
+      </div>
+      </div>
+      <div class="frow">
+      <div class="field">
+        <label class="fl" id="lbl-oa" style="display:flex;align-items:center;gap:4px">OA Floor<button class="spec-hide-btn" onclick="toggleSpecField('s-oa',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-oa')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-oa')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-oa')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-oa')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-oa')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-oa" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="100mm"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-el" style="display:flex;align-items:center;gap:4px">Elevators<button class="spec-hide-btn" onclick="toggleSpecField('s-el',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-el')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-el')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-el')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-el')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-el')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-el" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="3"></div>
+        </div>
+      </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-ac" style="display:flex;align-items:center;gap:4px">AC System<button class="spec-hide-btn" onclick="toggleSpecField('s-ac',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-ac')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-ac')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-ac')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-ac')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-ac')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-ac" contenteditable="true" style="min-height:44px" oninput="onSpecInput()" placeholder="Block AC, weekdays 9:00–18:00"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-net" style="display:flex;align-items:center;gap:4px">Network<button class="spec-hide-btn" onclick="toggleSpecField('s-net',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-net')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-net')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-net')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-net')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-net')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-net" contenteditable="true" style="min-height:44px" oninput="onSpecInput()" placeholder="Free Wi-Fi, dedicated line available"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-fac" style="display:flex;align-items:center;gap:4px">Facilities<button class="spec-hide-btn" onclick="toggleSpecField('s-fac',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-fac')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-fac')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-fac')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-fac')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-fac')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-fac" contenteditable="true" style="min-height:44px" oninput="onSpecInput()" placeholder="Lounge, 2 meeting rooms, phone booths"></div>
+        </div>
+      </div>
+      <div class="frow">
+      <div class="field">
+        <label class="fl" id="lbl-hrs" style="display:flex;align-items:center;gap:4px">Access Hours<button class="spec-hide-btn" onclick="toggleSpecField('s-hrs',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-hrs')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-hrs')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-hrs')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-hrs')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-hrs')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-hrs" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="24/7"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fl" id="lbl-park" style="display:flex;align-items:center;gap:4px">Parking<button class="spec-hide-btn" onclick="toggleSpecField('s-park',this)" title="Hide from slide"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> hide</button></label>
+        <div class="spec-rich-wrap">
+          <div class="spec-rich-bar">
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('bold','s-park')"><b>B</b></button>
+            <button class="spec-rb orange" onmousedown="event.preventDefault();richCmd('orange','s-park')">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('black','s-park')" style="color:#333">●</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('small','s-park')">S↓</button>
+            <button class="spec-rb" onmousedown="event.preventDefault();richCmd('clear','s-park')">✕</button>
+          </div>
+          <div class="rich-editor spec-rich-editor" id="s-park" contenteditable="true" style="min-height:32px" oninput="onSpecInput()" placeholder="Available"></div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- PRICING PANEL -->
+    <div class="panel on" id="p-price">
+      <!-- ── Office Lookup (multi-region) ─────────────────────────────────── -->
+      <div style="margin-bottom:14px;border:1.5px solid var(--bd);border-radius:10px;overflow:hidden;">
+        <!-- Header -->
+        <div style="background:var(--bg);padding:8px 12px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+          <div style="display:flex;align-items:center;gap:7px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--o)" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span style="font-size:12px;font-weight:800;color:var(--drk);">Office Lookup</span>
+            <span id="aus-source-badge" style="font-size:9px;padding:1px 6px;border-radius:10px;background:#fff3e0;color:#e65100;font-weight:700;">Loading…</span>
+          </div>
+          <button onclick="fetchAxRegions().then(ok=>!ok&&showStatus('Region index fetch failed — check network.','s-err'))" title="Refresh region index + reload current region" style="font-size:10.5px;color:var(--xlt);font-weight:600;border:none;background:transparent;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:3px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh
+          </button>
+        </div>
+
+        <!-- Region chips (top-level: which Availability Report to load) -->
+        <div style="padding:8px 10px 6px;border-bottom:1px solid var(--bd);background:#fafafa;">
+          <div style="font-size:9.5px;font-weight:700;color:var(--xlt);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Region</div>
+          <div id="aus-region-chips" style="display:flex;flex-wrap:wrap;gap:4px;">
+            <span style="font-size:10.5px;color:var(--xlt);font-style:italic;">Loading regions…</span>
+          </div>
+        </div>
+
+        <!-- Centre sub-filter chips (dynamic — derived from current region's data) -->
+        <div id="aus-centre-chips" style="padding:7px 10px 5px;border-bottom:1px solid var(--bd);display:none;flex-wrap:wrap;gap:4px;"></div>
+
+        <!-- Filters row -->
+        <div style="padding:6px 10px;border-bottom:1px solid var(--bd);display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <select onchange="AUS_AVAIL_FILTER=this.value;renderAusLookup()" style="font-size:11px;padding:3px 6px;border:1px solid var(--bd);border-radius:5px;font-family:inherit;background:var(--wh);">
+            <option value="">All Availability</option>
+            <option value="Y">Vacant Now ✓</option>
+            <option value="O">Occupied (available)</option>
+          </select>
+          <select id="aus-month-filter" onchange="_AUS_MONTH_FILTER=this.value;renderAusLookup()" style="font-size:11px;padding:3px 6px;border:1px solid var(--bd);border-radius:5px;font-family:inherit;background:var(--wh);">
+            <option value="">Any month</option>
+          </select>
+          <select id="aus-view-filter" onchange="_ausViewFilter=this.value;renderAusLookup()" style="font-size:11px;padding:3px 6px;border:1px solid var(--bd);border-radius:5px;font-family:inherit;background:var(--wh);">
+            <option value="">All Views</option>
+          </select>
+          <select id="aus-vtype-filter" onchange="_ausVTypeFilter=this.value;renderAusLookup()" style="font-size:11px;padding:3px 6px;border:1px solid var(--bd);border-radius:5px;font-family:inherit;background:var(--wh);">
+            <option value="">All Types</option>
+          </select>
+        </div>
+        <!-- Size / WS range row -->
+        <div style="padding:5px 10px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:10px;font-weight:700;color:var(--xlt);white-space:nowrap;">Max WS:</span>
+          <input type="number" id="aus-ws-min" placeholder="Min" min="1" max="50"
+            style="width:48px;border:1px solid var(--bd);border-radius:5px;padding:2px 6px;font-size:11px;font-family:inherit;outline:none;"
+            oninput="renderAusLookup()" onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <span style="font-size:10px;color:var(--xlt);">–</span>
+          <input type="number" id="aus-ws-max" placeholder="Max" min="1" max="50"
+            style="width:48px;border:1px solid var(--bd);border-radius:5px;padding:2px 6px;font-size:11px;font-family:inherit;outline:none;"
+            oninput="renderAusLookup()" onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <span style="font-size:10px;font-weight:700;color:var(--xlt);white-space:nowrap;margin-left:6px;">Size:</span>
+          <input type="number" id="aus-sq-min" placeholder="Min"
+            style="width:52px;border:1px solid var(--bd);border-radius:5px;padding:2px 6px;font-size:11px;font-family:inherit;outline:none;"
+            oninput="renderAusLookup()" onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <span style="font-size:10px;color:var(--xlt);">–</span>
+          <input type="number" id="aus-sq-max" placeholder="Max"
+            style="width:52px;border:1px solid var(--bd);border-radius:5px;padding:2px 6px;font-size:11px;font-family:inherit;outline:none;"
+            oninput="renderAusLookup()" onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <input type="text" id="aus-search" placeholder="Office #…" oninput="renderAusLookup()"
+            style="width:72px;border:1px solid var(--bd);border-radius:5px;padding:2px 7px;font-size:11px;font-family:inherit;outline:none;"
+            onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <span id="aus-count" style="font-size:10px;color:var(--xlt);white-space:nowrap;"></span>
+        </div>
+
+        <!-- Base Discount + calculation -->
+        <div style="padding:7px 10px;border-bottom:1px solid var(--bd);background:#fff8f0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <label style="font-size:11px;font-weight:700;color:var(--drk);white-space:nowrap;display:flex;align-items:center;gap:6px;">
+            <span data-i18n="aus_base_discount">Base Discount</span>
+            <button type="button" id="base-discount-toggle" class="ben-toggle on" onclick="toggleBaseDiscount()" title="Switch the Base Discount on/off"></button>
+          </label>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input type="number" id="aus-discount" value="30" min="0" max="60" step="1"
+              style="width:54px;border:1.5px solid var(--o);border-radius:6px;padding:3px 7px;font-size:13px;font-weight:700;font-family:inherit;outline:none;text-align:center;color:var(--o);"
+              oninput="AUS_DISCOUNT=parseFloat(this.value)||0;renderAusLookup();_syncRowPrices()">
+            <span style="font-size:12px;font-weight:700;color:var(--o);">%</span>
+          </div>
+          <span id="aus-formula-hint" style="font-size:10px;color:var(--xlt);">Monthly = Market × (1 − disc%) &nbsp;|&nbsp; Avg = Monthly × 10/12</span>
+          <button id="aus-add-btn" onclick="ausAddToRows()" style="margin-left:auto;padding:5px 12px;background:var(--o);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span data-i18n="aus_add_to_rows">Add Selected to Rows</span>
+          </button>
+        </div>
+
+        <!-- Library card suggestions (shown when centre selected and matching cards exist) -->
+        <div id="aus-lib-suggest" style="display:none;padding:6px 10px;border-bottom:1px solid var(--bd);background:var(--bg);display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+
+        <!-- Loading bar — shown while the region's Availability Report CSV is fetching -->
+        <div id="aus-loading-bar" class="aus-loading-bar"></div>
+
+        <!-- Office list -->
+        <div id="aus-selected-sticky"></div>
+        <div id="aus-office-list" style="max-height:220px;overflow-y:auto;"></div>
+
+        <!-- Selected summary -->
+        <div id="aus-selection-bar" style="display:none;padding:6px 10px;background:var(--olt);border-top:1px solid var(--o);display:flex;align-items:center;justify-content:space-between;gap:6px;">
+          <span id="aus-sel-count" style="font-size:11px;font-weight:700;color:var(--o);"></span>
+          <button onclick="AUS_SELECTED.clear();renderAusLookup()" style="font-size:10px;color:var(--xlt);border:none;background:transparent;cursor:pointer;font-family:inherit;">Clear selection</button>
+        </div>
+      </div>
+
+      <!-- ── Floor Plan Room # shortcut ─── -->
+      <div style="margin-bottom:14px;padding:8px 10px;background:var(--bg);border-radius:8px;border:1px solid var(--bd);">
+        <div style="font-size:10px;font-weight:700;color:var(--xlt);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;" data-i18n="sec_fp_room">Floor Plan Room #</div>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+          <input id="pr-fp-room" type="text" data-i18n-placeholder="ph_fp_room" placeholder="e.g. 2412 or master"
+            style="flex:1;min-width:80px;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;font-size:12.5px;font-family:inherit;outline:none;"
+            oninput="prAddFpPlan(this.value)"
+            onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <button onclick="prAddFpPlanBtn()" style="padding:5px 10px;border:1px solid var(--o);border-radius:6px;background:var(--olt);color:var(--o);font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;" data-i18n="btn_add_plan">+ Add Plan</button>
+        </div>
+        <div id="pr-fp-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;"></div>
+        <!-- 3D-variant toggle: hidden by default, shown when _probeFp3D
+             confirms a same-dimension master-3d image is reachable. The
+             user-friendly switch the user asked for. -->
+        <div id="fp-3d-toggle-wrap" style="display:none;align-items:center;gap:8px;margin-top:8px;font-size:11px;">
+          <span style="font-weight:700;color:var(--mid);" data-i18n="fp_3d_label">View</span>
+          <div class="fp-3d-seg">
+            <button type="button" id="fp-3d-btn-2d" class="active" onclick="setFp3D(false)" data-i18n-title="fp_3d_2d_tt">2D</button>
+            <button type="button" id="fp-3d-btn-3d" onclick="setFp3D(true)" data-i18n-title="fp_3d_3d_tt">3D</button>
+          </div>
+          <span style="color:var(--xlt);font-size:10px;" data-i18n="fp_3d_hint">3D variant detected</span>
+        </div>
+
+        <!-- Compass overlay control — toggle + drag-to-rotate dial -->
+        <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--bd);">
+          <!-- Row 1: toggle + label -->
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;">
+            <button id="compass-toggle-btn" type="button" class="ben-toggle"
+                    onclick="toggleCompass()"
+                    style="width:34px;height:19px;flex-shrink:0;"
+                    aria-label="Toggle compass">
+              <span class="tog-knob"></span>
+            </button>
+            <span style="font-weight:700;color:var(--mid);" data-i18n="compass_label">Compass</span>
+            <span style="color:var(--xlt);font-size:10px;" data-i18n="compass_hint">Bottom-left of floor plan</span>
+          </div>
+          <!-- Row 2: drag dial + angle display — shown when on -->
+          <div id="compass-angle-control" style="display:none;align-items:center;gap:10px;margin-top:8px;">
+            <!-- Draggable circular dial -->
+            <div id="compass-dial" class="compass-dial-wrap"
+                 onmousedown="compassDragStart(event)"
+                 ontouchstart="compassDragStart(event)"
+                 tabindex="0"
+                 onkeydown="compassKeyDown(event)"
+                 title="Drag to rotate · Arrow keys ±1° · Shift+Arrow ±15°"
+                 style="outline:none;"
+                 onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'"
+                 >
+              <img id="compass-preview-img"
+                   src="https://res.cloudinary.com/dutvfdhdp/image/upload/v1776536457/CompassOffices/compass-symbol-icon.png"
+                   class="compass-dial-preview"
+                   alt="compass" draggable="false">
+            </div>
+            <!-- Angle readout + step buttons -->
+            <div style="display:flex;flex-direction:column;gap:5px;font-size:11px;">
+              <div style="display:flex;align-items:center;gap:5px;">
+                <button type="button" onclick="setCompassAngle(COMPASS_ANGLE-15)"
+                        style="width:28px;height:22px;border:1px solid var(--bd);background:transparent;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;color:var(--mid);">-15</button>
+                <span id="compass-angle-display"
+                      style="min-width:36px;text-align:center;font-weight:700;color:var(--o);">0°</span>
+                <button type="button" onclick="setCompassAngle(COMPASS_ANGLE+15)"
+                        style="width:28px;height:22px;border:1px solid var(--bd);background:transparent;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit;color:var(--mid);">+15</button>
+              </div>
+              <div id="compass-direction-label"
+                   style="text-align:center;font-size:10.5px;font-weight:700;color:var(--xlt);letter-spacing:.05em;">N</div>
+              <button type="button" onclick="setCompassAngle(0)"
+                      style="font-size:10px;border:1px solid var(--bd);background:transparent;border-radius:4px;cursor:pointer;padding:1px 6px;font-family:inherit;color:var(--xlt);">Reset N</button>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--xlt);margin-top:4px;" data-i18n="hint_fp_room">Type a room number → adds it to Floor Plan. Shows as collage when multiple.</div>
+      </div>
+      <div class="slabel" data-i18n="sec_pricing">Pricing Rows</div>
+      <div id="pr-rows"></div>
+      <button class="add-row" onclick="addRow()" data-i18n="btn_add_pricing">+ Add Pricing Row</button>
+
+      <div class="slabel" style="margin-top:16px"><span data-i18n="sec_col_settings">Column Settings</span></div>
+      <div id="pricing-col-settings" style="background:var(--bg);border-radius:8px;padding:4px 10px;"></div>
+
+      <!-- Deposit terms note: per-language, rendered below pricing table on slide + email -->
+      <div style="margin-top:8px;padding:9px 11px;background:var(--olt);border-radius:8px;border:1px solid #FFD9B8;">
+        <div style="font-size:10px;font-weight:800;color:var(--o);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Deposit Terms
+          <button type="button" id="deposit-note-toggle" class="ben-toggle on" onclick="toggleDepositNote()" title="Switch the Deposit Terms note on/off" style="margin-left:4px;"></button>
+          <span style="font-weight:500;color:var(--xlt);text-transform:none;letter-spacing:0;font-size:9.5px;">— shown below pricing on slide &amp; email</span>
+        </div>
+        <textarea id="deposit-note-input" rows="2"
+          style="width:100%;border:1px solid #FFD9B8;border-radius:6px;padding:6px 9px;font-size:12px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;resize:vertical;line-height:1.45;box-sizing:border-box;"
+          placeholder=""
+          oninput="DEPOSIT_NOTE[LANG]=this.value;genDebounced(300);"
+          onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='#FFD9B8'"></textarea>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:5px;">
+          <button type="button" onclick="resetDepositNote()"
+            style="padding:3px 9px;border:1px solid var(--bd);border-radius:5px;background:var(--wh);color:var(--xlt);font-size:10px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .12s;"
+            onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'"
+            onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">↺ Reset to default</button>
+          <span style="font-size:10px;color:var(--xlt);">Leave empty to use the default for this language</span>
+        </div>
+      </div>
+
+      <div class="slabel" style="margin-top:20px"><span data-i18n="sec_amenities">Amenities</span> <span style="font-size:9px;font-weight:500;color:var(--xlt);text-transform:none;letter-spacing:0">— icon grid on slide centre</span></div>
+      <p class="note-txt" data-i18n="note_amenities" style="margin-bottom:8px">Toggle which icons appear in the amenity grid.</p>
+      <div class="amen-grid" id="amen-grid"></div>
+
+      <div class="slabel" style="margin-top:20px" id="lbl-benefits-section">Benefits</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+        <input type="text" id="benefits-title-input"
+          style="flex:1;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;font-size:12.5px;font-family:inherit;color:var(--drk);background:var(--wh);outline:none;transition:border-color .15s;"
+          placeholder="Benefits"
+          oninput="BENEFITS_TITLE[LANG]=this.value;genDebounced(300);"
+          onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+        <button onclick="BENEFITS_TITLE[LANG]='';document.getElementById('benefits-title-input').value='';gen();"
+          style="flex-shrink:0;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--wh);font-size:11px;color:var(--xlt);cursor:pointer;font-family:inherit;"
+          title="Reset to default">↺</button>
+      </div>
+      <p class="note-txt" data-i18n="note_benefits" style="margin-bottom:8px">Toggle on/off · Click icon to change · Click text to edit.</p>
+      <div class="ben-pos-toggle" style="margin-bottom:8px">
+        <button class="ben-pos-btn on" id="bpos-auto" onclick="setBenPos('auto')">Auto</button>
+        <button class="ben-pos-btn" id="bpos-centre" onclick="setBenPos('centre')">Benefits → Centre</button>
+        <button class="ben-pos-btn" id="bpos-right" onclick="setBenPos('right')">Classic</button>
+      </div>
+      <div class="ben-list" id="ben-list"></div>
+      <button class="ben-add" onclick="addBenefit()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-i18n="btn_add_benefit">Add Benefit</span>
+      </button>
+    </div>
+
+    <!-- MEDIA PANEL -->
+    <div class="panel" id="p-media">
+      <div class="slabel" data-i18n="sec_logos">Header Logos</div>
+      <div class="media-card">
+        <div class="media-card-preview logo-preview" style="cursor:default;min-height:60px;">
+          <img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ob.svg" onerror="this.style.opacity='.3'" alt="Compass Offices">
+        </div>
+        <div class="media-card-bar">
+          <span class="media-card-label" data-i18n="lbl_co_logo">Compass Offices Logo</span>
+          <span style="font-size:10px;color:var(--xlt)">(always shown)</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div class="fl" data-i18n="lbl_sep" style="margin-bottom:6px">Logo Separator</div>
+        <div style="display:flex;gap:6px;">
+          <button class="sep-opt on" id="sep-x" onclick="setSep('x')">× Cross</button>
+          <button class="sep-opt" id="sep-bar" onclick="setSep('bar')">| Line</button>
+          <button class="sep-opt" id="sep-none" onclick="setSep('none')">None</button>
+        </div>
+      </div>
+
+      <div class="media-card" id="mc-logo">
+        <input type="file" id="pl-up" accept="image/*" style="display:none" onchange="onPartnerLogo(event)">
+        <div class="media-card-preview logo-preview" id="mc-logo-preview" onclick="document.getElementById('pl-up').click()">
+          <img id="mc-logo-img" src="" style="display:none" alt="Partner logo">
+          <div class="media-card-empty" id="mc-logo-empty">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span>Tap to upload partner logo</span>
+          </div>
+        </div>
+        <div class="media-card-bar">
+          <span class="media-card-label" data-i18n="lbl_partner_logo">Partner / Building Logo</span>
+          <div class="media-card-actions">
+            <button class="mc-url-btn" id="mc-logo-url-btn" onclick="mcToggleUrl('logo')">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> URL
+            </button>
+            <label class="mc-upload-btn" for="pl-up">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload
+            </label>
+            <button class="mc-rm-btn" id="mc-logo-rm" style="display:none" onclick="rmPartnerLogo()">✕</button>
+          </div>
+        </div>
+        <div class="mc-url-row" id="mc-logo-url-row">
+          <input class="mc-url-input" id="mc-logo-url-input" type="url" placeholder="https://example.com/logo.png" onkeydown="if(event.key==='Enter')mcApplyUrl('logo')">
+          <button class="mc-url-go" onclick="mcApplyUrl('logo')">Apply</button>
+        </div>
+      </div>
+
+      <div class="slabel" data-i18n="sec_photos" style="margin-top:4px">Location Photos</div>
+      <p class="note-txt" style="margin-bottom:10px">Tap slot to upload · or use URL · 1st = hero · 2nd &amp; 3rd = smaller</p>
+
+      <div class="media-card" style="margin-bottom:8px">
+        <input type="file" id="ph-inp-0" accept="image/*" style="display:none" onchange="onPhotoSlot(0,event)">
+        <div class="media-card-preview ph-slot-hero has-img" id="ph-slot-0" onclick="phSlotClick(0)" style="min-height:110px;">
+          <div class="media-card-empty" id="ph-slot-empty-0">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>Photo 1 — Hero</span>
+          </div>
+          <img id="ph-img-0" src="" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">
+        </div>
+        <div class="media-card-bar">
+          <span class="media-card-label">Photo 1 <span style="font-weight:400;color:var(--xlt)">Hero image</span></span>
+          <div class="media-card-actions">
+            <button class="mc-url-btn" onclick="mcToggleUrl('ph0')"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> URL</button>
+            <label class="mc-upload-btn" for="ph-inp-0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload</label>
+            <button class="mc-rm-btn" id="ph-rm-0" style="display:none" onclick="rmPhotoSlot(0)">✕</button>
+          </div>
+        </div>
+        <div class="mc-url-row" id="mc-ph0-url-row">
+          <input class="mc-url-input" id="mc-ph0-url-input" type="url" placeholder="https://example.com/photo.jpg" onkeydown="if(event.key==='Enter')mcApplyUrl('ph0')">
+          <button class="mc-url-go" onclick="mcApplyUrl('ph0')">Apply</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:0">
+        <div class="media-card">
+          <input type="file" id="ph-inp-1" accept="image/*" style="display:none" onchange="onPhotoSlot(1,event)">
+          <div class="media-card-preview" id="ph-slot-1" onclick="phSlotClick(1)" style="min-height:80px;">
+            <div class="media-card-empty" id="ph-slot-empty-1" style="padding:12px 8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span style="font-size:10px">Photo 2</span></div>
+            <img id="ph-img-1" src="" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">
+          </div>
+          <div class="media-card-bar" style="padding:6px 8px;">
+            <span class="media-card-label" style="font-size:10px">Photo 2</span>
+            <div class="media-card-actions">
+              <button class="mc-url-btn" onclick="mcToggleUrl('ph1')" style="font-size:9px;padding:2px 6px">URL</button>
+              <label class="mc-upload-btn" for="ph-inp-1" style="font-size:9px;padding:2px 6px">↑</label>
+              <button class="mc-rm-btn" id="ph-rm-1" style="display:none;width:18px;height:18px;font-size:10px" onclick="rmPhotoSlot(1)">✕</button>
+            </div>
+          </div>
+          <div class="mc-url-row" id="mc-ph1-url-row"><input class="mc-url-input" id="mc-ph1-url-input" type="url" placeholder="https://…" onkeydown="if(event.key==='Enter')mcApplyUrl('ph1')"><button class="mc-url-go" onclick="mcApplyUrl('ph1')">✓</button></div>
+        </div>
+        <div class="media-card">
+          <input type="file" id="ph-inp-2" accept="image/*" style="display:none" onchange="onPhotoSlot(2,event)">
+          <div class="media-card-preview" id="ph-slot-2" onclick="phSlotClick(2)" style="min-height:80px;">
+            <div class="media-card-empty" id="ph-slot-empty-2" style="padding:12px 8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span style="font-size:10px">Photo 3</span></div>
+            <img id="ph-img-2" src="" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">
+          </div>
+          <div class="media-card-bar" style="padding:6px 8px;">
+            <span class="media-card-label" style="font-size:10px">Photo 3</span>
+            <div class="media-card-actions">
+              <button class="mc-url-btn" onclick="mcToggleUrl('ph2')" style="font-size:9px;padding:2px 6px">URL</button>
+              <label class="mc-upload-btn" for="ph-inp-2" style="font-size:9px;padding:2px 6px">↑</label>
+              <button class="mc-rm-btn" id="ph-rm-2" style="display:none;width:18px;height:18px;font-size:10px" onclick="rmPhotoSlot(2)">✕</button>
+            </div>
+          </div>
+          <div class="mc-url-row" id="mc-ph2-url-row"><input class="mc-url-input" id="mc-ph2-url-input" type="url" placeholder="https://…" onkeydown="if(event.key==='Enter')mcApplyUrl('ph2')"><button class="mc-url-go" onclick="mcApplyUrl('ph2')">✓</button></div>
+        </div>
+      </div>
+
+      <div class="slabel" style="margin-top:12px" data-i18n="sec_p2_photos">Page 2 Photos</div>
+      <p class="note-txt" data-i18n="hint_p2_photos" style="margin-bottom:10px">Optional · replaces page 2 photos · leave empty to reuse page 1</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="media-card">
+          <input type="file" id="ph-inp-3" accept="image/*" style="display:none" onchange="onPhotoSlot(3,event)">
+          <div class="media-card-preview" id="ph-slot-3" onclick="phSlotClick(3)" style="min-height:70px;">
+            <div class="media-card-empty" id="ph-slot-empty-3" style="padding:10px 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span style="font-size:10px">P2 Photo 1</span></div>
+            <img id="ph-img-3" src="" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">
+          </div>
+          <div class="media-card-bar" style="padding:5px 7px;">
+            <span class="media-card-label" style="font-size:10px">P2-1</span>
+            <div class="media-card-actions">
+              <button class="mc-url-btn" onclick="mcToggleUrl('ph3')" style="font-size:9px;padding:2px 5px">URL</button>
+              <label class="mc-upload-btn" for="ph-inp-3" style="font-size:9px;padding:2px 5px">↑</label>
+              <button class="mc-rm-btn" id="ph-rm-3" style="display:none;width:18px;height:18px;font-size:10px" onclick="rmPhotoSlot(3)">✕</button>
+            </div>
+          </div>
+          <div class="mc-url-row" id="mc-ph3-url-row"><input class="mc-url-input" id="mc-ph3-url-input" type="url" placeholder="https://…" onkeydown="if(event.key==='Enter')mcApplyUrl('ph3')"><button class="mc-url-go" onclick="mcApplyUrl('ph3')">✓</button></div>
+        </div>
+        <div class="media-card">
+          <input type="file" id="ph-inp-4" accept="image/*" style="display:none" onchange="onPhotoSlot(4,event)">
+          <div class="media-card-preview" id="ph-slot-4" onclick="phSlotClick(4)" style="min-height:70px;">
+            <div class="media-card-empty" id="ph-slot-empty-4" style="padding:10px 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span style="font-size:10px">P2 Photo 2</span></div>
+            <img id="ph-img-4" src="" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">
+          </div>
+          <div class="media-card-bar" style="padding:5px 7px;">
+            <span class="media-card-label" style="font-size:10px">P2-2</span>
+            <div class="media-card-actions">
+              <button class="mc-url-btn" onclick="mcToggleUrl('ph4')" style="font-size:9px;padding:2px 5px">URL</button>
+              <label class="mc-upload-btn" for="ph-inp-4" style="font-size:9px;padding:2px 5px">↑</label>
+              <button class="mc-rm-btn" id="ph-rm-4" style="display:none;width:18px;height:18px;font-size:10px" onclick="rmPhotoSlot(4)">✕</button>
+            </div>
+          </div>
+          <div class="mc-url-row" id="mc-ph4-url-row"><input class="mc-url-input" id="mc-ph4-url-input" type="url" placeholder="https://…" onkeydown="if(event.key==='Enter')mcApplyUrl('ph4')"><button class="mc-url-go" onclick="mcApplyUrl('ph4')">✓</button></div>
+        </div>
+        <div class="media-card">
+          <input type="file" id="ph-inp-5" accept="image/*" style="display:none" onchange="onPhotoSlot(5,event)">
+          <div class="media-card-preview" id="ph-slot-5" onclick="phSlotClick(5)" style="min-height:70px;">
+            <div class="media-card-empty" id="ph-slot-empty-5" style="padding:10px 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span style="font-size:10px">P2 Photo 3</span></div>
+            <img id="ph-img-5" src="" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">
+          </div>
+          <div class="media-card-bar" style="padding:5px 7px;">
+            <span class="media-card-label" style="font-size:10px">P2-3</span>
+            <div class="media-card-actions">
+              <button class="mc-url-btn" onclick="mcToggleUrl('ph5')" style="font-size:9px;padding:2px 5px">URL</button>
+              <label class="mc-upload-btn" for="ph-inp-5" style="font-size:9px;padding:2px 5px">↑</label>
+              <button class="mc-rm-btn" id="ph-rm-5" style="display:none;width:18px;height:18px;font-size:10px" onclick="rmPhotoSlot(5)">✕</button>
+            </div>
+          </div>
+          <div class="mc-url-row" id="mc-ph5-url-row"><input class="mc-url-input" id="mc-ph5-url-input" type="url" placeholder="https://…" onkeydown="if(event.key==='Enter')mcApplyUrl('ph5')"><button class="mc-url-go" onclick="mcApplyUrl('ph5')">✓</button></div>
+        </div>
+      </div>
+
+      <!-- ── Page 2 Floor Plan — dedicated custom image slot ── -->
+      <div class="slabel" style="margin-top:4px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Page 2 Floor Plan
+      </div>
+      <div style="font-size:10px;color:var(--xlt);margin-bottom:8px;line-height:1.5;">
+        Upload your own floor plan image to show on page 2.<br>Page 1 will still use the library / highlight floor plan.
+      </div>
+
+      <!-- Empty state: click to upload -->
+      <div id="fp-p2-empty"
+        onclick="document.getElementById('fp-p2-input').click()"
+        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:18px 12px;border:2px dashed var(--bd);border-radius:10px;cursor:pointer;transition:all .15s;margin-bottom:12px;"
+        onmouseover="this.style.borderColor='var(--o)';this.style.background='var(--olt)'"
+        onmouseout="this.style.borderColor='var(--bd)';this.style.background='transparent'">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--xlt)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span style="font-size:12px;font-weight:600;color:var(--xlt);" data-i18n="fp_p2_upload">Upload floor plan for Page 2</span>
+        <span style="font-size:10px;color:var(--lt);">PNG, JPG — any size</span>
+        <input type="file" id="fp-p2-input" accept="image/*" style="display:none" onchange="onFpP2Upload(event)">
+      </div>
+
+      <!-- Filled state: thumbnail + clear -->
+      <div id="fp-p2-filled"
+        style="display:none;align-items:center;gap:10px;padding:8px 10px;border:1.5px solid rgba(255,102,0,.3);border-radius:10px;background:var(--olt);margin-bottom:12px;">
+        <img id="fp-p2-thumb" src="" alt="Page 2 floor plan"
+          style="width:56px;height:42px;object-fit:cover;border-radius:5px;border:1px solid var(--bd);flex-shrink:0;cursor:pointer;"
+          onclick="document.getElementById('fp-p2-input-replace').click()">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;font-weight:700;color:var(--o);" data-i18n="fp_p2_set">Page 2 floor plan set</div>
+          <div style="font-size:10px;color:var(--xlt);margin-top:1px;">Click thumbnail to replace</div>
+        </div>
+        <button onclick="clearFpP2()" title="Remove"
+          style="width:24px;height:24px;border:1px solid var(--bd);border-radius:6px;background:var(--wh);color:var(--xlt);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;padding:0;"
+          onmouseover="this.style.borderColor='#DC2626';this.style.color='#DC2626'"
+          onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">×</button>
+        <input type="file" id="fp-p2-input-replace" accept="image/*" style="display:none" onchange="onFpP2Upload(event)">
+      </div>
+
+      <div class="slabel" data-i18n="sec_floorplan" style="margin-top:4px">Floor Plan</div>
+
+      <!-- Base URL pattern helper -->
+      <div style="margin-bottom:8px;">
+        <label class="fl" style="font-size:11px;color:var(--xlt);font-weight:500;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block">Base URL <span style="font-weight:400;text-transform:none">(prefix for room PNGs)</span></label>
+        <div style="display:flex;gap:5px;">
+          <input type="url" id="fp-base-url" placeholder="https://…/floorplan_lg1-24-"
+            style="flex:1;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;font-size:11.5px;font-family:inherit;outline:none;"
+            oninput="setFpBaseUrl(this.value.trim());"
+            onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+        </div>
+      </div>
+
+      <!-- Data URL: full URL to the polygon JSON (may live elsewhere on Cloudinary) -->
+      <div style="margin-bottom:8px;">
+        <label class="fl" style="font-size:11px;color:var(--xlt);font-weight:500;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:flex;align-items:center;gap:5px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>
+          Floor Plan Data URL <span style="font-weight:400;text-transform:none">(JSON with room polygons — optional)</span>
+        </label>
+        <div style="display:flex;gap:5px;">
+          <input type="url" id="fp-data-url" placeholder="https://res.cloudinary.com/…/data.json"
+            style="flex:1;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;font-size:11.5px;font-family:inherit;outline:none;"
+            oninput="setFpDataUrl(this.value.trim());"
+            onfocus="this.style.borderColor='var(--o)'" onblur="this.style.borderColor='var(--bd)'">
+          <button onclick="tryFetchFpData(true)" title="Reload polygons"
+            style="flex-shrink:0;padding:5px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--wh);color:var(--mid);font-size:11px;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:4px;"
+            onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'"
+            onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--mid)'">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Reload
+          </button>
+        </div>
+        <div id="fp-data-status" style="margin-top:4px;font-size:10px;color:var(--xlt);line-height:1.4;">
+          Room images are PNG: <code style="background:#f5f5f5;border:1px solid var(--bd);border-radius:3px;padding:0 4px;font-family:monospace;font-size:9.5px;">{base}{room#}.png</code> &middot; paste the data.json URL above to enable highlight mode
+        </div>
+      </div>
+
+      <!-- Page 2 same/different toggle -->
+      <div style="display:flex;gap:5px;margin-bottom:10px;">
+        <button class="ben-pos-btn on" id="fp-p2-same" onclick="setFpPage2Same(true)" data-i18n="fp_p2_same">Both pages same</button>
+        <button class="ben-pos-btn" id="fp-p2-diff" onclick="setFpPage2Same(false)" data-i18n="fp_p2_diff">Page 2 different</button>
+      </div>
+
+      <!-- Floorplan list -->
+      <div id="fp-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+      <button onclick="addFpPlan()" style="width:100%;padding:8px;border:1.5px dashed var(--bd);border-radius:8px;background:transparent;color:var(--xlt);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;"
+        onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Floor Plan
+      </button>
+      <!-- Page 1 / Page 2 floor plan selector — shown whenever plans are loaded -->
+      <div id="fp-page-sel" style="display:none;margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--bd);"></div>
+    </div>
+
+  </div><!-- /panels -->
+
+  <div class="gen-wrap">
+    <button class="mob-preview-btn" id="mob-preview-btn" onclick="toggleMobilePreview()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      View Preview
+    </button>
+    <button class="gen-btn" onclick="gen()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <span data-i18n="btn_generate">Refresh Preview</span>
+    </button>
+    <div style="text-align:center;font-size:9.5px;color:var(--xlt);margin-top:2px;letter-spacing:.01em;" data-i18n="btn_auto_updates">Auto-updates as you type</div>
+  </div>
+</div><!-- /sidebar -->
+
+<div class="preview">
+  <div id="mob-preview-bar" style="display:none;position:sticky;top:0;z-index:10;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--bd);padding:10px 16px;align-items:center;justify-content:space-between;gap:12px;">
+    <button onclick="mobBackToEdit()" style="display:flex;align-items:center;gap:7px;border:1.5px solid var(--bd);border-radius:99px;background:var(--wh);color:var(--drk);font-size:13px;font-weight:700;font-family:inherit;padding:8px 16px 8px 12px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.08);-webkit-tap-highlight-color:transparent;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Edit
+    </button>
+    <button onclick="printSlide()" style="display:flex;align-items:center;gap:7px;border:none;border-radius:99px;background:var(--o);color:#fff;font-size:13px;font-weight:700;font-family:inherit;padding:8px 18px 8px 14px;cursor:pointer;box-shadow:0 2px 10px rgba(255,102,0,.35);-webkit-tap-highlight-color:transparent;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span data-i18n="btn_print">Print / Save PDF</span>
+    </button>
+  </div>
+  <div class="pmeta">
+    <span class="pmeta-lbl" data-i18n="lbl_page1">Page 1 — Overview</span>
+    <span style="font-size:11px;color:var(--xlt)">A4 Landscape · 297 × 210 mm</span>
+  </div>
+  <div class="slide-wrap">
+    <div class="slide" id="slide">
+      <div class="sl-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        <p><span data-i18n="empty_hint1">Select a location from the library or fill the form</span></p>
+        <small><span data-i18n="empty_hint2">Or fill the form and click Generate</span></small>
+      </div>
+    </div>
+  </div>
+  <div class="pmeta" style="margin-top:24px">
+    <span class="pmeta-lbl" data-i18n="lbl_page2">Page 2 — Floor Plan &amp; Amenities</span>
+    <span style="font-size:11px;color:var(--xlt)">A4 Landscape · 297 × 210 mm</span>
+  </div>
+  <div class="slide-wrap">
+    <div class="slide2" id="slide2">
+      <div class="sl-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        <p><span data-i18n="empty_p2">Floor Plan + Amenities</span></p>
+        <small><span data-i18n="empty_p2_hint">Generates when you click Generate</span></small>
+      </div>
+    </div>
+  </div>
+  <!-- Page 3 — Contact / Let's talk (shown when staff profile is set) -->
+  <div id="page3-meta" class="pmeta" style="margin-top:24px;display:none">
+    <span class="pmeta-lbl">Page 3 — Let's talk</span>
+    <span style="font-size:11px;color:var(--xlt)">A4 Landscape · 297 × 210 mm</span>
+  </div>
+  <div class="slide-wrap" id="page3-wrap" style="display:none">
+    <div class="contact-slide" id="slide3"></div>
+  </div>
+  <p id="print-hint-p" style="font-size:11px;color:var(--xlt);text-align:center;margin-top:12px">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    <span data-i18n="print_hint">Print / Save PDF → prints both pages · A4 Landscape · margins: None</span>
+  </p>
+</div>
+</div><!-- /app -->
+
+<!-- ── STAFF PROFILE MODAL ─────────────────────────────────────────── -->
+<div id="profile-modal" onclick="if(event.target===this)closeProfileModal()">
+  <div class="profile-modal-inner">
+    <div class="profile-modal-head">
+      <div>
+        <h3 style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--o)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span data-i18n="profile_heading">My Contact Profile</span></h3>
+        <button onclick="closeProfileModal()" style="border:none;background:transparent;cursor:pointer;color:var(--xlt);padding:4px;border-radius:6px;line-height:0;transition:color .15s;" onmouseover="this.style.color='var(--drk)'" onmouseout="this.style.color='var(--xlt)'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+    <div class="profile-modal-body">
+      <p style="font-size:11.5px;color:var(--xlt);margin-bottom:14px;line-height:1.55;">Set this once — every proposal will include a <b style="color:var(--drk)">"Let's talk"</b> page with your details.</p>
+
+      <!-- Photo upload -->
+      <div class="profile-photo-wrap">
+        <div class="profile-photo-ring" onclick="document.getElementById('profile-photo-input').click()" data-i18n-title="profile_photo_hint" title="Click to upload your photo">
+          <img id="profile-photo-preview" src="" alt="" style="display:none">
+          <div class="ppr-placeholder" id="profile-photo-placeholder">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span style="font-size:10px;margin-top:2px;">Photo</span>
+          </div>
+        </div>
+        <input type="file" id="profile-photo-input" accept="image/*" style="display:none" onchange="onProfilePhotoUpload(event)">
+        <button id="profile-photo-clear" onclick="clearProfilePhoto()" style="display:none;font-size:10.5px;color:var(--xlt);border:none;background:transparent;cursor:pointer;padding:2px 6px;border-radius:4px;" onmouseover="this.style.color='#DC2626'" onmouseout="this.style.color='var(--xlt)'">Remove photo</button>
+      </div>
+
+      <!-- Name -->
+      <div class="pf-row-2" style="margin-bottom:10px;">
+        <div class="field" style="flex:1;margin-bottom:0;">
+          <label class="fl" data-i18n="profile_fname">First Name</label>
+          <input type="text" id="pf-firstname" placeholder="First name" oninput="previewContactPage()">
+        </div>
+        <div class="field" style="flex:1;margin-bottom:0;">
+          <label class="fl" data-i18n="profile_lname">Last Name</label>
+          <input type="text" id="pf-lastname" placeholder="Last name" oninput="previewContactPage()">
+        </div>
+      </div>
+
+      <!-- Title -->
+      <div class="field" style="margin-bottom:10px;">
+        <label class="fl" data-i18n="profile_job_title">Job Title</label>
+        <input type="text" id="pf-title" placeholder="e.g. Sales Manager, Regional Director" oninput="previewContactPage()">
+      </div>
+
+      <!-- Phone + Email -->
+      <div class="pf-row-2" style="margin-bottom:12px;">
+        <div class="field" style="flex:1;margin-bottom:0;">
+          <label class="fl">Phone</label>
+          <input type="tel" id="pf-phone" placeholder="Phone number" oninput="previewContactPage()">
+        </div>
+        <div class="field" style="flex:1;margin-bottom:0;">
+          <label class="fl">Email</label>
+          <input type="email" id="pf-email" placeholder="Email address" oninput="previewContactPage()">
+        </div>
+      </div>
+
+      <!-- Include toggle -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-radius:10px;margin-bottom:16px;border:1px solid var(--bd);">
+        <button id="pf-show-toggle" class="ben-toggle on" onclick="toggleProfileShow()" style="flex-shrink:0;"></button>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--drk);" data-i18n="profile_contact_toggle">Include contact page in PDF exports</div>
+          <div style="font-size:10.5px;color:var(--xlt);margin-top:2px;">Adds "Let's talk" as the final page</div>
+        </div>
+      </div>
+
+      <!-- Social links -->
+      <div class="pf-section-label">Social Links <span style="font-weight:500;text-transform:none;opacity:.7;">(optional — shown on page 3)</span></div>
+      <div class="pf-social-grid" style="margin-bottom:16px;">
+        <div class="field" style="margin-bottom:0;">
+          <label class="fl"><img src="https://res.cloudinary.com/dutvfdhdp/image/upload/v1779197482/_CompassOffices/social-icon-linkedin.svg" width="13" height="13" style="border-radius:2px;">LinkedIn</label>
+          <input type="text" id="pf-linkedin" placeholder="linkedin.com/in/yourname" oninput="previewContactPage()">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label class="fl"><img src="https://res.cloudinary.com/dutvfdhdp/image/upload/v1779197482/_CompassOffices/social-icon-wechat.svg" width="13" height="13" style="border-radius:2px;">WeChat</label>
+          <input type="text" id="pf-wechat" placeholder="WeChat ID" oninput="previewContactPage()">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label class="fl"><img src="https://res.cloudinary.com/dutvfdhdp/image/upload/v1779197482/_CompassOffices/social-icon-whatsapp.svg" width="13" height="13" style="border-radius:2px;">WhatsApp</label>
+          <input type="text" id="pf-whatsapp" placeholder="+84 123 456 789" oninput="previewContactPage()">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label class="fl"><img src="https://res.cloudinary.com/dutvfdhdp/image/upload/v1779197482/_CompassOffices/social-icon-instagram.svg" width="13" height="13" style="border-radius:2px;">Instagram</label>
+          <input type="text" id="pf-instagram" placeholder="@yourhandle" oninput="previewContactPage()">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label class="fl"><img src="https://res.cloudinary.com/dutvfdhdp/image/upload/v1779197482/_CompassOffices/social-icon-facebook.svg" width="13" height="13" style="border-radius:2px;">Facebook</label>
+          <input type="text" id="pf-facebook" placeholder="facebook.com/yourpage" oninput="previewContactPage()">
+        </div>
+      </div>
+
+      <!-- Live mini preview -->
+      <div class="pf-section-label">Preview</div>
+      <div style="border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.15);margin-bottom:4px;">
+        <div id="profile-preview-slide" class="contact-slide" style="pointer-events:none;"></div>
+      </div>
+    </div>
+    <div class="profile-modal-foot">
+      <button onclick="clearProfileFromModal()"
+        style="padding:10px 16px;border:1.5px solid var(--bd);border-radius:10px;background:transparent;color:var(--xlt);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;margin-right:auto;"
+        onmouseover="this.style.borderColor='#DC2626';this.style.color='#DC2626'"
+        onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'" data-i18n="profile_clear">Clear Profile</button>
+      <button onclick="closeProfileModal()" style="padding:10px 20px;border:1.5px solid var(--bd);border-radius:10px;background:transparent;color:var(--mid);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;flex:1;">Cancel</button>
+      <button onclick="saveProfileFromModal()" style="padding:10px 24px;border:none;border-radius:10px;background:var(--o);color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;flex:2;" data-i18n="profile_save">Save Profile</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── FLOOR PLAN ROOM LAYOUT EDITOR ─────────────────────────────────────
+     MS-Paint-style canvas annotation tool for individual room floor plans.
+     Opens per selected room row; annotated image replaces the room thumbnail
+     on Page 1 only. Page 2 master floor plan is completely untouched.    -->
+<div id="fp-editor-modal" onclick="if(event.target===this)closeFpEditor()">
+  <div class="fpe-inner">
+    <!-- Header -->
+    <div class="fpe-head">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <h3 id="fpe-title">Edit Room Layout</h3>
+      <span class="fpe-hint">Draw boxes to label zones · Draw lines for walls · Click to select · Dbl-click to rename</span>
+      <button onclick="closeFpEditor()" style="border:none;background:transparent;cursor:pointer;color:rgba(255,255,255,.35);padding:4px;border-radius:5px;line-height:0;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.35)'">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <!-- Toolbar -->
+    <div class="fpe-toolbar">
+      <!-- Mode -->
+      <div class="fpe-mode-group">
+        <button class="fpe-mode-btn on" id="fpe-btn-box" onclick="_fpeSetMode('box')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Box
+        </button>
+        <button class="fpe-mode-btn" id="fpe-btn-wall" onclick="_fpeSetMode('wall')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="12" x2="20" y2="12"/></svg>Wall
+        </button>
+      </div>
+      <div class="fpe-sep"></div>
+      <!-- Colors -->
+      <div style="display:flex;gap:5px;align-items:center;">
+        <span style="font-size:10px;color:rgba(255,255,255,.3);margin-right:1px;">Color</span>
+        <div class="fpe-swatch on" style="background:#FF6600;" onclick="_fpeSetColor('#FF6600',this)" title="Orange"></div>
+        <div class="fpe-swatch"    style="background:#1565C0;" onclick="_fpeSetColor('#1565C0',this)" title="Blue"></div>
+        <div class="fpe-swatch"    style="background:#2E7D32;" onclick="_fpeSetColor('#2E7D32',this)" title="Green"></div>
+        <div class="fpe-swatch"    style="background:#757575;" onclick="_fpeSetColor('#757575',this)" title="Grey"></div>
+        <div class="fpe-swatch"    style="background:#C62828;" onclick="_fpeSetColor('#C62828',this)" title="Red"></div>
+      </div>
+      <!-- Font size control -->
+      <div class="fpe-sep"></div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:10px;color:rgba(255,255,255,.3);">Size</span>
+        <button class="fpe-btn" style="padding:3px 7px;min-width:0;" onclick="_fpeFontStep(-1)" title="Smaller text">−</button>
+        <input id="fpe-font-size" type="number" min="8" max="36" value="13"
+          style="width:36px;padding:4px 4px;border:1.5px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(255,255,255,.07);color:#fff;font-size:12px;font-family:inherit;outline:none;text-align:center;"
+          oninput="_fpeSetFontSize(this.value)"
+          title="Label font size (8–36)">
+        <button class="fpe-btn" style="padding:3px 7px;min-width:0;" onclick="_fpeFontStep(1)" title="Larger text">+</button>
+      </div>
+      <div class="fpe-sep"></div>
+      <input class="fpe-label-inp" id="fpe-label-inp" type="text"
+        placeholder="Box label (type after drawing)…"
+        oninput="_fpeOnLabelInput(this.value)"
+        onkeydown="_fpeLabelKey(event)">
+      <div class="fpe-sep"></div>
+      <!-- ── Furniture stamps ── -->
+      <button class="fpe-mode-btn" id="fpe-stamp-wall_seg" onclick="_fpeSetStamp('wall_seg')" title="Stamp a wall segment">
+        <svg width="14" height="7" viewBox="0 0 14 7" fill="none"><rect width="14" height="7" rx="1.5" fill="currentColor"/></svg>Wall
+      </button>
+      <button class="fpe-mode-btn" id="fpe-stamp-door" onclick="_fpeSetStamp('door')" title="Stamp a door">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-linecap="round">
+          <line x1="0" y1="13" x2="0" y2="0" stroke-width="1.8"/>
+          <line x1="0" y1="0" x2="13" y2="0" stroke-width="1.8"/>
+          <path d="M0 13 A13 13 0 0 1 13 0" stroke-width="1.2" stroke-dasharray="3,2"/>
+        </svg>Door
+      </button>
+      <button class="fpe-mode-btn" id="fpe-stamp-table_chair" onclick="_fpeSetStamp('table_chair')" title="Stamp a table + chair">
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-linecap="round">
+          <rect x="1.5" y="5.5" width="9" height="7" rx="1.5" stroke-width="1.5"/>
+          <rect x="2" y="1.5" width="8" height="3.5" rx="1.2" stroke-width="1.2"/>
+          <path d="M2 1.5 Q6 -0.5 10 1.5" stroke-width="1"/>
+        </svg>Table+Chair
+      </button>
+      <button class="fpe-btn" id="fpe-rotate-btn" onclick="_fpeRotateSelected()" disabled title="Rotate selected stamp 45° (R key)">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M23 4v6h-6"/><path d="M20.5 15a9 9 0 1 1-2.8-9.4L23 10"/></svg>Rotate
+      </button>
+      <div style="flex:1;"></div>
+      <!-- Actions -->
+      <button class="fpe-btn" onclick="_fpeUndo()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>Undo
+      </button>
+      <button class="fpe-btn del" id="fpe-delete-btn" onclick="_fpeDeleteSelected()" disabled>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete
+      </button>
+      <button class="fpe-btn" onclick="_fpeReset()">Reset</button>
+      <button class="fpe-btn apply" onclick="_fpeApply()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Apply to Page 1
+      </button>
+    </div>
+    <!-- Canvas -->
+    <div class="fpe-canvas-wrap">
+      <canvas id="fpe-canvas"></canvas>
+    </div>
+    <!-- Status -->
+    <div class="fpe-status" id="fpe-status">Click and drag to draw a box · Click a shape to select · Drag selected shape to move · Double-click a box to rename · Delete key to remove</div>
+  </div>
+</div>
+
+<!-- ICON PICKER -->
+<div class="ico-picker" id="ico-picker">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid var(--bd);">
+    <span class="ico-picker-title" data-i18n="lbl_choose_icon" style="margin:0">Choose Icon</span>
+    <div style="background:var(--bg);border-radius:6px;padding:2px;display:flex;gap:1px;">
+      <button class="ico-pack-tab on" onpointerdown="event.stopPropagation();switchIcoPack('builtin',this)" style="padding:3px 10px;border-radius:4px;font-size:11px;border:none;cursor:pointer;font-family:inherit;background:var(--wh);">Built-in</button>
+      <button class="ico-pack-tab" onpointerdown="event.stopPropagation();switchIcoPack('co',this)" style="padding:3px 10px;border-radius:4px;font-size:11px;border:none;cursor:pointer;font-family:inherit;background:transparent;">CO Icons</button>
+    </div>
+  </div>
+  <div class="ico-pack-panel on" id="ico-pack-builtin" style="padding:8px">
+    <div class="ico-picker-grid" id="ico-picker-grid"></div>
+  </div>
+  <div class="ico-pack-panel" id="ico-pack-co" style="display:none;grid-template-columns:repeat(5,1fr);gap:3px;padding:8px;max-height:220px;overflow-y:auto;"></div>
+</div>
+
+<script src="JS/i18n.js"></script>
+<script src="JS/components.js"></script>
+<script src="JS/floorplan.js"></script>
+<script src="JS/lookup.js"></script>
+<script src="JS/rows.js"></script>
+<script src="JS/media.js"></script>
+<script src="JS/library.js"></script>
+<script src="JS/core.js"></script>
+<script src="JS/extensions.js"></script>
+<script src="JS/perks.js"></script>
+<script src="JS/init.js"></script>
+
+<!-- ── Mobile More Drawer ──────────────────────────────────────────────── -->
+<div id="mob-more-overlay" onclick="closeMobMore()"></div>
+<div id="mob-more-drawer">
+  <div class="mob-drawer-handle"></div>
+
+  <!-- Language -->
+  <div class="mob-drawer-title">Language</div>
+  <div class="mob-drawer-lang">
+    <button class="lbtn on" id="mob-d-en"   onclick="setLang('en');    _mobUpdateLang()">EN</button>
+    <button class="lbtn"    id="mob-d-hant" onclick="setLang('zh-hant');_mobUpdateLang()">繁體</button>
+    <button class="lbtn"    id="mob-d-hans" onclick="setLang('zh-hans');_mobUpdateLang()">简体</button>
+    <button class="lbtn"    id="mob-d-ja"   onclick="setLang('ja');    _mobUpdateLang()">日本語</button>
+  </div>
+
+  <!-- Proposal details -->
+  <div class="mob-drawer-title" data-i18n="mob_proposal_details">Proposal Details</div>
+  <div class="mob-drawer-proposal">
+    <div class="mob-drawer-prop-field">
+      <input id="mob-co-input" class="mob-drawer-prop-input" type="text"
+        placeholder="Proposal For"
+        autocomplete="organization"
+        oninput="_mobPropSync('co',this.value)">
+    </div>
+    <div class="mob-drawer-prop-field">
+      <input id="mob-cl-input" class="mob-drawer-prop-input" type="text"
+        placeholder="Client Name"
+        autocomplete="name"
+        oninput="_mobPropSync('cl',this.value)">
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="mob-drawer-title" data-i18n="mob_actions">Actions</div>
+  <div class="mob-drawer-grid">
+    <button class="mob-drawer-btn" onclick="newCard();closeMobMore()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      New Proposal
+    </button>
+    <button class="mob-drawer-btn" onclick="downloadCurrentJSON();closeMobMore()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Save JSON
+    </button>
+    <button class="mob-drawer-btn primary" onclick="addToQueue();closeMobMore()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      + Add to Queue
+    </button>
+    <button class="mob-drawer-btn" onclick="closeMobMore();toggleQueuePanel()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>
+      View Queue
+    </button>
+    <button class="mob-drawer-btn" onclick="openProfileModal();closeMobMore()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      My Profile
+    </button>
+    <button class="mob-drawer-btn primary" onclick="closeMobMore();printSlide()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print / PDF
+    </button>
+  </div>
+</div>
+
+<div class="mob-tabbar" id="mob-tabbar">
+  <button class="mob-tab on" id="mtab-loc" onclick="mobOpenTab('loc')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span data-i18n="tab_loc">Location</span>
+  </button>
+  <button class="mob-tab" id="mtab-specs" onclick="mobOpenTab('specs')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+    <span data-i18n="tab_specs">Specs</span>
+  </button>
+  <button class="mob-tab" id="mtab-price" onclick="mobOpenTab('price')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    <span data-i18n="tab_price">Pricing</span>
+  </button>
+  <button class="mob-tab" id="mtab-media" onclick="mobOpenTab('media')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    <span data-i18n="tab_media">Media</span>
+  </button>
+  <button class="mob-tab mob-tab-action" id="mtab-preview" onclick="toggleMobilePreview()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    <span>Preview</span>
+  </button>
+</div>
+
+<!-- EMAIL MODAL -->
+<div id="email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;align-items:center;justify-content:center;padding:16px;">
+  <div class="email-modal-inner" style="background:#fff;border-radius:16px;width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden;">
+    <div class="email-modal-head" style="padding:16px 20px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:160px;"><div style="font-size:15px;font-weight:800;color:#1a1a1a;">✉ Email Template</div><div style="font-size:11px;color:#999;margin-top:1px;" data-email-subtitle>Branded proposal email — copy HTML or open in mail client</div></div>
+      <div id="email-lang-chips" style="display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;"></div>
+      <button onclick="closeEmailModal()" style="border:none;background:#f5f5f5;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;color:#666;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;">×</button>
+    </div>
+    <div class="email-modal-fields" style="padding:12px 20px;border-bottom:1px solid #eee;display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;background:#fafafa;">
+      <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">To (Client Name)</label><input id="email-to-name" type="text" placeholder="e.g. John Smith" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
+      <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">From (Your Name)</label><input id="email-from-name" type="text" placeholder="Your name" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
+      <div style="flex:1;min-width:130px;"><label style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#999;display:block;margin-bottom:3px;">Client Company</label><input id="email-company" type="text" placeholder="e.g. Acme Corp" oninput="updateEmailPreview()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#FF6600'" onblur="this.style.borderColor='#e0e0e0'"></div>
+    </div>
+    <div class="email-modal-scroll" style="flex:1;overflow-y:auto;padding:16px 20px;background:#f0f0f0;"><div id="email-preview" style="max-width:600px;margin:0 auto;box-shadow:0 4px 24px rgba(0,0,0,.12);"></div></div>
+    <!-- Copy footer -->
+    <div class="email-modal-foot" style="padding:10px 20px;border-top:1px solid #eee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff;gap:8px;">
+      <span id="email-copy-hint" style="font-size:12px;color:#888;transition:color .2s;flex:1;min-width:0;"></span>
+      <button onclick="emailSelectAll(this)" style="padding:8px 22px;border:none;border-radius:8px;background:#FF6600;color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy HTML
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Email modal responsive styles + transformations to make the email body itself fluid on phones -->
+<style>
+@media screen and (max-width: 640px){
+  #email-modal{padding:0!important;}
+  #email-modal .email-modal-inner{
+    max-width:100%!important;
+    width:100%!important;
+    height:100vh!important;
+    max-height:100vh!important;
+    border-radius:0!important;
+  }
+  #email-modal .email-modal-head{padding:10px 12px 8px!important;gap:6px;flex-wrap:wrap!important;}
+  #email-modal .email-modal-head > div:first-child{flex:1 1 100%!important;min-width:0!important;}
+  #email-modal .email-modal-head > div:first-child > div:first-child{font-size:13.5px!important;}
+  #email-modal .email-modal-head > div:first-child > div:nth-child(2){font-size:10px!important;}
+  #email-modal #email-lang-chips{order:3;width:100%;justify-content:flex-start;margin-top:2px;}
+  #email-modal #email-lang-chips button{padding:4px 11px!important;font-size:11px!important;}
+  #email-modal .email-modal-fields{padding:8px 12px!important;gap:6px!important;}
+  #email-modal .email-modal-fields > div{min-width:100%!important;}
+  #email-modal .email-modal-fields label{font-size:8.5px!important;}
+  #email-modal .email-modal-fields input{font-size:13px!important;padding:6px 9px!important;}
+  #email-modal .email-modal-scroll{padding:8px 6px!important;}
+  #email-modal #email-preview{
+    max-width:100%!important;
+    margin:0!important;
+  }
+  /* Make email-content tables shrink on mobile preview */
+  #email-modal #email-preview table[width]{width:100%!important;max-width:100%!important;}
+  #email-modal #email-preview img{max-width:100%!important;height:auto!important;}
+  /* The email HTML's own @media block also kicks in, but the preview iframe-less
+     render means we re-assert the rules here so they apply inside the modal. */
+  #email-modal #email-preview .em-pricing-stack tr{display:block;border-bottom:1px solid #f2e8e3;padding:6px 0;}
+  #email-modal #email-preview .em-pricing-stack td{display:block;padding:2px 8px!important;border:none!important;font-size:12px!important;}
+  #email-modal #email-preview .em-pricing-stack td::before{
+    content:attr(data-label);
+    font-weight:700;
+    color:#999;
+    text-transform:uppercase;
+    font-size:9.5px;
+    letter-spacing:.04em;
+    display:block;
+    margin-bottom:1px;
+  }
+  #email-modal #email-preview .em-pricing-stack thead{display:none;}
+  /* Tighter padding for body cells on phones — matches the email's
+     own mobile rules, but enforced here for the modal preview which
+     doesn't run the email's <head><style> @media. */
+  #email-modal #email-preview .em-pad,
+  #email-modal #email-preview td.em-pad{padding:14px 16px!important;}
+  #email-modal #email-preview .em-pad-body,
+  #email-modal #email-preview td.em-pad-body{padding:0 16px 20px!important;}
+  #email-modal #email-preview .em-greet,
+  #email-modal #email-preview td.em-greet{padding:18px 16px 4px!important;}
+  #email-modal #email-preview .em-foot-pad,
+  #email-modal #email-preview td.em-foot-pad{padding:0 16px 20px!important;}
+  #email-modal #email-preview .em-banner,
+  #email-modal #email-preview td.em-banner{padding:14px 16px!important;}
+  #email-modal #email-preview .em-banner-title{font-size:17px!important;}
+  /* Buttons (Virtual Tour, View Location) full-width on phones */
+  #email-modal #email-preview .em-btn-tour,
+  #email-modal #email-preview .em-btn-page{
+    display:block!important;
+    box-sizing:border-box!important;
+    width:100%!important;
+    margin:0 0 8px 0!important;
+    text-align:center!important;
+    padding:11px 14px!important;
+  }
+  #email-modal .email-modal-foot{padding:8px 10px!important;}
+  #email-modal .email-modal-foot button{padding:7px 14px!important;font-size:12px!important;}
+}
+</style>
+
+<!-- Mobile FAB — Preview -->
+<button class="mob-fab" id="mob-fab" onclick="mobShowPreview()" title="Preview">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+</button>
+
+<!-- ── PDF QUEUE PANEL ─────────────────────────────────────── -->
+<div id="queue-panel" style="display:none;position:fixed;right:16px;bottom:76px;width:320px;max-height:70vh;background:var(--wh);border:1.5px solid var(--bd);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:600;flex-direction:column;overflow:hidden;">
+  <div style="padding:12px 14px 10px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <span style="font-size:13px;font-weight:700;color:var(--drk);">PDF Queue</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button onclick="exportQueuePDF()" id="queue-export-btn" style="padding:4px 10px;background:var(--o);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;" data-i18n="queue_export_all">Export All PDF</button>
+      <button onclick="clearQueue()" style="padding:4px 8px;background:transparent;color:var(--xlt);border:1px solid var(--bd);border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;" data-i18n="queue_clear">Clear</button>
+      <button onclick="toggleQueuePanel()" style="padding:4px 7px;background:transparent;color:var(--xlt);border:none;font-size:16px;cursor:pointer;line-height:1;">×</button>
+    </div>
+  </div>
+  <div id="queue-list" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;">
+    <div id="queue-empty" style="text-align:center;color:var(--xlt);font-size:12px;padding:20px 10px;">No items yet. Click + Queue to add the current location.</div>
+  </div>
+</div>
+
+<div id="autosave-indicator">✓ Auto-saved</div>
+</body>
+</html>
