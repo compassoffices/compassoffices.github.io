@@ -458,6 +458,11 @@ function applyLocationData(p){
     const inp = document.getElementById('deposit-note-input');
     if(inp){ inp.style.opacity = DEPOSIT_NOTE_ON ? '1' : '.4'; inp.disabled = !DEPOSIT_NOTE_ON; }
   }
+  if(typeof p.house_rules_on === 'boolean'){
+    HOUSE_RULES_ON = p.house_rules_on;
+    const btn = document.getElementById('house-rules-toggle');
+    if(btn) btn.classList.toggle('on', HOUSE_RULES_ON);
+  }
   if(typeof p.base_discount_on === 'boolean'){
     BASE_DISCOUNT_ON = p.base_discount_on;
     const btn = document.getElementById('base-discount-toggle');

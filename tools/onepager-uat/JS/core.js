@@ -257,7 +257,7 @@ function gen(){
   <div class="sl-foot">
     ${S.rows.length?`<table class="sl-ptbl"><thead><tr>${activeCols.map(k=>`<th>${pHdr[k]}</th>`).join('')}</tr></thead><tbody>${S.rows.map(r=>`<tr>${activeCols.map(k=>{const v=r[k]||'';const isPrice=k==='rent'||k==='mgmt'||k==='avail'||k==='market';return isPrice?`<td class="acc">${v}</td>`:k==='init'?`<td class="init-cell">${v}</td>`:`<td>${v}</td>`;}).join('')}</tr>`).join('')}</tbody></table>`:`<p style="font-size:.65em;color:#CCC">Add pricing rows in the Pricing tab</p>`}
     ${S.rows.length && DEPOSIT_NOTE_ON && getDepositNote()?`<div class="sl-deposit-note">${getDepositNote()}</div>`:''}
-    ${purl?`<div class="sl-url">${purl}</div>`:''}
+    ${(purl||HOUSE_RULES_ON)?`<div class="sl-url">${HOUSE_RULES_ON?`<a class="sl-hr-link" href="${houseRulesUrl()}" target="_blank" rel="noopener">${ui('house_rules')} →</a>`:''}${(HOUSE_RULES_ON&&purl)?' &nbsp;·&nbsp; ':''}${purl||''}</div>`:''}
   </div>`;
 
   const page2El=document.getElementById('slide2');
@@ -277,7 +277,7 @@ function gen(){
       ${amenChecked.length?`<div class="p2-amen"><div class="p2-amen-grid">${amenChecked.map(a=>`<div class="p2-amen-cell">${renderIcHtml(a.id)||renderIcHtml("norestore")}<span>${amenLabel(a)}</span></div>`).join('')}</div></div>`:''}
     </div>
   </div>
-  ${purl?`<div class="p2-foot"><div class="p2-url">${purl}</div></div>`:''}`;
+  ${(purl||HOUSE_RULES_ON)?`<div class="p2-foot"><div class="p2-url">${HOUSE_RULES_ON?`<a class="sl-hr-link" href="${houseRulesUrl()}" target="_blank" rel="noopener">${ui('house_rules')} →</a>`:''}${(HOUSE_RULES_ON&&purl)?' &nbsp;·&nbsp; ':''}${purl||''}</div></div>`:''}`;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1068,6 +1068,7 @@ function downloadCurrentJSON(){
     office_lookup_centre: AUS_CENTRE_FILTER,
     aus_selected: Array.from(AUS_SELECTED),
     deposit_note_on: DEPOSIT_NOTE_ON,
+    house_rules_on: HOUSE_RULES_ON,
     base_discount_on: BASE_DISCOUNT_ON,
     base_discount: AUS_DISCOUNT,
     fp_use_3d: FP_USE_3D,
