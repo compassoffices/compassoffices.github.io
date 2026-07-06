@@ -460,7 +460,8 @@ async function queueUpdateCurrent(){
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Updating…</span>';btn.disabled=true;}
   try{
     const item=PDF_QUEUE[i];
-    const name=getExportName()||item.name;
+    const _locName=(LANG_DATA['en']?.fields?.['n-main']||document.getElementById('n-main')?.value||'').trim();
+    const name=_locName||getExportName()||item.name;
     gen._captureMode=true;gen();gen._captureMode=false;
     // CRITICAL: wait for any in-flight highlight render to finish + all
     // <img> elements on both slides to load. Without this, capturing
@@ -488,7 +489,8 @@ async function queueUpdateCurrent(){
     // Clear the form — consistent with the original + Queue flow.
     // State was already captured into PDF_QUEUE[i] above, so clearing
     // now is safe and leaves the user ready for the next proposal.
-    _resetCardForNewProposal();
+    // Company & client names persist for the next location.
+    _resetCardForNewProposal(true);
     gen();
   }catch(err){
     alert('Update failed: '+err.message);
@@ -564,7 +566,7 @@ function newCard(){
   showStatus('Form cleared — ready for a new card.','s-ok');
 }
 
-function _resetCardForNewProposal(){
+function _resetCardForNewProposal(keepNames){
   // Per-card model
   S.photos = [null,null,null,null,null,null];
   S.floorplan = null;
@@ -590,10 +592,15 @@ function _resetCardForNewProposal(){
   if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
   COMPASS_ON = false; COMPASS_ANGLE = 0;
   if(typeof _renderCompassControl === 'function') _renderCompassControl();
-  CLIENT_NAME = '';
-  const _cnEl = document.getElementById('client-name'); if(_cnEl) _cnEl.value = '';
-  COMPANY_NAME = '';
-  const _coEl = document.getElementById('company-name'); if(_coEl) _coEl.value = '';
+  // Company & client names persist across + Queue so multiple locations for
+  // the same client keep their names (queue flow passes keepNames=true).
+  // newCard() and library-card loads pass no arg → names still clear.
+  if(!keepNames){
+    CLIENT_NAME = '';
+    const _cnEl = document.getElementById('client-name'); if(_cnEl) _cnEl.value = '';
+    COMPANY_NAME = '';
+    const _coEl = document.getElementById('company-name'); if(_coEl) _coEl.value = '';
+  }
   FP_HIGHLIGHTS_MANUAL.clear();
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;
@@ -646,7 +653,11 @@ async function addToQueue(){
   const origHTML=btn?btn.innerHTML:'';
   if(btn){btn.innerHTML='<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border:2px solid rgba(0,0,0,.2);border-top-color:var(--o);border-radius:50%;animation:spin .65s linear infinite;display:inline-block"></span>Adding…</span>';btn.disabled=true;}
   try{
-    const name=getExportName()||'Location';
+    // Label the queue item by its LOCATION (each queued card is a location),
+    // so several locations for the same client don't collapse to one company
+    // label. Falls back to the export name / 'Location' when no name yet.
+    const _locName=(LANG_DATA['en']?.fields?.['n-main']||document.getElementById('n-main')?.value||'').trim();
+    const name=_locName||getExportName()||'Location';
     gen._captureMode=true;gen();gen._captureMode=false;
     // If highlight mode is active and a render is pending, wait for it to
     // complete so the captured JPEG includes the highlights. Cap at 8s.
@@ -673,8 +684,9 @@ async function addToQueue(){
     const panel=document.getElementById('queue-panel');
     if(panel) panel.style.display='flex';
     // Clear the form so the next + Queue starts from a blank proposal.
-    // Region/centre/queue/library stay; everything per-card wipes.
-    _resetCardForNewProposal();
+    // Region/centre/queue/library stay; everything per-card wipes EXCEPT the
+    // company & client names, which persist for the next location.
+    _resetCardForNewProposal(true);
     const n = PDF_QUEUE.length;
     showStatus(ui('queue_added_cleared').replace('{name}', name).replace('{n}', n), 's-ok');
   }catch(err){
@@ -1551,7 +1563,7 @@ function ausAddToRows(){
     // even if the column is currently toggled off. Turning it on later
     // surfaces the data — no more silent loss when columns are hidden.
     //
-    //   seats   ← Office #             type    ← View Type (Partial/Restricted/…)
+    //   seats   ← Office #             type    ← View (column D)
     //   sqm     ← Net Office Size      rent    ← Workstation count
     //   market  ← Market Price (raw)   mgmt    ← Monthly Rent (discounted)
     //   init    ← AUS commitment text  avail   ← Avg Price (AUS) / Status (simple)
@@ -1574,7 +1586,7 @@ function ausAddToRows(){
     S.rows.push({
       id:     Date.now() + Math.random(),
       seats:  oid,
-      type:   o.vt || '',
+      type:   o.v || '',
       sqm:    sqmStr,
       rent:   String(o.w || ''),
       market: marketStr,
