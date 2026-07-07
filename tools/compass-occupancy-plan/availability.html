@@ -126,7 +126,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .pwrap img{display:block;max-width:100%;max-height:calc(100vh - 172px);width:auto;height:auto;user-select:none;}
 .pwrap svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
 .room{cursor:pointer;transition:opacity .12s;}.room.dim{opacity:.13;}
-.room-num{font-weight:700;pointer-events:none;}
+.room-num{font-weight:700;pointer-events:none;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;}
 .sch{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px;width:100%;align-content:start;}
 .scell{border-radius:12px;border:1.5px solid var(--co-line);background:var(--co-paper);padding:9px 10px;cursor:pointer;position:relative;overflow:hidden;min-height:76px;transition:.12s;}
 .scell:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.09);}
@@ -172,6 +172,10 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .acard .plus{width:24px;height:24px;border-radius:7px;border:1px solid var(--co-line);display:flex;align-items:center;justify-content:center;color:var(--co-muted);}
 .acard.sel .plus{background:var(--co-orange);border-color:var(--co-orange);color:#fff;}
 .acard .plus svg{width:13px;height:13px;}
+.df{border-top:1px solid var(--co-line);padding:.7rem .9rem;flex-shrink:0;}
+.df .hint{font-size:11px;color:var(--co-muted);margin-bottom:8px;line-height:1.4;}
+.df .cp{width:100%;justify-content:center;}
+.df .cp.ok{background:var(--co-ok);border-color:var(--co-ok);color:#fff;}
 
 .selbar{position:fixed;bottom:0;left:0;right:0;background:var(--co-ink);color:#fff;padding:.7rem 1.4rem;display:none;align-items:center;gap:14px;z-index:50;}
 .selbar.on{display:flex;}
@@ -180,7 +184,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .selbar .btn{background:transparent;border-color:rgba(255,255,255,.25);color:#fff;}
 .selbar .btn:hover{border-color:#fff;color:#fff;background:rgba(255,255,255,.1);}
 .selbar .btn.pri{background:var(--co-orange);border-color:var(--co-orange);}
-.tip{position:fixed;z-index:80;background:var(--co-ink);color:#fff;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;pointer-events:none;opacity:0;transition:opacity .1s;}
+.tip{position:fixed;z-index:80;background:#fff;color:#282828;border:1px solid #E1E1E1;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',system-ui,-apple-system,sans-serif;pointer-events:none;opacity:0;transition:opacity .1s;box-shadow:0 4px 16px rgba(0,0,0,.16);}
 .tip.show{opacity:1;}
 ::-webkit-scrollbar{width:8px;}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:4px;}
 </style>
@@ -231,6 +235,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
       <div class="cdetail" id="detailRail">
         <div class="dh"><div class="t">Available offices</div><div class="c" id="railCount"></div></div>
         <div class="dl" id="railList"></div>
+        <div class="df" id="railFoot"></div>
       </div>
     </div>
   </div>
@@ -501,7 +506,7 @@ function closeDetail(){$('rdetail').classList.remove('on');}
 function toggleSel(office){selected.has(office)?selected.delete(office):selected.add(office);const o=CUR.offices.find(x=>x.office===office);if(o)showRoomDetail(o);repaint();updateSelBar();}
 function repaint(){const stage=$('stage');[...stage.querySelectorAll('.pwrap,.sch')].forEach(n=>n.remove());const showPlan=CUR.plan&&viewMode!=='list';if(showPlan)renderPlan(stage);else renderSchematic(stage);populateRail();}
 function clearSel(){selected.clear();if(CUR)repaint();updateSelBar();}
-function updateSelBar(){const bar=$('selBar');if(!selected.size||!CUR){bar.classList.remove('on');return;}const sel=CUR.offices.filter(o=>selected.has(o.office));const sf=Math.round(sel.reduce((s,o)=>s+(o.size||0),0)).toLocaleString();const pr=sel.reduce((s,o)=>s+(o.price||0),0);$('selN').textContent=sel.length;$('selMeta').textContent=sf+' sq ft'+(pr?' · $'+Math.round(pr/1000)+'k/mo':'');bar.classList.add('on');}
+function updateSelBar(){if(showDetail)populateRail();const bar=$('selBar');if(!selected.size||!CUR){bar.classList.remove('on');return;}const sel=CUR.offices.filter(o=>selected.has(o.office));const sf=Math.round(sel.reduce((s,o)=>s+(o.size||0),0)).toLocaleString();const pr=sel.reduce((s,o)=>s+(o.price||0),0);$('selN').textContent=sel.length;$('selMeta').textContent=sf+' sq ft'+(pr?' · $'+Math.round(pr/1000)+'k/mo':'');bar.classList.add('on');}
 function toggleAvailOnly(){availOnly=!availOnly;$('availToggle').classList.toggle('on',availOnly);if(CUR)renderLayout();}
 function toggleThisMonth(){thisMonthOnly=!thisMonthOnly;$('monthToggle').classList.toggle('on',thisMonthOnly);if(CUR)renderLayout();}
 function toggleDetail(){showDetail=!showDetail;$('detailToggle').classList.toggle('on',showDetail);populateRail();}
@@ -514,8 +519,21 @@ function populateRail(){const rail=$('detailRail'),list=$('railList'),cnt=$('rai
   list.innerHTML=avail.map(o=>{const sel=selected.has(o.office);const view=(o.view||'')+((o.viewType&&o.viewType!=='N/A')?(' · '+o.viewType):'');
     return '<div class="acard'+(sel?' sel':'')+'" onclick="railClick(\''+o.office.replace(/'/g,"\\'")+'\')"><div class="t"><div class="o">'+o.office+'</div><div class="m" style="background:'+o.color+'">'+o.availLabel+'</div></div><div class="meta"><b>'+(o.class||'')+'</b> · '+(o.size||'?')+' sq ft · '+(o.maxConfig||'?')+' desks'+(view?'<br>'+view:'')+'</div><div class="foot"><div class="price">'+fmtPrice(o.price)+'<span>'+(o.price?' /mo':'')+'</span></div><div class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div></div></div>';
   }).join('');
+  const foot=$('railFoot');const n=selected.size;
+  foot.innerHTML='<div class="hint">'+(n?('<b>'+n+'</b> in your shortlist — Export PDF gives just these.'):'Tap offices to build a client shortlist, or Export for all available.')+'</div><button class="btn cp" id="cpBtn" onclick="copyList()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy '+(n?'shortlist':'list')+'</button>';
 }
 function railClick(office){const o=CUR.offices.find(x=>x.office===office);if(!o)return;showRoomDetail(o);toggleSel(office);}
+function copyList(){
+  if(!CUR)return;
+  const rows=selected.size?CUR.offices.filter(o=>selected.has(o.office)):CUR.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket==='month'||o.bucket==='presold'));
+  if(!rows.length)return;
+  const title=(CUR.centre?prettyCentre(CUR.centre):CUR.name)+(CUR.row&&CUR.row.level?(' — Level '+CUR.row.level):'');
+  const lines=rows.sort((a,b)=>a.idx-b.idx).map(o=>'• Office '+o.office+' — '+(o.size||'?')+' sq ft, '+(o.class||'')+', '+o.availLabel+(o.price?', '+fmtPrice(o.price)+'/mo':''));
+  const text=title+'\n'+lines.join('\n')+'\n\ncompassoffices.com';
+  const done=()=>{const b=$('cpBtn');if(b){const t=b.innerHTML;b.classList.add('ok');b.textContent='Copied!';setTimeout(()=>{b.classList.remove('ok');b.innerHTML=t;},1400);}};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,done);
+  else{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);done();}
+}
 
 /* ===================== EXPORT (native PDF) ===================== */
 function toggleMenu(e){e.stopPropagation();buildMenu();$('exportMenu').classList.toggle('open');}
@@ -615,7 +633,7 @@ function pdfBoxes(offices,useSel){
 async function exportFloorPdf(){
   $('exportMenu').classList.remove('open');if(!CUR)return;
   const {jsPDF}=window.jspdf;const logo=await logoPng();
-  const boxes=pdfBoxes(CUR.offices,true);
+  const boxes=showDetail?pdfBoxes(CUR.offices,true):[];
   const legendSrc=CUR.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'));
   const plan=CUR.plan?await colourPlan(CUR.plan,CUR.offices,CUR.idx||{}):null;
   const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
@@ -633,7 +651,7 @@ async function buildCombinedPdf(city,items,onProgress){
       const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
       const col=await colourPlan(plan,it.offices,numIndex(it.offices));
       if(!first)pdf.addPage();first=false;
-      drawFloorPage(pdf,{centre:it.name,level:it.level,address:row.address||'',city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'))),plan:col,boxes:pdfBoxes(it.offices,false),logoPng:logo});
+      drawFloorPage(pdf,{centre:it.name,level:it.level,address:row.address||'',city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'))),plan:col,boxes:showDetail?pdfBoxes(it.offices,false):[],logoPng:logo});
     }catch(e){console.warn('combined skip',it.id,e);}
     if(onProgress)onProgress(++done,items.length);
   }
