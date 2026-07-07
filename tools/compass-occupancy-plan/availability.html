@@ -94,6 +94,13 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .cb-floor{border:1px solid var(--co-line);background:var(--co-paper);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--co-text);cursor:pointer;transition:.12s;display:inline-flex;align-items:center;gap:7px;}
 .cb-floor:hover{border-color:var(--co-orange);color:var(--co-orange);}
 .cb-floor.active{background:var(--co-ink);border-color:var(--co-ink);color:#fff;}
+.cb-item{cursor:pointer;transition:.12s;}
+.cb-item:hover{background:var(--co-orange-wash);}
+.cb-item.active{background:var(--co-ink);}
+.cb-item.active .cb-name,.cb-item.active .cb-sub2{color:#fff;}
+.cb-item.active .cb-badge.has{color:#7CFFA6;}
+.cb-sub2{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--co-muted);margin-top:3px;}
+.cb-sub2 svg{width:13px;height:13px;}
 
 .view-top{padding:.6rem 1.4rem;border-bottom:1px solid var(--co-line);background:var(--co-paper);display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex-shrink:0;}
 .view-top .vt-name{font-weight:700;font-size:14px;}.view-top .vt-sub{font-size:12px;color:var(--co-muted);}
@@ -302,41 +309,66 @@ async function boot(){
 async function loadRegions(){try{const t=await (await fetch(CONFIG.AXDATA_CSV)).text();const rows=parseCSV(t);for(let i=1;i<rows.length;i++){if(rows[i][0]&&rows[i][1])REGIONS[rows[i][0].trim()]=rows[i][1].trim();}}catch(e){console.warn('AX-DATA',e);}}
 async function fetchCsv(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);const t=await r.text();if(/^\s*</.test(t)||/<!DOCTYPE html/i.test(t)||/Temporary Redirect|accounts\.google/i.test(t.slice(0,300)))throw new Error('not-csv (sharing?)');return t;}
 async function loadFloorplanSheet(){
-  REGISTRY=[];const tabs=Object.keys(CONFIG.FLOORPLAN_TABS);FP_STATUS={loaded:0,tabs:0,total:tabs.length,errors:[]};
-  await Promise.all(tabs.map(async tab=>{
-    let text=null;
-    const attempts=[];
+  REGISTRY=[];const tabMap=CONFIG.FLOORPLAN_TABS;FP_STATUS={loaded:0,tabs:0,total:Object.keys(tabMap).length,errors:[],via:''};
+  // Method 1 — parse the published pubhtml (all tabs at once, no gids, no sharing change)
+  try{
+    const html=await (await fetch('https://docs.google.com/spreadsheets/d/e/'+CONFIG.FLOORPLAN_PUB_TOKEN+'/pubhtml',{cache:'no-store'})).text();
+    if(/<table/i.test(html)){
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      const names=[...doc.querySelectorAll('#sheet-menu li')].map(li=>li.textContent.trim().toLowerCase());
+      let tables=[...doc.querySelectorAll('table')];tables=tables.filter((t,i)=>tables.indexOf(t)===i);
+      const valid=tables.filter(t=>/floorplan.?data/i.test(t.textContent));
+      valid.forEach((tbl,ti)=>{
+        const tabName=(names[ti]||'').toLowerCase();const cities=tabMap[tabName];if(!cities)return;
+        const rows=[...tbl.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll('td')].map(td=>td.textContent.trim()));
+        let hIdx=rows.findIndex(r=>r.some(c=>/floorplan.?data/i.test(c)));if(hIdx<0)hIdx=0;
+        const H=rows[hIdx];const cC=H.findIndex(c=>/centre|code/i.test(c)),cJ=H.findIndex(c=>/floorplan.?data|json/i.test(c)),cM=H.findIndex(c=>/master|image/i.test(c));
+        let n=0;
+        for(let i=hIdx+1;i<rows.length;i++){const r=rows[i];const json=(cJ>=0?r[cJ]:'')||'';if(!/^https?:/i.test(json))continue;
+          const code=(cC>=0?r[cC]:'')||('r'+i),master=(cM>=0?r[cM]:'')||'';const m=code.match(/(\d+)\s*$/),level=m?m[1]:'';
+          REGISTRY.push({id:tabName+'-'+code,code,tab:tabName,cities,name:code,level,jsonUrl:json,masterUrl:master,address:''});n++;}
+        if(n>0){FP_STATUS.tabs++;FP_STATUS.loaded+=n;}
+      });
+      if(FP_STATUS.loaded>0)FP_STATUS.via='pubhtml';
+    }
+  }catch(e){console.warn('pubhtml parse',e);}
+  // Method 2 — gviz / pub-csv fallback for any tab pubhtml missed
+  const covered=new Set(REGISTRY.map(r=>r.tab));
+  await Promise.all(Object.keys(tabMap).filter(t=>!covered.has(t)).map(async tab=>{
+    let text=null;const attempts=[];
     if(CONFIG.FLOORPLAN_GIDS&&CONFIG.FLOORPLAN_GIDS[tab]!=null)attempts.push('https://docs.google.com/spreadsheets/d/e/'+CONFIG.FLOORPLAN_PUB_TOKEN+'/pub?gid='+CONFIG.FLOORPLAN_GIDS[tab]+'&single=true&output=csv');
     attempts.push('https://docs.google.com/spreadsheets/d/'+CONFIG.FLOORPLAN_DOC_ID+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(tab));
     for(const url of attempts){try{text=await fetchCsv(url);break;}catch(e){}}
     if(!text){FP_STATUS.errors.push(tab);return;}
     const rows=parseCSV(text);if(rows.length<2){FP_STATUS.errors.push(tab+' (empty)');return;}
-    const H=rows[0];
-    const cCentre=findCol(H,[/centre/i,/code/i,/^name/i]),cJson=findCol(H,[/floorplan.?data/i,/json/i,/geo/i]),cMaster=findCol(H,[/master/i,/image/i]),cAddr=findCol(H,[/address/i,/location/i]),cName=findCol(H,[/^name$/i,/display/i]);
-    if(cJson<0){FP_STATUS.errors.push(tab+' (no json col)');return;}
-    let n=0;
-    for(let i=1;i<rows.length;i++){const r=rows[i];const json=(''+(r[cJson]||'')).trim();if(!/^https?:/i.test(json))continue;
-      const code=cCentre>=0?(''+(r[cCentre]||'')).trim():('row'+i),master=cMaster>=0?(''+(r[cMaster]||'')).trim():'',address=cAddr>=0?(''+(r[cAddr]||'')).trim():'',dispName=cName>=0?(''+(r[cName]||'')).trim():'';
-      const m=code.match(/(\d+)\s*$/),level=m?m[1]:'';
-      REGISTRY.push({id:tab+'-'+code,code,tab,cities:CONFIG.FLOORPLAN_TABS[tab]||[],name:dispName||code,level,jsonUrl:json,masterUrl:master,address});n++;}
-    FP_STATUS.tabs++;FP_STATUS.loaded+=n;
+    const H=rows[0],cC=findCol(H,[/centre/i,/code/i]),cJ=findCol(H,[/floorplan.?data/i,/json/i]),cM=findCol(H,[/master/i,/image/i]);
+    if(cJ<0){FP_STATUS.errors.push(tab+' (no json col)');return;}
+    let n=0;for(let i=1;i<rows.length;i++){const r=rows[i];const json=(''+(r[cJ]||'')).trim();if(!/^https?:/i.test(json))continue;
+      const code=cC>=0?(''+(r[cC]||'')).trim():('r'+i),master=cM>=0?(''+(r[cM]||'')).trim():'';const m=code.match(/(\d+)\s*$/),level=m?m[1]:'';
+      REGISTRY.push({id:tab+'-'+code,code,tab,cities:tabMap[tab],name:code,level,jsonUrl:json,masterUrl:master,address:''});n++;}
+    if(n>0){FP_STATUS.tabs++;FP_STATUS.loaded+=n;FP_STATUS.via=FP_STATUS.via||'gviz';}
   }));
-  console.log('Floorplan sheet:',FP_STATUS);
+  console.log('Floorplan sheet load:',FP_STATUS,REGISTRY);
 }
-let CITY_FLOORS={};
-async function resolveFloors(city){
-  if(CITY_FLOORS[city])return CITY_FLOORS[city];
-  const rep=await ensureReport(city);if(!rep){CITY_FLOORS[city]={};return {};}
-  const idx=numIndex(rep.offices.map(o=>Object.assign({keys:normKeys(o.office)},o)));
-  const cands=REGISTRY.filter(r=>r.cities&&r.cities.includes(city));const map={};
+let CITY_ITEMS={};
+async function resolveItems(city){
+  if(CITY_ITEMS[city])return CITY_ITEMS[city];
+  const rep=await ensureReport(city);if(!rep){CITY_ITEMS[city]=[];return [];}
+  const ml=rep.monthLabels;const classified=rep.offices.map(o=>classifyOffice(o,ml));const idx=numIndex(classified);
+  const cands=REGISTRY.filter(r=>r.cities&&r.cities.includes(city));const items=[];const covered=new Set();
   await Promise.all(cands.map(async row=>{
     if(row._rooms===undefined){try{const data=await (await fetch(row.jsonUrl)).json();row._json=data;row._rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString()}));}catch(e){row._rooms=[];}}
-    const cc={};row._rooms.forEach(rm=>{const o=matchRoom(rm,idx);if(o)cc[o.centre]=(cc[o.centre]||0)+1;});
-    const best=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];
-    if(best&&cc[best]>0)(map[best]=map[best]||[]).push(row);
+    const seen=new Set(),offs=[];row._rooms.forEach(rm=>{const o=matchRoom(rm,idx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
+    if(!offs.length)return; // floor's offices not in this city's report (handles AU/JP two-city tabs)
+    const cc={};offs.forEach(o=>cc[o.centre]=(cc[o.centre]||0)+1);const centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];covered.add(centre);
+    offs.sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
+    items.push({kind:'floor',id:row.id,row,centre,name:prettyCentre(centre),level:row.level,offices:offs,avail:offs.filter(o=>o.bucket==='month').length});
   }));
-  Object.values(map).forEach(a=>a.sort((x,y)=>(''+x.level).localeCompare(''+y.level,undefined,{numeric:true})));
-  CITY_FLOORS[city]=map;return map;
+  [...new Set(classified.map(o=>o.centre))].forEach(centre=>{if(covered.has(centre))return;
+    const offs=classified.filter(o=>o.centre===centre).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
+    items.push({kind:'centre',id:'c-'+centre.replace(/[^A-Za-z0-9]/g,'_'),centre,name:prettyCentre(centre),offices:offs,avail:offs.filter(o=>o.bucket==='month').length});});
+  items.sort((a,b)=>a.name.localeCompare(b.name)||(''+(a.level||'')).localeCompare(''+(b.level||''),undefined,{numeric:true}));
+  CITY_ITEMS[city]=items;return items;
 }
 function cityHasFloors(city){return REGISTRY.some(r=>r.cities&&r.cities.includes(city));}
 async function ensureReport(region){if(!region)return null;if(REPORTS[region])return REPORTS[region];const url=REGIONS[region];if(!url)return null;const t=await (await fetch(url)).text();REPORTS[region]=ingestReport(parseCSV(t));return REPORTS[region];}
@@ -394,73 +426,53 @@ function backToCities(){$('screenCity').classList.remove('on');$('screenCities')
 function reportCentres(city){const rep=REPORTS[city];if(!rep)return[];return[...new Set(rep.offices.map(o=>o.centre))];}
 function fuzzyCentre(name,centres){if(!name)return null;const n=name.toLowerCase().replace(/[^a-z0-9]/g,'');let best=null,score=0;for(const c of centres){const cc=c.toLowerCase().replace(/[^a-z0-9]/g,'');let s=0;for(let len=Math.min(n.length,cc.length);len>=4;len--){let hit=false;for(let i=0;i+len<=n.length;i++){if(cc.includes(n.substr(i,len))){hit=true;break;}}if(hit){s=len;break;}}if(s>score){score=s;best=c;}}return score>=4?best:null;}
 
-function cityCentres(floorMap){
-  const rep=REPORTS[CITY];if(!rep)return[];
-  const centres=[...new Set(rep.offices.map(o=>o.centre))].sort();
-  return centres.map(centre=>{
-    const floors=(floorMap&&floorMap[centre])||[];
-    const offs=rep.offices.filter(o=>o.centre===centre);
-    const avail=offs.filter(o=>classify(o.months).bucket==='month').length;
-    return {centre,name:prettyCentre(centre),floors,avail,offCount:offs.length};
-  });
-}
-function paintCentres(groups,loading){
+function markActive(id){document.querySelectorAll('.cb-item').forEach(n=>n.classList.remove('active'));const el=$('item-'+id);if(el)el.classList.add('active');}
+function paintItems(items,loading){
   const q=$('search').value.trim().toLowerCase();
-  groups=groups.filter(g=>!q||g.name.toLowerCase().includes(q));
-  $('clistCount').innerHTML=`<b style="color:var(--co-ink)">${groups.length}</b> centre${groups.length!==1?'s':''}`+(loading?' · <span style="color:var(--co-muted)">matching floorplans…</span>':'');
+  items=items.filter(g=>!q||g.name.toLowerCase().includes(q));
+  $('clistCount').innerHTML=`<b style="color:var(--co-ink)">${items.length}</b> ${items.length===1?'location':'locations'}`+(loading?' · <span style="color:var(--co-muted)">matching floorplans…</span>':'');
   const scroll=$('clistScroll');
-  if(!groups.length){scroll.innerHTML='<div class="dl-empty" style="padding:2.5rem 1.4rem">No centres found for this city.</div>';return;}
-  scroll.innerHTML=groups.map(g=>{
-    const floors=g.floors.length
-      ? g.floors.map(f=>`<div class="cb-floor" id="floor-${f.id}" onclick="openFloor('${f.id}')"><span></span>Level ${f.level||'?'}</div>`).join('')
-      : `<div class="cb-floor" onclick="openCentreList('${g.centre.replace(/'/g,"\\'")}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>View offices</div>`;
-    return `<div class="cb"><div class="cb-top"><div class="cb-name">${g.name}</div><div class="cb-badge ${g.avail?'has':'none'}">${g.avail?g.avail+' available':'Full'}</div></div><div class="cb-floors">${floors}</div></div>`;
+  if(!items.length){scroll.innerHTML='<div class="dl-empty" style="padding:2.5rem 1.4rem">No locations found.</div>';return;}
+  scroll.innerHTML=items.map(it=>{
+    const isFloor=it.kind==='floor';
+    const sub=isFloor?('Level '+(it.level||'?')):'Office list';
+    const icon=isFloor?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>';
+    const click=isFloor?`openFloorItem('${it.id}')`:`openCentreItem('${it.id}')`;
+    const active=(CUR&&CUR.item&&CUR.item.id===it.id)?' active':'';
+    return `<div class="cb cb-item${active}" id="item-${it.id}" onclick="${click}"><div class="cb-top"><div><div class="cb-name">${it.name}</div><div class="cb-sub2">${icon}${sub}</div></div><div class="cb-badge ${it.avail?'has':'none'}">${it.avail?it.avail+' available':(it.offices.length?'Full':'—')}</div></div></div>`;
   }).join('');
-  if(CUR&&CUR.row&&CUR.row.id){const el=$('floor-'+CUR.row.id);if(el)el.classList.add('active');}
 }
 async function renderCentres(){
-  paintCentres(cityCentres(CITY_FLOORS[CITY]||{}),!CITY_FLOORS[CITY]);
-  const map=await resolveFloors(CITY);
-  paintCentres(cityCentres(map),false);
+  paintItems(CITY_ITEMS[CITY]||[],!CITY_ITEMS[CITY]);
+  const items=await resolveItems(CITY);
+  paintItems(items,false);
 }
 
 function numIndex(offices){const idx={};offices.forEach(o=>o.keys.forEach(k=>{if(!(k in idx))idx[k]=o;}));return idx;}
 function matchRoom(rm,idx){const rk=[...normKeys(rm.label),...normKeys(rm.raw)];for(const k of rk){if(idx[k])return idx[k];}return null;}
 
-async function openFloor(id){
-  const row=REGISTRY.find(r=>r.id===id);if(!row)return;
-  document.querySelectorAll('.cb-floor').forEach(f=>f.classList.remove('active'));const fel=$('floor-'+id);if(fel)fel.classList.add('active');
+async function openFloorItem(id){
+  const item=(CITY_ITEMS[CITY]||[]).find(x=>x.id===id);if(!item)return;markActive(id);
   $('vEmpty').style.display='none';$('viewTop').style.display='';$('legend').style.display='';$('exportBtn').style.display='';
-  $('load').classList.add('on');$('loadMsg').textContent='Loading floorplan…';$('vtName').textContent=row.name;$('vtSub').textContent='Level '+(row.level||'?');
+  $('load').classList.add('on');$('loadMsg').textContent='Loading floorplan…';$('vtName').textContent=item.name;$('vtSub').textContent='Level '+(item.level||'?');
   selected.clear();updateSelBar();
   try{
-    let plan=null,rooms=[];
-    if(row.jsonUrl){const data=row._json||await (await fetch(row.jsonUrl)).json();row._json=data;const base=deriveImgBase(row.jsonUrl);
-      rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString(),rect:r.rect,polygon:r.polygon||null}));
-      plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};}
-    const rep=await ensureReport(CITY);if(!rep)throw new Error('No report for '+CITY);const ml=rep.monthLabels;
-    const regionOffices=rep.offices.map(o=>classifyOffice(o,ml));const idx=numIndex(regionOffices);
-    const cc={};rooms.forEach(rm=>{const o=matchRoom(rm,idx);if(o)cc[o.centre]=(cc[o.centre]||0)+1;});
-    let centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0]||fuzzyCentre(row.name,reportCentres(CITY));
-    const offices=regionOffices.filter(o=>o.centre===centre).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
-    CUR={row,centre,monthLabels:ml,offices,plan,idx};viewMode=plan?'plan':'list';
-    if(centre)$('vtName').textContent=prettyCentre(centre);
+    const row=item.row;const data=row._json||await (await fetch(row.jsonUrl)).json();row._json=data;const base=deriveImgBase(row.jsonUrl);
+    const rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString(),rect:r.rect,polygon:r.polygon||null}));
+    const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
+    CUR={item,row,centre:item.centre,name:item.name,monthLabels:REPORTS[CITY].monthLabels,offices:item.offices,plan,idx:numIndex(item.offices)};viewMode='plan';
     renderLegend();renderLayout();
   }catch(e){$('loadMsg').textContent='Could not load: '+e.message;console.warn(e);return;}
   $('load').classList.remove('on');
 }
-async function openCentreList(centre){
-  document.querySelectorAll('.cb-floor').forEach(f=>f.classList.remove('active'));
+async function openCentreItem(id){
+  const item=(CITY_ITEMS[CITY]||[]).find(x=>x.id===id);if(!item)return;markActive(id);
   $('vEmpty').style.display='none';$('viewTop').style.display='';$('legend').style.display='';$('exportBtn').style.display='';
-  $('load').classList.add('on');$('vtName').textContent=prettyCentre(centre);$('vtSub').textContent='';selected.clear();updateSelBar();
-  try{const rep=await ensureReport(CITY);const ml=rep.monthLabels;
-    const offices=rep.offices.filter(o=>o.centre===centre).map(o=>classifyOffice(o,ml)).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
-    CUR={row:{name:prettyCentre(centre),level:''},centre,monthLabels:ml,offices,plan:null};viewMode='list';
-    renderLegend();renderLayout();
-  }catch(e){$('loadMsg').textContent='Could not load: '+e.message;}
+  $('load').classList.add('on');$('vtName').textContent=item.name;$('vtSub').textContent='';selected.clear();updateSelBar();
+  CUR={item,row:{name:item.name,level:'',address:''},centre:item.centre,name:item.name,monthLabels:REPORTS[CITY].monthLabels,offices:item.offices,plan:null};viewMode='list';
+  renderLegend();renderLayout();
   $('load').classList.remove('on');
 }
-
 function officeForRoom(rm){if(CUR.idx){const o=matchRoom(rm,CUR.idx);if(o&&CUR.offices.includes(o))return o;}const rk=new Set([...normKeys(rm.label),...normKeys(rm.raw)]);return CUR.offices.find(o=>o.keys.some(k=>rk.has(k)));}
 function passOffice(o){if(thisMonthOnly)return o.bucket==='month'&&o.idx===0;if(availOnly&&!(o.bucket==='month'||o.bucket==='presold'))return false;return true;}
 
@@ -596,41 +608,37 @@ async function exportFloorPdf(){
   pdf.save('Compass_'+((CUR.centre?prettyCentre(CUR.centre):CUR.row.name)+(CUR.row.level?'_L'+CUR.row.level:'')).replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf');
 }
 
-async function buildCombinedPdf(city,floors,onProgress){
+async function buildCombinedPdf(city,items,onProgress){
   const {jsPDF}=window.jspdf;const logo=await logoPng();const rep=await ensureReport(city);if(!rep){alert('No report for '+city);return;}const ml=rep.monthLabels;
-  const regionOffices=rep.offices.map(o=>classifyOffice(o,ml));const gidx=numIndex(regionOffices);
   const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});let first=true,done=0;
-  for(const row of floors){
+  for(const it of items){
     try{
-      const data=row._json||await (await fetch(row.jsonUrl)).json();row._json=data;const base=deriveImgBase(row.jsonUrl);
+      const row=it.row;const data=row._json||await (await fetch(row.jsonUrl)).json();row._json=data;const base=deriveImgBase(row.jsonUrl);
       const rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString(),rect:r.rect,polygon:r.polygon||null}));
       const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
-      const cc={};rooms.forEach(rm=>{const o=matchRoom(rm,gidx);if(o)cc[o.centre]=(cc[o.centre]||0)+1;});
-      const centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];
-      const offices=regionOffices.filter(o=>o.centre===centre);
-      const col=await colourPlan(plan,offices,gidx);
+      const col=await colourPlan(plan,it.offices,numIndex(it.offices));
       if(!first)pdf.addPage();first=false;
-      drawFloorPage(pdf,{centre:centre?prettyCentre(centre):row.name,level:row.level,address:row.address||'',city,monthLabels:ml,legend:legendFrom(offices.filter(o=>o.bucket!=='occupied'&&o.bucket!=='suspended')),plan:col,logoPng:logo});
-    }catch(e){console.warn('combined skip',row.id,e);}
-    if(onProgress)onProgress(++done,floors.length);
+      drawFloorPage(pdf,{centre:it.name,level:it.level,address:row.address||'',city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>o.bucket!=='occupied'&&o.bucket!=='suspended')),plan:col,logoPng:logo});
+    }catch(e){console.warn('combined skip',it.id,e);}
+    if(onProgress)onProgress(++done,items.length);
   }
   if(first){alert('No floorplans could be built for '+city+' yet.');return;}
   pdf.save('Compass_Availability_'+city.replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf');
 }
 async function exportAllPdf(){
   $('exportMenu').classList.remove('open');
-  const floors=Object.values(CITY_FLOORS[CITY]||await resolveFloors(CITY)).flat();
-  if(!floors.length){alert('No matched floorplans in '+CITY+' yet.');return;}
+  const items=(CITY_ITEMS[CITY]||await resolveItems(CITY)).filter(x=>x.kind==='floor');
+  if(!items.length){alert('No matched floorplans in '+CITY+' yet.');return;}
   $('load').classList.add('on');$('loadMsg').textContent='Building combined PDF…';
-  await buildCombinedPdf(CITY,floors,(d,t)=>{$('loadMsg').textContent='Building combined PDF… '+d+'/'+t;});
+  await buildCombinedPdf(CITY,items,(d,t)=>{$('loadMsg').textContent='Building combined PDF… '+d+'/'+t;});
   $('load').classList.remove('on');
 }
 async function exportCityAll(i){
   const city=CITIES[i];if(!city)return;
   const btn=$('dl-'+i);const orig=btn?btn.innerHTML:'';if(btn)btn.innerHTML='<div class="spin" style="width:14px;height:14px;border-width:2px"></div>';
-  try{const map=await resolveFloors(city);const floors=Object.values(map).flat();
-    if(!floors.length){alert('No floorplans matched for '+city+' yet.');}
-    else{const prev=CITY;CITY=city;await buildCombinedPdf(city,floors);CITY=prev;}
+  try{const items=(await resolveItems(city)).filter(x=>x.kind==='floor');
+    if(!items.length){alert('No floorplans matched for '+city+' yet.');}
+    else{const prev=CITY;CITY=city;await buildCombinedPdf(city,items);CITY=prev;}
   }finally{if(btn)btn.innerHTML=orig;}
 }
 
