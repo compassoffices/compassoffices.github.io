@@ -121,9 +121,9 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .menu .mi b{font-weight:600;display:block;}.menu .mi small{color:var(--co-muted);font-size:11px;}
 .menu .sep{height:1px;background:var(--co-line);margin:4px 8px;}
 
-.stage{flex:1;position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;padding:1.8rem;min-height:0;}
+.stage{flex:1;position:relative;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:1.1rem 1.4rem;min-height:0;}
 .pwrap{position:relative;display:inline-block;line-height:0;box-shadow:0 3px 26px rgba(0,0,0,.13);background:#fff;max-width:100%;max-height:100%;}
-.pwrap img{display:block;max-width:100%;max-height:calc(100vh - 250px);width:auto;height:auto;user-select:none;}
+.pwrap img{display:block;max-width:100%;max-height:calc(100vh - 172px);width:auto;height:auto;user-select:none;}
 .pwrap svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
 .room{cursor:pointer;transition:opacity .12s;}.room.dim{opacity:.13;}
 .room-num{font-weight:700;pointer-events:none;}
@@ -220,7 +220,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
         <div class="view-top" id="viewTop" style="display:none"><div><div class="vt-name" id="vtName"></div><div class="vt-sub" id="vtSub"></div></div><div class="spacer"></div>
           <div class="seg" id="viewSeg"><button id="segPlan" onclick="setViewMode('plan')">Floorplan</button><button id="segList" onclick="setViewMode('list')">List</button></div>
           <div class="atg" id="monthToggle" onclick="toggleThisMonth()"><span class="sw"></span>This month</div>
-          <div class="atg" id="availToggle" onclick="toggleAvailOnly()"><span class="sw"></span>Available only</div></div>
+          <div class="atg" id="availToggle" onclick="toggleAvailOnly()"><span class="sw"></span>Available only</div><div class="atg" id="detailToggle" onclick="toggleDetail()"><span class="sw"></span>Detail</div></div>
         <div class="stage" id="stage">
           <div class="vempty" id="vEmpty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg><div>Select a centre on the left to view its offices.</div></div>
           <div class="load" id="load"><div class="spin"></div><span id="loadMsg">Loading…</span></div>
@@ -267,7 +267,7 @@ const C_PRESOLD='#f87171',C_NDD='#a8956a',C_OCC='#d6d6d6',C_SUSP='#b8b8b8';
 const DEMO_OFFICES=[{"office":"2701 - C","class":"Superior","view":"Harbour","viewType":"Superior","size":359.5,"price":103000,"maxConfig":14,"months":["O","O","O","O","O","O","N"]},{"office":"2730","class":"Executive","view":"Internal","viewType":"N/A","size":33,"price":9200,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]},{"office":"2736","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","O","O","Y","Y","Y","Y"]},{"office":"2752","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","Y","Y","Y","Y","Y","Y"]},{"office":"2753","class":"Superior","view":"City","viewType":"Superior","size":129.5,"price":38000,"maxConfig":5,"months":["O","O","O","O","O","N","N"]},{"office":"27G","class":"Executive","view":"Internal","viewType":"N/A","size":30.5,"price":8600,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]}];
 const DEMO_MONTHS=["Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026","Jan 2027"];
 
-let REGISTRY=[],REGIONS={},REPORTS={},CITY=null,CUR=null,selected=new Set(),availOnly=false,thisMonthOnly=false,viewMode='plan';
+let REGISTRY=[],REGIONS={},REPORTS={},CITY=null,CUR=null,selected=new Set(),availOnly=false,thisMonthOnly=false,viewMode='plan',showDetail=false;
 const $=id=>document.getElementById(id);
 function tip(e,t){const el=$('tip');el.textContent=t;el.classList.add('show');let x=e.clientX+12,y=e.clientY+12;if(x+150>innerWidth)x=e.clientX-150;el.style.left=x+'px';el.style.top=y+'px';}
 function hideTip(){$('tip').classList.remove('show');}
@@ -485,7 +485,7 @@ function renderPlan(stage){
     const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x',cx);t.setAttribute('y',cy);t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','central');t.setAttribute('class','room-num');t.setAttribute('font-size',Math.max(14,(rm.rect?(rm.rect.x2-rm.rect.x1):40)*0.14));t.setAttribute('fill','#111');t.textContent=rm.label;g.appendChild(t);
     if(o){g.style.cursor='pointer';g.onclick=()=>showRoomDetail(o);g.onmousemove=(e)=>tip(e,'Office '+o.office+' · '+o.availLabel);g.onmouseleave=hideTip;}
     svg.appendChild(g);});
-  wrap.appendChild(img);wrap.appendChild(svg);stage.appendChild(wrap);stage.style.alignItems='center';stage.style.justifyContent='center';
+  wrap.appendChild(img);wrap.appendChild(svg);stage.appendChild(wrap);stage.style.alignItems='flex-start';stage.style.justifyContent='center';
 }
 function renderSchematic(stage){const g=document.createElement('div');g.className='sch';
   CUR.offices.forEach(o=>{const pass=passOffice(o);const cell=document.createElement('div');cell.className='scell'+(pass?'':' dim')+(selected.has(o.office)?' sel':'');
@@ -504,10 +504,11 @@ function clearSel(){selected.clear();if(CUR)repaint();updateSelBar();}
 function updateSelBar(){const bar=$('selBar');if(!selected.size||!CUR){bar.classList.remove('on');return;}const sel=CUR.offices.filter(o=>selected.has(o.office));const sf=Math.round(sel.reduce((s,o)=>s+(o.size||0),0)).toLocaleString();const pr=sel.reduce((s,o)=>s+(o.price||0),0);$('selN').textContent=sel.length;$('selMeta').textContent=sf+' sq ft'+(pr?' · $'+Math.round(pr/1000)+'k/mo':'');bar.classList.add('on');}
 function toggleAvailOnly(){availOnly=!availOnly;$('availToggle').classList.toggle('on',availOnly);if(CUR)renderLayout();}
 function toggleThisMonth(){thisMonthOnly=!thisMonthOnly;$('monthToggle').classList.toggle('on',thisMonthOnly);if(CUR)renderLayout();}
+function toggleDetail(){showDetail=!showDetail;$('detailToggle').classList.toggle('on',showDetail);populateRail();}
 function setViewMode(m){if(m==='plan'&&(!CUR||!CUR.plan))return;viewMode=m;syncSeg();if(CUR)renderLayout();}
 function syncSeg(){const hasPlan=!!(CUR&&CUR.plan);$('segPlan').disabled=!hasPlan;$('segPlan').classList.toggle('on',hasPlan&&viewMode==='plan');$('segList').classList.toggle('on',!hasPlan||viewMode==='list');}
 function renderLegend(){const present=new Map();CUR.offices.forEach(o=>{if(o.bucket==='occupied'||o.bucket==='suspended')return;const k=o.bucket==='month'?'m'+o.idx:o.bucket;if(!present.has(k))present.set(k,{color:o.color,label:o.availLabel,idx:o.idx});});const order=[...present.values()].sort((a,b)=>a.idx-b.idx);$('legend').innerHTML='<span class="cap">Available from</span>'+order.map(v=>'<span class="li"><span class="sw" style="background:'+v.color+'"></span>'+v.label+'</span>').join('');}
-function populateRail(){const rail=$('detailRail'),list=$('railList'),cnt=$('railCount');if(!CUR){rail.classList.remove('on');return;}
+function populateRail(){const rail=$('detailRail'),list=$('railList'),cnt=$('railCount');if(!CUR||!showDetail){rail.classList.remove('on');return;}
   const avail=CUR.offices.filter(o=>o.bucket==='month'||o.bucket==='presold');rail.classList.add('on');cnt.textContent=avail.length+' available';
   if(!avail.length){list.innerHTML='<div class="dl-empty">No offices opening up here right now.</div>';return;}
   list.innerHTML=avail.map(o=>{const sel=selected.has(o.office);const view=(o.view||'')+((o.viewType&&o.viewType!=='N/A')?(' · '+o.viewType):'');
@@ -564,37 +565,61 @@ async function logoPng(){
 /* Draw one branded floorplan page onto an existing jsPDF doc */
 function drawFloorPage(pdf,opt){
   const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight(),M=24;
-  // logo top-left (2.7 aspect)
   if(opt.logoPng)pdf.addImage(opt.logoPng,'PNG',M,16,108,40);
-  // orange header banner (top-right)
-  const bw=Math.min(W*0.56,470),bx=W-M-bw,by=16,bh=46;
+  const bw=Math.min(W*0.5,430),bx=W-M-bw,by=16,bh=46;
   pdf.setFillColor(255,102,0);pdf.rect(bx,by,bw,bh,'F');
   pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(12);
   pdf.text((opt.centre+(opt.level?', LEVEL '+opt.level:'')).toUpperCase(),bx+13,by+19,{maxWidth:bw-26});
   if(opt.address){pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.text((opt.address).toUpperCase(),bx+13,by+33,{maxWidth:bw-26});}
-  // legend (left column)
-  let ly=84;const lw=104,lh=30,lg=8;
-  (opt.legend||[]).forEach(v=>{const c=hexRgb(v.c);pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(M,ly,lw,lh,5,5,'F');
-    pdf.setTextColor(30,30,30);pdf.setFont('helvetica','bold');pdf.setFontSize(9);pdf.text(v.l,M+lw/2,ly+lh/2+3,{align:'center',maxWidth:lw-10});ly+=lh+lg;});
-  // floorplan image (fit, preserve aspect)
-  const planX=M+lw+20,planTop=84,areaW=W-planX-M,areaH=H-planTop-44;
-  if(opt.plan){const ar=opt.plan.w/opt.plan.h;let dw=areaW,dh=dw/ar;if(dh>areaH){dh=areaH;dw=dh*ar;}
-    pdf.addImage(opt.plan.dataUrl,'JPEG',planX+(areaW-dw)/2,planTop+(areaH-dh)/2,dw,dh);}
-  else{pdf.setTextColor(150,150,150);pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.text('Floorplan not available for this centre',planX+areaW/2,planTop+areaH/2,{align:'center'});}
-  // title + footer
-  pdf.setTextColor(40,40,40);pdf.setFont('helvetica','bold');pdf.setFontSize(13);pdf.text('AVAILABILITY PLAN',W/2,H-26,{align:'center'});
+  // legend row (top, horizontal)
+  const top=80;pdf.setFontSize(8);pdf.setTextColor(140,140,140);pdf.setFont('helvetica','bold');pdf.text('AVAILABLE FROM',M,top);
+  let cx=M+80;(opt.legend||[]).forEach(v=>{const c=hexRgb(v.c);pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(cx,top-9,10,10,2,2,'F');pdf.setTextColor(70,70,70);pdf.setFont('helvetica','normal');pdf.text(v.l,cx+14,top);cx+=14+pdf.getTextWidth(v.l)+18;});
+  const bodyTop=top+12,bodyBot=H-30,areaH=bodyBot-bodyTop;
+  const boxes=opt.boxes||[];const hasBoxes=boxes.length>0;
+  const planW=hasBoxes?(W-2*M)*0.60:(W-2*M);
+  // floorplan (left)
+  if(opt.plan){const ar=opt.plan.w/opt.plan.h;let dw=planW,dh=dw/ar;if(dh>areaH){dh=areaH;dw=dh*ar;}pdf.addImage(opt.plan.dataUrl,'JPEG',M+(planW-dw)/2,bodyTop,dw,dh);}
+  else{pdf.setTextColor(150,150,150);pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.text('Floorplan not available for this centre',M+planW/2,bodyTop+areaH/2,{align:'center'});}
+  // detail boxes (right) — smart-fit
+  if(hasBoxes){
+    const bX=M+planW+16,bW=(W-M)-(M+planW+16),gap=7;let n=boxes.length;
+    let bH=Math.min(72,(areaH-(n-1)*gap)/n),maxN=n,all=true;
+    if(bH<46){bH=46;maxN=Math.max(1,Math.floor((areaH+gap)/(bH+gap))-1);all=false;}
+    let y=bodyTop;
+    boxes.slice(0,all?n:maxN).forEach(b=>{
+      pdf.setDrawColor(225,225,225);pdf.setFillColor(255,255,255);pdf.roundedRect(bX,y,bW,bH,6,6,'FD');
+      pdf.setTextColor(26,26,26);pdf.setFont('helvetica','bold');pdf.setFontSize(12);pdf.text(''+b.office,bX+10,y+16);
+      const c=hexRgb(b.color);pdf.setFont('helvetica','bold');pdf.setFontSize(7);const pw=pdf.getTextWidth(b.avail)+12;
+      pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(bX+bW-pw-8,y+6,pw,13,6,6,'F');pdf.setTextColor(20,20,20);pdf.text(b.avail,bX+bW-pw-8+pw/2,y+15,{align:'center'});
+      pdf.setTextColor(120,120,120);pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);pdf.text((b.class||'')+' · '+(b.size||'?')+' sq ft · '+(b.desks||'?')+' desks',bX+10,y+30,{maxWidth:bW-20});
+      if(b.view&&bH>52){pdf.setFontSize(8);pdf.text(b.view,bX+10,y+41,{maxWidth:bW-110});}
+      pdf.setTextColor(26,26,26);pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.text(b.price||'—',bX+bW-10,y+bH-9,{align:'right'});
+      y+=bH+gap;
+    });
+    if(!all){pdf.setTextColor(140,140,140);pdf.setFont('helvetica','italic');pdf.setFontSize(9);pdf.text('+ '+(n-maxN)+' more office'+((n-maxN)!==1?'s':''),bX+bW/2,y+11,{align:'center'});}
+  }
+  // footer
   pdf.setFont('helvetica','normal');pdf.setFontSize(7.5);pdf.setTextColor(140,140,140);
   pdf.text('compassoffices.com',M,H-12);
   pdf.text((opt.city||'')+'  ·  as of '+((opt.monthLabels&&opt.monthLabels[0])||'')+'  ·  FOR MARKETING PURPOSES ONLY. AVAILABILITY SUBJECT TO CHANGE.',W-M,H-12,{align:'right'});
+}
+function pdfBoxes(offices,useSel){
+  let rows;
+  if(useSel&&selected.size)rows=offices.filter(o=>selected.has(o.office));
+  else if(thisMonthOnly)rows=offices.filter(o=>o.bucket==='month'&&o.idx===0);
+  else rows=offices.filter(o=>o.bucket==='month'||o.bucket==='presold');
+  rows=rows.slice().sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
+  return rows.map(o=>({office:o.office,avail:o.availLabel,color:o.color,class:o.class,size:o.size,desks:o.maxConfig,view:(o.view||'')+((o.viewType&&o.viewType!=='N/A')?(' · '+o.viewType):''),price:fmtPrice(o.price)+(o.price?' /mo':'')}));
 }
 
 async function exportFloorPdf(){
   $('exportMenu').classList.remove('open');if(!CUR)return;
   const {jsPDF}=window.jspdf;const logo=await logoPng();
-  const rows=selected.size?CUR.offices.filter(o=>selected.has(o.office)):availableForSheet(CUR.offices);
+  const boxes=pdfBoxes(CUR.offices,true);
+  const legendSrc=CUR.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'));
   const plan=CUR.plan?await colourPlan(CUR.plan,CUR.offices,CUR.idx||{}):null;
   const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
-  drawFloorPage(pdf,{centre:CUR.centre?prettyCentre(CUR.centre):CUR.row.name,level:CUR.row.level,address:CUR.row.address||'',city:CITY,monthLabels:CUR.monthLabels,legend:legendFrom(rows.length?rows:CUR.offices.filter(o=>o.bucket!=='occupied'&&o.bucket!=='suspended')),plan,logoPng:logo});
+  drawFloorPage(pdf,{centre:CUR.centre?prettyCentre(CUR.centre):CUR.row.name,level:CUR.row.level,address:CUR.row.address||'',city:CITY,monthLabels:CUR.monthLabels,legend:legendFrom(legendSrc),plan,boxes,logoPng:logo});
   pdf.save('Compass_'+((CUR.centre?prettyCentre(CUR.centre):CUR.row.name)+(CUR.row.level?'_L'+CUR.row.level:'')).replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf');
 }
 
@@ -608,7 +633,7 @@ async function buildCombinedPdf(city,items,onProgress){
       const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
       const col=await colourPlan(plan,it.offices,numIndex(it.offices));
       if(!first)pdf.addPage();first=false;
-      drawFloorPage(pdf,{centre:it.name,level:it.level,address:row.address||'',city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>o.bucket!=='occupied'&&o.bucket!=='suspended')),plan:col,logoPng:logo});
+      drawFloorPage(pdf,{centre:it.name,level:it.level,address:row.address||'',city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'))),plan:col,boxes:pdfBoxes(it.offices,false),logoPng:logo});
     }catch(e){console.warn('combined skip',it.id,e);}
     if(onProgress)onProgress(++done,items.length);
   }
