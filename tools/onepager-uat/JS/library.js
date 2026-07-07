@@ -491,17 +491,20 @@ function applyLocationData(p){
   if(typeof p.compass_on === 'boolean'){ COMPASS_ON = p.compass_on; }
   if(typeof p.compass_angle === 'number'){ COMPASS_ANGLE = Math.round(((p.compass_angle%360)+360)%360); }
   if(typeof _renderCompassControl === 'function') _renderCompassControl();
-  if(typeof p.client_name === 'string'){
+  // Only override the remembered names when the loaded card actually carries
+  // a non-empty value. Selecting a plain location (or an office-lookup centre)
+  // whose card has no client/company name must NOT wipe the remembered client.
+  if(p.client_name){
     CLIENT_NAME = p.client_name;
     const el = document.getElementById('client-name'); if(el) el.value = CLIENT_NAME;
   }
-  if(typeof p.company_name === 'string'){
+  if(p.company_name){
     COMPANY_NAME = p.company_name;
     const el = document.getElementById('company-name'); if(el) el.value = COMPANY_NAME;
   }
-  // A loaded proposal that carries its own names becomes the new remembered client.
-  if((typeof p.client_name === 'string' || typeof p.company_name === 'string')
-     && typeof _saveRememberedNames === 'function') _saveRememberedNames();
+  // Keep localStorage in sync with whatever the names are now (card-supplied
+  // or the preserved remembered ones).
+  if(typeof _saveRememberedNames === 'function') _saveRememberedNames();
   if(p.custom_pos)setCustomPos(p.custom_pos);
   if(p.show_specs===false&&SHOW_SPECS)toggleShowSpecs();
   else if(p.show_specs===true&&!SHOW_SPECS)toggleShowSpecs();
