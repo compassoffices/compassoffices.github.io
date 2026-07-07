@@ -577,6 +577,27 @@ function newCard(){
   showStatus('Form cleared — Proposal For & Client name kept.','s-ok');
 }
 
+// ── Remembered client names ────────────────────────────────────────────────
+// "Proposal For" (company) and "Client name" are remembered in localStorage,
+// like the staff profile — the BDM works with one client, so the names persist
+// across new proposals, queue actions, and loading locations. They only change
+// when the user edits the fields, or when a saved proposal supplies its own.
+const PROPOSAL_NAMES_KEY = 'co_proposal_names';
+function _saveRememberedNames(){
+  try { localStorage.setItem(PROPOSAL_NAMES_KEY,
+    JSON.stringify({ company: COMPANY_NAME||'', client: CLIENT_NAME||'' })); } catch(e){}
+}
+function _restoreRememberedNames(){
+  try {
+    const r = JSON.parse(localStorage.getItem(PROPOSAL_NAMES_KEY) || 'null');
+    if(!r) return;
+    COMPANY_NAME = r.company || '';
+    CLIENT_NAME  = r.client  || '';
+    const co = document.getElementById('company-name'); if(co) co.value = COMPANY_NAME;
+    const cl = document.getElementById('client-name');  if(cl) cl.value = CLIENT_NAME;
+  } catch(e){}
+}
+
 function _resetCardForNewProposal(keepNames){
   // Per-card model
   S.photos = [null,null,null,null,null,null];
@@ -603,16 +624,10 @@ function _resetCardForNewProposal(keepNames){
   if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
   COMPASS_ON = false; COMPASS_ANGLE = 0;
   if(typeof _renderCompassControl === 'function') _renderCompassControl();
-  // Company & client names are sticky: the BDM works with one client, so the
-  // names persist across + Queue, "Start a New Proposal", and queue cancel
-  // (all pass keepNames=true). Only loading a saved library card clears them,
-  // so the loaded card's own names take over.
-  if(!keepNames){
-    CLIENT_NAME = '';
-    const _cnEl = document.getElementById('client-name'); if(_cnEl) _cnEl.value = '';
-    COMPANY_NAME = '';
-    const _coEl = document.getElementById('company-name'); if(_coEl) _coEl.value = '';
-  }
+  // Company & client names are remembered in localStorage (single-client
+  // workflow), so after wiping the card we restore them rather than clear.
+  // Loading a saved proposal may still override them with its own names.
+  _restoreRememberedNames();
   FP_HIGHLIGHTS_MANUAL.clear();
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;

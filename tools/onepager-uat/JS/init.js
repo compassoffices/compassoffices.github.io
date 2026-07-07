@@ -45,6 +45,8 @@
 
   // Load staff profile from localStorage — sets up Page 3 "Let's talk"
   loadStaffProfile();
+  // Restore the remembered "Proposal For" & "Client name" (localStorage)
+  if(typeof _restoreRememberedNames==="function") _restoreRememberedNames();
   _autosaveCheck(); if(typeof _mobUpdateLang==="function") _mobUpdateLang(); if(typeof _stripInit==="function") _stripInit(); if(typeof _stripUpdatePreview==="function") _stripUpdatePreview();
 
   // On every page load: clear server library cards and reload fresh from server.

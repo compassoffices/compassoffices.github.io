@@ -231,6 +231,9 @@ function setLang(lc){
   if(bTitleInput) bTitleInput.value=BENEFITS_TITLE[lc]||'';
   // Update deposit note input to show current lang's value + correct placeholder
   syncDepositNoteInput();
+  // Refresh the Page 3 "Let's talk" contact slide so its heading follows the
+  // language (previously only updated on boot, so live switches left it stale).
+  if(typeof renderContactPage === 'function') renderContactPage();
 
   gen();
 }

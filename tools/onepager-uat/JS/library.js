@@ -499,6 +499,9 @@ function applyLocationData(p){
     COMPANY_NAME = p.company_name;
     const el = document.getElementById('company-name'); if(el) el.value = COMPANY_NAME;
   }
+  // A loaded proposal that carries its own names becomes the new remembered client.
+  if((typeof p.client_name === 'string' || typeof p.company_name === 'string')
+     && typeof _saveRememberedNames === 'function') _saveRememberedNames();
   if(p.custom_pos)setCustomPos(p.custom_pos);
   if(p.show_specs===false&&SHOW_SPECS)toggleShowSpecs();
   else if(p.show_specs===true&&!SHOW_SPECS)toggleShowSpecs();
