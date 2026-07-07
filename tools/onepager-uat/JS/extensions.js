@@ -517,7 +517,8 @@ function queueCancelEdit(){
   if(panel) panel.style.display='flex';
   // Clear the form — edits are discarded, user gets a clean slate
   // rather than being left holding the item they were just editing.
-  _resetCardForNewProposal();
+  // Proposal For & Client name are kept (single-client workflow).
+  _resetCardForNewProposal(true);
   gen();
   showStatus('Edit cancelled — form cleared for new proposal.','s-ok');
 }
@@ -571,9 +572,9 @@ async function queueUpdateItem(i){
 // Separate from _resetCardForNewProposal (which auto-fires after + Queue)
 // because here we need explicit confirmation before throwing away work.
 function newCard(){
-  if(!confirm('Start a new card?\n\nThe current form will be cleared. Queued items are kept.')) return;
-  _resetCardForNewProposal();
-  showStatus('Form cleared — ready for a new card.','s-ok');
+  if(!confirm('Start a new proposal?\n\nThe form will be cleared, but the Proposal For & Client name are kept. Queued items are kept too.')) return;
+  _resetCardForNewProposal(true);
+  showStatus('Form cleared — Proposal For & Client name kept.','s-ok');
 }
 
 function _resetCardForNewProposal(keepNames){
@@ -602,9 +603,10 @@ function _resetCardForNewProposal(keepNames){
   if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
   COMPASS_ON = false; COMPASS_ANGLE = 0;
   if(typeof _renderCompassControl === 'function') _renderCompassControl();
-  // Company & client names persist across + Queue so multiple locations for
-  // the same client keep their names (queue flow passes keepNames=true).
-  // newCard() and library-card loads pass no arg → names still clear.
+  // Company & client names are sticky: the BDM works with one client, so the
+  // names persist across + Queue, "Start a New Proposal", and queue cancel
+  // (all pass keepNames=true). Only loading a saved library card clears them,
+  // so the loaded card's own names take over.
   if(!keepNames){
     CLIENT_NAME = '';
     const _cnEl = document.getElementById('client-name'); if(_cnEl) _cnEl.value = '';
@@ -2507,7 +2509,7 @@ function buildEmailHTML(toName, fromName, company){
     <td class="em-foot-pad" style="padding:0 36px 32px;">
       <p style="margin:0 0 12px;font-family:${FF};font-size:13.5px;color:#555;line-height:1.65;">${T.questions}</p>
       <p style="margin:0 0 18px;font-family:${FF};font-size:13.5px;color:#555;line-height:1.65;">${T.look_forward}</p>
-      ${HOUSE_RULES_ON?`<p style="margin:0 0 18px;font-family:${FF};font-size:12.5px;line-height:1.6;"><a href="${houseRulesUrl(emailLang)}" target="_blank" style="color:#FF6600;font-weight:700;text-decoration:none;">${T.house_rules} →</a></p>`:''}
+      ${HOUSE_RULES_ON?`<p style="margin:0 0 18px;font-family:${FF};font-size:12.5px;line-height:1.6;"><a href="${houseRulesUrl(lc)}" target="_blank" style="color:#FF6600;font-weight:700;text-decoration:none;">${T.house_rules} →</a></p>`:''}
       <p style="margin:0;font-family:${FF};font-size:13.5px;color:#1a1a1a;line-height:1.7;">${T.best_regards}<br>
         <strong style="font-size:15px;color:#FF6600;">${fromName||'[Your Name]'}</strong><br>
         <span style="font-size:12px;color:#888;">${T.company_suffix}</span>
