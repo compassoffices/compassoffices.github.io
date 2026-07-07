@@ -597,20 +597,6 @@ function _restoreRememberedNames(){
     const cl = document.getElementById('client-name');  if(cl) cl.value = CLIENT_NAME;
   } catch(e){}
 }
-// Explicit Save button next to the Proposal For / Client name fields. Reads
-// straight from the inputs (so it works even if an oninput was missed), saves,
-// and gives clear confirmation that the names survive a page refresh.
-function saveProposalNames(){
-  const co = document.getElementById('company-name');
-  const cl = document.getElementById('client-name');
-  if(co) COMPANY_NAME = co.value;
-  if(cl) CLIENT_NAME  = cl.value;
-  _saveRememberedNames();
-  if(typeof _stripUpdatePreview==='function') _stripUpdatePreview();
-  if(typeof showStatus==='function') showStatus('Saved — "Proposal For" & Client name will stay after a refresh.','s-ok');
-  const b = document.getElementById('save-names-btn');
-  if(b){ const t = b.innerHTML; b.innerHTML = '✓ Saved'; setTimeout(()=>{ b.innerHTML = t; }, 1600); }
-}
 // Belt-and-suspenders: restore remembered names once the DOM is ready, even if
 // init.js is an older cached copy that doesn't call _restoreRememberedNames().
 // Only fills when both fields are still empty, so it never clobbers live input.
