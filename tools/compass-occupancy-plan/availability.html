@@ -95,6 +95,10 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .atg .sw{width:34px;height:19px;border-radius:var(--co-radius-pill);background:var(--co-line);position:relative;transition:.15s;}
 .atg .sw::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
 .atg.on .sw{background:var(--co-orange);}.atg.on .sw::after{left:17px;}
+.seg{display:inline-flex;background:var(--co-fill);border-radius:var(--co-radius-pill);padding:3px;gap:2px;}
+.seg button{border:none;background:transparent;border-radius:var(--co-radius-pill);padding:5px 13px;font:inherit;font-size:12px;font-weight:600;color:var(--co-text-2);cursor:pointer;}
+.seg button.on{background:var(--co-orange);color:#fff;}
+.seg button:disabled{opacity:.4;cursor:default;}
 .menu-wrap{position:relative;}
 .menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--co-paper);border:1px solid var(--co-line);border-radius:12px;box-shadow:0 10px 34px rgba(0,0,0,.14);min-width:240px;padding:6px;display:none;z-index:60;}
 .menu.open{display:block;}
@@ -200,7 +204,10 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
         <div class="clist-scroll" id="clistScroll"></div>
       </div>
       <div class="cview">
-        <div class="view-top" id="viewTop" style="display:none"><div><div class="vt-name" id="vtName"></div><div class="vt-sub" id="vtSub"></div></div><div class="spacer"></div><div class="atg" id="availToggle" onclick="toggleAvailOnly()"><span class="sw"></span>Available only</div></div>
+        <div class="view-top" id="viewTop" style="display:none"><div><div class="vt-name" id="vtName"></div><div class="vt-sub" id="vtSub"></div></div><div class="spacer"></div>
+          <div class="seg" id="viewSeg"><button id="segPlan" onclick="setViewMode('plan')">Floorplan</button><button id="segList" onclick="setViewMode('list')">List</button></div>
+          <div class="atg" id="monthToggle" onclick="toggleThisMonth()"><span class="sw"></span>This month</div>
+          <div class="atg" id="availToggle" onclick="toggleAvailOnly()"><span class="sw"></span>Available only</div></div>
         <div class="stage" id="stage">
           <div class="vempty" id="vEmpty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg><div>Select a centre on the left to view its offices.</div></div>
           <div class="load" id="load"><div class="spin"></div><span id="loadMsg">Loading…</span></div>
@@ -219,7 +226,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
     <div><div class="n"><span id="selN">0</span> offices selected</div><div class="meta" id="selMeta"></div></div>
     <div class="spacer"></div>
     <button class="btn" onclick="clearSel()">Clear</button>
-    <button class="btn pri" onclick="exportScope('floor')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export PDF</button>
+    <button class="btn pri" onclick="exportFloorPdf()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export PDF</button>
   </div>
 </div>
 <div class="tip" id="tip"></div>
@@ -238,7 +245,7 @@ const C_PRESOLD='#f87171',C_NDD='#a8956a',C_OCC='#d6d6d6',C_SUSP='#b8b8b8';
 const DEMO_OFFICES=[{"office":"2701 - C","class":"Superior","view":"Harbour","viewType":"Superior","size":359.5,"price":103000,"maxConfig":14,"months":["O","O","O","O","O","O","N"]},{"office":"2730","class":"Executive","view":"Internal","viewType":"N/A","size":33,"price":9200,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]},{"office":"2736","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","O","O","Y","Y","Y","Y"]},{"office":"2752","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","Y","Y","Y","Y","Y","Y"]},{"office":"2753","class":"Superior","view":"City","viewType":"Superior","size":129.5,"price":38000,"maxConfig":5,"months":["O","O","O","O","O","N","N"]},{"office":"27G","class":"Executive","view":"Internal","viewType":"N/A","size":30.5,"price":8600,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]}];
 const DEMO_MONTHS=["Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026","Jan 2027"];
 
-let REGISTRY=[],REGIONS={},REPORTS={},CITY=null,CUR=null,selected=new Set(),availOnly=false;
+let REGISTRY=[],REGIONS={},REPORTS={},CITY=null,CUR=null,selected=new Set(),availOnly=false,thisMonthOnly=false,viewMode='plan';
 const $=id=>document.getElementById(id);
 function tip(e,t){const el=$('tip');el.textContent=t;el.classList.add('show');let x=e.clientX+12,y=e.clientY+12;if(x+150>innerWidth)x=e.clientX-150;el.style.left=x+'px';el.style.top=y+'px';}
 function hideTip(){$('tip').classList.remove('show');}
@@ -279,12 +286,13 @@ async function loadRegions(){try{const t=await (await fetch(CONFIG.AXDATA_CSV)).
 async function loadFloorplanSheet(){
   if(!CONFIG.FLOORPLAN_CSV)return;
   try{const rows=parseCSV(await (await fetch(CONFIG.FLOORPLAN_CSV)).text());if(rows.length<2)return;const H=rows[0];
-    const cRegion=findCol(H,[/region/i,/city/i,/country/i]),cName=findCol(H,[/^name$/i,/display/i,/centre.?name/i]),cCentre=findCol(H,[/centre/i,/code/i]),cJson=findCol(H,[/floorplan.?data/i,/json/i,/geo/i]),cMaster=findCol(H,[/master/i,/image/i]),cLevel=findCol(H,[/^level/i,/floor/i]);
+    const cRegion=findCol(H,[/region/i,/city/i,/country/i]),cName=findCol(H,[/^name$/i,/display/i,/centre.?name/i]),cCentre=findCol(H,[/centre/i,/code/i]),cJson=findCol(H,[/floorplan.?data/i,/json/i,/geo/i]),cMaster=findCol(H,[/master/i,/image/i]),cLevel=findCol(H,[/^level/i,/floor/i]),cAddr=findCol(H,[/address/i,/location/i]);
     REGISTRY=[];
     for(let i=1;i<rows.length;i++){const r=rows[i];const json=cJson>=0?(''+(r[cJson]||'')).trim():'';if(!json)continue;
       const code=cCentre>=0?(''+(r[cCentre]||'')).trim():('row'+i),name=cName>=0?(''+(r[cName]||'')).trim():'',region=cRegion>=0?(''+(r[cRegion]||'')).trim():'',master=cMaster>=0?(''+(r[cMaster]||'')).trim():'';
       let level=cLevel>=0?(''+(r[cLevel]||'')).trim():'';if(!level){const m=code.match(/(\d+)\s*$/);level=m?m[1]:'';}
-      REGISTRY.push({id:code||('r'+i),code,name:name||code,region,level,jsonUrl:json,masterUrl:master});}
+      const address=cAddr>=0?(''+(r[cAddr]||'')).trim():'';
+      REGISTRY.push({id:code||('r'+i),code,name:name||code,region,level,jsonUrl:json,masterUrl:master,address});}
   }catch(e){console.warn('floorplan sheet',e);}
 }
 async function ensureReport(region){if(!region)return null;if(REPORTS[region])return REPORTS[region];const url=REGIONS[region];if(!url)return null;const t=await (await fetch(url)).text();REPORTS[region]=ingestReport(parseCSV(t));return REPORTS[region];}
@@ -383,7 +391,7 @@ async function openFloor(id){
     const cc={};rooms.forEach(rm=>{const o=matchRoom(rm,idx);if(o)cc[o.centre]=(cc[o.centre]||0)+1;});
     let centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0]||fuzzyCentre(row.name,reportCentres(CITY));
     const offices=regionOffices.filter(o=>o.centre===centre).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
-    CUR={row,centre,monthLabels:ml,offices,plan,idx};
+    CUR={row,centre,monthLabels:ml,offices,plan,idx};viewMode=plan?'plan':'list';
     if(centre)$('vtName').textContent=prettyCentre(centre);
     renderLegend();renderLayout();
   }catch(e){$('loadMsg').textContent='Could not load: '+e.message;console.warn(e);return;}
@@ -395,20 +403,21 @@ async function openCentreList(centre){
   $('load').classList.add('on');$('vtName').textContent=prettyCentre(centre);$('vtSub').textContent='';selected.clear();updateSelBar();
   try{const rep=await ensureReport(CITY);const ml=rep.monthLabels;
     const offices=rep.offices.filter(o=>o.centre===centre).map(o=>classifyOffice(o,ml)).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
-    CUR={row:{name:prettyCentre(centre),level:''},centre,monthLabels:ml,offices,plan:null};
+    CUR={row:{name:prettyCentre(centre),level:''},centre,monthLabels:ml,offices,plan:null};viewMode='list';
     renderLegend();renderLayout();
   }catch(e){$('loadMsg').textContent='Could not load: '+e.message;}
   $('load').classList.remove('on');
 }
 
 function officeForRoom(rm){if(CUR.idx){const o=matchRoom(rm,CUR.idx);if(o&&CUR.offices.includes(o))return o;}const rk=new Set([...normKeys(rm.label),...normKeys(rm.raw)]);return CUR.offices.find(o=>o.keys.some(k=>rk.has(k)));}
-function passOffice(o){if(availOnly&&!(o.bucket==='month'||o.bucket==='presold'))return false;return true;}
+function passOffice(o){if(thisMonthOnly)return o.bucket==='month'&&o.idx===0;if(availOnly&&!(o.bucket==='month'||o.bucket==='presold'))return false;return true;}
 
 function renderLayout(){
   const stage=$('stage');[...stage.querySelectorAll('.pwrap,.sch')].forEach(n=>n.remove());$('rdetail').classList.remove('on');
   const avail=CUR.offices.filter(o=>o.bucket==='month').length;
   $('vtSub').textContent=(CUR.row.level?'Level '+CUR.row.level+' · ':'')+CUR.offices.length+' offices · '+avail+' available';
-  if(CUR.plan)renderPlan(stage);else renderSchematic(stage);populateRail();updateSelBar();
+  const showPlan=CUR.plan&&viewMode!=='list';syncSeg();
+  if(showPlan)renderPlan(stage);else renderSchematic(stage);populateRail();updateSelBar();
 }
 function roomPath(r){if(r.polygon&&r.polygon.length>=3){let d='M '+r.polygon[0].x+' '+r.polygon[0].y;for(let i=0;i<r.polygon.length;i++){const A=r.polygon[i],B=r.polygon[(i+1)%r.polygon.length];if(A.hOut)d+=' C '+(A.x+A.hOut[0])+' '+(A.y+A.hOut[1])+' '+(B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4))+' '+(B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4))+' '+B.x+' '+B.y;else d+=' L '+B.x+' '+B.y;}return d+' Z';}const{x1,y1,x2,y2}=r.rect;return'M '+x1+' '+y1+' L '+x2+' '+y1+' L '+x2+' '+y2+' L '+x1+' '+y2+' Z';}
 function renderPlan(stage){
@@ -436,10 +445,13 @@ function showRoomDetail(o){const d=$('rdetail');const inSel=selected.has(o.offic
     '<button class="btn '+(inSel?'':'pri')+' add" onclick="toggleSel(\''+o.office.replace(/'/g,"\\'")+'\')">'+(inSel?'Remove from list':'Add to list')+'</button>';d.classList.add('on');}
 function closeDetail(){$('rdetail').classList.remove('on');}
 function toggleSel(office){selected.has(office)?selected.delete(office):selected.add(office);const o=CUR.offices.find(x=>x.office===office);if(o)showRoomDetail(o);repaint();updateSelBar();}
-function repaint(){const stage=$('stage');[...stage.querySelectorAll('.pwrap,.sch')].forEach(n=>n.remove());if(CUR.plan)renderPlan(stage);else renderSchematic(stage);populateRail();}
+function repaint(){const stage=$('stage');[...stage.querySelectorAll('.pwrap,.sch')].forEach(n=>n.remove());const showPlan=CUR.plan&&viewMode!=='list';if(showPlan)renderPlan(stage);else renderSchematic(stage);populateRail();}
 function clearSel(){selected.clear();if(CUR)repaint();updateSelBar();}
 function updateSelBar(){const bar=$('selBar');if(!selected.size||!CUR){bar.classList.remove('on');return;}const sel=CUR.offices.filter(o=>selected.has(o.office));const sf=Math.round(sel.reduce((s,o)=>s+(o.size||0),0)).toLocaleString();const pr=sel.reduce((s,o)=>s+(o.price||0),0);$('selN').textContent=sel.length;$('selMeta').textContent=sf+' sq ft'+(pr?' · $'+Math.round(pr/1000)+'k/mo':'');bar.classList.add('on');}
 function toggleAvailOnly(){availOnly=!availOnly;$('availToggle').classList.toggle('on',availOnly);if(CUR)renderLayout();}
+function toggleThisMonth(){thisMonthOnly=!thisMonthOnly;$('monthToggle').classList.toggle('on',thisMonthOnly);if(CUR)renderLayout();}
+function setViewMode(m){if(m==='plan'&&(!CUR||!CUR.plan))return;viewMode=m;syncSeg();if(CUR)renderLayout();}
+function syncSeg(){const hasPlan=!!(CUR&&CUR.plan);$('segPlan').disabled=!hasPlan;$('segPlan').classList.toggle('on',hasPlan&&viewMode==='plan');$('segList').classList.toggle('on',!hasPlan||viewMode==='list');}
 function renderLegend(){const present=new Map();CUR.offices.forEach(o=>{if(o.bucket==='occupied'||o.bucket==='suspended')return;const k=o.bucket==='month'?'m'+o.idx:o.bucket;if(!present.has(k))present.set(k,{color:o.color,label:o.availLabel,idx:o.idx});});const order=[...present.values()].sort((a,b)=>a.idx-b.idx);$('legend').innerHTML='<span class="cap">Available from</span>'+order.map(v=>'<span class="li"><span class="sw" style="background:'+v.color+'"></span>'+v.label+'</span>').join('');}
 function populateRail(){const rail=$('detailRail'),list=$('railList'),cnt=$('railCount');if(!CUR){rail.classList.remove('on');return;}
   const avail=CUR.offices.filter(o=>o.bucket==='month'||o.bucket==='presold');rail.classList.add('on');cnt.textContent=avail.length+' available';
@@ -450,76 +462,112 @@ function populateRail(){const rail=$('detailRail'),list=$('railList'),cnt=$('rai
 }
 function railClick(office){const o=CUR.offices.find(x=>x.office===office);if(!o)return;showRoomDetail(o);toggleSel(office);}
 
-/* ===================== EXPORT ===================== */
+/* ===================== EXPORT (native PDF) ===================== */
 function toggleMenu(e){e.stopPropagation();buildMenu();$('exportMenu').classList.toggle('open');}
 document.addEventListener('click',e=>{const m=$('exportMenu');if(m&&!m.contains(e.target)&&e.target!==$('exportBtn')&&!$('exportBtn').contains(e.target))m.classList.remove('open');});
-function buildMenu(){const m=$('exportMenu');const dl='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';const items=[];
-  if(CUR){items.push(`<div class="mi" onclick="exportScope('floor')">${dl}<div><b>${selected.size?('Selected offices ('+selected.size+')'):'This floor'}</b><small>${CUR.row.name||''}${CUR.row.level?(' · L'+CUR.row.level):''}</small></div></div>`);}
+function buildMenu(){
+  const m=$('exportMenu');const dl='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  const items=[];
+  if(CUR){
+    const lbl=selected.size?('Selected offices ('+selected.size+')'):(thisMonthOnly?'This floor · available this month':'This floor');
+    items.push(`<div class="mi" onclick="exportFloorPdf()">${dl}<div><b>${lbl}</b><small>${CUR.row.name||''}${CUR.row.level?(' · L'+CUR.row.level):''}${CUR.plan?'':' · no plan'}</small></div></div>`);
+  }
+  const cityFloors=REGISTRY.filter(r=>r.region===CITY&&r.jsonUrl).length;
+  if(cityFloors>1){items.push('<div class="sep"></div>');items.push(`<div class="mi" onclick="exportAllPdf()">${dl}<div><b>Download all — one PDF</b><small>${cityFloors} floorplans in ${CITY}</small></div></div>`);}
   m.innerHTML=items.join('')||'<div class="mi" style="opacity:.5">Open a floor first</div>';
 }
-function availableForSheet(offs){return offs.filter(o=>o.bucket==='month'||o.bucket==='presold'||o.bucket==='ndd').sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));}
+function availableForSheet(offs){return offs.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket==='month'||o.bucket==='presold'||o.bucket==='ndd')).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));}
+function hexRgb(h){if(!h)return[210,210,210];h=h.length===4?'#'+h[1]+h[1]+h[2]+h[2]+h[3]+h[3]:h;return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+function legendFrom(rows){return[...new Map(rows.map(o=>[o.bucket==='month'?'m'+o.idx:o.bucket,{c:o.color,l:o.availLabel,i:o.idx}])).values()].sort((a,b)=>a.i-b.i);}
 
+/* coloured plan -> {dataUrl,w,h}; drawn at natural size so it never distorts */
 function pathRoomCtx(ctx,r){if(r.polygon&&r.polygon.length>=3){ctx.beginPath();ctx.moveTo(r.polygon[0].x,r.polygon[0].y);for(let i=0;i<r.polygon.length;i++){const A=r.polygon[i],B=r.polygon[(i+1)%r.polygon.length];if(A.hOut)ctx.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);else ctx.lineTo(B.x,B.y);}ctx.closePath();}else{const{x1,y1,x2,y2}=r.rect;ctx.beginPath();ctx.rect(x1,y1,x2-x1,y2-y1);}}
-async function buildColouredPlan(){
-  if(!CUR.plan||!CUR.plan.masterUrl)return null;
-  const img=await new Promise(res=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>res(null);i.src=CUR.plan.masterUrl;});
-  // draw at the image's NATURAL size to avoid distortion; scale room coords from plan space
-  const iw=(img&&img.naturalWidth)||CUR.plan.w, ih=(img&&img.naturalHeight)||CUR.plan.h;
-  const sx=iw/CUR.plan.w, sy=ih/CUR.plan.h;
+async function colourPlan(plan,offices,idx){
+  if(!plan||!plan.masterUrl)return null;
+  const img=await new Promise(res=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>res(null);i.src=plan.masterUrl;});
+  const iw=(img&&img.naturalWidth)||plan.w, ih=(img&&img.naturalHeight)||plan.h, sx=iw/plan.w, sy=ih/plan.h;
   const cv=document.createElement('canvas');cv.width=iw;cv.height=ih;const ctx=cv.getContext('2d');
   ctx.fillStyle='#fff';ctx.fillRect(0,0,iw,ih);if(img)ctx.drawImage(img,0,0,iw,ih);
   ctx.save();ctx.scale(sx,sy);
-  CUR.plan.rooms.forEach(rm=>{const o=officeForRoom(rm);if(!o)return;if(availOnly&&!(o.bucket==='month'||o.bucket==='presold'))return;
-    const col=o.color,r=parseInt(col.slice(1,3),16),g=parseInt(col.slice(3,5),16),b=parseInt(col.slice(5,7),16);
-    ctx.save();pathRoomCtx(ctx,rm);ctx.fillStyle='rgba('+r+','+g+','+b+',0.55)';ctx.fill();ctx.restore();
+  plan.rooms.forEach(rm=>{const rk=[...normKeys(rm.label),...normKeys(rm.raw)];let o=null;for(const k of rk){if(idx[k]){o=idx[k];break;}}if(!o||!offices.includes(o))return;
+    if(thisMonthOnly&&!(o.bucket==='month'&&o.idx===0))return;
+    const c=hexRgb(o.color);ctx.save();pathRoomCtx(ctx,rm);ctx.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+',0.55)';ctx.fill();ctx.restore();
     const cx=rm.rect?(rm.rect.x1+rm.rect.x2)/2:0,cy=rm.rect?(rm.rect.y1+rm.rect.y2)/2:0,fs=Math.max(16,(rm.rect?(rm.rect.x2-rm.rect.x1):40)*0.14);
     ctx.font='bold '+fs+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#111';ctx.fillText(rm.label,cx,cy);});
   ctx.restore();
-  return {dataUrl:cv.toDataURL('image/jpeg',0.92),w:iw,h:ih};
+  return {dataUrl:cv.toDataURL('image/jpeg',0.94),w:iw,h:ih};
 }
 
-async function exportScope(kind){
+let LOGO_PNG=null;
+async function logoPng(){
+  if(LOGO_PNG)return LOGO_PNG;
+  const svg=LOGO('#282828');const url='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+  const img=await new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=url;});
+  const cv=document.createElement('canvas');cv.width=540;cv.height=200;const ctx=cv.getContext('2d');if(img)ctx.drawImage(img,0,0,540,200);
+  LOGO_PNG=cv.toDataURL('image/png');return LOGO_PNG;
+}
+
+/* Draw one branded floorplan page onto an existing jsPDF doc */
+function drawFloorPage(pdf,opt){
+  const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight(),M=24;
+  // logo top-left (2.7 aspect)
+  if(opt.logoPng)pdf.addImage(opt.logoPng,'PNG',M,16,108,40);
+  // orange header banner (top-right)
+  const bw=Math.min(W*0.56,470),bx=W-M-bw,by=16,bh=46;
+  pdf.setFillColor(255,102,0);pdf.rect(bx,by,bw,bh,'F');
+  pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(12);
+  pdf.text((opt.centre+(opt.level?', LEVEL '+opt.level:'')).toUpperCase(),bx+13,by+19,{maxWidth:bw-26});
+  if(opt.address){pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.text((opt.address).toUpperCase(),bx+13,by+33,{maxWidth:bw-26});}
+  // legend (left column)
+  let ly=84;const lw=104,lh=30,lg=8;
+  (opt.legend||[]).forEach(v=>{const c=hexRgb(v.c);pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(M,ly,lw,lh,5,5,'F');
+    pdf.setTextColor(30,30,30);pdf.setFont('helvetica','bold');pdf.setFontSize(9);pdf.text(v.l,M+lw/2,ly+lh/2+3,{align:'center',maxWidth:lw-10});ly+=lh+lg;});
+  // floorplan image (fit, preserve aspect)
+  const planX=M+lw+20,planTop=84,areaW=W-planX-M,areaH=H-planTop-44;
+  if(opt.plan){const ar=opt.plan.w/opt.plan.h;let dw=areaW,dh=dw/ar;if(dh>areaH){dh=areaH;dw=dh*ar;}
+    pdf.addImage(opt.plan.dataUrl,'JPEG',planX+(areaW-dw)/2,planTop+(areaH-dh)/2,dw,dh);}
+  else{pdf.setTextColor(150,150,150);pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.text('Floorplan not available for this centre',planX+areaW/2,planTop+areaH/2,{align:'center'});}
+  // title + footer
+  pdf.setTextColor(40,40,40);pdf.setFont('helvetica','bold');pdf.setFontSize(13);pdf.text('AVAILABILITY PLAN',W/2,H-26,{align:'center'});
+  pdf.setFont('helvetica','normal');pdf.setFontSize(7.5);pdf.setTextColor(140,140,140);
+  pdf.text('compassoffices.com',M,H-12);
+  pdf.text((opt.city||'')+'  ·  as of '+((opt.monthLabels&&opt.monthLabels[0])||'')+'  ·  FOR MARKETING PURPOSES ONLY. AVAILABILITY SUBJECT TO CHANGE.',W-M,H-12,{align:'right'});
+}
+
+async function exportFloorPdf(){
   $('exportMenu').classList.remove('open');if(!CUR)return;
+  const {jsPDF}=window.jspdf;const logo=await logoPng();
   const rows=selected.size?CUR.offices.filter(o=>selected.has(o.office)):availableForSheet(CUR.offices);
-  const plan=await buildColouredPlan();
-  await renderFloorPdf({centre:CUR.centre?prettyCentre(CUR.centre):CUR.row.name,level:CUR.row.level,city:CITY,monthLabels:CUR.monthLabels,plan,rows,fileName:(CUR.centre?prettyCentre(CUR.centre):CUR.row.name)});
+  const plan=CUR.plan?await colourPlan(CUR.plan,CUR.offices,CUR.idx||{}):null;
+  const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
+  drawFloorPage(pdf,{centre:CUR.centre?prettyCentre(CUR.centre):CUR.row.name,level:CUR.row.level,address:CUR.row.address||'',city:CITY,monthLabels:CUR.monthLabels,legend:legendFrom(rows.length?rows:CUR.offices.filter(o=>o.bucket!=='occupied'&&o.bucket!=='suspended')),plan,logoPng:logo});
+  pdf.save('Compass_'+((CUR.centre?prettyCentre(CUR.centre):CUR.row.name)+(CUR.row.level?'_L'+CUR.row.level:'')).replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf');
 }
-async function renderFloorPdf(opt){
-  const {jsPDF}=window.jspdf;const sheet=buildFloorSheet(opt);document.body.appendChild(sheet);await new Promise(r=>setTimeout(r,90));
-  const canvas=await html2canvas(sheet,{scale:2,useCORS:true,backgroundColor:'#ffffff'});document.body.removeChild(sheet);
-  const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-  const imgH=canvas.height*(pw/canvas.width);
-  if(imgH<=ph)pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,pw,imgH);
-  else{let pos=0,rem=imgH;while(rem>0){pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,pos,pw,imgH);rem-=ph;if(rem>0){pdf.addPage();pos-=ph;}}}
-  pdf.save('Compass_Availability_'+((opt.fileName||'export').replace(/[^A-Za-z0-9_-]/g,'_'))+'.pdf');
-}
-function legendFrom(rows){return[...new Map(rows.map(o=>[o.bucket==='month'?'m'+o.idx:o.bucket,{c:o.color,l:o.availLabel,i:o.idx}])).values()].sort((a,b)=>a.i-b.i);}
-function buildFloorSheet(opt){
-  const d=document.createElement('div');d.className='co';d.style.cssText='position:fixed;left:-9999px;top:0;width:1200px;background:#fff;padding:32px 38px;';
-  const legend=legendFrom(opt.rows);const totSf=Math.round(opt.rows.reduce((s,o)=>s+(o.size||0),0)).toLocaleString();
-  const rowsHtml=opt.rows.map(o=>{const view=(o.view||'')+((o.viewType&&o.viewType!=='N/A')?(' · '+o.viewType):'');
-    return '<tr style="border-bottom:1px solid #E1E1E1"><td style="padding:7px 6px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+o.color+';margin-right:6px"></span><b>'+o.office+'</b></td>'+
-    '<td style="padding:7px 6px"><span style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:'+o.color+';color:#111;white-space:nowrap">'+o.availLabel+'</span></td>'+
-    '<td style="padding:7px 6px;color:#595959">'+(o.class||'')+'<div style="font-size:10px;color:#8C8C8C">'+view+'</div></td>'+
-    '<td style="padding:7px 6px;text-align:right;color:#595959">'+(o.size||'?')+'</td>'+
-    '<td style="padding:7px 6px;text-align:right;color:#595959">'+(o.price?'$'+o.price.toLocaleString():'—')+'</td></tr>';}).join('');
-  const planBox=opt.plan?'<img src="'+opt.plan.dataUrl+'" style="width:100%;height:auto;display:block;border:1px solid #E1E1E1;border-radius:8px">':'<div style="padding:3rem;text-align:center;color:#8C8C8C;border:1px dashed #E1E1E1;border-radius:8px">No floorplan for this centre</div>';
-  d.innerHTML=
-    '<div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid #E1E1E1">'+
-      '<div style="height:40px">'+LOGO('#282828')+'</div>'+
-      '<div style="margin-left:auto;text-align:right"><div style="font-weight:800;font-size:19px;letter-spacing:-.3px">'+opt.centre+(opt.level?(' — Level '+opt.level):'')+'</div>'+
-      '<div style="font-size:12px;color:#8C8C8C">'+(opt.city||'')+' · Office Availability · as of '+((opt.monthLabels&&opt.monthLabels[0])||'')+'</div></div></div>'+
-    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-size:11.5px;color:#595959"><span style="font-weight:700;color:#8C8C8C;letter-spacing:.06em;text-transform:uppercase;font-size:10px">Available from</span>'+
-      legend.map(v=>'<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+v.c+';margin-right:6px;vertical-align:-1px"></span>'+v.l+'</span>').join('')+'</div>'+
-    '<div style="display:flex;gap:20px;align-items:flex-start">'+
-      '<div style="flex:1 1 62%;min-width:0">'+planBox+'</div>'+
-      '<div style="flex:1 1 38%;min-width:280px"><div style="border:1px solid #E1E1E1;border-radius:10px;overflow:hidden">'+
-        '<div style="background:#EFEFEF;padding:9px 12px;font-weight:800;font-size:13px">'+(selected.size?'Selected offices':'Available offices')+' <span style="color:#8C8C8C;font-weight:600">· '+opt.rows.length+'</span></div>'+
-        '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:#8C8C8C;font-size:10px;text-transform:uppercase;letter-spacing:.04em"><th style="padding:7px 6px">Office</th><th style="padding:7px 6px">From</th><th style="padding:7px 6px">Class / View</th><th style="padding:7px 6px;text-align:right">Sq ft</th><th style="padding:7px 6px;text-align:right">Monthly</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
-      '</div></div>'+
-    '</div>'+
-    '<div style="margin-top:14px;font-size:10.5px;color:#8C8C8C;border-top:1px solid #E1E1E1;padding-top:8px;display:flex;justify-content:space-between"><span>'+opt.rows.length+' offices · '+totSf+' sq ft total · compassoffices.com</span><span>For marketing purposes only. Availability subject to change.</span></div>';
-  return d;
+
+async function exportAllPdf(){
+  $('exportMenu').classList.remove('open');
+  const floors=REGISTRY.filter(r=>r.region===CITY&&r.jsonUrl);
+  if(!floors.length)return;
+  const {jsPDF}=window.jspdf;const logo=await logoPng();const rep=await ensureReport(CITY);const ml=rep.monthLabels;
+  const regionOffices=rep.offices.map(o=>classifyOffice(o,ml));const gidx=numIndex(regionOffices);
+  const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
+  $('load').classList.add('on');$('loadMsg').textContent='Building combined PDF…';
+  let first=true;
+  for(const row of floors){
+    try{
+      const data=await (await fetch(row.jsonUrl)).json();const base=deriveImgBase(row.jsonUrl);
+      const rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString(),rect:r.rect,polygon:r.polygon||null}));
+      const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
+      const cc={};rooms.forEach(rm=>{const rk=[...normKeys(rm.label),...normKeys(rm.raw)];for(const k of rk){if(gidx[k]){cc[gidx[k].centre]=(cc[gidx[k].centre]||0)+1;break;}}});
+      const centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0]||fuzzyCentre(row.name,reportCentres(CITY));
+      const offices=regionOffices.filter(o=>o.centre===centre);
+      const col=await colourPlan(plan,offices,gidx);
+      if(!first)pdf.addPage();first=false;
+      drawFloorPage(pdf,{centre:centre?prettyCentre(centre):row.name,level:row.level,address:row.address||'',city:CITY,monthLabels:ml,legend:legendFrom(offices.filter(o=>o.bucket!=='occupied'&&o.bucket!=='suspended')),plan:col,logoPng:logo});
+    }catch(e){console.warn('skip floor',row.id,e);}
+  }
+  $('load').classList.remove('on');
+  pdf.save('Compass_Availability_'+CITY.replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf');
 }
 
 boot();
