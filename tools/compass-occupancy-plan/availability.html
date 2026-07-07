@@ -308,45 +308,35 @@ async function boot(){
 }
 async function loadRegions(){try{const t=await (await fetch(CONFIG.AXDATA_CSV)).text();const rows=parseCSV(t);for(let i=1;i<rows.length;i++){if(rows[i][0]&&rows[i][1])REGIONS[rows[i][0].trim()]=rows[i][1].trim();}}catch(e){console.warn('AX-DATA',e);}}
 async function fetchCsv(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);const t=await r.text();if(/^\s*</.test(t)||/<!DOCTYPE html/i.test(t)||/Temporary Redirect|accounts\.google/i.test(t.slice(0,300)))throw new Error('not-csv (sharing?)');return t;}
+function extractGids(html){
+  const out={},known=Object.keys(CONFIG.FLOORPLAN_TABS);let m,re;
+  re=/[?&]gid=(\d+)[^>]*>\s*([A-Za-z]{2,4})\s*</g;while((m=re.exec(html))){const n=m[2].toLowerCase();if(known.includes(n)&&out[n]==null)out[n]=m[1];}
+  re=/"name"\s*:\s*"([A-Za-z]{2,4})"[^{}]*?"gid"\s*:\s*"?(\d+)/g;while((m=re.exec(html))){const n=m[1].toLowerCase();if(known.includes(n)&&out[n]==null)out[n]=m[2];}
+  re=/"gid"\s*:\s*"?(\d+)"?[^{}]*?"name"\s*:\s*"([A-Za-z]{2,4})"/g;while((m=re.exec(html))){const n=m[2].toLowerCase();if(known.includes(n)&&out[n]==null)out[n]=m[1];}
+  re=/sheet-button-(\d+)[^>]*>(?:[^<]*<[^>]*>)*?\s*([A-Za-z]{2,4})\s*</g;while((m=re.exec(html))){const n=m[2].toLowerCase();if(known.includes(n)&&out[n]==null)out[n]=m[1];}
+  return out;
+}
 async function loadFloorplanSheet(){
   REGISTRY=[];const tabMap=CONFIG.FLOORPLAN_TABS;FP_STATUS={loaded:0,tabs:0,total:Object.keys(tabMap).length,errors:[],via:''};
-  // Method 1 — parse the published pubhtml (all tabs at once, no gids, no sharing change)
-  try{
-    const html=await (await fetch('https://docs.google.com/spreadsheets/d/e/'+CONFIG.FLOORPLAN_PUB_TOKEN+'/pubhtml',{cache:'no-store'})).text();
-    if(/<table/i.test(html)){
-      const doc=new DOMParser().parseFromString(html,'text/html');
-      const names=[...doc.querySelectorAll('#sheet-menu li')].map(li=>li.textContent.trim().toLowerCase());
-      let tables=[...doc.querySelectorAll('table')];tables=tables.filter((t,i)=>tables.indexOf(t)===i);
-      const valid=tables.filter(t=>/floorplan.?data/i.test(t.textContent));
-      valid.forEach((tbl,ti)=>{
-        const tabName=(names[ti]||'').toLowerCase();const cities=tabMap[tabName];if(!cities)return;
-        const rows=[...tbl.querySelectorAll('tr')].map(tr=>[...tr.querySelectorAll('td')].map(td=>td.textContent.trim()));
-        let hIdx=rows.findIndex(r=>r.some(c=>/floorplan.?data/i.test(c)));if(hIdx<0)hIdx=0;
-        const H=rows[hIdx];const cC=H.findIndex(c=>/centre|code/i.test(c)),cJ=H.findIndex(c=>/floorplan.?data|json/i.test(c)),cM=H.findIndex(c=>/master|image/i.test(c));
-        let n=0;
-        for(let i=hIdx+1;i<rows.length;i++){const r=rows[i];const json=(cJ>=0?r[cJ]:'')||'';if(!/^https?:/i.test(json))continue;
-          const code=(cC>=0?r[cC]:'')||('r'+i),master=(cM>=0?r[cM]:'')||'';const m=code.match(/(\d+)\s*$/),level=m?m[1]:'';
-          REGISTRY.push({id:tabName+'-'+code,code,tab:tabName,cities,name:code,level,jsonUrl:json,masterUrl:master,address:''});n++;}
-        if(n>0){FP_STATUS.tabs++;FP_STATUS.loaded+=n;}
-      });
-      if(FP_STATUS.loaded>0)FP_STATUS.via='pubhtml';
-    }
-  }catch(e){console.warn('pubhtml parse',e);}
-  // Method 2 — gviz / pub-csv fallback for any tab pubhtml missed
-  const covered=new Set(REGISTRY.map(r=>r.tab));
-  await Promise.all(Object.keys(tabMap).filter(t=>!covered.has(t)).map(async tab=>{
-    let text=null;const attempts=[];
-    if(CONFIG.FLOORPLAN_GIDS&&CONFIG.FLOORPLAN_GIDS[tab]!=null)attempts.push('https://docs.google.com/spreadsheets/d/e/'+CONFIG.FLOORPLAN_PUB_TOKEN+'/pub?gid='+CONFIG.FLOORPLAN_GIDS[tab]+'&single=true&output=csv');
-    attempts.push('https://docs.google.com/spreadsheets/d/'+CONFIG.FLOORPLAN_DOC_ID+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(tab));
-    for(const url of attempts){try{text=await fetchCsv(url);break;}catch(e){}}
+  const T='https://docs.google.com/spreadsheets/d/e/'+CONFIG.FLOORPLAN_PUB_TOKEN;
+  const gids=Object.assign({},CONFIG.FLOORPLAN_GIDS||{});
+  // auto-discover tab gids from the pubhtml (the browser receives the full raw HTML)
+  try{const html=await (await fetch(T+'/pubhtml',{cache:'no-store'})).text();const found=extractGids(html);Object.keys(found).forEach(k=>{if(gids[k]==null)gids[k]=found[k];});}catch(e){console.warn('gid discovery failed',e);}
+  const firstTab=Object.keys(tabMap)[0];
+  await Promise.all(Object.keys(tabMap).map(async tab=>{
+    const cities=tabMap[tab];let text=null;const tried=[];
+    if(gids[tab]!=null)tried.push(T+'/pub?gid='+gids[tab]+'&single=true&output=csv');
+    if(tab===firstTab)tried.push(T+'/pub?output=csv');            // first published tab needs no gid, always CORS-safe
+    tried.push('https://docs.google.com/spreadsheets/d/'+CONFIG.FLOORPLAN_DOC_ID+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(tab));
+    for(const u of tried){try{text=await fetchCsv(u);break;}catch(e){}}
     if(!text){FP_STATUS.errors.push(tab);return;}
     const rows=parseCSV(text);if(rows.length<2){FP_STATUS.errors.push(tab+' (empty)');return;}
     const H=rows[0],cC=findCol(H,[/centre/i,/code/i]),cJ=findCol(H,[/floorplan.?data/i,/json/i]),cM=findCol(H,[/master/i,/image/i]);
     if(cJ<0){FP_STATUS.errors.push(tab+' (no json col)');return;}
     let n=0;for(let i=1;i<rows.length;i++){const r=rows[i];const json=(''+(r[cJ]||'')).trim();if(!/^https?:/i.test(json))continue;
       const code=cC>=0?(''+(r[cC]||'')).trim():('r'+i),master=cM>=0?(''+(r[cM]||'')).trim():'';const m=code.match(/(\d+)\s*$/),level=m?m[1]:'';
-      REGISTRY.push({id:tab+'-'+code,code,tab,cities:tabMap[tab],name:code,level,jsonUrl:json,masterUrl:master,address:''});n++;}
-    if(n>0){FP_STATUS.tabs++;FP_STATUS.loaded+=n;FP_STATUS.via=FP_STATUS.via||'gviz';}
+      REGISTRY.push({id:tab+'-'+code,code,tab,cities,name:code,level,jsonUrl:json,masterUrl:master,address:''});n++;}
+    if(n>0){FP_STATUS.tabs++;FP_STATUS.loaded+=n;}
   }));
   console.log('Floorplan sheet load:',FP_STATUS,REGISTRY);
 }
@@ -381,8 +371,8 @@ async function renderCities(){
   grid.innerHTML=cities.map((c,i)=>`<div class="city-card" id="cc-${i}" onclick="openCity('${c.replace(/'/g,"\\'")}')"><div class="cc-top"><div class="cc-name">${c}</div><div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div><div class="cc-wait" id="ccw-${i}">Loading availability…</div></div>`).join('');
   for(let i=0;i<cities.length;i++){ await fillCityCard(cities[i],i); }
   const st=$('fpStatus');
-  if(FP_STATUS.loaded>0)st.innerHTML='Floorplans: '+FP_STATUS.loaded+' plans across '+FP_STATUS.tabs+' region tab'+(FP_STATUS.tabs!==1?'s':'')+(FP_STATUS.errors.length?(' &middot; could not read: '+FP_STATUS.errors.join(', ')):'');
-  else{st.className='fp-status warn';st.textContent='Floorplans not loaded — set the floorplan sheet to \'Anyone with the link: Viewer\', then reload.';}
+  if(FP_STATUS.loaded>0){st.className='fp-status';st.innerHTML='Floorplans: '+FP_STATUS.loaded+' plans across '+FP_STATUS.tabs+' of '+FP_STATUS.total+' region tabs'+(FP_STATUS.errors.length?(' &middot; not readable: '+FP_STATUS.errors.join(', ')+' (share sheet as \'Anyone with link: Viewer\' to include them)'):'');}
+  else{st.className='fp-status warn';st.textContent='Floorplans not loaded — the published sheet returned no data. Share it as \'Anyone with the link: Viewer\' and reload.';}
 }
 async function fillCityCard(city,i){
   const card=$('cc-'+i);if(!card)return;
@@ -521,7 +511,7 @@ function populateRail(){const rail=$('detailRail'),list=$('railList'),cnt=$('rai
   const avail=CUR.offices.filter(o=>o.bucket==='month'||o.bucket==='presold');rail.classList.add('on');cnt.textContent=avail.length+' available';
   if(!avail.length){list.innerHTML='<div class="dl-empty">No offices opening up here right now.</div>';return;}
   list.innerHTML=avail.map(o=>{const sel=selected.has(o.office);const view=(o.view||'')+((o.viewType&&o.viewType!=='N/A')?(' · '+o.viewType):'');
-    return '<div class="acard'+(sel?' sel':'')+'" onclick="railClick(\''+o.office.replace(/'/g,"\\'")+'\')"><div class="t"><div class="o">'+o.office+'</div><div class="m" style="background:'+o.color+'">'+o.availLabel+'</div></div><div class="meta"><b>'+(o.class||'')+'</b> · '+(o.size||'?')+' sq ft · '+(o.maxConfig||'?')+' desks'+(view?'<br>'+view:'')+'</div><div class="foot"><div class="price">'+(o.price?'$'+o.price.toLocaleString():'—')+'<span>'+(o.price?' /mo':'')+'</span></div><div class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div></div></div>';
+    return '<div class="acard'+(sel?' sel':'')+'" onclick="railClick(\''+o.office.replace(/'/g,"\\'")+'\')"><div class="t"><div class="o">'+o.office+'</div><div class="m" style="background:'+o.color+'">'+o.availLabel+'</div></div><div class="meta"><b>'+(o.class||'')+'</b> · '+(o.size||'?')+' sq ft · '+(o.maxConfig||'?')+' desks'+(view?'<br>'+view:'')+'</div><div class="foot"><div class="price">'+fmtPrice(o.price)+'<span>'+(o.price?' /mo':'')+'</span></div><div class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div></div></div>';
   }).join('');
 }
 function railClick(office){const o=CUR.offices.find(x=>x.office===office);if(!o)return;showRoomDetail(o);toggleSel(office);}
