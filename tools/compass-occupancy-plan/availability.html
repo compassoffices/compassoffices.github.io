@@ -232,6 +232,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
       <input id="loginEmail" class="login-in" type="email" placeholder="Work email" autocomplete="username" onkeydown="if(event.key==='Enter')proceedLogin()">
       <div id="passWrap" style="display:none">
         <input id="loginPass" class="login-in" type="password" placeholder="Passcode" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <input id="loginPass2" class="login-in" type="password" placeholder="Confirm passcode" autocomplete="new-password" style="display:none" onkeydown="if(event.key==='Enter')doLogin()">
         <div class="login-change" onclick="resetLogin()">Use a different email</div>
       </div>
       <div class="login-err" id="loginErr"></div>
@@ -321,7 +322,7 @@ const LOGO_RAW=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 400"><
 function LOGO(c){return LOGO_RAW.replace(/WORDMARK/g,c);}
 const CURRENCY={'Hong Kong':'HK$','Tokyo':'¥','Osaka':'¥','Sydney':'A$','Melbourne':'A$','Singapore':'S$','Manila':'₱','Kuala Lumpur':'RM','Ho Chi Minh City':'₫'};
 function curSym(){return CURRENCY[CITY]||'$';}
-let CITIES=[];let CARD_OPTS={};
+let CITIES=[];let CARD_OPTS={};let SETUP=false;
 const DL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 function fmtPrice(p){return p?curSym()+Math.round(p).toLocaleString():'—';}
 const MONTH_COLORS=['#4ade80','#facc15','#60a5fa','#fb923c','#2dd4bf','#a78bfa','#f472b6'];
@@ -372,26 +373,34 @@ async function proceedLogin(){
     var email=emailEl.value.trim();if(!email){err.textContent='Enter your email.';return;}
     btn.disabled=true;btn.textContent='Checking…';
     try{var r=await jsonp(CONFIG.GATE_URL+'?action=check&email='+encodeURIComponent(email));
-      if(r&&r.ok&&r.exists){pw.style.display='';$('loginSub').textContent='Welcome back — enter your passcode.';emailEl.setAttribute('readonly','');btn.textContent='Sign in';setTimeout(function(){$('loginPass').focus();},30);}
+      if(r&&r.ok&&r.exists){pw.style.display='';emailEl.setAttribute('readonly','');
+        if(r.hasPass){SETUP=false;$('loginPass2').style.display='none';$('loginPass').placeholder='Passcode';$('loginSub').textContent='Welcome back — enter your passcode.';btn.textContent='Sign in';}
+        else{SETUP=true;$('loginPass2').style.display='';$('loginPass').placeholder='Create a passcode';$('loginSub').textContent='First time here — create your passcode.';btn.textContent='Create passcode';}
+        setTimeout(function(){$('loginPass').focus();},30);}
       else{err.textContent='This email has no access. Contact the admin.';btn.textContent='Continue';}
     }catch(e){err.textContent='Could not reach the server.';btn.textContent='Continue';}
     btn.disabled=false;
   } else { doLogin(); }
 }
-function resetLogin(){$('passWrap').style.display='none';$('loginPass').value='';$('loginEmail').removeAttribute('readonly');$('loginSub').textContent='Sign in to view your assigned regions.';$('loginBtn').textContent='Continue';$('loginErr').textContent='';$('loginEmail').focus();}
+function resetLogin(){SETUP=false;$('passWrap').style.display='none';$('loginPass').value='';$('loginPass2').value='';$('loginPass2').style.display='none';$('loginPass').placeholder='Passcode';$('loginEmail').removeAttribute('readonly');$('loginSub').textContent='Sign in to view your assigned regions.';$('loginBtn').textContent='Continue';$('loginErr').textContent='';$('loginEmail').focus();}
 async function doLogin(){
   var email=$('loginEmail').value.trim(),pass=$('loginPass').value;$('loginErr').textContent='';
-  if(!email||!pass){$('loginErr').textContent='Enter your email and passcode.';return;}
-  var btn=$('loginBtn');btn.disabled=true;btn.textContent='Signing in…';
+  if(!email||!pass){$('loginErr').textContent='Enter your passcode.';return;}
+  if(SETUP){
+    if(pass.length<4){$('loginErr').textContent='Use at least 4 characters.';return;}
+    if(pass!==$('loginPass2').value){$('loginErr').textContent='The passcodes do not match.';return;}
+  }
+  var btn=$('loginBtn');btn.disabled=true;btn.textContent=SETUP?'Creating…':'Signing in…';
   try{
     var h=await sha256hex(pass);
-    var r=await jsonp(CONFIG.GATE_URL+'?action=login&email='+encodeURIComponent(email)+'&h='+h);
-    if(!r||!r.ok){$('loginErr').textContent=(r&&r.error)||'Sign in failed.';btn.disabled=false;btn.textContent='Sign in';return;}
+    var action=SETUP?'setpass':'login';
+    var r=await jsonp(CONFIG.GATE_URL+'?action='+action+'&email='+encodeURIComponent(email)+'&h='+h);
+    if(!r||!r.ok){$('loginErr').textContent=(r&&r.error)||'Sign in failed.';btn.disabled=false;btn.textContent=SETUP?'Create passcode':'Sign in';return;}
     AUTH={token:r.token,email:r.email,role:r.role,regions:r.regions};
     try{sessionStorage.setItem('co_auth',JSON.stringify(AUTH));}catch(e){}
-    $('loginPass').value='';showApp();
+    $('loginPass').value='';$('loginPass2').value='';SETUP=false;showApp();
   }catch(e){$('loginErr').textContent='Could not reach the server.';}
-  btn.disabled=false;btn.textContent='Sign in';
+  btn.disabled=false;btn.textContent=SETUP?'Create passcode':'Sign in';
 }
 function logout(){AUTH=null;REPORTS={};CITY_ITEMS={};try{sessionStorage.removeItem('co_auth');}catch(e){}CUR=null;showLogin();}
 async function boot(){
@@ -608,7 +617,7 @@ function renderLayout(){
 function roomPath(r){if(r.polygon&&r.polygon.length>=3){let d='M '+r.polygon[0].x+' '+r.polygon[0].y;for(let i=0;i<r.polygon.length;i++){const A=r.polygon[i],B=r.polygon[(i+1)%r.polygon.length];if(A.hOut)d+=' C '+(A.x+A.hOut[0])+' '+(A.y+A.hOut[1])+' '+(B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4))+' '+(B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4))+' '+B.x+' '+B.y;else d+=' L '+B.x+' '+B.y;}return d+' Z';}const{x1,y1,x2,y2}=r.rect;return'M '+x1+' '+y1+' L '+x2+' '+y1+' L '+x2+' '+y2+' L '+x1+' '+y2+' Z';}
 function renderPlan(stage){
   const wrap=document.createElement('div');wrap.className='pwrap';const img=document.createElement('img');img.crossOrigin='anonymous';img.src=CUR.plan.masterUrl||'';
-  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox',(CUR.plan.ox||0)+' '+(CUR.plan.oy||0)+' '+CUR.plan.w+' '+CUR.plan.h);svg.setAttribute('preserveAspectRatio','none');
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 '+CUR.plan.w+' '+CUR.plan.h);svg.setAttribute('preserveAspectRatio','none');
   CUR.plan.rooms.forEach(rm=>{const o=officeForRoom(rm);const color=o?o.color:C_OCC;const pass=o?passOffice(o):false;
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','room'+((o&&!pass)?' dim':''));
     const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',roomPath(rm));p.setAttribute('fill',color);
@@ -704,7 +713,7 @@ async function colourPlan(plan,offices,idx){
   const iw=(img&&img.naturalWidth)||plan.w, ih=(img&&img.naturalHeight)||plan.h, sx=iw/plan.w, sy=ih/plan.h;
   const cv=document.createElement('canvas');cv.width=iw;cv.height=ih;const ctx=cv.getContext('2d');
   ctx.fillStyle='#fff';ctx.fillRect(0,0,iw,ih);if(img)ctx.drawImage(img,0,0,iw,ih);
-  ctx.save();ctx.scale(sx,sy);ctx.translate(-(plan.ox||0),-(plan.oy||0));
+  ctx.save();ctx.scale(sx,sy);
   plan.rooms.forEach(rm=>{const rk=[...normKeys(rm.label),...normKeys(rm.raw)];let o=null;for(const k of rk){if(idx[k]){o=idx[k];break;}}if(!o||!offices.includes(o))return;
     if(thisMonthOnly&&!(o.bucket==='month'&&o.idx===0))return;if(availOnly&&!(o.bucket==='month'||o.bucket==='presold'))return;
     const c=hexRgb(o.color);ctx.save();pathRoomCtx(ctx,rm);ctx.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+',0.55)';ctx.fill();ctx.restore();
