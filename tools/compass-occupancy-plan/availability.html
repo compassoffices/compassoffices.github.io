@@ -430,14 +430,17 @@ async function doLogin(){
   btn.disabled=false;btn.textContent=SETUP?'Create passcode':'Sign in';
 }
 function logout(){AUTH=null;REPORTS={};CITY_ITEMS={};try{sessionStorage.removeItem('co_auth');}catch(e){}CUR=null;showLogin();}
+function hideBoot(){var _bl=$('bootLoader');if(_bl&&!_bl.classList.contains('hide')){_bl.classList.add('hide');setTimeout(function(){_bl.style.display='none';},500);}}
 async function boot(){
   var _bm=$('bootMk');if(_bm)_bm.innerHTML=MARK;
-  $('heroLogo').innerHTML=LOGO('#fff');$('cityLogo').innerHTML=LOGO('#282828');
-  await Promise.all([loadFloorplanSheet(),loadAddresses()]);
+  try{$('heroLogo').innerHTML=LOGO('#fff');$('cityLogo').innerHTML=LOGO('#282828');}catch(e){}
+  setTimeout(hideBoot,12000); // safety net: never spin forever
   var saved=null;try{saved=sessionStorage.getItem('co_auth');}catch(e){}
   if(saved){try{AUTH=JSON.parse(saved);}catch(e){AUTH=null;}}
-  if(AUTH&&AUTH.token) showApp(); else showLogin();
-  var _bl=$('bootLoader');if(_bl){setTimeout(function(){_bl.classList.add('hide');setTimeout(function(){_bl.style.display='none';},500);},250);}
+  // show login/app straight away — public assets load in the background, so a slow sheet never blocks the gate
+  try{ if(AUTH&&AUTH.token) showApp(); else showLogin(); }catch(e){ console.error(e); showLogin(); }
+  Promise.all([loadFloorplanSheet(),loadAddresses()]).catch(function(e){console.warn('assets',e);}).finally(function(){ if(AUTH&&AUTH.token) renderCities(); });
+  setTimeout(hideBoot,300);
 }
 async function loadAddresses(){
   if(!CONFIG.ADDRESS_CSVS||!CONFIG.ADDRESS_CSVS.length)return;
@@ -473,8 +476,8 @@ async function loadFloorplanSheet(){
   REGISTRY=[];const tabMap=CONFIG.FLOORPLAN_TABS;FP_STATUS={loaded:0,tabs:0,total:Object.keys(tabMap).length,errors:[],via:''};
   const T='https://docs.google.com/spreadsheets/d/e/'+CONFIG.FLOORPLAN_PUB_TOKEN;
   const gids=Object.assign({},CONFIG.FLOORPLAN_GIDS||{});
-  // auto-discover tab gids from the pubhtml (the browser receives the full raw HTML)
-  try{const html=await (await fetch(T+'/pubhtml',{cache:'no-store'})).text();const found=extractGids(html);Object.keys(found).forEach(k=>{if(gids[k]==null)gids[k]=found[k];});}catch(e){console.warn('gid discovery failed',e);}
+  // auto-discover tab gids from the pubhtml only if some tab is missing one
+  if(Object.keys(tabMap).some(function(t){return gids[t]==null;})){try{const ctrl=('AbortController' in window)?new AbortController():null;const to=ctrl?setTimeout(function(){ctrl.abort();},6000):null;const html=await (await fetch(T+'/pubhtml',{cache:'no-store',signal:ctrl?ctrl.signal:undefined})).text();if(to)clearTimeout(to);const found=extractGids(html);Object.keys(found).forEach(k=>{if(gids[k]==null)gids[k]=found[k];});}catch(e){console.warn('gid discovery skipped',e);}}
   const firstTab=Object.keys(tabMap)[0];
   await Promise.all(Object.keys(tabMap).map(async tab=>{
     const cities=tabMap[tab];let text=null;const tried=[];
