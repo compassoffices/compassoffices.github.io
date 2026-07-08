@@ -516,7 +516,7 @@ function adminRowHtml(p,isNew){
       '<div><label>Options</label><div class="ar-opts"><label><input type="checkbox" id="'+id+'_tm"'+(/thismonth/.test(opt)?' checked':'')+'> This month</label><label><input type="checkbox" id="'+id+'_dt"'+(/detail/.test(opt)?' checked':'')+'> Detail</label></div></div>'+
     '</div>'+
     '<div class="ar-actions"><button class="btn pri" onclick="adminSave(\''+id+'\','+(isNew?'true':'false')+',\''+esc(p.email)+'\')">Save</button>'+
-      (isNew?'':'<button class="btn" onclick="adminReset(\''+esc(p.email)+'\')">Reset passcode</button>')+
+      (isNew?'':'<button class="btn" onclick="adminSendOne(\''+esc(p.email)+'\',this)">Send now</button><button class="btn" onclick="adminReset(\''+esc(p.email)+'\')">Reset passcode</button>')+
       '<span class="ar-msg" id="'+id+'_msg"></span></div></div>';
 }
 function adminAdd(){$('adminBody').insertAdjacentHTML('afterbegin',adminRowHtml({role:'viewer',regions:'',autoSend:false,sendDay:'',options:''},true));}
@@ -536,6 +536,12 @@ async function adminReset(email){
   if(!confirm('Clear this person\'s passcode? They will set a new one on next login.'))return;
   try{const r=await jsonp(CONFIG.GATE_URL+'?action=admin_reset&token='+encodeURIComponent(AUTH.token)+'&email='+encodeURIComponent(email));
     alert(r&&r.ok?'Passcode cleared — they set a new one at next login.':((r&&r.error)||'Failed'));}catch(e){alert('Server error');}
+}
+async function adminSendOne(email,btn){
+  var t=btn.textContent;btn.disabled=true;btn.textContent='Sending…';
+  try{const r=await jsonp(CONFIG.GATE_URL+'?action=admin_sendone&token='+encodeURIComponent(AUTH.token)+'&email='+encodeURIComponent(email));
+    btn.textContent=(r&&r.ok)?'Sent':((r&&r.error)||'Failed');setTimeout(function(){btn.textContent=t;btn.disabled=false;},1600);
+  }catch(e){btn.textContent='Error';setTimeout(function(){btn.textContent=t;btn.disabled=false;},1600);}
 }
 async function adminSendNow(){
   const b=$('adminSendBtn');const t=b.textContent;b.disabled=true;b.textContent='Sending…';
