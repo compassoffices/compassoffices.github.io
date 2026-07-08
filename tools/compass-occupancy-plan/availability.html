@@ -70,6 +70,10 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .city-card .cc-legend span{font-size:10.5px;color:var(--co-text-2);display:inline-flex;align-items:center;gap:5px;}
 .city-card .cc-legend i{width:9px;height:9px;border-radius:2px;}
 .city-card.empty{opacity:.6;}
+.cc-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px;}
+.cco{font-size:11px;font-weight:600;color:var(--co-text-2);border:1px solid var(--co-line);background:var(--co-paper);border-radius:var(--co-radius-pill);padding:4px 11px;cursor:pointer;transition:.12s;user-select:none;}
+.cco:hover{border-color:var(--co-orange);color:var(--co-orange);}
+.cco.on{background:var(--co-orange);border-color:var(--co-orange);color:#fff;}
 .city-card .cc-wait{font-size:12px;color:var(--co-faint);margin-top:12px;}
 
 /* ---------- CITY VIEW ---------- */
@@ -317,7 +321,7 @@ const LOGO_RAW=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 400"><
 function LOGO(c){return LOGO_RAW.replace(/WORDMARK/g,c);}
 const CURRENCY={'Hong Kong':'HK$','Tokyo':'¥','Osaka':'¥','Sydney':'A$','Melbourne':'A$','Singapore':'S$','Manila':'₱','Kuala Lumpur':'RM','Ho Chi Minh City':'₫'};
 function curSym(){return CURRENCY[CITY]||'$';}
-let CITIES=[];
+let CITIES=[];let CARD_OPTS={};
 const DL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 function fmtPrice(p){return p?curSym()+Math.round(p).toLocaleString():'—';}
 const MONTH_COLORS=['#4ade80','#facc15','#60a5fa','#fb923c','#2dd4bf','#a78bfa','#f472b6'];
@@ -516,8 +520,14 @@ function fillCityCard(city,i,S){
   const bar=segs.map(x=>`<i style="background:${x.c};width:${(x.n/barTot*100).toFixed(1)}%"></i>`).join('');
   const leg=segs.slice(0,4).map(x=>`<span><i style="background:${x.c}"></i>${x.l} ${x.n}</span>`).join('');
   card.innerHTML=topRow+(total?`<div class="cc-big"><div class="cc-num">${total}</div><div class="cc-num-lbl">office${total!==1?'s':''}<br>available</div></div><div class="cc-sub">across ${centres} centre${centres!==1?'s':''} · ${now} available now</div><div class="cc-bar">${bar}</div><div class="cc-legend">${leg}</div>`:`<div class="cc-big"><div class="cc-num" style="color:var(--co-faint)">0</div><div class="cc-num-lbl">offices<br>available</div></div><div class="cc-sub">Fully occupied right now</div>`);
+  const o=CARD_OPTS[city]||{};
+  card.innerHTML+='<div class="cc-opts" onclick="event.stopPropagation()">'+
+    '<span class="cco'+(o.month?' on':'')+'" onclick="toggleCardOpt(event,\''+city.replace(/'/g,"\\'")+'\',\'month\',this)">This month</span>'+
+    '<span class="cco'+(o.avail?' on':'')+'" onclick="toggleCardOpt(event,\''+city.replace(/'/g,"\\'")+'\',\'avail\',this)">Available only</span>'+
+    '<span class="cco'+(o.detail?' on':'')+'" onclick="toggleCardOpt(event,\''+city.replace(/'/g,"\\'")+'\',\'detail\',this)">Detail</span></div>';
   if(!total)card.classList.add('empty');
 }
+function toggleCardOpt(e,city,key,el){e.stopPropagation();CARD_OPTS[city]=CARD_OPTS[city]||{};CARD_OPTS[city][key]=!CARD_OPTS[city][key];el.classList.toggle('on',CARD_OPTS[city][key]);}
 
 /* ===================== CITY VIEW ===================== */
 function toggleLocMenu(e){e.stopPropagation();const m=$('locMenu'),b=$('faBtn');const willOpen=!m.classList.contains('open');if(willOpen){const r=b.getBoundingClientRect();m.style.top=(r.bottom+8)+'px';m.style.right=Math.max(12,window.innerWidth-r.right)+'px';}m.classList.toggle('open');b.classList.toggle('open');}
@@ -696,7 +706,7 @@ async function colourPlan(plan,offices,idx){
   ctx.fillStyle='#fff';ctx.fillRect(0,0,iw,ih);if(img)ctx.drawImage(img,0,0,iw,ih);
   ctx.save();ctx.scale(sx,sy);
   plan.rooms.forEach(rm=>{const rk=[...normKeys(rm.label),...normKeys(rm.raw)];let o=null;for(const k of rk){if(idx[k]){o=idx[k];break;}}if(!o||!offices.includes(o))return;
-    if(thisMonthOnly&&!(o.bucket==='month'&&o.idx===0))return;
+    if(thisMonthOnly&&!(o.bucket==='month'&&o.idx===0))return;if(availOnly&&!(o.bucket==='month'||o.bucket==='presold'))return;
     const c=hexRgb(o.color);ctx.save();pathRoomCtx(ctx,rm);ctx.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+',0.55)';ctx.fill();ctx.restore();
     const cx=rm.rect?(rm.rect.x1+rm.rect.x2)/2:0,cy=rm.rect?(rm.rect.y1+rm.rect.y2)/2:0,fs=Math.max(16,(rm.rect?(rm.rect.x2-rm.rect.x1):40)*0.14);
     ctx.font='bold '+fs+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#111';ctx.fillText(rm.label,cx,cy);});
@@ -821,10 +831,13 @@ async function exportAllPdf(){
 async function exportCityAll(i){
   const city=CITIES[i];if(!city)return;
   const btn=$('dl-'+i);const orig=btn?btn.innerHTML:'';if(btn)btn.innerHTML='<div class="spin" style="width:14px;height:14px;border-width:2px"></div>';
+  const o=CARD_OPTS[city]||{};
+  const sMonth=thisMonthOnly,sAvail=availOnly,sDetail=showDetail;
+  thisMonthOnly=!!o.month;availOnly=!!o.avail;showDetail=!!o.detail;
   try{const items=(await resolveItems(city)).filter(x=>x.kind==='floor');
     if(!items.length){alert('No floorplans matched for '+city+' yet.');}
     else{const prev=CITY;CITY=city;await buildCombinedPdf(city,items);CITY=prev;}
-  }finally{if(btn)btn.innerHTML=orig;}
+  }finally{thisMonthOnly=sMonth;availOnly=sAvail;showDetail=sDetail;if(btn)btn.innerHTML=orig;}
 }
 
 boot();
