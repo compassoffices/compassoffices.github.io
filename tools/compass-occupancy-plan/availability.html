@@ -218,10 +218,36 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .user-chip{display:inline-flex;align-items:center;gap:8px;color:rgba(255,255,255,.85);font-size:12.5px;font-weight:600;}
 .user-chip .out{cursor:pointer;border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:5px 11px;color:#fff;transition:.15s;}
 .user-chip .out:hover{background:rgba(255,255,255,.14);}
+/* ---- Compass pre-loader ---- */
+#bootLoader{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;background:linear-gradient(120deg,#1E1E1E,#282828 60%,#1E1E1E);transition:opacity .45s ease;}
+#bootLoader.hide{opacity:0;pointer-events:none;}
+.boot-tag{color:rgba(255,255,255,.45);font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;}
+.co-loader{position:relative;width:66px;height:66px;}
+.co-loader .rg{position:absolute;inset:0;animation:coSpin 1s linear infinite;}
+.co-loader .rg svg{width:100%;height:100%;display:block;}
+.co-loader .rg circle{fill:none;stroke:#FF6600;stroke-width:3.4;stroke-linecap:round;stroke-dasharray:33 190;}
+.co-loader .mk{position:absolute;inset:15px;animation:coBreath 1.5s ease-in-out infinite;}
+.co-loader .mk svg{width:100%;height:100%;display:block;}
+@keyframes coSpin{to{transform:rotate(360deg);}}
+@keyframes coBreath{0%,100%{transform:scale(1);opacity:.92;}50%{transform:scale(1.09);opacity:1;}}
+/* card skeleton */
+.city-card.cc-skel{cursor:default;}
+.cc-skwrap{position:relative;overflow:hidden;border-radius:12px;margin-top:6px;padding:6px 0;min-height:118px;}
+.cc-skwrap .sk{background:#ECECEC;border-radius:8px;}
+.cc-skwrap::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);transform:translateX(-100%);animation:coShim 1.3s ease-in-out infinite;}
+@keyframes coShim{100%{transform:translateX(100%);}}
+.cc-skmk{position:absolute;top:50%;left:50%;width:30px;height:30px;transform:translate(-50%,-50%);animation:coBreath 1.4s ease-in-out infinite;opacity:.4;z-index:1;}
+.cc-skmk svg{width:100%;height:100%;display:block;}
 </style>
 </head>
 <body>
 <div class="co" id="app">
+
+  <!-- ===== BOOT LOADER ===== -->
+  <div id="bootLoader">
+    <div class="co-loader"><span class="rg"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="21"/></svg></span><span class="mk" id="bootMk"></span></div>
+    <div class="boot-tag">Office Availability</div>
+  </div>
 
   <!-- ===== LOGIN ===== -->
   <div id="loginScreen" class="login">
@@ -323,6 +349,7 @@ function LOGO(c){return LOGO_RAW.replace(/WORDMARK/g,c);}
 const CURRENCY={'Hong Kong':'HK$','Tokyo':'¥','Osaka':'¥','Sydney':'A$','Melbourne':'A$','Singapore':'S$','Manila':'₱','Kuala Lumpur':'RM','Ho Chi Minh City':'₫'};
 function curSym(){return CURRENCY[CITY]||'$';}
 let CITIES=[];let CARD_OPTS={};let SETUP=false;
+const MARK='<svg viewBox="0 0 23.13 23.13" xmlns="http://www.w3.org/2000/svg"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>';
 const DL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 function fmtPrice(p){return p?curSym()+Math.round(p).toLocaleString():'—';}
 const MONTH_COLORS=['#4ade80','#facc15','#60a5fa','#fb923c','#2dd4bf','#a78bfa','#f472b6'];
@@ -404,11 +431,13 @@ async function doLogin(){
 }
 function logout(){AUTH=null;REPORTS={};CITY_ITEMS={};try{sessionStorage.removeItem('co_auth');}catch(e){}CUR=null;showLogin();}
 async function boot(){
+  var _bm=$('bootMk');if(_bm)_bm.innerHTML=MARK;
   $('heroLogo').innerHTML=LOGO('#fff');$('cityLogo').innerHTML=LOGO('#282828');
   await Promise.all([loadFloorplanSheet(),loadAddresses()]);
   var saved=null;try{saved=sessionStorage.getItem('co_auth');}catch(e){}
   if(saved){try{AUTH=JSON.parse(saved);}catch(e){AUTH=null;}}
   if(AUTH&&AUTH.token) showApp(); else showLogin();
+  var _bl=$('bootLoader');if(_bl){setTimeout(function(){_bl.classList.add('hide');setTimeout(function(){_bl.style.display='none';},500);},250);}
 }
 async function loadAddresses(){
   if(!CONFIG.ADDRESS_CSVS||!CONFIG.ADDRESS_CSVS.length)return;
@@ -507,7 +536,7 @@ function seedDemo(){REGIONS['Hong Kong (demo)']='';REPORTS['Hong Kong (demo)']={
 function cityList(){return (AUTH&&AUTH.regions)?AUTH.regions.slice():[];}
 async function renderCities(){
   const grid=$('citiesGrid');const cities=cityList();CITIES=cities;populateLocMenu(cities);
-  grid.innerHTML=cities.map((c,i)=>`<div class="city-card" id="cc-${i}" onclick="openCity('${c.replace(/'/g,"\\'")}')"><div class="cc-top"><div class="cc-name">${c}</div><div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div><div class="cc-wait" id="ccw-${i}">Loading availability…</div></div>`).join('');
+  grid.innerHTML=cities.map((c,i)=>`<div class="city-card cc-skel" id="cc-${i}"><div class="cc-top"><div class="cc-name">${c}</div></div><div class="cc-skwrap"><span class="cc-skmk">${MARK}</span><div class="sk" style="width:66px;height:42px"></div><div class="sk" style="width:60%;height:12px;margin-top:14px"></div><div class="sk" style="width:100%;height:10px;margin-top:16px"></div></div></div>`).join('');
   // ONE gate call returns availability counts for every allowed region
   let sum={};
   try{const r=await jsonp(CONFIG.GATE_URL+'?action=summary&token='+encodeURIComponent(AUTH.token));
@@ -518,7 +547,7 @@ async function renderCities(){
   else{st.className='fp-status warn';st.textContent='Floorplans not loaded — the published sheet returned no data. Share it as \'Anyone with the link: Viewer\' and reload.';}
 }
 function fillCityCard(city,i,S){
-  const card=$('cc-'+i);if(!card)return;
+  const card=$('cc-'+i);if(!card)return;card.classList.remove('cc-skel');card.onclick=function(){openCity(city);};
   const dlBtn=cityHasFloors(city)?('<div class="cc-dl" id="dl-'+i+'" title="Download all floorplans in this city" onclick="event.stopPropagation();exportCityAll('+i+')">'+DL_ICON+'</div>'):'';
   const topRow='<div class="cc-top"><div class="cc-name">'+city+'</div><div class="cc-top-actions">'+dlBtn+'<div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div></div>';
   if(!S){card.innerHTML=topRow+'<div class="cc-wait">Could not load</div>';return;}
