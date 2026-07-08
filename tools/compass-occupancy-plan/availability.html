@@ -616,8 +616,9 @@ function renderLayout(){
 }
 function roomPath(r){if(r.polygon&&r.polygon.length>=3){let d='M '+r.polygon[0].x+' '+r.polygon[0].y;for(let i=0;i<r.polygon.length;i++){const A=r.polygon[i],B=r.polygon[(i+1)%r.polygon.length];if(A.hOut)d+=' C '+(A.x+A.hOut[0])+' '+(A.y+A.hOut[1])+' '+(B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4))+' '+(B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4))+' '+B.x+' '+B.y;else d+=' L '+B.x+' '+B.y;}return d+' Z';}const{x1,y1,x2,y2}=r.rect;return'M '+x1+' '+y1+' L '+x2+' '+y1+' L '+x2+' '+y2+' L '+x1+' '+y2+' Z';}
 function renderPlan(stage){
-  const wrap=document.createElement('div');wrap.className='pwrap';const img=document.createElement('img');img.crossOrigin='anonymous';img.src=CUR.plan.masterUrl||'';
+  const wrap=document.createElement('div');wrap.className='pwrap';const img=document.createElement('img');img.crossOrigin='anonymous';
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 '+CUR.plan.w+' '+CUR.plan.h);svg.setAttribute('preserveAspectRatio','none');
+  const gWrap=document.createElementNS('http://www.w3.org/2000/svg','g');svg.appendChild(gWrap);
   CUR.plan.rooms.forEach(rm=>{const o=officeForRoom(rm);const color=o?o.color:C_OCC;const pass=o?passOffice(o):false;
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','room'+((o&&!pass)?' dim':''));
     const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',roomPath(rm));p.setAttribute('fill',color);
@@ -625,7 +626,10 @@ function renderPlan(stage){
     const cx=rm.rect?(rm.rect.x1+rm.rect.x2)/2:0,cy=rm.rect?(rm.rect.y1+rm.rect.y2)/2:0;
     const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x',cx);t.setAttribute('y',cy);t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','central');t.setAttribute('class','room-num');t.setAttribute('font-size',Math.max(14,(rm.rect?(rm.rect.x2-rm.rect.x1):40)*0.14));t.setAttribute('fill','#111');t.textContent=rm.label;g.appendChild(t);
     if(o){g.style.cursor='pointer';g.onclick=()=>showRoomDetail(o);g.onmousemove=(e)=>tip(e,'Office '+o.office+' · '+o.availLabel);g.onmouseleave=hideTip;}
-    svg.appendChild(g);});
+    gWrap.appendChild(g);});
+  // scale room coords (declared space) onto the ACTUAL loaded image, exactly like the PDF does
+  function fit(){const nw=img.naturalWidth||CUR.plan.w,nh=img.naturalHeight||CUR.plan.h;svg.setAttribute('viewBox','0 0 '+nw+' '+nh);gWrap.setAttribute('transform','scale('+(nw/CUR.plan.w)+','+(nh/CUR.plan.h)+')');}
+  img.onload=fit;img.src=CUR.plan.masterUrl||'';if(img.complete&&img.naturalWidth)fit();
   wrap.appendChild(img);wrap.appendChild(svg);stage.appendChild(wrap);stage.style.alignItems='flex-start';stage.style.justifyContent='center';
 }
 function renderSchematic(stage){const g=document.createElement('div');g.className='sch';
