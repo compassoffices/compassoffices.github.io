@@ -15,7 +15,7 @@
 }
 .co *,.co *::before,.co *::after{box-sizing:border-box;}
 html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
-.co{min-height:100vh;display:flex;flex-direction:column;background:var(--co-paper);}
+.co{height:100vh;overflow:hidden;display:flex;flex-direction:column;background:var(--co-paper);}
 .btn{border:1px solid var(--co-line);background:var(--co-paper);color:var(--co-text);border-radius:10px;padding:8px 15px;font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;}
 .btn:hover{border-color:var(--co-orange);color:var(--co-orange);}
 .btn.pri{background:var(--co-ink);border-color:var(--co-ink);color:#fff;}
@@ -26,11 +26,19 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 /* ---------- HERO (cities screen) ---------- */
 .hero{background:linear-gradient(120deg,#1E1E1E 0%,#282828 60%,#1E1E1E 100%);position:relative;overflow:hidden;flex-shrink:0;}
 .hero::after{content:'';position:absolute;right:-40px;top:-60px;width:380px;height:380px;background:radial-gradient(circle,rgba(255,102,0,.14),transparent 66%);pointer-events:none;}
-.hero-bar{display:flex;align-items:center;gap:14px;padding:1.15rem 2.2rem;position:relative;z-index:2;max-width:1180px;margin:0 auto;width:100%;}
+.hero-bar{display:flex;align-items:center;gap:14px;padding:1.4rem 2.2rem;position:relative;z-index:2;max-width:1180px;margin:0 auto;width:100%;}
 .hero-bar .logo{height:34px;}
 .hero-bar .logo svg{height:34px;width:auto;display:block;}
-.hero-bar .fa{margin-left:auto;color:rgba(255,255,255,.9);font-size:15px;font-weight:600;letter-spacing:.01em;}
-.hero-body{padding:1rem 2.2rem 2.4rem;position:relative;z-index:2;max-width:1180px;margin:0 auto;width:100%;}
+.fa-wrap{margin-left:auto;position:relative;}
+.fa-btn{display:inline-flex;align-items:center;gap:9px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;font:inherit;font-size:15px;font-weight:600;padding:10px 20px;border-radius:var(--co-radius-pill);cursor:pointer;transition:.15s;}
+.fa-btn:hover{background:rgba(255,255,255,.22);}
+.fa-btn svg{width:15px;height:15px;transition:transform .18s;}
+.fa-btn.open svg{transform:rotate(180deg);}
+.loc-menu{position:absolute;right:0;top:calc(100% + 10px);background:#fff;border-radius:16px;box-shadow:0 16px 46px rgba(0,0,0,.3);padding:8px;display:none;grid-template-columns:1fr 1fr;gap:2px;min-width:340px;z-index:30;}
+.loc-menu.open{display:grid;}
+.loc-menu .li{padding:11px 16px;border-radius:10px;font-size:14.5px;font-weight:600;color:var(--co-ink);cursor:pointer;white-space:nowrap;transition:.1s;}
+.loc-menu .li:hover{background:var(--co-orange-wash);color:var(--co-orange-dk);}
+.hero-body{display:none;}
 .hero-body h1{color:#fff;font-size:32px;font-weight:800;letter-spacing:-.8px;line-height:1.1;}
 .hero-body p{color:rgba(255,255,255,.62);font-size:14.5px;margin-top:9px;max-width:520px;line-height:1.55;}
 
@@ -195,8 +203,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
   <!-- ===== CITIES SCREEN ===== -->
   <div id="screenCities">
     <div class="hero">
-      <div class="hero-bar"><div class="logo" id="heroLogo"></div><div class="fa">Find a Location</div></div>
-      <div class="hero-body"><h1>Find an available office</h1><p>Explore live availability across Compass Offices in Asia-Pacific. Pick a city to see what's opening up, then drill into a floorplan.</p></div>
+      <div class="hero-bar"><div class="logo" id="heroLogo"></div><div class="fa-wrap"><button class="fa-btn" id="faBtn" onclick="toggleLocMenu(event)">Find a Location<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="loc-menu" id="locMenu"></div></div></div>
     </div>
     <div class="cities-wrap">
       <div class="cities-lead"><h2>Cities</h2><div class="fp-status" id="fpStatus"></div></div>
@@ -257,7 +264,17 @@ const CONFIG={
   FLOORPLAN_PUB_TOKEN:'2PACX-1vSt5pT1HsDpHAjzwbyyVqy9iTMGRuKP8--loGrqTXFTX4wm15oy2r5TUN_0zFZQc3Ev9nMNyVRwrnY0',
   FLOORPLAN_TABS:{hk:['Hong Kong'],au:['Sydney','Melbourne'],vn:['Ho Chi Minh City'],ph:['Manila'],my:['Kuala Lumpur'],jp:['Tokyo','Osaka']},
   FLOORPLAN_GIDS:{hk:'0',au:'673936144',vn:'255182922',ph:'508967588',my:'1485841997',jp:'208040106'},
-  AXDATA_CSV:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTuKjM9sngPtFmP-qPV8a1MobnTDepaOhH849LE2rPtJKYOWvUa3IW0g33dym0rkUQHkUiWWf5QnJXo/pub?output=csv',
+  AXDATA_CSV:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSqqx9bIcqv-9u73P4CF2gxgJTFRGsZBaKNwiH0HJ2Ol1zNsRm09_S6lt2iqZvU_YlRFpe2j6FgqSLZ/pub?gid=0&single=true&output=csv',
+  // Address master — separate published sheet, one tab per country (centre name -> full address)
+  ADDRESS_CSVS:[
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRLI50H1iLvI-jUzpPzL93S0XJpTkpaqkq6xAjqdls543VakSXmpmXhk73JqoI-hg_WvavDy3jetMJ/pub?single=true&output=csv&gid=286237404',   // Hong Kong
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRLI50H1iLvI-jUzpPzL93S0XJpTkpaqkq6xAjqdls543VakSXmpmXhk73JqoI-hg_WvavDy3jetMJ/pub?single=true&output=csv&gid=2110967024',  // Japan
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRLI50H1iLvI-jUzpPzL93S0XJpTkpaqkq6xAjqdls543VakSXmpmXhk73JqoI-hg_WvavDy3jetMJ/pub?single=true&output=csv&gid=1211599931',  // Australia
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRLI50H1iLvI-jUzpPzL93S0XJpTkpaqkq6xAjqdls543VakSXmpmXhk73JqoI-hg_WvavDy3jetMJ/pub?single=true&output=csv&gid=82288587',    // Philippines
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRLI50H1iLvI-jUzpPzL93S0XJpTkpaqkq6xAjqdls543VakSXmpmXhk73JqoI-hg_WvavDy3jetMJ/pub?single=true&output=csv&gid=495836668',   // Singapore
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRLI50H1iLvI-jUzpPzL93S0XJpTkpaqkq6xAjqdls543VakSXmpmXhk73JqoI-hg_WvavDy3jetMJ/pub?single=true&output=csv&gid=1985017599',  // Vietnam
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRLI50H1iLvI-jUzpPzL93S0XJpTkpaqkq6xAjqdls543VakSXmpmXhk73JqoI-hg_WvavDy3jetMJ/pub?single=true&output=csv&gid=878599424'    // Kuala Lumpur
+  ],
 };
 let FP_STATUS={loaded:0,tabs:0,total:0,errors:[]};
 const LOGO_RAW=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 400"><path fill="#FF6600" d="M321.05,200c0,63.81-51.72,115.52-115.52,115.52s-115.53-51.71-115.53-115.52,51.72-115.53,115.53-115.53,115.52,51.72,115.52,115.53Z"/><polygon fill="#fff" points="207.5 195.58 232.27 240.03 263.79 240.03 207.5 139.14 149.17 240.03 181.8 240.03 207.5 195.58"/><path fill="WORDMARK" d="M428.25,179.59c8.25,0,15.73-1.65,22.23-4.9l.64-.32v-13.24l-1.69.86c-6.05,3.08-12.74,4.65-19.88,4.65-8.32,0-15.27-2.49-20.65-7.4-5.35-4.88-8.06-11.06-8.06-18.36.06-7.31,2.78-13.39,8.1-18.1,5.35-4.74,12.32-7.14,20.71-7.14,7.16,0,13.85,1.27,19.87,3.78l1.61.67v-13.43l-.73-.29c-6.05-2.45-13.5-3.69-22.14-3.69-12.23,0-22.42,3.54-30.27,10.52-7.89,7.01-11.89,16.32-11.89,27.66s4.01,20.81,11.93,27.97c7.88,7.13,18.05,10.75,30.23,10.75Z"/><path fill="WORDMARK" d="M507.71,102.69c-11.88,0-21.73,3.59-29.27,10.67-7.57,7.1-11.41,16.23-11.41,27.15s3.83,20.69,11.39,28.03c7.55,7.33,17.4,11.04,29.29,11.04s21.74-3.71,29.29-11.04c7.56-7.34,11.39-16.77,11.39-28.03s-3.84-20.04-11.4-27.15c-7.55-7.08-17.4-10.67-29.28-10.67ZM533.73,140.6c0,7.45-2.43,13.72-7.23,18.64-4.79,4.91-11.08,7.4-18.69,7.4s-13.91-2.49-18.69-7.4h0c-4.8-4.91-7.23-11.19-7.23-18.64s2.44-13.08,7.26-17.81c4.82-4.74,11.1-7.14,18.67-7.14s13.84,2.4,18.66,7.14c4.82,4.74,7.26,10.73,7.26,17.81Z"/><path fill="WORDMARK" d="M614.61,160.27l-25.49-56.32h-20.19v74.37h14.11v-55.11c.48,1.08,1.04,2.35,1.67,3.81l23.32,51.3h13.01l22.82-51.25c.19-.37.69-1.46,1.51-3.3.1-.21.19-.42.28-.63v55.17h14.29v-74.37h-20.38l-24.95,56.32Z"/><path fill="WORDMARK" d="M721.39,103.95h-34.56v74.37h14.66v-20.09h19.9c8.98,0,16.21-2.5,21.48-7.43,5.29-4.95,7.97-11.6,7.97-19.76s-2.68-14.8-7.98-19.72c-5.27-4.9-12.5-7.38-21.48-7.38ZM736.83,131.05c0,4.51-1.48,8.05-4.54,10.85-3.04,2.79-7.18,4.2-12.3,4.2h-18.5v-30.01h18.5c5.24,0,9.41,1.38,12.39,4.11,2.99,2.74,4.45,6.29,4.45,10.85Z"/><path fill="WORDMARK" d="M788.45,103.95l-33.52,74.37h15.64l6.22-14.41h40.68l6.22,14.41h16.38l-33.51-74.37h-18.11ZM812.02,151.15h-29.77l14.84-34.62,14.93,34.62Z"/><path fill="WORDMARK" d="M888.04,134.14l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.45-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.07l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.55,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.05,3.35,3.05,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.54,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.21-2.06,23.37-6.13,6.32-4.17,9.52-10.14,9.52-17.72,0-5.47-1.96-10.09-5.84-13.73-3.8-3.56-10.04-6.2-18.57-7.86Z"/><path fill="WORDMARK" d="M984.16,142c-3.79-3.56-10.04-6.2-18.57-7.86l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.45-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.07l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.55,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.05,3.35,3.05,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.54,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.21-2.06,23.37-6.13,6.32-4.18,9.52-10.14,9.52-17.72,0-5.47-1.96-10.09-5.84-13.73Z"/><path fill="WORDMARK" d="M426.86,220.41c-11.88,0-21.73,3.59-29.28,10.67-7.57,7.1-11.4,16.23-11.4,27.15s3.83,20.7,11.39,28.03c7.55,7.33,17.4,11.04,29.29,11.04s21.74-3.72,29.29-11.04c7.56-7.34,11.39-16.77,11.39-28.03s-3.84-20.04-11.41-27.15c-7.55-7.08-17.4-10.67-29.27-10.67ZM452.88,258.32c0,7.45-2.43,13.72-7.23,18.64-4.79,4.91-11.08,7.4-18.69,7.4s-13.91-2.49-18.69-7.39h0c-4.8-4.92-7.23-11.19-7.23-18.64s2.44-13.08,7.26-17.81c4.82-4.74,11.1-7.14,18.67-7.14s13.84,2.4,18.66,7.14c4.82,4.74,7.26,10.73,7.26,17.81Z"/><polygon fill="WORDMARK" points="488.08 296.05 502.74 296.05 502.74 270.83 541.61 270.83 541.61 258.33 502.74 258.33 502.74 234.53 545.32 234.53 545.32 221.68 488.08 221.68 488.08 296.05"/><polygon fill="WORDMARK" points="565.82 296.05 580.48 296.05 580.48 270.83 619.35 270.83 619.35 258.33 580.48 258.33 580.48 234.53 623.06 234.53 623.06 221.68 565.82 221.68 565.82 296.05"/><rect fill="WORDMARK" x="644.62" y="221.68" width="14.66" height="74.37"/><path fill="WORDMARK" d="M720.83,220.41c-12.23,0-22.42,3.54-30.27,10.52-7.89,7.01-11.89,16.32-11.89,27.66s4.01,20.81,11.93,27.97c7.88,7.13,18.06,10.75,30.23,10.75,8.25,0,15.73-1.65,22.23-4.9l.64-.32v-13.24l-1.69.86c-6.05,3.08-12.74,4.65-19.88,4.65-8.32,0-15.27-2.49-20.65-7.4-5.35-4.88-8.06-11.06-8.06-18.36.06-7.31,2.78-13.39,8.1-18.1,5.35-4.74,12.32-7.14,20.71-7.14,7.17,0,13.85,1.27,19.87,3.78l1.61.67v-13.43l-.73-.29c-6.05-2.45-13.5-3.69-22.14-3.69Z"/><polygon fill="WORDMARK" points="782.9 264.53 825.1 264.53 825.1 252.48 782.9 252.48 782.9 234.08 826.96 234.08 826.96 221.68 768.24 221.68 768.24 296.05 827.89 296.05 827.89 283.64 782.9 283.64 782.9 264.53"/><path fill="WORDMARK" d="M888.03,251.87l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.44-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.06l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.56,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.04,3.35,3.04,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.53,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.2-2.06,23.37-6.13,6.32-4.18,9.52-10.14,9.52-17.72,0-5.47-1.97-10.09-5.84-13.73-3.8-3.56-10.04-6.2-18.57-7.86Z"/></svg>`;
@@ -272,7 +289,7 @@ const C_PRESOLD='#f87171',C_NDD='#a8956a',C_OCC='#d6d6d6',C_SUSP='#b8b8b8';
 const DEMO_OFFICES=[{"office":"2701 - C","class":"Superior","view":"Harbour","viewType":"Superior","size":359.5,"price":103000,"maxConfig":14,"months":["O","O","O","O","O","O","N"]},{"office":"2730","class":"Executive","view":"Internal","viewType":"N/A","size":33,"price":9200,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]},{"office":"2736","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","O","O","Y","Y","Y","Y"]},{"office":"2752","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","Y","Y","Y","Y","Y","Y"]},{"office":"2753","class":"Superior","view":"City","viewType":"Superior","size":129.5,"price":38000,"maxConfig":5,"months":["O","O","O","O","O","N","N"]},{"office":"27G","class":"Executive","view":"Internal","viewType":"N/A","size":30.5,"price":8600,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]}];
 const DEMO_MONTHS=["Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026","Jan 2027"];
 
-let REGISTRY=[],REGIONS={},REPORTS={},CITY=null,CUR=null,selected=new Set(),availOnly=false,thisMonthOnly=false,viewMode='plan',viewPref='plan',showDetail=false;
+let REGISTRY=[],REGIONS={},REPORTS={},ADDRESSES=[],CITY=null,CUR=null,selected=new Set(),availOnly=false,thisMonthOnly=false,viewMode='plan',viewPref='plan',showDetail=false;
 const $=id=>document.getElementById(id);
 function tip(e,t){const el=$('tip');el.textContent=t;el.classList.add('show');let x=e.clientX+12,y=e.clientY+12;if(x+150>innerWidth)x=e.clientX-150;el.style.left=x+'px';el.style.top=y+'px';}
 function hideTip(){$('tip').classList.remove('show');}
@@ -307,9 +324,29 @@ function prettyCentre(c){return(c||'').replace(/^[A-Z]{2,4}\s*-\s*/,'');}
 
 async function boot(){
   $('heroLogo').innerHTML=LOGO('#fff');$('cityLogo').innerHTML=LOGO('#282828');
-  await Promise.all([loadFloorplanSheet(),loadRegions()]);
+  await Promise.all([loadFloorplanSheet(),loadRegions(),loadAddresses()]);
   if(!Object.keys(REGIONS).length&&!REGISTRY.length) seedDemo();
   renderCities();
+}
+async function loadAddresses(){
+  if(!CONFIG.ADDRESS_CSVS||!CONFIG.ADDRESS_CSVS.length)return;
+  await Promise.all(CONFIG.ADDRESS_CSVS.map(async function(url){
+    try{const rows=parseCSV(await (await fetch(url)).text());
+      rows.forEach(function(r){const name=(r[0]||'').toString().trim(),addr=(r[1]||'').toString().trim();
+        if(!name||!addr||/^centre/i.test(name))return;
+        ADDRESSES.push({key:name.toLowerCase().replace(/[^a-z0-9]/g,''),name:name,addr:addr});});
+    }catch(e){console.warn('address tab',e);}
+  }));
+}
+function addressFor(centreName,level){
+  if(!ADDRESSES.length)return '';
+  const n=(centreName||'').toLowerCase().replace(/[^a-z0-9]/g,'');let best=null,score=0;
+  ADDRESSES.forEach(function(a){let sc=0;for(let len=Math.min(n.length,a.key.length);len>=4;len--){let hit=false;for(let i=0;i+len<=n.length;i++){if(a.key.indexOf(n.substr(i,len))!==-1){hit=true;break;}}if(hit){sc=len;break;}}if(sc>score){score=sc;best=a;}});
+  if(!best||score<4)return '';
+  let addr=best.addr;
+  // swap the leading floor prefix (e.g. "15, 16 & 28F, ") for the specific level
+  if(level){addr=addr.replace(/^[^,]*?F\s*,\s*/i, 'Level '+level+', ');}
+  return addr;
 }
 async function loadRegions(){try{const t=await (await fetch(CONFIG.AXDATA_CSV)).text();const rows=parseCSV(t);for(let i=1;i<rows.length;i++){if(rows[i][0]&&rows[i][1])REGIONS[rows[i][0].trim()]=rows[i][1].trim();}}catch(e){console.warn('AX-DATA',e);}}
 async function fetchCsv(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);const t=await r.text();if(/^\s*</.test(t)||/<!DOCTYPE html/i.test(t)||/Temporary Redirect|accounts\.google/i.test(t.slice(0,300)))throw new Error('not-csv (sharing?)');return t;}
@@ -387,7 +424,7 @@ function seedDemo(){REGIONS['Hong Kong (demo)']='';REPORTS['Hong Kong (demo)']={
 /* ===================== CITIES ===================== */
 function cityList(){const s=new Set(Object.keys(REGIONS));REGISTRY.forEach(r=>(r.cities||[]).forEach(c=>s.add(c)));return [...s].filter(c=>c!=='__demo');}
 async function renderCities(){
-  const grid=$('citiesGrid');const cities=cityList();CITIES=cities;
+  const grid=$('citiesGrid');const cities=cityList();CITIES=cities;populateLocMenu(cities);
   grid.innerHTML=cities.map((c,i)=>`<div class="city-card" id="cc-${i}" onclick="openCity('${c.replace(/'/g,"\\'")}')"><div class="cc-top"><div class="cc-name">${c}</div><div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div><div class="cc-wait" id="ccw-${i}">Loading availability…</div></div>`).join('');
   for(let i=0;i<cities.length;i++){ await fillCityCard(cities[i],i); }
   const st=$('fpStatus');
@@ -422,6 +459,10 @@ async function fillCityCard(city,i){
 }
 
 /* ===================== CITY VIEW ===================== */
+function toggleLocMenu(e){e.stopPropagation();const m=$('locMenu'),b=$('faBtn');m.classList.toggle('open');b.classList.toggle('open');}
+document.addEventListener('click',function(e){const m=$('locMenu');if(m&&m.classList.contains('open')&&!m.contains(e.target)&&!(e.target.closest&&e.target.closest('#faBtn'))){m.classList.remove('open');$('faBtn').classList.remove('open');}});
+function populateLocMenu(cities){const m=$('locMenu');if(!m)return;m.innerHTML=cities.map(function(c){return '<div class="li" onclick="pickLoc(\''+c.replace(/'/g,"\\'")+'\')">'+c+'</div>';}).join('');}
+function pickLoc(city){$('locMenu').classList.remove('open');$('faBtn').classList.remove('open');openCity(city);}
 function openCity(city){
   CITY=city;CUR=null;selected.clear();
   $('screenCities').style.display='none';$('screenCity').classList.add('on');
@@ -612,46 +653,65 @@ async function logoPng(){
 }
 
 /* Draw one branded floorplan page onto an existing jsPDF doc */
-function drawFloorPage(pdf,opt){
-  const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight(),M=24;
+function drawBox_(pdf,b,x,y,w,h){
+  pdf.setDrawColor(225,225,225);pdf.setFillColor(255,255,255);pdf.roundedRect(x,y,w,h,6,6,'FD');
+  pdf.setTextColor(26,26,26);pdf.setFont('helvetica','bold');pdf.setFontSize(10.5);pdf.text(''+b.office,x+9,y+15);
+  const c=hexRgb(b.color);pdf.setFont('helvetica','bold');pdf.setFontSize(6.5);const pw=pdf.getTextWidth(b.avail)+10;
+  pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(x+w-pw-7,y+5,pw,12,6,6,'F');pdf.setTextColor(20,20,20);pdf.text(b.avail,x+w-pw-7+pw/2,y+13,{align:'center'});
+  pdf.setTextColor(120,120,120);pdf.setFont('helvetica','normal');pdf.setFontSize(7.8);pdf.text((b.class||'')+' · '+(b.size||'?')+' sq ft · '+(b.desks||'?')+' desks',x+9,y+27,{maxWidth:w-18});
+  if(b.view&&h>44){pdf.setFontSize(7.2);pdf.text(b.view,x+9,y+37,{maxWidth:w-95});}
+  pdf.setTextColor(26,26,26);pdf.setFont('helvetica','bold');pdf.setFontSize(9.5);pdf.text(b.price||'—',x+w-9,y+h-8,{align:'right'});
+}
+function drawHeader_(pdf,opt,continued){
+  const W=pdf.internal.pageSize.getWidth(),M=24;
   if(opt.logoPng)pdf.addImage(opt.logoPng,'PNG',M,16,108,40);
-  const bw=Math.min(W*0.5,430),bx=W-M-bw,by=16,bh=46;
+  const bw=Math.min(W*0.52,470),bx=W-M-bw,by=16,bh=46;
   pdf.setFillColor(255,102,0);pdf.rect(bx,by,bw,bh,'F');
   pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(12);
-  pdf.text((opt.centre+(opt.level?', LEVEL '+opt.level:'')).toUpperCase(),bx+13,by+19,{maxWidth:bw-26});
-  if(opt.address){pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.text((opt.address).toUpperCase(),bx+13,by+33,{maxWidth:bw-26});}
-  // legend row (top, horizontal)
+  pdf.text((opt.centre+(opt.level?', LEVEL '+opt.level:'')).toUpperCase()+(continued?'  (CONT.)':''),bx+13,by+18,{maxWidth:bw-26});
+  if(opt.address){pdf.setFont('helvetica','normal');pdf.setFontSize(7.5);pdf.text((opt.address).toUpperCase(),bx+13,by+31,{maxWidth:bw-26});}
   const top=80;pdf.setFontSize(8);pdf.setTextColor(140,140,140);pdf.setFont('helvetica','bold');pdf.text('AVAILABLE FROM',M,top);
-  let cx=M+80;(opt.legend||[]).forEach(v=>{const c=hexRgb(v.c);pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(cx,top-9,10,10,2,2,'F');pdf.setTextColor(70,70,70);pdf.setFont('helvetica','normal');pdf.text(v.l,cx+14,top);cx+=14+pdf.getTextWidth(v.l)+18;});
-  const bodyTop=top+12,bodyBot=H-30,areaH=bodyBot-bodyTop;
-  const boxes=opt.boxes||[];const hasBoxes=boxes.length>0;
-  const planW=hasBoxes?(W-2*M)*0.60:(W-2*M);
-  // floorplan (left)
-  if(opt.plan){const ar=opt.plan.w/opt.plan.h;let dw=planW,dh=dw/ar;if(dh>areaH){dh=areaH;dw=dh*ar;}pdf.addImage(opt.plan.dataUrl,'JPEG',M+(planW-dw)/2,bodyTop,dw,dh);}
-  else{pdf.setTextColor(150,150,150);pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.text('Floorplan not available for this centre',M+planW/2,bodyTop+areaH/2,{align:'center'});}
-  // detail boxes (right) — smart-fit
-  if(hasBoxes){
-    const bX=M+planW+16,bW=(W-M)-(M+planW+16),gap=7;let n=boxes.length;
-    let bH=Math.min(72,(areaH-(n-1)*gap)/n),maxN=n,all=true;
-    if(bH<46){bH=46;maxN=Math.max(1,Math.floor((areaH+gap)/(bH+gap))-1);all=false;}
-    let y=bodyTop;
-    boxes.slice(0,all?n:maxN).forEach(b=>{
-      pdf.setDrawColor(225,225,225);pdf.setFillColor(255,255,255);pdf.roundedRect(bX,y,bW,bH,6,6,'FD');
-      pdf.setTextColor(26,26,26);pdf.setFont('helvetica','bold');pdf.setFontSize(12);pdf.text(''+b.office,bX+10,y+16);
-      const c=hexRgb(b.color);pdf.setFont('helvetica','bold');pdf.setFontSize(7);const pw=pdf.getTextWidth(b.avail)+12;
-      pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(bX+bW-pw-8,y+6,pw,13,6,6,'F');pdf.setTextColor(20,20,20);pdf.text(b.avail,bX+bW-pw-8+pw/2,y+15,{align:'center'});
-      pdf.setTextColor(120,120,120);pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);pdf.text((b.class||'')+' · '+(b.size||'?')+' sq ft · '+(b.desks||'?')+' desks',bX+10,y+30,{maxWidth:bW-20});
-      if(b.view&&bH>52){pdf.setFontSize(8);pdf.text(b.view,bX+10,y+41,{maxWidth:bW-110});}
-      pdf.setTextColor(26,26,26);pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.text(b.price||'—',bX+bW-10,y+bH-9,{align:'right'});
-      y+=bH+gap;
-    });
-    if(!all){pdf.setTextColor(140,140,140);pdf.setFont('helvetica','italic');pdf.setFontSize(9);pdf.text('+ '+(n-maxN)+' more office'+((n-maxN)!==1?'s':''),bX+bW/2,y+11,{align:'center'});}
-  }
-  // footer
+  let cx=M+80;(opt.legend||[]).forEach(function(v){const c=hexRgb(v.c);pdf.setFillColor(c[0],c[1],c[2]);pdf.roundedRect(cx,top-9,10,10,2,2,'F');pdf.setTextColor(70,70,70);pdf.setFont('helvetica','normal');pdf.text(v.l,cx+14,top);cx+=14+pdf.getTextWidth(v.l)+18;});
+  return top+12;
+}
+function drawFooter_(pdf,opt){
+  const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight(),M=24;
   pdf.setFont('helvetica','normal');pdf.setFontSize(7.5);pdf.setTextColor(140,140,140);
   pdf.text('compassoffices.com',M,H-12);
   pdf.text((opt.city||'')+'  ·  as of '+((opt.monthLabels&&opt.monthLabels[0])||''),W-M,H-12,{align:'right'});
 }
+function drawFloorPage(pdf,opt){
+  const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight(),M=24,gap=7,bH=54;
+  const boxes=opt.boxes||[];const hasBoxes=boxes.length>0;
+  const bodyTop=drawHeader_(pdf,opt,false),bodyBot=H-30,areaH=bodyBot-bodyTop;
+  const planW=hasBoxes?(W-2*M)*0.68:(W-2*M);
+  // floorplan (page 1, left)
+  if(opt.plan){const ar=opt.plan.w/opt.plan.h;let dw=planW,dh=dw/ar;if(dh>areaH){dh=areaH;dw=dh*ar;}pdf.addImage(opt.plan.dataUrl,'JPEG',M+(planW-dw)/2,bodyTop,dw,dh);}
+  else if(!hasBoxes){pdf.setTextColor(150,150,150);pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.text('Floorplan not available for this centre',M+planW/2,bodyTop+areaH/2,{align:'center'});}
+  let idx=0;
+  // page 1 — boxes in the right column beside the plan
+  if(hasBoxes){
+    const bX=M+planW+16,bW=(W-M)-(M+planW+16);
+    const per=Math.max(1,Math.floor((areaH+gap)/(bH+gap)));
+    let y=bodyTop;
+    for(let k=0;k<per&&idx<boxes.length;k++,idx++){drawBox_(pdf,boxes[idx],bX,y,bW,bH);y+=bH+gap;}
+  }
+  drawFooter_(pdf,opt);
+  // continuation pages — remaining boxes in a full-width 3-column grid
+  while(idx<boxes.length){
+    pdf.addPage();
+    const top=drawHeader_(pdf,opt,true);
+    const cols=3,cgap=8,gW=(W-2*M-(cols-1)*cgap)/cols;
+    const rowsPer=Math.max(1,Math.floor((H-30-top+cgap)/(bH+cgap)));
+    const per=cols*rowsPer;
+    for(let k=0;k<per&&idx<boxes.length;k++,idx++){
+      const col=k%cols,rw=Math.floor(k/cols);
+      drawBox_(pdf,boxes[idx],M+col*(gW+cgap),top+rw*(bH+cgap),gW,bH);
+    }
+    drawFooter_(pdf,opt);
+  }
+}
+
 function pdfBoxes(offices,useSel){
   let rows;
   if(useSel&&selected.size)rows=offices.filter(o=>selected.has(o.office));
@@ -668,7 +728,7 @@ async function exportFloorPdf(){
   const legendSrc=CUR.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'));
   const plan=CUR.plan?await colourPlan(CUR.plan,CUR.offices,CUR.idx||{}):null;
   const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
-  drawFloorPage(pdf,{centre:CUR.centre?prettyCentre(CUR.centre):CUR.row.name,level:CUR.row.level,address:CUR.row.address||'',city:CITY,monthLabels:CUR.monthLabels,legend:legendFrom(legendSrc),plan,boxes,logoPng:logo});
+  const _cn=CUR.centre?prettyCentre(CUR.centre):CUR.row.name;drawFloorPage(pdf,{centre:_cn,level:CUR.row.level,address:addressFor(_cn,CUR.row.level),city:CITY,monthLabels:CUR.monthLabels,legend:legendFrom(legendSrc),plan,boxes,logoPng:logo});
   pdf.save('Compass_'+((CUR.centre?prettyCentre(CUR.centre):CUR.row.name)+(CUR.row.level?'_L'+CUR.row.level:'')).replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf');
 }
 
@@ -682,7 +742,7 @@ async function buildCombinedPdf(city,items,onProgress){
       const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
       const col=await colourPlan(plan,it.offices,numIndex(it.offices));
       if(!first)pdf.addPage();first=false;
-      drawFloorPage(pdf,{centre:it.name,level:it.level,address:row.address||'',city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'))),plan:col,boxes:showDetail?pdfBoxes(it.offices,false):[],logoPng:logo});
+      drawFloorPage(pdf,{centre:it.name,level:it.level,address:addressFor(it.name,it.level),city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'))),plan:col,boxes:showDetail?pdfBoxes(it.offices,false):[],logoPng:logo});
     }catch(e){console.warn('combined skip',it.id,e);}
     if(onProgress)onProgress(++done,items.length);
   }
