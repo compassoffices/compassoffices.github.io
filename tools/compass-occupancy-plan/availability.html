@@ -581,7 +581,7 @@ async function openFloorItem(id){
   try{
     const row=item.row;const data=row._json||await (await fetch(row.jsonUrl)).json();row._json=data;const base=deriveImgBase(row.jsonUrl);
     const rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString(),rect:r.rect,polygon:r.polygon||null}));
-    const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
+    const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,ox:(data.master&&data.master.sourceOrigin&&data.master.sourceOrigin.x)||0,oy:(data.master&&data.master.sourceOrigin&&data.master.sourceOrigin.y)||0,rooms};
     CUR={item,row,centre:item.centre,name:item.name,monthLabels:REPORTS[CITY].monthLabels,offices:item.offices,plan,idx:numIndex(item.offices)};viewMode=viewPref;
     renderLegend();renderLayout();
   }catch(e){$('loadMsg').textContent='Could not load: '+e.message;console.warn(e);return;}
@@ -608,7 +608,7 @@ function renderLayout(){
 function roomPath(r){if(r.polygon&&r.polygon.length>=3){let d='M '+r.polygon[0].x+' '+r.polygon[0].y;for(let i=0;i<r.polygon.length;i++){const A=r.polygon[i],B=r.polygon[(i+1)%r.polygon.length];if(A.hOut)d+=' C '+(A.x+A.hOut[0])+' '+(A.y+A.hOut[1])+' '+(B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4))+' '+(B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4))+' '+B.x+' '+B.y;else d+=' L '+B.x+' '+B.y;}return d+' Z';}const{x1,y1,x2,y2}=r.rect;return'M '+x1+' '+y1+' L '+x2+' '+y1+' L '+x2+' '+y2+' L '+x1+' '+y2+' Z';}
 function renderPlan(stage){
   const wrap=document.createElement('div');wrap.className='pwrap';const img=document.createElement('img');img.crossOrigin='anonymous';img.src=CUR.plan.masterUrl||'';
-  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 '+CUR.plan.w+' '+CUR.plan.h);svg.setAttribute('preserveAspectRatio','none');
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox',(CUR.plan.ox||0)+' '+(CUR.plan.oy||0)+' '+CUR.plan.w+' '+CUR.plan.h);svg.setAttribute('preserveAspectRatio','none');
   CUR.plan.rooms.forEach(rm=>{const o=officeForRoom(rm);const color=o?o.color:C_OCC;const pass=o?passOffice(o):false;
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','room'+((o&&!pass)?' dim':''));
     const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',roomPath(rm));p.setAttribute('fill',color);
@@ -704,7 +704,7 @@ async function colourPlan(plan,offices,idx){
   const iw=(img&&img.naturalWidth)||plan.w, ih=(img&&img.naturalHeight)||plan.h, sx=iw/plan.w, sy=ih/plan.h;
   const cv=document.createElement('canvas');cv.width=iw;cv.height=ih;const ctx=cv.getContext('2d');
   ctx.fillStyle='#fff';ctx.fillRect(0,0,iw,ih);if(img)ctx.drawImage(img,0,0,iw,ih);
-  ctx.save();ctx.scale(sx,sy);
+  ctx.save();ctx.scale(sx,sy);ctx.translate(-(plan.ox||0),-(plan.oy||0));
   plan.rooms.forEach(rm=>{const rk=[...normKeys(rm.label),...normKeys(rm.raw)];let o=null;for(const k of rk){if(idx[k]){o=idx[k];break;}}if(!o||!offices.includes(o))return;
     if(thisMonthOnly&&!(o.bucket==='month'&&o.idx===0))return;if(availOnly&&!(o.bucket==='month'||o.bucket==='presold'))return;
     const c=hexRgb(o.color);ctx.save();pathRoomCtx(ctx,rm);ctx.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+',0.55)';ctx.fill();ctx.restore();
@@ -810,7 +810,7 @@ async function buildCombinedPdf(city,items,onProgress){
     try{
       const row=it.row;const data=row._json||await (await fetch(row.jsonUrl)).json();row._json=data;const base=deriveImgBase(row.jsonUrl);
       const rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString(),rect:r.rect,polygon:r.polygon||null}));
-      const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
+      const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,ox:(data.master&&data.master.sourceOrigin&&data.master.sourceOrigin.x)||0,oy:(data.master&&data.master.sourceOrigin&&data.master.sourceOrigin.y)||0,rooms};
       const col=await colourPlan(plan,it.offices,numIndex(it.offices));
       if(!first)pdf.addPage();first=false;
       drawFloorPage(pdf,{centre:it.name,level:it.level,address:addressFor(it.name,it.level),city,monthLabels:ml,legend:legendFrom(it.offices.filter(o=>thisMonthOnly?(o.bucket==='month'&&o.idx===0):(o.bucket!=='occupied'&&o.bucket!=='suspended'))),plan:col,boxes:showDetail?pdfBoxes(it.offices,false):[],logoPng:logo});
