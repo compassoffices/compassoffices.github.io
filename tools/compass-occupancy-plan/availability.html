@@ -206,6 +206,8 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .login-in{width:100%;padding:12px 14px;border:1px solid var(--co-line);border-radius:11px;font:inherit;font-size:14.5px;margin-bottom:11px;outline:none;transition:.15s;}
 .login-in:focus{border-color:var(--co-orange);}
 .login-err{color:#c0392b;font-size:12.5px;min-height:16px;margin:-3px 0 8px;text-align:left;}
+.login-change{font-size:12px;color:var(--co-muted);text-align:left;margin:-4px 0 10px;cursor:pointer;}
+.login-change:hover{color:var(--co-orange);}
 .login-btn{width:100%;padding:12px;background:var(--co-orange);color:#fff;border:none;border-radius:11px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:.15s;}
 .login-btn:hover{background:var(--co-orange-dk);}
 .login-btn:disabled{opacity:.6;cursor:default;}
@@ -222,11 +224,14 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
     <div class="login-card">
       <div class="login-logo" id="loginLogo"></div>
       <div class="login-t">Office Availability</div>
-      <div class="login-s">Sign in to view your assigned regions.</div>
-      <input id="loginEmail" class="login-in" type="email" placeholder="Work email" autocomplete="username">
-      <input id="loginPass" class="login-in" type="password" placeholder="Passcode" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <div class="login-s" id="loginSub">Sign in to view your assigned regions.</div>
+      <input id="loginEmail" class="login-in" type="email" placeholder="Work email" autocomplete="username" onkeydown="if(event.key==='Enter')proceedLogin()">
+      <div id="passWrap" style="display:none">
+        <input id="loginPass" class="login-in" type="password" placeholder="Passcode" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <div class="login-change" onclick="resetLogin()">Use a different email</div>
+      </div>
       <div class="login-err" id="loginErr"></div>
-      <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign in</button>
+      <button class="login-btn" id="loginBtn" onclick="proceedLogin()">Continue</button>
     </div>
   </div>
 
@@ -355,8 +360,21 @@ function prettyCentre(c){return(c||'').replace(/^[A-Z]{2,4}\s*-\s*/,'');}
 
 function jsonp(url){return new Promise(function(res,rej){var cb='__cb'+Math.random().toString(36).slice(2);var s=document.createElement('script');var done=false;window[cb]=function(d){done=true;try{delete window[cb];}catch(e){window[cb]=undefined;}s.remove();res(d);};s.onerror=function(){if(!done){s.remove();rej(new Error('Network error'));}};s.src=url+(url.indexOf('?')>=0?'&':'?')+'callback='+cb;document.body.appendChild(s);setTimeout(function(){if(!done){s.remove();rej(new Error('Timed out'));}},20000);});}
 async function sha256hex(str){var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');}
-function showLogin(){$('loginLogo').innerHTML=LOGO('#282828');$('loginScreen').classList.add('on');$('screenCities').style.display='none';$('screenCity').classList.remove('on');}
+function showLogin(){$('loginLogo').innerHTML=LOGO('#282828');$('loginScreen').classList.add('on');$('screenCities').style.display='none';$('screenCity').classList.remove('on');resetLogin();}
 function showApp(){$('loginScreen').classList.remove('on');$('screenCities').style.display='';$('userChip').innerHTML=(AUTH.email||'')+' <span class="out" onclick="logout()">Sign out</span>';renderCities();}
+async function proceedLogin(){
+  var emailEl=$('loginEmail'),pw=$('passWrap'),btn=$('loginBtn'),err=$('loginErr');err.textContent='';
+  if(pw.style.display==='none'){
+    var email=emailEl.value.trim();if(!email){err.textContent='Enter your email.';return;}
+    btn.disabled=true;btn.textContent='Checking…';
+    try{var r=await jsonp(CONFIG.GATE_URL+'?action=check&email='+encodeURIComponent(email));
+      if(r&&r.ok&&r.exists){pw.style.display='';$('loginSub').textContent='Welcome back — enter your passcode.';emailEl.setAttribute('readonly','');btn.textContent='Sign in';setTimeout(function(){$('loginPass').focus();},30);}
+      else{err.textContent='This email has no access. Contact the admin.';btn.textContent='Continue';}
+    }catch(e){err.textContent='Could not reach the server.';btn.textContent='Continue';}
+    btn.disabled=false;
+  } else { doLogin(); }
+}
+function resetLogin(){$('passWrap').style.display='none';$('loginPass').value='';$('loginEmail').removeAttribute('readonly');$('loginSub').textContent='Sign in to view your assigned regions.';$('loginBtn').textContent='Continue';$('loginErr').textContent='';$('loginEmail').focus();}
 async function doLogin(){
   var email=$('loginEmail').value.trim(),pass=$('loginPass').value;$('loginErr').textContent='';
   if(!email||!pass){$('loginErr').textContent='Enter your email and passcode.';return;}
