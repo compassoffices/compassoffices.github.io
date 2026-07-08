@@ -195,15 +195,45 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .tip{position:fixed;z-index:80;background:#fff;color:#282828;border:1px solid #E1E1E1;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',system-ui,-apple-system,sans-serif;pointer-events:none;opacity:0;transition:opacity .1s;box-shadow:0 4px 16px rgba(0,0,0,.16);}
 .tip.show{opacity:1;}
 ::-webkit-scrollbar{width:8px;}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:4px;}
+/* login */
+.login{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:linear-gradient(120deg,#1E1E1E,#282828 60%,#1E1E1E);padding:1.5rem;}
+.login.on{display:flex;}
+.login-card{background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.4);padding:2.2rem 2.1rem;width:100%;max-width:360px;text-align:center;}
+.login-logo{height:38px;margin:0 auto .9rem;display:flex;justify-content:center;}
+.login-logo svg{height:38px;width:auto;}
+.login-t{font-size:20px;font-weight:800;letter-spacing:-.4px;color:var(--co-ink);}
+.login-s{font-size:13px;color:var(--co-muted);margin:5px 0 20px;}
+.login-in{width:100%;padding:12px 14px;border:1px solid var(--co-line);border-radius:11px;font:inherit;font-size:14.5px;margin-bottom:11px;outline:none;transition:.15s;}
+.login-in:focus{border-color:var(--co-orange);}
+.login-err{color:#c0392b;font-size:12.5px;min-height:16px;margin:-3px 0 8px;text-align:left;}
+.login-btn{width:100%;padding:12px;background:var(--co-orange);color:#fff;border:none;border-radius:11px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:.15s;}
+.login-btn:hover{background:var(--co-orange-dk);}
+.login-btn:disabled{opacity:.6;cursor:default;}
+.user-chip{display:inline-flex;align-items:center;gap:8px;color:rgba(255,255,255,.85);font-size:12.5px;font-weight:600;}
+.user-chip .out{cursor:pointer;border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:5px 11px;color:#fff;transition:.15s;}
+.user-chip .out:hover{background:rgba(255,255,255,.14);}
 </style>
 </head>
 <body>
 <div class="co" id="app">
 
+  <!-- ===== LOGIN ===== -->
+  <div id="loginScreen" class="login">
+    <div class="login-card">
+      <div class="login-logo" id="loginLogo"></div>
+      <div class="login-t">Office Availability</div>
+      <div class="login-s">Sign in to view your assigned regions.</div>
+      <input id="loginEmail" class="login-in" type="email" placeholder="Work email" autocomplete="username">
+      <input id="loginPass" class="login-in" type="password" placeholder="Passcode" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <div class="login-err" id="loginErr"></div>
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+
   <!-- ===== CITIES SCREEN ===== -->
   <div id="screenCities">
     <div class="hero">
-      <div class="hero-bar"><div class="logo" id="heroLogo"></div><div class="fa-wrap"><button class="fa-btn" id="faBtn" onclick="toggleLocMenu(event)">Find a Location<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="loc-menu" id="locMenu"></div></div></div>
+      <div class="hero-bar"><div class="logo" id="heroLogo"></div><div class="user-chip" id="userChip"></div><div class="fa-wrap" style="margin-left:14px"><button class="fa-btn" id="faBtn" onclick="toggleLocMenu(event)">Find a Location<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="loc-menu" id="locMenu"></div></div></div>
     </div>
     <div class="cities-wrap">
       <div class="cities-lead"><h2>Cities</h2><div class="fp-status" id="fpStatus"></div></div>
@@ -260,6 +290,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 const CONFIG={
+  GATE_URL:'https://script.google.com/macros/s/AKfycbza6Rl5lJK33XDBFxNULHms6HbVE20Ij3PwE8eM2YLN1pWhYCTMSqUHALCIC0ZY-PvR/exec',  // access-gate.gs /exec — reports load through this after login
   FLOORPLAN_DOC_ID:'1HvFkQezkRZccAZej3oxu3lHdrWuutq0Bg5Y92jlZUog',
   FLOORPLAN_PUB_TOKEN:'2PACX-1vSt5pT1HsDpHAjzwbyyVqy9iTMGRuKP8--loGrqTXFTX4wm15oy2r5TUN_0zFZQc3Ev9nMNyVRwrnY0',
   FLOORPLAN_TABS:{hk:['Hong Kong'],au:['Sydney','Melbourne'],vn:['Ho Chi Minh City'],ph:['Manila'],my:['Kuala Lumpur'],jp:['Tokyo','Osaka']},
@@ -289,7 +320,7 @@ const C_PRESOLD='#f87171',C_NDD='#a8956a',C_OCC='#d6d6d6',C_SUSP='#b8b8b8';
 const DEMO_OFFICES=[{"office":"2701 - C","class":"Superior","view":"Harbour","viewType":"Superior","size":359.5,"price":103000,"maxConfig":14,"months":["O","O","O","O","O","O","N"]},{"office":"2730","class":"Executive","view":"Internal","viewType":"N/A","size":33,"price":9200,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]},{"office":"2736","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","O","O","Y","Y","Y","Y"]},{"office":"2752","class":"Executive","view":"Internal","viewType":"N/A","size":34,"price":9500,"maxConfig":1,"months":["O","Y","Y","Y","Y","Y","Y"]},{"office":"2753","class":"Superior","view":"City","viewType":"Superior","size":129.5,"price":38000,"maxConfig":5,"months":["O","O","O","O","O","N","N"]},{"office":"27G","class":"Executive","view":"Internal","viewType":"N/A","size":30.5,"price":8600,"maxConfig":1,"months":["O","O","Y","Y","Y","Y","Y"]}];
 const DEMO_MONTHS=["Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026","Jan 2027"];
 
-let REGISTRY=[],REGIONS={},REPORTS={},ADDRESSES=[],CITY=null,CUR=null,selected=new Set(),availOnly=false,thisMonthOnly=false,viewMode='plan',viewPref='plan',showDetail=false;
+let REGISTRY=[],REGIONS={},REPORTS={},ADDRESSES=[],AUTH=null,CITY=null,CUR=null,selected=new Set(),availOnly=false,thisMonthOnly=false,viewMode='plan',viewPref='plan',showDetail=false;
 const $=id=>document.getElementById(id);
 function tip(e,t){const el=$('tip');el.textContent=t;el.classList.add('show');let x=e.clientX+12,y=e.clientY+12;if(x+150>innerWidth)x=e.clientX-150;el.style.left=x+'px';el.style.top=y+'px';}
 function hideTip(){$('tip').classList.remove('show');}
@@ -322,11 +353,31 @@ function deriveImgBase(u){if(!u)return'';let b=u.replace(/[^/]+$/,'').replace('/
 function resolveAsset(base,file){if(!file)return null;if(/^https?:\/\//i.test(file))return file;return(base||'')+file.replace(/^\//,'');}
 function prettyCentre(c){return(c||'').replace(/^[A-Z]{2,4}\s*-\s*/,'');}
 
+function jsonp(url){return new Promise(function(res,rej){var cb='__cb'+Math.random().toString(36).slice(2);var s=document.createElement('script');var done=false;window[cb]=function(d){done=true;try{delete window[cb];}catch(e){window[cb]=undefined;}s.remove();res(d);};s.onerror=function(){if(!done){s.remove();rej(new Error('Network error'));}};s.src=url+(url.indexOf('?')>=0?'&':'?')+'callback='+cb;document.body.appendChild(s);setTimeout(function(){if(!done){s.remove();rej(new Error('Timed out'));}},20000);});}
+async function sha256hex(str){var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');}
+function showLogin(){$('loginLogo').innerHTML=LOGO('#282828');$('loginScreen').classList.add('on');$('screenCities').style.display='none';$('screenCity').classList.remove('on');}
+function showApp(){$('loginScreen').classList.remove('on');$('screenCities').style.display='';$('userChip').innerHTML=(AUTH.email||'')+' <span class="out" onclick="logout()">Sign out</span>';renderCities();}
+async function doLogin(){
+  var email=$('loginEmail').value.trim(),pass=$('loginPass').value;$('loginErr').textContent='';
+  if(!email||!pass){$('loginErr').textContent='Enter your email and passcode.';return;}
+  var btn=$('loginBtn');btn.disabled=true;btn.textContent='Signing in…';
+  try{
+    var h=await sha256hex(pass);
+    var r=await jsonp(CONFIG.GATE_URL+'?action=login&email='+encodeURIComponent(email)+'&h='+h);
+    if(!r||!r.ok){$('loginErr').textContent=(r&&r.error)||'Sign in failed.';btn.disabled=false;btn.textContent='Sign in';return;}
+    AUTH={token:r.token,email:r.email,role:r.role,regions:r.regions};
+    try{sessionStorage.setItem('co_auth',JSON.stringify(AUTH));}catch(e){}
+    $('loginPass').value='';showApp();
+  }catch(e){$('loginErr').textContent='Could not reach the server.';}
+  btn.disabled=false;btn.textContent='Sign in';
+}
+function logout(){AUTH=null;REPORTS={};CITY_ITEMS={};try{sessionStorage.removeItem('co_auth');}catch(e){}CUR=null;showLogin();}
 async function boot(){
   $('heroLogo').innerHTML=LOGO('#fff');$('cityLogo').innerHTML=LOGO('#282828');
-  await Promise.all([loadFloorplanSheet(),loadRegions(),loadAddresses()]);
-  if(!Object.keys(REGIONS).length&&!REGISTRY.length) seedDemo();
-  renderCities();
+  await Promise.all([loadFloorplanSheet(),loadAddresses()]);
+  var saved=null;try{saved=sessionStorage.getItem('co_auth');}catch(e){}
+  if(saved){try{AUTH=JSON.parse(saved);}catch(e){AUTH=null;}}
+  if(AUTH&&AUTH.token) showApp(); else showLogin();
 }
 async function loadAddresses(){
   if(!CONFIG.ADDRESS_CSVS||!CONFIG.ADDRESS_CSVS.length)return;
@@ -418,11 +469,11 @@ async function resolveItems(city){
   CITY_ITEMS[city]=items;return items;
 }
 function cityHasFloors(city){return REGISTRY.some(r=>r.cities&&r.cities.includes(city));}
-async function ensureReport(region){if(!region)return null;if(REPORTS[region])return REPORTS[region];const url=REGIONS[region];if(!url)return null;const t=await (await fetch(url)).text();REPORTS[region]=ingestReport(parseCSV(t));return REPORTS[region];}
+async function ensureReport(region){if(!region)return null;if(REPORTS[region])return REPORTS[region];if(!AUTH||!AUTH.token)throw new Error('Not signed in');const r=await jsonp(CONFIG.GATE_URL+'?action=report&region='+encodeURIComponent(region)+'&token='+encodeURIComponent(AUTH.token));if(!r||!r.ok){if(r&&r.error==='expired'){logout();throw new Error('Session expired');}throw new Error((r&&r.error)||'report failed');}REPORTS[region]=ingestReport(r.rows);return REPORTS[region];}
 function seedDemo(){REGIONS['Hong Kong (demo)']='';REPORTS['Hong Kong (demo)']={monthLabels:DEMO_MONTHS,offices:DEMO_OFFICES.map(o=>Object.assign({centre:'HKG - Wing On Centre'},o))};REGISTRY=[];}
 
 /* ===================== CITIES ===================== */
-function cityList(){const s=new Set(Object.keys(REGIONS));REGISTRY.forEach(r=>(r.cities||[]).forEach(c=>s.add(c)));return [...s].filter(c=>c!=='__demo');}
+function cityList(){return (AUTH&&AUTH.regions)?AUTH.regions.slice():[];}
 async function renderCities(){
   const grid=$('citiesGrid');const cities=cityList();CITIES=cities;populateLocMenu(cities);
   grid.innerHTML=cities.map((c,i)=>`<div class="city-card" id="cc-${i}" onclick="openCity('${c.replace(/'/g,"\\'")}')"><div class="cc-top"><div class="cc-name">${c}</div><div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div><div class="cc-wait" id="ccw-${i}">Loading availability…</div></div>`).join('');
