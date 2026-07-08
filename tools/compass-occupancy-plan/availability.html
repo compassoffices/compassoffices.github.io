@@ -349,17 +349,32 @@ let CITY_ITEMS={};
 async function resolveItems(city){
   if(CITY_ITEMS[city])return CITY_ITEMS[city];
   const rep=await ensureReport(city);if(!rep){CITY_ITEMS[city]=[];return [];}
-  const ml=rep.monthLabels;const classified=rep.offices.map(o=>classifyOffice(o,ml));const idx=numIndex(classified);
+  const ml=rep.monthLabels;const classified=rep.offices.map(o=>classifyOffice(o,ml));
+  const regionIdx=numIndex(classified);
+  const centres=[...new Set(classified.map(o=>o.centre))];
   const cands=REGISTRY.filter(r=>r.cities&&r.cities.includes(city));const items=[];const covered=new Set();
   await Promise.all(cands.map(async row=>{
     if(row._rooms===undefined){try{const data=await (await fetch(row.jsonUrl)).json();row._json=data;row._rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString()}));}catch(e){row._rooms=[];}}
-    const seen=new Set(),offs=[];row._rooms.forEach(rm=>{const o=matchRoom(rm,idx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
-    if(!offs.length)return; // floor's offices not in this city's report (handles AU/JP two-city tabs)
-    const cc={};offs.forEach(o=>cc[o.centre]=(cc[o.centre]||0)+1);const centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];covered.add(centre);
+    let centre=null,offs=[];
+    // (1) NAME binding first — if the centre code reads like a real name (e.g. "Silvercord Tower 1 - L8"),
+    //     match it to the report centre and scope room-matching to that centre (avoids office-number collisions)
+    const named=fuzzyCentre(row.code,centres);
+    if(named){
+      centre=named;const cOffs=classified.filter(o=>o.centre===centre);const cIdx=numIndex(cOffs);
+      const seen=new Set();row._rooms.forEach(rm=>{const o=matchRoom(rm,cIdx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
+      if(!offs.length){const lvl=(row.level||'').replace(/[^0-9]/g,'');if(lvl)offs=cOffs.filter(o=>(''+o.office).replace(/[^0-9]/g,'').indexOf(lvl)===0);}
+      if(!offs.length)offs=cOffs;
+    } else {
+      // (2) fall back to office-number matching across the whole region
+      const seen=new Set();row._rooms.forEach(rm=>{const o=matchRoom(rm,regionIdx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
+      if(offs.length){const cc={};offs.forEach(o=>cc[o.centre]=(cc[o.centre]||0)+1);centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];}
+    }
+    if(!centre||!offs.length)return;
+    covered.add(centre);
     offs.sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
     items.push({kind:'floor',id:row.id,row,centre,name:prettyCentre(centre),level:row.level,offices:offs,avail:offs.filter(o=>o.bucket==='month').length});
   }));
-  [...new Set(classified.map(o=>o.centre))].forEach(centre=>{if(covered.has(centre))return;
+  centres.forEach(centre=>{if(covered.has(centre))return;
     const offs=classified.filter(o=>o.centre===centre).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
     items.push({kind:'centre',id:'c-'+centre.replace(/[^A-Za-z0-9]/g,'_'),centre,name:prettyCentre(centre),offices:offs,avail:offs.filter(o=>o.bucket==='month').length});});
   items.sort((a,b)=>a.name.localeCompare(b.name)||(''+(a.level||'')).localeCompare(''+(b.level||''),undefined,{numeric:true}));
