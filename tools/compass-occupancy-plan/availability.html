@@ -477,36 +477,28 @@ function cityList(){return (AUTH&&AUTH.regions)?AUTH.regions.slice():[];}
 async function renderCities(){
   const grid=$('citiesGrid');const cities=cityList();CITIES=cities;populateLocMenu(cities);
   grid.innerHTML=cities.map((c,i)=>`<div class="city-card" id="cc-${i}" onclick="openCity('${c.replace(/'/g,"\\'")}')"><div class="cc-top"><div class="cc-name">${c}</div><div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div><div class="cc-wait" id="ccw-${i}">Loading availability…</div></div>`).join('');
-  for(let i=0;i<cities.length;i++){ await fillCityCard(cities[i],i); }
+  // ONE gate call returns availability counts for every allowed region
+  let sum={};
+  try{const r=await jsonp(CONFIG.GATE_URL+'?action=summary&token='+encodeURIComponent(AUTH.token));
+    if(r&&r.ok)sum=r.summary||{};else if(r&&r.error==='expired'){logout();return;}}catch(e){}
+  cities.forEach((c,i)=>fillCityCard(c,i,sum[c]));
   const st=$('fpStatus');
-  if(FP_STATUS.loaded>0){st.className='fp-status';st.innerHTML='Floorplans: '+FP_STATUS.loaded+' plans across '+FP_STATUS.tabs+' of '+FP_STATUS.total+' region tabs'+(FP_STATUS.errors.length?(' &middot; not readable: '+FP_STATUS.errors.join(', ')+' (share sheet as \'Anyone with link: Viewer\' to include them)'):'');}
+  if(FP_STATUS.loaded>0){st.className='fp-status';st.innerHTML='Floorplans: '+FP_STATUS.loaded+' plans across '+FP_STATUS.tabs+' of '+FP_STATUS.total+' region tabs'+(FP_STATUS.errors.length?(' &middot; not readable: '+FP_STATUS.errors.join(', ')):'');}
   else{st.className='fp-status warn';st.textContent='Floorplans not loaded — the published sheet returned no data. Share it as \'Anyone with the link: Viewer\' and reload.';}
 }
-async function fillCityCard(city,i){
+function fillCityCard(city,i,S){
   const card=$('cc-'+i);if(!card)return;
-  try{
-    const rep=await ensureReport(city);
-    if(!rep){$('ccw-'+i).textContent='No report linked';return;}
-    const offs=rep.offices.map(o=>classify(o.months));
-    const avail=offs.filter(o=>o.bucket==='month');
-    const now=avail.filter(o=>o.idx===0).length;
-    const centres=new Set(rep.offices.filter((o,k)=>offs[k].bucket==='month').map(o=>o.centre)).size;
-    // month distribution
-    const byIdx={};avail.forEach(o=>byIdx[o.idx]=(byIdx[o.idx]||0)+1);
-    const presold=offs.filter(o=>o.bucket==='presold').length;
-    const total=avail.length;
-    const segs=Object.keys(byIdx).sort((a,b)=>a-b).map(k=>({c:MONTH_COLORS[k%MONTH_COLORS.length],n:byIdx[k],l:k==0?'Now':(rep.monthLabels[k]||('m'+k))}));
-    if(presold)segs.push({c:C_PRESOLD,n:presold,l:'Pre-sold'});
-    const barTot=segs.reduce((s,x)=>s+x.n,0)||1;
-    const bar=segs.map(x=>`<i style="background:${x.c};width:${(x.n/barTot*100).toFixed(1)}%"></i>`).join('');
-    const leg=segs.slice(0,4).map(x=>`<span><i style="background:${x.c}"></i>${x.l} ${x.n}</span>`).join('');
-    const dlBtn=cityHasFloors(city)?('<div class="cc-dl" id="dl-'+i+'" title="Download all floorplans in this city" onclick="event.stopPropagation();exportCityAll('+i+')">'+DL_ICON+'</div>'):'';
-    const inner='<div class="cc-top"><div class="cc-name">'+city+'</div><div class="cc-top-actions">'+dlBtn+'<div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div></div>'+
-      (total?`<div class="cc-big"><div class="cc-num">${total}</div><div class="cc-num-lbl">office${total!==1?'s':''}<br>available</div></div><div class="cc-sub">across ${centres} centre${centres!==1?'s':''} · ${now} available now</div><div class="cc-bar">${bar}</div><div class="cc-legend">${leg}</div>`
-      :`<div class="cc-big"><div class="cc-num" style="color:var(--co-faint)">0</div><div class="cc-num-lbl">offices<br>available</div></div><div class="cc-sub">Fully occupied right now</div>`);
-    card.innerHTML=inner;
-    if(!total)card.classList.add('empty');
-  }catch(e){$('ccw-'+i)&&($('ccw-'+i).textContent='Could not load');}
+  const dlBtn=cityHasFloors(city)?('<div class="cc-dl" id="dl-'+i+'" title="Download all floorplans in this city" onclick="event.stopPropagation();exportCityAll('+i+')">'+DL_ICON+'</div>'):'';
+  const topRow='<div class="cc-top"><div class="cc-name">'+city+'</div><div class="cc-top-actions">'+dlBtn+'<div class="cc-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div></div></div>';
+  if(!S){card.innerHTML=topRow+'<div class="cc-wait">Could not load</div>';return;}
+  const total=S.total||0,now=S.now||0,centres=S.centres||0,months=S.months||[],presold=S.presold||0,byIdx=S.byIdx||{};
+  const segs=Object.keys(byIdx).sort((a,b)=>a-b).map(k=>({c:MONTH_COLORS[k%MONTH_COLORS.length],n:byIdx[k],l:k==0?'Now':(months[k]||('m'+k))}));
+  if(presold)segs.push({c:C_PRESOLD,n:presold,l:'Pre-sold'});
+  const barTot=segs.reduce((s,x)=>s+x.n,0)||1;
+  const bar=segs.map(x=>`<i style="background:${x.c};width:${(x.n/barTot*100).toFixed(1)}%"></i>`).join('');
+  const leg=segs.slice(0,4).map(x=>`<span><i style="background:${x.c}"></i>${x.l} ${x.n}</span>`).join('');
+  card.innerHTML=topRow+(total?`<div class="cc-big"><div class="cc-num">${total}</div><div class="cc-num-lbl">office${total!==1?'s':''}<br>available</div></div><div class="cc-sub">across ${centres} centre${centres!==1?'s':''} · ${now} available now</div><div class="cc-bar">${bar}</div><div class="cc-legend">${leg}</div>`:`<div class="cc-big"><div class="cc-num" style="color:var(--co-faint)">0</div><div class="cc-num-lbl">offices<br>available</div></div><div class="cc-sub">Fully occupied right now</div>`);
+  if(!total)card.classList.add('empty');
 }
 
 /* ===================== CITY VIEW ===================== */
