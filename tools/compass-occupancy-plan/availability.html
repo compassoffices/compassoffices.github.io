@@ -414,7 +414,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
       <div class="login-logo" id="loginLogo"></div>
       <div class="login-t">Office Availability</div>
       <div class="login-s" id="loginSub">Sign in to view your assigned regions.</div>
-      <input id="loginEmail" class="login-in" type="email" placeholder="Work email" autocomplete="username" onkeydown="if(event.key==='Enter')proceedLogin()">
+      <input id="loginEmail" class="login-in" type="email" name="email" placeholder="Work email" autocomplete="email" list="coEmailList" onkeydown="if(event.key==='Enter')proceedLogin()"><datalist id="coEmailList"></datalist>
       <div id="passWrap" style="display:none">
         <input id="loginPass" class="login-in" type="password" placeholder="Passcode" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
         <input id="loginPass2" class="login-in" type="password" placeholder="Confirm passcode" autocomplete="new-password" style="display:none" onkeydown="if(event.key==='Enter')doLogin()">
@@ -563,7 +563,10 @@ function prettyCentre(c){return(c||'').replace(/^[A-Z]{2,4}\s*-\s*/,'');}
 
 function jsonp(url){return new Promise(function(res,rej){var cb='__cb'+Math.random().toString(36).slice(2);var s=document.createElement('script');var done=false;window[cb]=function(d){done=true;try{delete window[cb];}catch(e){window[cb]=undefined;}s.remove();res(d);};s.onerror=function(){if(!done){s.remove();rej(new Error('Network error'));}};s.src=url+(url.indexOf('?')>=0?'&':'?')+'callback='+cb;document.body.appendChild(s);setTimeout(function(){if(!done){s.remove();rej(new Error('Timed out'));}},20000);});}
 async function sha256hex(str){var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');}
-function showLogin(){var _sb=$('searchBtn');if(_sb)_sb.style.display='none';$('screenSearch').classList.remove('on');$('loginLogo').innerHTML=LOGO('#282828');$('loginScreen').classList.add('on');$('screenCities').style.display='none';$('screenCity').classList.remove('on');resetLogin();}
+function rememberedEmails(){try{return JSON.parse(localStorage.getItem('co_emails')||'[]');}catch(e){return [];}}
+function rememberEmail(email){email=(email||'').trim().toLowerCase();if(!email)return;try{var a=rememberedEmails().filter(function(x){return x!==email;});a.unshift(email);localStorage.setItem('co_emails',JSON.stringify(a.slice(0,8)));}catch(e){}}
+function fillEmailList(){var dl=$('coEmailList');if(!dl)return;dl.innerHTML=rememberedEmails().map(function(e){return '<option value="'+e.replace(/"/g,'&quot;')+'">';}).join('');}
+function showLogin(){fillEmailList();var _sb=$('searchBtn');if(_sb)_sb.style.display='none';$('screenSearch').classList.remove('on');$('loginLogo').innerHTML=LOGO('#282828');$('loginScreen').classList.add('on');$('screenCities').style.display='none';$('screenCity').classList.remove('on');resetLogin();}
 function showApp(){$('loginScreen').classList.remove('on');$('screenCities').style.display='';var _ab=$('adminBtn');if(_ab)_ab.style.display=(AUTH&&AUTH.role==='admin')?'':'none';var _sb=$('searchBtn');if(_sb)_sb.style.display='';$('userChip').innerHTML='<span class="uc-email">'+(AUTH.email||'')+'</span><span class="out" onclick="logout()"><svg class="uc-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="uc-tx">Sign out</span></span>';renderCities();applyDeepLink();}
 async function proceedLogin(){
   var emailEl=$('loginEmail'),pw=$('passWrap'),btn=$('loginBtn'),err=$('loginErr');err.textContent='';
@@ -571,7 +574,7 @@ async function proceedLogin(){
     var email=emailEl.value.trim();if(!email){err.textContent='Enter your email.';return;}
     btn.disabled=true;btn.textContent='Checking…';
     try{var r=await jsonp(CONFIG.GATE_URL+'?action=check&email='+encodeURIComponent(email));
-      if(r&&r.ok&&r.exists){pw.style.display='';emailEl.setAttribute('readonly','');
+      if(r&&r.ok&&r.exists){rememberEmail(email);pw.style.display='';emailEl.setAttribute('readonly','');
         if(r.hasPass){SETUP=false;$('loginPass2').style.display='none';$('loginPass').placeholder='Passcode';$('loginSub').textContent='Welcome back — enter your passcode.';btn.textContent='Sign in';$('loginForgot').style.display='';}
         else{SETUP=true;$('loginPass2').style.display='';$('loginPass').placeholder='Create a passcode';$('loginSub').textContent='First time here — create your passcode.';btn.textContent='Create passcode';$('loginForgot').style.display='none';}
         setTimeout(function(){$('loginPass').focus();},30);}
@@ -599,8 +602,8 @@ async function doLogin(){
       $('loginSub').textContent='Temporary code accepted — set your new passcode.';$('loginForgot').style.display='none';
       btn.disabled=false;btn.textContent='Save passcode';setTimeout(function(){$('loginPass').focus();},30);return;
     }
-    AUTH={token:r.token,email:r.email,role:r.role,regions:r.regions};
-    try{localStorage.setItem('co_auth',JSON.stringify(AUTH));}catch(e){}
+    AUTH={token:r.token,email:r.email,role:r.role,regions:r.regions,ts:Date.now()};
+    try{localStorage.setItem('co_auth',JSON.stringify(AUTH));}catch(e){}rememberEmail(AUTH.email);
     $('loginPass').value='';$('loginPass2').value='';SETUP=false;showApp();
   }catch(e){$('loginErr').textContent='Could not reach the server.';}
   btn.disabled=false;btn.textContent=SETUP?'Create passcode':'Sign in';
