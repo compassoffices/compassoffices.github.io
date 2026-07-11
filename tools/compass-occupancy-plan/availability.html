@@ -303,15 +303,20 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .arow-head span.h-email{flex:0 0 180px;}.arow-head span.h-role{flex:0 0 92px;}.arow-head span.h-reg{flex:1 1 150px;}.arow-head span.h-auto{flex:0 0 72px;}.arow-head span.h-day{flex:0 0 116px;}.arow-head span.h-opt{flex:0 0 auto;}.arow-head span.h-act{margin-left:auto;}
 @media(max-width:720px){.arow .ar-email,.arow .ar-new,.arow .ar-role,.arow .ar-reg,.arow .ar-auto,.arow .ar-day{flex:1 1 46%;}.arow.arow-head{display:none;}.arow .ar-act{flex:1 1 100%;margin-left:0;margin-top:4px;}}
 /* ---- search ---- */
-.srch-open{display:inline-flex;align-items:center;gap:7px;}
-.srch-open svg{width:15px;height:15px;}
+.srch-open{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.32);margin-left:22px;margin-right:0;padding:9px 18px;}
+.srch-open:hover{background:rgba(255,255,255,.26);}
+.srch-open svg{width:16px;height:16px;}
 #screenSearch{display:none;flex-direction:column;height:100%;background:var(--co-paper);}
 #screenSearch.on{display:flex;}
-.srch-top{display:flex;align-items:center;gap:16px;padding:1rem 1.6rem;border-bottom:1px solid var(--co-line);background:#fff;flex-shrink:0;}
+.srch-top{display:flex;align-items:center;gap:14px;padding:.9rem 1.6rem;border-bottom:1px solid var(--co-line);background:#fff;flex-shrink:0;}
+.srch-back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--co-muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:8px 10px;border-radius:10px;transition:.14s;}
+.srch-back:hover{background:var(--co-orange-wash);color:var(--co-orange-dk);}
+.srch-back svg{width:17px;height:17px;}
+.srch-divider{width:1px;height:22px;background:var(--co-line);}
 .srch-h1{font-size:19px;font-weight:800;color:var(--co-ink);letter-spacing:-.3px;}
 .srch-scope{margin-left:auto;font-size:12.5px;color:var(--co-muted);}
-.srch-wrap{flex:1;overflow:auto;padding:1.3rem 1.6rem 6rem;}
-.srch-panel{background:#fff;border:1px solid var(--co-line);border-radius:16px;padding:1.1rem 1.2rem;box-shadow:0 1px 2px rgba(0,0,0,.03);max-width:1180px;margin:0 auto;}
+.srch-wrap{flex:1;overflow:auto;padding:1.3rem 1.6rem 6rem;background:var(--co-paper);}
+.srch-panel{background:#fff;border:1px solid var(--co-line);border-radius:16px;padding:1.1rem 1.2rem;box-shadow:0 4px 16px rgba(0,0,0,.06);max-width:1180px;margin:0 auto;position:sticky;top:0;z-index:15;}
 .srch-kw{display:flex;align-items:center;gap:10px;border:1.5px solid var(--co-line);border-radius:12px;padding:0 14px;margin-bottom:14px;transition:.15s;}
 .srch-kw:focus-within{border-color:var(--co-orange);}
 .srch-kw svg{width:18px;height:18px;color:var(--co-muted);flex-shrink:0;}
@@ -365,7 +370,8 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
   <!-- ===== SEARCH SCREEN ===== -->
   <div class="screen" id="screenSearch">
     <div class="srch-top">
-      <button class="back-btn" onclick="closeSearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Cities</button>
+      <button class="srch-back" onclick="closeSearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Cities</button>
+      <div class="srch-divider"></div>
       <div class="srch-h1">Search offices</div>
       <div class="srch-scope" id="srchScope"></div>
     </div>
@@ -804,38 +810,80 @@ function copySearchEmail(){
   const done=()=>{const b=$('srchCopyBtn');const t=b.textContent;b.textContent='Copied';setTimeout(()=>b.textContent=t,1400);};
   try{if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([h],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]).then(done,done);}else{navigator.clipboard.writeText(plain).then(done,done);}}catch(e){navigator.clipboard.writeText(plain).then(done,done);}
 }
+async function bakeSelPlan(plan,selSet,idx){
+  const img=await new Promise(res=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>res(i);i.onerror=()=>res(null);i.src=plan.masterUrl;});
+  const iw=(img&&img.naturalWidth)||plan.w,ih=(img&&img.naturalHeight)||plan.h,sx=iw/plan.w,sy=ih/plan.h;
+  const cv=document.createElement('canvas');cv.width=iw;cv.height=ih;const ctx=cv.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,iw,ih);if(img)ctx.drawImage(img,0,0,iw,ih);
+  ctx.save();ctx.scale(sx,sy);
+  plan.rooms.forEach(rm=>{const rk=[...normKeys(rm.label),...normKeys(rm.raw)];let o=null;for(const k of rk){if(idx[k]){o=idx[k];break;}}if(!o||!selSet.has(o.office))return;
+    ctx.save();pathRoomCtx(ctx,rm);ctx.fillStyle='rgba(255,102,0,0.5)';ctx.fill();ctx.lineWidth=4;ctx.strokeStyle='#E55A00';ctx.stroke();ctx.restore();
+    const cx=rm.rect?(rm.rect.x1+rm.rect.x2)/2:0,cy=rm.rect?(rm.rect.y1+rm.rect.y2)/2:0,fs=Math.max(16,(rm.rect?(rm.rect.x2-rm.rect.x1):40)*0.14);
+    ctx.font='bold '+fs+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#111';ctx.fillText(rm.label,cx,cy);});
+  ctx.restore();
+  return {dataUrl:cv.toDataURL('image/jpeg',0.92),w:iw,h:ih};
+}
 async function exportSearchPdf(){
   const rows=Object.values(SEARCH_SEL);if(!rows.length)return;
-  rows.sort((a,b)=>a.region.localeCompare(b.region)||a.centre.localeCompare(b.centre)||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
-  const {jsPDF}=window.jspdf;const logo=await logoPng();
-  const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
-  const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight(),M=28;
-  const cols=[{k:'centre',t:'Centre',w:150},{k:'office',t:'Office',w:60},{k:'cls',t:'Class',w:64},{k:'size',t:'Size',w:60},{k:'desks',t:'Desks',w:46},{k:'view',t:'View',w:150},{k:'avail',t:'Available',w:88},{k:'price',t:'Monthly',w:96}];
-  function header(){
-    if(logo)pdf.addImage(logo,'PNG',M,18,104,38);
-    pdf.setTextColor(40,40,40);pdf.setFont('helvetica','bold');pdf.setFontSize(15);pdf.text('Selected offices',W-M,32,{align:'right'});
-    pdf.setFont('helvetica','normal');pdf.setFontSize(9);pdf.setTextColor(150,150,150);pdf.text(rows.length+' office'+(rows.length===1?'':'s')+'  ·  compassoffices.com',W-M,48,{align:'right'});
-    return 72;
-  }
-  function colHead(y,region){
-    pdf.setFillColor(255,102,0);pdf.rect(M,y,W-2*M,22,'F');pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(10);
-    pdf.text(region.toUpperCase(),M+8,y+15);
-    y+=22;let x=M;pdf.setTextColor(140,140,140);pdf.setFontSize(8);
-    cols.forEach(c=>{pdf.text(c.t.toUpperCase(),x+6,y+11);x+=c.w;});
-    return y+16;
-  }
-  let y=header();let curRegion=null;const rowH=20,bottom=H-28;
-  rows.forEach(function(o){
-    if(o.region!==curRegion||y>bottom){ if(o.region!==curRegion){curRegion=o.region;} if(y>bottom-40){pdf.addPage();y=header();} y=colHead(y,curRegion); }
-    if(y>bottom){pdf.addPage();y=header();y=colHead(y,curRegion);}
-    let x=M;pdf.setDrawColor(232,232,232);pdf.line(M,y+rowH-6,W-M,y+rowH-6);
-    pdf.setTextColor(40,40,40);pdf.setFontSize(9);
-    const view=o.view+(o.viewType&&o.viewType!=='N/A'?(' · '+o.viewType):'');
-    const vals={centre:o.centre,office:o.office,cls:o.cls||'',size:(o.size||'?')+' sq ft',desks:''+(o.desks||'?'),view:view,avail:o.availLabel,price:(o.price?curForPdf(o.region)+Math.round(o.price).toLocaleString()+'/mo':'—')};
-    cols.forEach(c=>{pdf.setFont('helvetica',(c.k==='office'||c.k==='price')?'bold':'normal');pdf.text(pdf.splitTextToSize(''+vals[c.k],c.w-10)[0],x+6,y+9);x+=c.w;});
-    y+=rowH;
-  });
-  pdf.save('Compass_Shortlist.pdf');
+  const btn=document.querySelector('.srch-bar .pri');const bt=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='Building…';}
+  try{
+    const {jsPDF}=window.jspdf;const logo=await logoPng();
+    const pdf=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
+    const W=pdf.internal.pageSize.getWidth(),H=pdf.internal.pageSize.getHeight(),M=30;
+    const byRegion={};rows.forEach(o=>{(byRegion[o.region]=byRegion[o.region]||[]).push(o);});
+    let first=true;const noPlan=[];
+    function pageHeader(title,sub){
+      if(logo)pdf.addImage(logo,'PNG',M,16,104,38);
+      pdf.setTextColor(40,40,40);pdf.setFont('helvetica','bold');pdf.setFontSize(15);pdf.text(title,W-M,32,{align:'right'});
+      pdf.setFont('helvetica','normal');pdf.setFontSize(9);pdf.setTextColor(150,150,150);pdf.text(sub,W-M,48,{align:'right'});
+    }
+    for(const region of Object.keys(byRegion)){
+      const items=await resolveItems(region);const sel=byRegion[region];
+      const floors=new Map();
+      sel.forEach(o=>{let placed=false;for(const it of items){if(it.kind!=='floor')continue;if(prettyCentre(it.centre)!==o.centre)continue;if(it.offices.some(x=>(''+x.office)===(''+o.office))){if(!floors.has(it))floors.set(it,[]);floors.get(it).push(o);placed=true;break;}}if(!placed)noPlan.push(o);});
+      for(const [it,offs] of floors){
+        const row=it.row;const data=row._json;if(!data){offs.forEach(o=>noPlan.push(o));continue;}
+        const base=deriveImgBase(row.jsonUrl);
+        const rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString(),rect:r.rect,polygon:r.polygon||null}));
+        const plan={masterUrl:row.masterUrl||resolveAsset(base,data.master&&data.master.file),w:(data.master&&data.master.width)||1000,h:(data.master&&data.master.height)||700,rooms};
+        const idx=numIndex(it.offices);const selSet=new Set(offs.map(o=>''+o.office));
+        const baked=await bakeSelPlan(plan,selSet,idx);
+        if(!first)pdf.addPage();first=false;
+        pageHeader(it.name,'Level '+(it.level||'?')+'  ·  '+region+'  ·  '+offs.length+' selected');
+        // plan on the left
+        const planTop=64,planMaxW=W*0.60,planMaxH=H-planTop-M;
+        let pw=planMaxW,ph=pw*(baked.h/baked.w);if(ph>planMaxH){ph=planMaxH;pw=ph*(baked.w/baked.h);}
+        pdf.addImage(baked.dataUrl,'JPEG',M,planTop,pw,ph);
+        // detail cards on the right
+        let x=M+planMaxW+16,y=planTop,cw=W-x-M;
+        offs.sort((a,b)=>a.availNum-b.availNum);
+        offs.forEach(o=>{
+          if(y>H-M-54){return;}
+          pdf.setDrawColor(230,230,230);pdf.setFillColor(255,255,255);pdf.roundedRect(x,y,cw,50,6,6,'FD');
+          pdf.setTextColor(26,26,26);pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.text(''+o.office,x+10,y+17);
+          pdf.setTextColor(255,102,0);pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);pdf.text((o.price?curForPdf(region)+Math.round(o.price).toLocaleString()+'/mo':'—'),x+cw-10,y+17,{align:'right'});
+          pdf.setTextColor(110,110,110);pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);
+          const view=o.view+(o.viewType&&o.viewType!=='N/A'?(' · '+o.viewType):'');
+          pdf.text((o.cls||'')+'  ·  '+(o.size||'?')+' sq ft  ·  '+(o.desks||'?')+' desks',x+10,y+31);
+          pdf.text((view||'')+'  ·  '+o.availLabel,x+10,y+43);
+          y+=58;
+        });
+      }
+    }
+    if(noPlan.length){
+      if(!first)pdf.addPage();first=false;
+      pageHeader('Other selected offices','No floorplan  ·  '+noPlan.length+' offices');
+      const cols=[{t:'Region',w:80},{t:'Centre',w:150},{t:'Office',w:60},{t:'Class',w:64},{t:'Size',w:60},{t:'Desks',w:46},{t:'Available',w:88},{t:'Monthly',w:96}];
+      let y=72,xh=M;pdf.setFillColor(255,102,0);pdf.rect(M,y,W-2*M,20,'F');pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(8);
+      cols.forEach(c=>{pdf.text(c.t.toUpperCase(),xh+6,y+13);xh+=c.w;});y+=26;
+      noPlan.sort((a,b)=>a.region.localeCompare(b.region)||a.centre.localeCompare(b.centre));
+      noPlan.forEach(o=>{if(y>H-M){pdf.addPage();y=M;}let x=M;pdf.setDrawColor(232,232,232);pdf.line(M,y+14,W-M,y+14);pdf.setTextColor(40,40,40);pdf.setFontSize(9);
+        const vals=[o.region,o.centre,o.office,o.cls||'',(o.size||'?')+' sq ft',''+(o.desks||'?'),o.availLabel,(o.price?curForPdf(o.region)+Math.round(o.price).toLocaleString()+'/mo':'—')];
+        cols.forEach((c,ci)=>{pdf.setFont('helvetica',(ci===2||ci===7)?'bold':'normal');pdf.text(pdf.splitTextToSize(''+vals[ci],c.w-8)[0],x+6,y+9);x+=c.w;});y+=19;});
+    }
+    pdf.save('Compass_Shortlist.pdf');
+  }catch(e){console.error('shortlist pdf',e);alert('Could not build the PDF: '+(e&&e.message||e));}
+  if(btn){btn.disabled=false;btn.textContent=bt;}
 }
 function hideBoot(){var _bl=$('bootLoader');if(_bl&&!_bl.classList.contains('hide')){_bl.classList.add('hide');setTimeout(function(){_bl.style.display='none';},500);}}
 async function boot(){
