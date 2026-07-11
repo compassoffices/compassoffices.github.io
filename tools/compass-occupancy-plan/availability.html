@@ -909,12 +909,19 @@ async function resolveItems(city){
   const regionIdx=numIndex(classified);
   const centres=[...new Set(classified.map(o=>o.centre))];
   const cands=REGISTRY.filter(r=>r.cities&&r.cities.includes(city));const items=[];const covered=new Set();
+  // For shared tabs (a tab that serves >1 city, e.g. jp = Tokyo+Osaka), preload the OTHER cities'
+  // centre names so we can tell which city each plan really belongs to.
+  const sibCentres={};
+  for(const row of cands){ if(row.cities&&row.cities.length>1){ for(const c of row.cities){ if(c!==city&&sibCentres[c]===undefined){ try{const rp=await ensureReport(c);sibCentres[c]=rp?[...new Set(rp.offices.map(o=>o.centre))]:[];}catch(e){sibCentres[c]=[];} } } } }
   await Promise.all(cands.map(async row=>{
     if(row._rooms===undefined){try{const data=await (await fetch(row.jsonUrl)).json();row._json=data;row._rooms=(data.rooms||[]).map(r=>({label:(r.displayLabel||r.label||'').toString(),raw:(r.label||'').toString()}));}catch(e){row._rooms=[];}}
     let centre=null,offs=[];
     // (1) NAME binding first — if the centre code reads like a real name (e.g. "Silvercord Tower 1 - L8"),
     //     match it to the report centre and scope room-matching to that centre (avoids office-number collisions)
     const named=fuzzyCentre(row.code,centres);
+    // Shared-tab guard: if this plan's code does NOT name a centre in THIS city, but DOES name a centre
+    // in another city on the same tab, it belongs to that city — do not bind it here.
+    if(!named&&row.cities&&row.cities.length>1){for(const c of row.cities){if(c===city)continue;if(sibCentres[c]&&fuzzyCentre(row.code,sibCentres[c]))return;}}
     if(named){
       centre=named;const cOffs=classified.filter(o=>o.centre===centre);const cIdx=numIndex(cOffs);
       const seen=new Set();row._rooms.forEach(rm=>{const o=matchRoom(rm,cIdx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
