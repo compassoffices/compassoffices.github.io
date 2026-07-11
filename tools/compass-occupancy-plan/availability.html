@@ -575,15 +575,16 @@ function applyDeepLink(){
 }
 function hideBoot(){var _bl=$('bootLoader');if(_bl&&!_bl.classList.contains('hide')){_bl.classList.add('hide');setTimeout(function(){_bl.style.display='none';},500);}}
 async function boot(){
-  var _bm=$('bootMk');if(_bm)_bm.innerHTML=MARK;var _lm=$('loadMk');if(_lm)_lm.innerHTML=MARK;
-  try{$('heroLogo').innerHTML=LOGO('#fff');$('cityLogo').innerHTML=LOGO('#282828');}catch(e){}
-  setTimeout(hideBoot,12000); // safety net: never spin forever
-  var saved=null;try{saved=localStorage.getItem('co_auth');}catch(e){}
-  if(saved){try{AUTH=JSON.parse(saved);}catch(e){AUTH=null;}}
-  // show login/app straight away — public assets load in the background, so a slow sheet never blocks the gate
-  try{ if(AUTH&&AUTH.token) showApp(); else showLogin(); }catch(e){ console.error(e); showLogin(); }
-  Promise.all([loadFloorplanSheet(),loadAddresses()]).catch(function(e){console.warn('assets',e);}).finally(function(){ if(AUTH&&AUTH.token) renderCities(); });
-  setTimeout(hideBoot,300);
+  setTimeout(hideBoot,4000); // hard safety: never spin forever
+  try{
+    var _bm=$('bootMk');if(_bm)_bm.innerHTML=MARK;var _lm=$('loadMk');if(_lm)_lm.innerHTML=MARK;
+    try{$('heroLogo').innerHTML=LOGO('#fff');$('cityLogo').innerHTML=LOGO('#282828');}catch(e){}
+    var saved=null;try{saved=localStorage.getItem('co_auth');}catch(e){}
+    if(saved){try{AUTH=JSON.parse(saved);}catch(e){AUTH=null;}}
+    if(AUTH&&AUTH.token) showApp(); else showLogin();
+    Promise.all([loadFloorplanSheet(),loadAddresses()]).catch(function(e){console.warn('assets',e);}).finally(function(){ if(AUTH&&AUTH.token){try{renderCities();}catch(e){}} });
+  }catch(e){ console.error('boot',e); try{showLogin();}catch(_){}}
+  finally{ setTimeout(hideBoot,250); }
 }
 async function loadAddresses(){
   if(!CONFIG.ADDRESS_CSVS||!CONFIG.ADDRESS_CSVS.length)return;
@@ -1061,7 +1062,14 @@ async function exportCityAll(i){
   }finally{thisMonthOnly=sMonth;availOnly=sAvail;showDetail=sDetail;if(btn)btn.innerHTML=orig;}
 }
 
-boot();
+try{ boot(); }catch(e){ console.error('boot call failed',e); }
+// absolute failsafe — if the loader is still up after 4.5s, force it away and show the login
+setTimeout(function(){
+  var b=document.getElementById('bootLoader'); if(b){ b.classList.add('hide'); setTimeout(function(){b.style.display='none';},500); }
+  var cities=document.getElementById('screenCities'); var login=document.getElementById('loginScreen');
+  var shown=(cities&&cities.style.display!=='none')||(login&&login.classList.contains('on'));
+  if(!shown){ try{ if(typeof showLogin==='function') showLogin(); }catch(e){} }
+},4500);
 </script>
 </body>
 </html>
