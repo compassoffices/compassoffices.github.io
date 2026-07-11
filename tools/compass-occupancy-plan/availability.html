@@ -528,6 +528,15 @@ function parseCSV(text){const rows=[];let cur=[],val='',q=false;for(let i=0;i<te
 function toMonthLabel(v){if(v==null||v==='')return v;const n=Number(v);if(!isNaN(n)&&n>20000&&n<80000){const d=new Date(Date.UTC(1899,11,30));d.setUTCDate(d.getUTCDate()+n);return d.toLocaleDateString('en-GB',{month:'short',year:'numeric'});}const d=new Date(v);if(!isNaN(d))return d.toLocaleDateString('en-GB',{month:'short',year:'numeric'});return(''+v).trim();}
 function normKeys(raw){const s=(raw||'').toString().trim();const k=new Set();k.add(s.toUpperCase());k.add(s.replace(/\s+/g,'').toUpperCase());k.add(s.replace(/[\s-]+/g,'').toUpperCase());const lead=s.match(/^([0-9]+)(?:\s*-\s*)?[A-Za-z]/);if(lead)k.add(lead[1].toUpperCase());const sz=s.replace(/\d+/g,function(m){return String(parseInt(m,10));});k.add(sz.toUpperCase());k.add(sz.replace(/[\s-]+/g,'').toUpperCase());return[...k];}
 function findCol(H,res){for(const re of res){const i=H.findIndex(h=>re.test((''+h).trim()));if(i!==-1)return i;}return -1;}
+function deDateOffice(v){
+  if(v==null)return '';
+  if(Object.prototype.toString.call(v)==='[object Date]')return v.getUTCDate()+'-'+('0'+(v.getUTCMonth()+1)).slice(-2);
+  const s=(''+v).trim();
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|\s|$)/);
+  if(m)return parseInt(m[3],10)+'-'+m[2];      // ISO date -> day-month (floor-office)
+  if(/^\d+\.0+$/.test(s))return s.replace(/\.0+$/,'');   // "1001.0" -> "1001"
+  return s;
+}
 function ingestReport(matrix){
   const hi=matrix.findIndex(r=>r.some(c=>(''+c).trim()==='Centre'));if(hi===-1)throw new Error('No "Centre" header');
   const header=matrix[hi],termIdx=header.findIndex(c=>/terminated/i.test(''+c)),priceIdx=header.findIndex(c=>/market price/i.test(''+c));
@@ -538,7 +547,7 @@ function ingestReport(matrix){
   for(let i=hi+1;i<matrix.length;i++){const r=matrix[i];if(!r||!r[0])continue;const centre=(''+r[0]).trim();
     if(/^[A-Za-z]\s+-\s+/.test(centre)&&!/^HKG|^[A-Z]{2,}/.test(centre))continue;if(centre.length<4)continue;
     const months=r.slice(mStart,mEnd).map(x=>(''+(x||'')).trim());if(!months.some(Boolean))continue;
-    offices.push({centre,office:(''+r[1]).trim(),class:r[2],view:r[3],viewType:r[4],maxConfig:num(r[cfgIdx>=0?cfgIdx:5]),size:num(r[sizeIdx>=0?sizeIdx:6]),price:num(r[priceIdx>=0?priceIdx:8]),months});}
+    offices.push({centre,office:deDateOffice(r[1]),class:r[2],view:r[3],viewType:r[4],maxConfig:num(r[cfgIdx>=0?cfgIdx:5]),size:num(r[sizeIdx>=0?sizeIdx:6]),price:num(r[priceIdx>=0?priceIdx:8]),months});}
   return {monthLabels,offices};
 }
 function classify(months){const m=months.map(x=>(x||'').toString().trim().toUpperCase());const ne=m.filter(Boolean);
