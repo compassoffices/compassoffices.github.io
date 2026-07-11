@@ -914,6 +914,10 @@ async function resolveItems(city){
     } else {
       // (2) fall back to office-number matching across the whole region
       const seen=new Set();row._rooms.forEach(rm=>{const o=matchRoom(rm,regionIdx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
+      // confidence guard: a real floor matches many of its own rooms. A stray 1-2 collisions
+      // (e.g. a Tokyo plan grazing an Osaka office number on a shared region tab) must NOT bind.
+      const roomN=(row._rooms||[]).length||1;
+      if(offs.length<3||offs.length<roomN*0.12)offs=[];
       if(offs.length){const cc={};offs.forEach(o=>cc[o.centre]=(cc[o.centre]||0)+1);centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];}
     }
     if(!centre||!offs.length)return;
