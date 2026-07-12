@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>9 Queen's Road Central | Level 10</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #282828;
+      font-family: Arial, sans-serif;
+      color: white;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #wrapper {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      background: #282828;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    #companyListContainer {
+      flex: 1 1 auto;
+      overflow: hidden;
+    }
+
+    #companyList {
+      padding: 8px;
+      padding-bottom: 16px;
+      transition: opacity 0.5s ease-in-out;
+      -webkit-transition: opacity 0.5s ease-in-out;
+      -moz-transition: opacity 0.5s ease-in-out;
+      margin-bottom: 12px;
+    }
+
+    .row {
+      display: flex;
+      align-items: flex-start;
+      padding: 1px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #444;
+      font-size: clamp(18px, 4.8vw, 36px);
+      line-height: 1.5;
+      word-wrap: break-word;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .list-number {
+      font-size: 0.4em;
+      color: grey;
+      font-family: "Courier New", monospace;
+      flex: 0 0 auto;
+      width: clamp(26px, 3.8vw, 34px);
+      text-align: left;
+      padding-right: 4px;
+      min-width: 26px;
+    }
+
+    .company-name {
+      font-size: 1em;
+      flex: 1;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .small-text {
+      font-size: 0.45em;
+      margin-top: -2px;
+    }
+
+    .footer {
+      flex: 0 0 auto;
+      background-color: #ff6600;
+      color: white;
+      text-align: center;
+      padding: 12px;
+      font-size: clamp(16px, 3vw, 22px);
+      font-weight: bold;
+    }
+
+    #measure {
+      visibility: hidden;
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      width: calc(100% - 16px);
+      padding: 8px;
+    }
+
+    @media screen and (min-width: 900px) and (max-width: 1500px) {
+      .row {
+        font-size: clamp(18px, 4.8vw, 36px);
+      }
+      .company-name {
+        font-size: 1.3em;
+      }
+      .list-number {
+        font-size: 0.35em;
+        width: clamp(26px, 3.8vw, 34px);
+        min-width: 26px;
+      }
+      .small-text {
+        font-size: 0.5em;
+        margin-top: -4px;
+      }
+      .footer {
+        padding: 12px;
+        font-size: clamp(16px, 3vw, 22px);
+      }
+    }
+    
+  
+  </style>
+</head>
+<body>
+  <div id="wrapper">
+    <div id="companyListContainer">
+      <div id="companyList">Loading...</div>
+    </div>
+    <div class="footer" id="footer">Loading... | Page 1 of 1</div>
+  </div>
+
+  <div id="measure"></div>
+
+  <script>
+    if (!String.prototype.trim) {
+      String.prototype.trim = function () {
+        return this.replace(/^\s+|\s+$/g, '');
+      };
+    }
+
+    var dataUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-JLxXVYRDwtCAzDnbjfu2Ap8t9Z8jDQaharDkiQ_GC3h-xlyXMkGKVgC6wzGR4uJFY_XgoXjTa2Hc/pub?output=csv";
+
+    var companies = [];
+    var pages = [];
+    var currentPage = 0;
+    var sheetTitle = "HKG-SCT1-08";
+    var intervalId = null;
+
+    var listDiv = document.getElementById("companyList");
+    var listContainer = document.getElementById("companyListContainer");
+    var footer = document.getElementById("footer");
+    var measure = document.getElementById("measure");
+
+    function getRowHTML(company) {
+      var parts = company.companyName.split('<td>');
+      var html = '<div class="row"><span class="list-number">' + (company.listNumber < 10 ? '0' + company.listNumber : company.listNumber) + '</span><div class="company-name">';
+      for (var i = 0; i < parts.length; i++) {
+        var part = parts[i].trim();
+        if (part.indexOf('<nobr>') === 0) {
+          part = part.replace('<nobr>', '').trim();
+          html += '<div class="small-text">' + part + '</div>';
+        } else {
+          html += '<div>' + part + '</div>';
+        }
+      }
+      html += '</div></div>';
+      return html;
+    }
+
+    function getRowHeight(company) {
+      measure.innerHTML = getRowHTML(company);
+      var height = measure.firstChild.offsetHeight || measure.firstChild.clientHeight;
+      return height + 12;
+    }
+
+    function paginate(availableHeight) {
+      pages = [];
+      var page = [];
+      var totalHeight = 0;
+
+      for (var i = 0; i < companies.length; i++) {
+        var rowHeight = getRowHeight(companies[i]);
+        if (totalHeight + rowHeight > availableHeight && page.length > 0) {
+          pages.push(page);
+          page = [];
+          totalHeight = 0;
+        }
+        page.push(companies[i]);
+        totalHeight += rowHeight;
+      }
+
+      if (page.length > 0) {
+        pages.push(page);
+      }
+    }
+
+    function showPage(index) {
+      listDiv.style.opacity = 0;
+      setTimeout(function () {
+        var html = '';
+        for (var i = 0; i < pages[index].length; i++) {
+          html += getRowHTML(pages[index][i]);
+        }
+        listDiv.innerHTML = html;
+        listDiv.style.opacity = 1;
+        footer.innerHTML = sheetTitle + " | Page " + (index + 1) + " of " + pages.length;
+      }, 300);
+    }
+
+    function startAutoTransition() {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (pages.length > 1) {
+        intervalId = setInterval(function () {
+          currentPage = (currentPage + 1) % pages.length;
+          showPage(currentPage);
+        }, 15000);
+      } else {
+        intervalId = null;
+      }
+    }
+
+    function calculateHeightsAndPaginate() {
+      var wrapperHeight = listContainer.offsetHeight;
+      var footerHeight = footer.offsetHeight || footer.clientHeight;
+
+      var computedStyle = listDiv.currentStyle || window.getComputedStyle(listDiv);
+      var paddingTop = parseFloat(computedStyle.paddingTop) || 8;
+      var paddingBottom = parseFloat(computedStyle.paddingBottom) || 16;
+      var totalPadding = paddingTop + paddingBottom;
+
+      var availableHeight = Math.max(wrapperHeight - totalPadding - 10, 0);
+
+      paginate(availableHeight);
+      currentPage = Math.min(currentPage, pages.length - 1) || 0;
+      if (pages.length > 0) {
+        showPage(currentPage);
+        startAutoTransition();
+      } else {
+        listDiv.innerHTML = "No companies to display.";
+        footer.innerHTML = sheetTitle + " | Page 1 of 1";
+      }
+    }
+
+    function debounce(func, wait) {
+      var timeout;
+      return function() {
+        var context = this, args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(function() {
+          func.apply(context, args);
+        }, wait);
+      };
+    }
+
+    var debouncedCalculate = debounce(calculateHeightsAndPaginate, 300);
+
+    function parseCSV(text) {
+      const lines = text.trim().split("\n");
+      let listNumber = 1;
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (line === "") continue;
+        line = line.replace(/^"|"$/g, '').replace(/""/g, '"');
+        companies.push({
+          listNumber: listNumber++,
+          companyName: line
+        });
+      }
+    }
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        sheetTitle = "HKG-SCT1-08";
+        document.title = sheetTitle;
+
+        parseCSV(xhr.responseText);
+        setTimeout(calculateHeightsAndPaginate, 100);
+      }
+    };
+    xhr.open("GET", dataUrl, true);
+    xhr.send();
+
+    window.addEventListener('resize', debouncedCalculate);
+  </script>
+</body>
+</html>
