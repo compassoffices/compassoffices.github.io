@@ -957,8 +957,12 @@ async function resolveItems(city){
   if(CITY_ITEMS[city])return CITY_ITEMS[city];
   const rep=await ensureReport(city);if(!rep){CITY_ITEMS[city]=[];return [];}
   const ml=rep.monthLabels;const classified=rep.offices.map(o=>classifyOffice(o,ml));
-  const regionIdx=numIndex(classified);
   const centres=[...new Set(classified.map(o=>o.centre))];
+  // Per-centre key indexes. NEVER use a single region-wide index: centres share office
+  // numbers (e.g. BOCG and 9QRC both have 1001–1025), and a first-come-wins region index
+  // lets whichever centre appears first in the tab steal every shared key — producing
+  // mixed-centre floorplans (the 9QRC L10 bug) and phantom floors (the fake BOCG L11).
+  const centreIdx={};centres.forEach(c=>{centreIdx[c]=numIndex(classified.filter(o=>o.centre===c));});
   const cands=REGISTRY.filter(r=>r.cities&&r.cities.includes(city));const items=[];const covered=new Set();
   // For shared tabs (a tab that serves >1 city, e.g. jp = Tokyo+Osaka), preload the OTHER cities'
   // centre names so we can tell which city each plan really belongs to.
@@ -974,18 +978,25 @@ async function resolveItems(city){
     // in another city on the same tab, it belongs to that city — do not bind it here.
     if(!named&&row.cities&&row.cities.length>1){for(const c of row.cities){if(c===city)continue;if(sibCentres[c]&&fuzzyCentre(row.code,sibCentres[c]))return;}}
     if(named){
-      centre=named;const cOffs=classified.filter(o=>o.centre===centre);const cIdx=numIndex(cOffs);
+      centre=named;const cOffs=classified.filter(o=>o.centre===centre);const cIdx=centreIdx[centre];
       const seen=new Set();row._rooms.forEach(rm=>{const o=matchRoom(rm,cIdx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
       if(!offs.length){const lvl=(row.level||'').replace(/[^0-9]/g,'');if(lvl)offs=cOffs.filter(o=>(''+o.office).replace(/[^0-9]/g,'').indexOf(lvl)===0);}
       if(!offs.length)offs=cOffs;
     } else {
-      // (2) fall back to office-number matching across the whole region
-      const seen=new Set();row._rooms.forEach(rm=>{const o=matchRoom(rm,regionIdx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
+      // (2) fall back to office-number matching — score EACH centre separately and take the
+      //     best. A plan binds to exactly one centre and only ever shows that centre's offices;
+      //     shared office numbers can no longer leak another centre's data onto the plan.
+      let best=null,bestOffs=[];
+      for(const c of centres){
+        const idx=centreIdx[c];const seen=new Set();const co=[];
+        row._rooms.forEach(rm=>{const o=matchRoom(rm,idx);if(o&&!seen.has(o.office)){seen.add(o.office);co.push(o);}});
+        if(co.length>bestOffs.length){bestOffs=co;best=c;}
+      }
       // confidence guard: a real floor matches many of its own rooms. A stray 1-2 collisions
       // (e.g. a Tokyo plan grazing an Osaka office number on a shared region tab) must NOT bind.
       const roomN=(row._rooms||[]).length||1;
-      if(offs.length<3||offs.length<roomN*0.12)offs=[];
-      if(offs.length){const cc={};offs.forEach(o=>cc[o.centre]=(cc[o.centre]||0)+1);centre=Object.keys(cc).sort((a,b)=>cc[b]-cc[a])[0];}
+      if(bestOffs.length<3||bestOffs.length<roomN*0.12){offs=[];}
+      else{centre=best;offs=bestOffs;}
     }
     if(!centre||!offs.length)return;
     covered.add(centre);
