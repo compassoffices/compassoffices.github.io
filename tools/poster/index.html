@@ -3464,6 +3464,73 @@ body{margin:0;background:#e9eaec;}
 
   /* ---- export ---- */
   function fileName(ext){ var base=(state.name||state.headline||"compass-poster").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); return (base||"compass-poster")+"."+ext; }
+
+  /* ============ INLINE REMOTE IMAGES BEFORE EXPORT ============
+     html2canvas re-fetches every image with crossOrigin="anonymous". If the host
+     sends no Access-Control-Allow-Origin (most partner websites don't), that fetch
+     fails and html2canvas SILENTLY SKIPS the image — the partner logo looked fine on
+     screen (a plain <img> needs no CORS) but vanished from the PNG/JPG/PDF.
+     So we convert every remote image to a data: URI first:
+       1. direct fetch (works for Cloudinary and any CORS-enabled host)
+       2. wsrv.nl image proxy (adds CORS for hosts that don't)
+     If both fail we leave the URL alone and warn, rather than exporting silently. */
+  var IMG_CACHE={};
+  function toDataURI(url){
+    if(!url) return Promise.resolve(null);
+    if(url.indexOf("data:")===0) return Promise.resolve(url);
+    if(IMG_CACHE[url]) return Promise.resolve(IMG_CACHE[url]);
+    var toB64=function(blob){
+      return new Promise(function(resolve,reject){
+        var fr=new FileReader();
+        fr.onload=function(){ resolve(fr.result); };
+        fr.onerror=function(){ reject(new Error("read")); };
+        fr.readAsDataURL(blob);
+      });
+    };
+    // Resolve relative paths ("/img/logo.png") to absolute BEFORE proxying — the proxy
+    // cannot fetch a path with no host. Same-origin images never need the proxy anyway.
+    var abs=url;
+    try{ abs=new URL(url, window.location.href).href; }catch(e){}
+    var sameOrigin=(abs.indexOf(window.location.origin)===0);
+    var viaProxy=function(){
+      if(sameOrigin) return Promise.reject(new Error("same-origin"));
+      var bare=abs.replace(/^https?:\/\//,"");
+      var prox="https://wsrv.nl/?url="+encodeURIComponent(bare)+"&n=-1";
+      return fetch(prox,{mode:"cors"}).then(function(r){
+        if(!r.ok) throw new Error("proxy "+r.status);
+        return r.blob();
+      }).then(toB64);
+    };
+    return fetch(abs,{mode:"cors"}).then(function(r){
+      if(!r.ok) throw new Error("http "+r.status);
+      return r.blob();
+    }).then(toB64).catch(viaProxy).then(function(d){
+      if(d) IMG_CACHE[url]=d;
+      return d;
+    }).catch(function(){ return null; });
+  }
+  // Swap every remote <img src> and CSS background-image in the clone for a data: URI.
+  function inlineImages(root){
+    var jobs=[], missed=[];
+    Array.prototype.forEach.call(root.querySelectorAll("img"), function(im){
+      var u=im.getAttribute("src");
+      if(!u || u.indexOf("data:")===0) return;
+      jobs.push(toDataURI(u).then(function(d){
+        if(d) im.setAttribute("src",d); else missed.push(u);
+      }));
+    });
+    Array.prototype.forEach.call(root.querySelectorAll("*"), function(el){
+      var bg=el.style && el.style.backgroundImage;
+      if(!bg || bg==="none" || bg.indexOf("data:")>=0) return;
+      var m=/url\(["']?([^"')]+)["']?\)/.exec(bg);
+      if(!m) return;
+      jobs.push(toDataURI(m[1]).then(function(d){
+        if(d) el.style.backgroundImage='url("'+d+'")'; else missed.push(m[1]);
+      }));
+    });
+    return Promise.all(jobs).then(function(){ return missed; });
+  }
+
   function exportImage(kind){
     if(typeof html2canvas==="undefined"){ alert("Export needs an internet connection (html2canvas)."); return; }
     var node=activeNode(), sz=activeSize(), W=sz[0], H=sz[1];
@@ -3481,13 +3548,21 @@ body{margin:0;background:#e9eaec;}
     holder.appendChild(clone); $("cps-app").appendChild(holder);
     var done=function(){ if(holder.parentNode)holder.parentNode.removeChild(holder); btn.textContent=prev; btn.disabled=false; };
     var ready=(document.fonts&&document.fonts.ready)?document.fonts.ready:Promise.resolve();
+    var missedImgs=[];
     ready.then(function(){
+      return inlineImages(clone);          // embed remote images so CORS can't drop them
+    }).then(function(missed){
+      missedImgs=missed||[];
       return html2canvas(clone,{scale:scale,useCORS:true,backgroundColor:"#ffffff",width:W,height:H,windowWidth:W,windowHeight:H,imageTimeout:20000});
     }).then(function(canvas){
       var a=document.createElement("a");
       if(kind==="jpg"){ a.href=canvas.toDataURL("image/jpeg",0.95); a.download=fileName("jpg"); }
       else { a.href=canvas.toDataURL("image/png"); a.download=fileName("png"); }
       a.click(); done();
+      if(missedImgs.length){
+        alert("Exported, but "+missedImgs.length+" image(s) could not be embedded and may be missing:\n\n"+
+              missedImgs.join("\n")+"\n\nHost the image somewhere that allows cross-origin access (e.g. Cloudinary) and paste that URL.");
+      }
     }).catch(function(err){ done(); alert("Export failed: "+err.message); });
   }
   function printPoster(){ var root=$("cps-print"); root.innerHTML=""; var n=activeNode(); var d=window.getComputedStyle(n).display; var c=n.cloneNode(true); c.style.boxShadow="none"; c.style.transform="none"; c.style.display=(d&&d!=="none")?d:"block"; root.appendChild(c); window.print(); }
