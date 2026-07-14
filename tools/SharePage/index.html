@@ -45,6 +45,14 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .langedit .le-label{font-size:12px;font-weight:800;color:var(--co-text);}
 .langedit .le-hint{margin-top:9px;font-size:11px;color:var(--co-muted);line-height:1.5;}
 .langedit.editing{border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
+.le-status{margin-top:10px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;}
+.ls-one{color:var(--co-muted);}
+.ls-one strong{color:var(--co-orange);}
+.ls-lbl{color:var(--co-muted);font-weight:700;}
+.ls-chip{display:inline-flex;align-items:center;gap:5px;background:var(--co-orange-wash);color:var(--co-orange);font-weight:800;padding:3px 4px 3px 9px;border-radius:999px;}
+.ls-chip.base{padding:3px 9px;background:var(--co-fill);color:var(--co-text-2);}
+.ls-chip button{border:0;background:none;color:inherit;font:inherit;font-size:13px;line-height:1;cursor:pointer;padding:0 4px;border-radius:999px;opacity:.7;}
+.ls-chip button:hover{opacity:1;background:var(--co-orange);color:#fff;}
 .fpctl{display:flex;gap:12px;align-items:center;margin-top:10px;padding:10px;background:var(--co-bg);border:1px solid var(--co-line);border-radius:10px;}
 .fpctl[hidden]{display:none;}
 .fp-prev{width:72px;height:72px;flex:none;border-radius:8px;overflow:hidden;background:var(--co-fill);}
@@ -208,6 +216,7 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
         </div>
       </div>
       <div class="le-hint" id="leHint">Add other languages only if you want a toggle on the page. Blank fields fall back to the main language.</div>
+      <div class="le-status" id="leStatus"></div>
     </div>
 
     <details class="acc" open>
@@ -899,6 +908,17 @@ function refreshLangTabs(){
   const bl=baseLang();
   document.querySelectorAll('#langSeg button').forEach(b=>{ const l=b.dataset.l; b.classList.toggle('editing', l===curLang); b.classList.toggle('enabled', l===bl || langHasContent(l)); });
   document.querySelectorAll('#baseSeg button').forEach(b=>{ b.classList.toggle('editing', b.dataset.b===bl); });
+  const st=document.getElementById('leStatus');
+  if(st){
+    const extra=LANGS.filter(l=>l!==bl && langHasContent(l));
+    if(!extra.length){
+      st.innerHTML=`<span class="ls-one">This page is <strong>${LANGLABEL[bl]} only</strong> — no language toggle will show.</span>`;
+    } else {
+      st.innerHTML=`<span class="ls-lbl">On this page:</span> <span class="ls-chip base">${LANGLABEL[bl]} (main)</span>`+
+        extra.map(l=>`<span class="ls-chip">${LANGLABEL[l]}<button type="button" data-rml="${l}" title="Remove ${LANGLABEL[l]}">&times;</button></span>`).join('');
+      st.querySelectorAll('[data-rml]').forEach(b=>b.onclick=()=>removeLang(b.dataset.rml));
+    }
+  }
 }
 /* Changing the main language swaps which store holds the page's primary text,
    so nothing typed is lost: the old base text moves into that language's translations,
@@ -930,6 +950,13 @@ function TR_PATHS(){
   (S.sessions||[]).forEach((_,i)=>{p.push('sessions.'+i+'.topic','sessions.'+i+'.stime','sessions.'+i+'.name','sessions.'+i+'.bio','sessions.'+i+'.talk','sessions.'+i+'.talkDesc');});
   (S.listings||[]).forEach((_,i)=>{p.push('listings.'+i+'.location','listings.'+i+'.room','listings.'+i+'.seats','listings.'+i+'.feature','listings.'+i+'.price');});
   return p;
+}
+function removeLang(l){
+  if(l===baseLang()) return;                       // can't remove the page's main language
+  if(S.tr && S.tr[l]) S.tr[l]={};
+  if(curLang===l) curLang=baseLang();
+  refreshLangTabs(); syncInputs(); queueRender(true);
+  toast(LANGLABEL[l]+' removed from this page');
 }
 function resetLangUI(){ curLang=baseLang(); msgLang=baseLang(); refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.remove('editing'); }
 function setEditLang(l,rerender){ if(LANGS.indexOf(l)<0) return; curLang=l; refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.toggle('editing',l!==baseLang()); syncInputs(); if(rerender) queueRender(true); }
@@ -1287,8 +1314,8 @@ a{color:inherit;}
 .se-time svg{width:15px;height:15px;flex:none;}
 .se-card{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center;padding:22px 18px 20px;}
 .se-pic{width:96px;height:96px;flex:none;margin-bottom:14px;}
-.se-pic img{width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:var(--fp,50% 50%);display:block;box-shadow:0 0 0 1px var(--line), 0 0 0 4px var(--paper);}
-.se-av{width:100%;height:100%;border-radius:50%;background:var(--wash);color:var(--o);font-weight:800;font-size:34px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--line), 0 0 0 4px var(--paper);}
+.se-pic img{width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:var(--fp,50% 50%);display:block;box-shadow:0 0 0 3px var(--paper), 0 0 0 4px var(--line);}
+.se-av{width:100%;height:100%;border-radius:50%;background:var(--wash);color:var(--o);font-weight:800;font-size:34px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--paper), 0 0 0 4px var(--line);}
 .se-body{width:100%;}
 .se-name{font-size:17px;font-weight:800;color:var(--ink);margin-bottom:5px;}
 .se-bio{font-size:13.5px;color:var(--tx2);line-height:1.55;}
@@ -1297,8 +1324,8 @@ a{color:inherit;}
 .se-td{font-size:13.5px;color:var(--tx2);line-height:1.55;}
 .speakers{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px;}
 .sp{display:flex;gap:16px;align-items:center;}
-.sp img{width:78px;height:78px;border-radius:50%;object-fit:cover;object-position:var(--fp,50% 50%);flex:none;box-shadow:0 0 0 1px var(--line), 0 0 0 4px var(--paper);}
-.sp .spav{width:78px;height:78px;border-radius:50%;background:var(--wash);color:var(--o);font-weight:800;font-size:28px;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 1px var(--line), 0 0 0 4px var(--paper);}
+.sp img{width:78px;height:78px;border-radius:50%;object-fit:cover;object-position:var(--fp,50% 50%);flex:none;box-shadow:0 0 0 3px var(--paper), 0 0 0 4px var(--line);}
+.sp .spav{width:78px;height:78px;border-radius:50%;background:var(--wash);color:var(--o);font-weight:800;font-size:28px;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 3px var(--paper), 0 0 0 4px var(--line);}
 .sp h3{font-size:16px;font-weight:800;}
 .sp p{font-size:13.5px;color:var(--tx2);}
 
@@ -1409,6 +1436,7 @@ function renderPage(){
   const fh=document.getElementById('fnHtml'); if(fh) fh.textContent=slug+'.html';
   const fi=document.getElementById('fnImg'); if(fi) fi.textContent=slug+'.jpg';
   const wp=document.getElementById('waPreview'); if(wp) renderMessage();
+  refreshLangTabs();
 }
 let lastOGCanvas=null;
 function renderOG(){
