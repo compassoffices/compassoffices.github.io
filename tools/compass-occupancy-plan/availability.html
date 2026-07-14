@@ -300,6 +300,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .welcome-toast .wt-hi{font-size:15px;font-weight:800;color:var(--co-ink);letter-spacing:.01em;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .welcome-toast .wt-sub{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--co-muted);line-height:1.3;flex-wrap:wrap;}
 .welcome-toast .wt-sub .tier-badge{font-size:9px;padding:3px 9px;}
+.welcome-toast .wt-caps{font-size:11px;color:var(--co-faint);line-height:1.3;}
 .welcome-toast .wt-x{cursor:pointer;color:var(--co-faint);flex-shrink:0;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;transition:.15s;}
 .welcome-toast .wt-x:hover{background:var(--co-fill);color:var(--co-ink);}
 .user-chip .tier-badge{cursor:pointer;}
@@ -341,6 +342,17 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .padj-foot .sep{width:1px;height:22px;background:var(--co-line);margin:0 4px;}
 .padj-foot label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--co-ink);}
 .padj-hint{font-size:11.5px;color:var(--co-muted);padding:6px 22px 0;}
+/* ---- discount settings dialog ---- */
+.dset-body{padding:16px 22px 20px;display:flex;flex-direction:column;gap:12px;}
+.dset-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.dset-row label{flex:0 0 100%;font-size:11px;font-weight:700;color:var(--co-muted);text-transform:uppercase;letter-spacing:.04em;}
+.dset-row select,.dset-row input{padding:8px 10px;border:1px solid var(--co-line);border-radius:9px;font:inherit;font-size:13px;background:#fff;}
+.dset-row input[type=number]{width:86px;text-align:right;}
+.dset-tbl-t{font-size:11px;font-weight:700;color:var(--co-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px;}
+.dset-tbl{width:100%;border-collapse:collapse;}
+.dset-tbl th{text-align:left;font-size:10.5px;font-weight:700;color:var(--co-muted);text-transform:uppercase;letter-spacing:.04em;padding:7px 8px;border-bottom:2px solid var(--co-orange);}
+.dset-tbl td{padding:7px 8px;border-bottom:1px solid var(--co-line);font-size:12.5px;color:var(--co-ink);}
+.dset-tbl .num{text-align:right;}
 @media(max-width:760px){
   .padj-body{padding:0 10px;}
   .padj-tb{min-width:600px;} /* keep sheet columns usable; body scrolls sideways */
@@ -715,6 +727,7 @@ function showWelcomeToast(force,hoverMode){
     '<div class="wt-body">'+
       '<div class="wt-hi">Welcome back'+(nm?', '+nm:'')+'</div>'+
       '<div class="wt-sub">'+tierBadgeHtml(AUTH.role,AUTH.pricing)+'<span>'+what+' &middot; '+rg+' region'+(rg===1?'':'s')+'</span></div>'+
+      '<div class="wt-caps">'+capsSummary()+'</div>'+
     '</div>'+
     '<div class="wt-x" onclick="this.parentNode.classList.remove(\'on\')">&times;</div>';
   requestAnimationFrame(function(){el.classList.add('on');});
@@ -863,28 +876,44 @@ let SEARCH_INDEX=null,SEARCH_SEL={},SEARCH_MONTHS=[],SEARCH_DISC={};
 /* Discount: global % (fDisc, clamped 0–40) is the default; SEARCH_DISC[id] is a per-room
    override. Effective % = override if set, else global. Applied on screen, in Copy for
    email, and in the shortlist PDF. */
-let DISC_MAX=40,DISC_DEFAULT=0; // shared: saved in the gate's Settings tab, delivered at login/whoami
-function clampDisc(v){v=parseFloat(v);if(isNaN(v)||v<0)return 0;return Math.min(DISC_MAX,Math.round(v));}
+let DISC_MAX=40,DISC_DEFAULT=0,DISC_CAPS={},CAPS_META=[]; // shared via the gate's Settings tab
+/* Layered caps: centre -> region -> global. Scope keys: 'Region' or 'Region|Centre'. */
+function capFor(region,centre){
+  if(region&&centre&&DISC_CAPS[region+'|'+centre]!=null)return DISC_CAPS[region+'|'+centre];
+  if(region&&DISC_CAPS[region]!=null)return DISC_CAPS[region];
+  return DISC_MAX;
+}
+function capForKey(key){const p=(key||'').split('|');return capFor(p[0],p[1]);}
+function clampDisc(v,cap){v=parseFloat(v);if(isNaN(v)||v<0)return 0;return Math.min(cap!=null?cap:DISC_MAX,Math.round(v));}
 function globalDisc(){const el=$('fDisc');if(el&&el.value!=='')return clampDisc(el.value);return clampDisc(DISC_DEFAULT);}
 function applySettings(st){
   if(!st)return;
   if(st.discMax)DISC_MAX=Math.max(1,Math.min(100,Math.round(st.discMax)));
+  DISC_CAPS=st.caps||{};CAPS_META=st.capsMeta||[];
   DISC_DEFAULT=Math.min(clampDisc(st.discDefault||0),DISC_MAX);
   const f=$('fDisc');if(f){f.max=DISC_MAX;f.placeholder=DISC_DEFAULT;}
   const lb=$('fDiscMaxLb');if(lb)lb.textContent=DISC_MAX;
   document.querySelectorAll('.disc-max-lb').forEach(e=>e.textContent=DISC_MAX);
 }
+function capsSummary(){
+  const mine=(CAPS_META||[]).filter(c=>c.scope&&(!AUTH||!AUTH.regions||AUTH.regions.indexOf(c.scope.split('|')[0])!==-1));
+  let out='Max discount: '+DISC_MAX+'%';
+  const parts=mine.slice(0,2).map(c=>{const p=c.scope.split('|');return (p[1]?prettyCentre(p[1]):p[0])+' '+c.val+'%';});
+  if(parts.length)out+=' · '+parts.join(' · ');
+  if(mine.length>2)out+=' · +'+(mine.length-2)+' more';
+  return out;
+}
 function discFor(id){return SEARCH_DISC[id]!=null?SEARCH_DISC[id]:globalDisc();}
 function discPrice(p,d){return Math.round(p*(1-d/100));}
 function discInput(el){if(el.value!==''){const v=parseFloat(el.value);if(v>DISC_MAX)el.value=DISC_MAX;if(v<0)el.value=0;}renderSearchResults();}
-function setRoomDisc(id,v){if(v===''||v==null)delete SEARCH_DISC[id];else SEARCH_DISC[id]=clampDisc(v);renderSearchResults();}
+function setRoomDisc(id,v){if(v===''||v==null)delete SEARCH_DISC[id];else SEARCH_DISC[id]=clampDisc(v,capForKey(id));renderSearchResults();}
 /* Session-only price adjustments (pricing/admin roles). NEVER written back to the report:
    PRICE_ADJ lives in memory, is gone on reload/logout, and other users never see it. */
 let PRICE_ADJ={},HIDE_ORIG=false;
 function adjPrice(key,report){const v=PRICE_ADJ[key];return (v!=null&&v>0)?v:report;}
 /* one place that decides what to print: final = (adjusted||report) minus discount */
 function priceInfo(key,report){
-  const d=report?discFor(key):0;
+  const d=report?Math.min(discFor(key),capForKey(key)):0;
   const base=adjPrice(key,report);
   const final=d>0?discPrice(base,d):base;
   const changed=!!report&&final!==report;
@@ -968,7 +997,7 @@ function renderSearchResults(){
       '<div class="sr-meta">'+(o.cls||'')+' · '+(o.size||'?')+' sq ft · '+(o.desks||'?')+' desks'+(view?(' · '+view):'')+'</div></div>'+
       '<span class="sr-avail" style="background:'+o.color+'33;color:#282828">'+o.availLabel+'</span>'+
       pHtml+
-      '<span class="sr-disc"><input type="number" min="0" max="'+DISC_MAX+'" value="'+(SEARCH_DISC[o.id]!=null?SEARCH_DISC[o.id]:'')+'" placeholder="'+globalDisc()+'" onclick="event.stopPropagation()" onchange="setRoomDisc(\''+esc+'\',this.value)"><span>%</span></span>'+
+      '<span class="sr-disc"><input type="number" min="0" max="'+capForKey(o.id)+'" value="'+(SEARCH_DISC[o.id]!=null?SEARCH_DISC[o.id]:'')+'" placeholder="'+globalDisc()+'" onclick="event.stopPropagation()" onchange="setRoomDisc(\''+esc+'\',this.value)"><span>%</span></span>'+
       '<button class="sr-add" onclick="toggleSearchSel(\''+esc+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>'+
     '</div>';
   }).join('')+(list.length>400?'<div class="srch-empty">Showing first 400 — narrow your filters to see the rest.</div>':'');
@@ -1023,7 +1052,7 @@ function renderPadj(){
       +'<td>'+r.avail+'</td>'
       +'<td class="num">'+fmtPriceReg(r.region,r.price)+'</td>'
       +'<td class="num"><input type="number" min="0" class="pd-np" value="'+(PRICE_ADJ[r.key]!=null?PRICE_ADJ[r.key]:'')+'" placeholder="—" oninput="padjPrice('+i+',this.value)" onkeydown="padjKey(event,'+i+',\'pd-np\')"></td>'
-      +'<td class="num"><input type="number" min="0" max="'+DISC_MAX+'" class="pd-disc" value="'+(SEARCH_DISC[r.key]!=null?SEARCH_DISC[r.key]:'')+'" placeholder="'+globalDisc()+'" oninput="padjDisc('+i+',this.value)" onkeydown="padjKey(event,'+i+',\'pd-disc\')"></td>'
+      +'<td class="num"><input type="number" min="0" max="'+capForKey(r.key)+'" class="pd-disc" value="'+(SEARCH_DISC[r.key]!=null?SEARCH_DISC[r.key]:'')+'" placeholder="'+globalDisc()+'" oninput="padjDisc('+i+',this.value)" onkeydown="padjKey(event,'+i+',\'pd-disc\')"></td>'
       +'<td class="num pd-final" id="pdf'+i+'"></td>'
     +'</tr>';
   });
@@ -1043,7 +1072,7 @@ function padjPrice(i,v){
 }
 function padjDisc(i,v){
   const k=PADJ_ROWS[i].key;
-  if(v==='')delete SEARCH_DISC[k];else{const c=clampDisc(v);SEARCH_DISC[k]=c;const inp=document.querySelectorAll('#pdr'+i+' .pd-disc')[0];if(inp&&parseFloat(inp.value)!==c&&inp.value!=='')inp.value=c;}
+  if(v==='')delete SEARCH_DISC[k];else{const c=clampDisc(v,capForKey(k));SEARCH_DISC[k]=c;const inp=document.querySelectorAll('#pdr'+i+' .pd-disc')[0];if(inp&&parseFloat(inp.value)!==c&&inp.value!=='')inp.value=c;}
   padjFinal(i);
 }
 function padjKey(e,i,cls){ // Enter moves down the same column, like a sheet
@@ -1077,10 +1106,7 @@ function renderPadjFoot(){
     +'<input type="number" min="0" max="'+DISC_MAX+'" id="pdBulkD" placeholder="disc %"><button class="btn" onclick="padjBulk(\'disc\')">Set disc</button>'
     +'<button class="btn" onclick="padjBulk(\'clear\')">Clear</button>'
     +'<span class="sep"></span><label><input type="checkbox" '+(HIDE_ORIG?'checked':'')+' onchange="HIDE_ORIG=this.checked;renderPadj();">Don\'t show original price</label>'
-    +'<span class="sep"></span>'
-    +'<input type="number" min="0" max="'+DISC_MAX+'" id="pdDefD" placeholder="'+DISC_DEFAULT+'" title="Shared default discount — auto-applies for every user"><button class="btn pri" onclick="padjApplyAll()">Apply to all</button>'
-    +'<input type="number" min="1" max="100" id="pdMaxD" placeholder="'+DISC_MAX+'" title="Discount cap for all users"><button class="btn" onclick="padjSaveMax()">Save max</button>'
-    +'<span class="ar-msg" id="pdSetMsg"></span>'
+    +'<span class="sep"></span><button class="btn" onclick="openDiscSettings()">Discount settings</button>'
     +'<div style="flex:1"></div><button class="btn" onclick="padjResetAll()">Reset all</button>';
 }
 function padjBulk(op){
@@ -1090,7 +1116,7 @@ function padjBulk(op){
     const r=PADJ_ROWS[i],k=r.key;
     if(op==='set'){if(!isNaN(gp)&&gp>0)PRICE_ADJ[k]=Math.round(gp);}
     else if(op==='pct'){if(!isNaN(gpc)&&gpc!==0){const base=adjPrice(k,r.price);PRICE_ADJ[k]=Math.max(1,Math.round(base*(1+gpc/100)));}}
-    else if(op==='disc'){if(gd!=='')SEARCH_DISC[k]=clampDisc(gd);else delete SEARCH_DISC[k];}
+    else if(op==='disc'){if(gd!=='')SEARCH_DISC[k]=clampDisc(gd,capForKey(k));else delete SEARCH_DISC[k];}
     else if(op==='clear'){delete PRICE_ADJ[k];delete SEARCH_DISC[k];}
   });
   renderPadj();
@@ -1103,21 +1129,77 @@ async function saveSettings(params,msgEl){
     msgEl.style.color='#c0392b';msgEl.textContent=(r&&r.error)||'Failed';return false;
   }catch(e){msgEl.style.color='#c0392b';msgEl.textContent='Server error';return false;}
 }
-async function padjApplyAll(){
-  const v=($('pdDefD')||{}).value;if(v==='')return;
-  const d=clampDisc(v);
-  const ok=await saveSettings('&discDefault='+d,$('pdSetMsg'));
-  if(!ok)return;
-  // clear per-room overrides so the shared default shows through, then confirm visually
-  PADJ_ROWS.forEach(r=>{delete SEARCH_DISC[r.key];});
-  renderPadj();
-  document.querySelectorAll('.pd-chk').forEach(c=>c.checked=true);const all=$('pdAll');if(all)all.checked=true;
-  renderPadjFoot();const m=$('pdSetMsg');if(m){m.style.color='var(--co-ok)';m.textContent='Saved — applies for every user';}
+/* ---------- Discount settings dialog (Captain/Admin): layered caps + shared default ---------- */
+function openDiscSettings(){
+  if(!canPrice())return;
+  let el=$('dsetModal');
+  if(!el){el=document.createElement('div');el.id='dsetModal';el.className='admin';el.innerHTML=
+    '<div class="admin-card" style="max-width:640px">'+
+      '<div class="admin-head"><div class="admin-t">Discount settings</div><button class="admin-x" onclick="$(\'dsetModal\').classList.remove(\'on\')">Close</button></div>'+
+      '<div class="dset-body" id="dsetBody"></div>'+
+    '</div>';($('app')||document.body).appendChild(el);}
+  renderDset();el.classList.add('on');
 }
-async function padjSaveMax(){
-  const v=($('pdMaxD')||{}).value;if(v==='')return;
-  const ok=await saveSettings('&discMax='+Math.round(parseFloat(v)),$('pdSetMsg'));
-  if(ok)renderPadj();
+function dsetScopeOptions(){
+  let h='<option value="">Global — everywhere</option>';
+  (AUTH.regions||[]).forEach(r=>{h+='<option value="'+esc(r)+'">'+esc(r)+' (region)</option>';});
+  return h;
+}
+function renderDset(){
+  const b=$('dsetBody');
+  let rows='';
+  const meta=(CAPS_META||[]).slice().sort((a,b)=>a.scope.localeCompare(b.scope));
+  meta.forEach((c,i)=>{
+    const p=c.scope.split('|');
+    const label=c.scope===''?'Global':(p[1]?(p[0]+' · '+prettyCentre(p[1])):p[0]+' (region)');
+    rows+='<tr><td>'+esc(label)+'</td><td class="num"><b>'+c.val+'%</b></td><td>'+esc(c.by||'')+'</td><td>'+esc(c.at||'')+'</td>'+
+      '<td>'+(c.scope?('<button class="btn" style="font-size:11px;padding:4px 9px" onclick="dsetRemove('+i+')">&times;</button>'):'')+'</td></tr>';
+  });
+  b.innerHTML=
+    '<div class="dset-row"><label>Scope</label>'+
+      '<select id="dsetReg" onchange="dsetRegionChg()">'+dsetScopeOptions()+'</select>'+
+      '<select id="dsetCentre" style="display:none"><option value="">Whole region</option></select>'+
+    '</div>'+
+    '<div class="dset-row"><label>Max discount %</label><input type="number" min="1" max="100" id="dsetMax" placeholder="'+DISC_MAX+'"><button class="btn pri" onclick="dsetSaveMax()">Save cap</button></div>'+
+    '<div class="dset-row"><label>Default discount % (global, auto-applies for every user)</label><input type="number" min="0" max="'+DISC_MAX+'" id="dsetDef" placeholder="'+DISC_DEFAULT+'"><button class="btn pri" onclick="dsetApplyAll()">Apply to all</button></div>'+
+    '<div class="dset-msg ar-msg" id="dsetMsg"></div>'+
+    '<div class="dset-tbl-t">Caps in force</div>'+
+    '<table class="dset-tbl"><tr><th>Scope</th><th class="num">Max</th><th>Set by</th><th>When</th><th></th></tr>'+(rows||'<tr><td colspan="5" style="color:var(--co-muted)">Only the built-in 40% global cap.</td></tr>')+'</table>';
+}
+async function dsetRegionChg(){
+  const reg=$('dsetReg').value,cs=$('dsetCentre');
+  if(!reg){cs.style.display='none';cs.innerHTML='<option value="">Whole region</option>';return;}
+  cs.style.display='';cs.innerHTML='<option value="">Whole region</option><option disabled>Loading…</option>';
+  try{await ensureReport(reg);
+    const centres=reportCentres(reg);
+    cs.innerHTML='<option value="">Whole region</option>'+centres.map(c=>'<option value="'+esc(c)+'">'+esc(prettyCentre(c))+'</option>').join('');
+  }catch(e){cs.innerHTML='<option value="">Whole region</option>';}
+}
+function dsetScope(){const r=$('dsetReg').value;if(!r)return '';const c=$('dsetCentre').value;return c?(r+'|'+c):r;}
+async function dsetSaveMax(){
+  const v=($('dsetMax')||{}).value;if(v==='')return;
+  const ok=await saveSettings('&scope='+encodeURIComponent(dsetScope())+'&discMax='+Math.round(parseFloat(v)),$('dsetMsg'));
+  if(ok){renderDsetKeepScope();refreshAfterSettings();}
+}
+async function dsetRemove(i){
+  const c=(CAPS_META||[]).slice().sort((a,b)=>a.scope.localeCompare(b.scope))[i];if(!c||!c.scope)return;
+  const ok=await saveSettings('&scope='+encodeURIComponent(c.scope)+'&remove=yes',$('dsetMsg'));
+  if(ok){renderDsetKeepScope();refreshAfterSettings();}
+}
+async function dsetApplyAll(){
+  const v=($('dsetDef')||{}).value;if(v==='')return;
+  const ok=await saveSettings('&discDefault='+clampDisc(v),$('dsetMsg'));
+  if(!ok)return;
+  PADJ_ROWS.forEach(r=>{delete SEARCH_DISC[r.key];});
+  if($('padj').classList.contains('on')){renderPadj();document.querySelectorAll('.pd-chk').forEach(c=>c.checked=true);const all=$('pdAll');if(all)all.checked=true;renderPadjFoot();}
+  refreshAfterSettings();
+  const m=$('dsetMsg');if(m){m.style.color='var(--co-ok)';m.textContent='Saved — applies for every user';}
+}
+function renderDsetKeepScope(){const r=($('dsetReg')||{}).value,c=($('dsetCentre')||{}).value;renderDset();if(r){$('dsetReg').value=r;dsetRegionChg().then(function(){if(c&&$('dsetCentre'))$('dsetCentre').value=c;});}}
+function refreshAfterSettings(){
+  if($('padj').classList.contains('on'))renderPadj();
+  if($('screenSearch')&&$('screenSearch').classList.contains('on'))renderSearchResults();
+  if(CUR){populateRail();updateSelBar();if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);}
 }
 function padjClose(){
   $('padj').classList.remove('on');PADJ_RANGE=-1;clearTimeout(PADJ_TIMER);
@@ -1489,7 +1571,7 @@ let LAST_ROOM_ANCHOR=null;
 let RD_DISC_OPEN=false,LAST_ROOM_O=null;
 function cityDiscKey(o){return CITY+'|'+o.centre+'|'+o.office;}
 function toggleRdDisc(e){if(e)e.stopPropagation();RD_DISC_OPEN=!RD_DISC_OPEN;if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);}
-function setRoomDiscCity(dk,v){if(v===''||v==null)delete SEARCH_DISC[dk];else SEARCH_DISC[dk]=clampDisc(v);if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);populateRail();updateSelBar();}
+function setRoomDiscCity(dk,v){if(v===''||v==null)delete SEARCH_DISC[dk];else SEARCH_DISC[dk]=clampDisc(v,capForKey(dk));if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);populateRail();updateSelBar();}
 function setRoomPriceCity(dk,v){const n=parseFloat(v);if(v===''||isNaN(n)||n<=0)delete PRICE_ADJ[dk];else PRICE_ADJ[dk]=Math.round(n);if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);populateRail();updateSelBar();}
 function setHideOrig(on){HIDE_ORIG=!!on;if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);if(CUR){populateRail();updateSelBar();}if($('screenSearch')&&$('screenSearch').classList.contains('on'))renderSearchResults();}
 function showRoomDetail(o,anchorEl){const d0=$('rdetail');if(anchorEl)LAST_ROOM_ANCHOR=anchorEl;
@@ -1502,7 +1584,7 @@ function showRoomDetail(o,anchorEl){const d0=$('rdetail');if(anchorEl)LAST_ROOM_
   let discRow='';
   if(showDisc){
     if(canPrice())discRow+='<div class="r"><span>New price</span><span class="rd-di"><input type="number" min="0" value="'+(PRICE_ADJ[dk]!=null?PRICE_ADJ[dk]:'')+'" placeholder="'+Math.round(o.price)+'" onchange="setRoomPriceCity(\''+dEsc+'\',this.value)" style="width:76px"><em>session only</em></span></div>';
-    discRow+='<div class="r"><span>Discount</span><span class="rd-di"><input type="number" min="0" max="'+DISC_MAX+'" value="'+(SEARCH_DISC[dk]!=null?SEARCH_DISC[dk]:'')+'" placeholder="'+globalDisc()+'" onchange="setRoomDiscCity(\''+dEsc+'\',this.value)"><b>%</b><em>max <span class="disc-max-lb">'+DISC_MAX+'</span></em></span></div>';
+    discRow+='<div class="r"><span>Discount</span><span class="rd-di"><input type="number" min="0" max="'+capForKey(dk)+'" value="'+(SEARCH_DISC[dk]!=null?SEARCH_DISC[dk]:'')+'" placeholder="'+globalDisc()+'" onchange="setRoomDiscCity(\''+dEsc+'\',this.value)"><b>%</b><em>max '+capForKey(dk)+'</em></span></div>';
     discRow+='<div class="r"><span></span><label class="rd-ho"><input type="checkbox"'+(HIDE_ORIG?' checked':'')+' onchange="setHideOrig(this.checked)">Don\'t show original price</label></div>';
   }
   d0.innerHTML='<span class="x" onclick="closeDetail()">&times;</span><div class="o">Office '+o.office+'</div><div class="av" style="background:'+o.color+'">'+o.availLabel+'</div>'+
