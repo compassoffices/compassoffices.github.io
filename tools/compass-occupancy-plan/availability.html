@@ -273,6 +273,17 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .city-card.cc-load::after{content:'';position:absolute;inset:0;border-radius:var(--co-radius);padding:2px;background:conic-gradient(from var(--ccang),transparent 0deg 288deg,#FFB988 320deg,#FF6600 344deg,#FFB988 360deg);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:ccTrace 1.15s linear infinite;pointer-events:none;}
 @keyframes ccTrace{to{--ccang:360deg;}}
 @supports not (background:conic-gradient(from var(--ccang),#111,#111)){.city-card.cc-load::after{background:none;border:2px solid var(--co-orange);opacity:.5;animation:coBreath 1.2s ease-in-out infinite;}}
+/* ---- tier badges (Crew=Bronze, Captain=Gold, Admin=Compass Black) ---- */
+.tier-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:var(--co-radius-pill);white-space:nowrap;}
+.tb-crew{background:rgb(176,141,87);color:#fff;}
+.tb-captain{background:rgb(212,175,55);color:#282828;}
+.tb-admin{background:#1A1A1A;color:#fff;border:1px solid rgba(255,255,255,.35);}
+.user-chip .tier-badge{margin-right:8px;}
+.welcome-toast{position:fixed;top:74px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:300;background:#fff;border:1px solid var(--co-line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:13px 18px;display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--co-ink);opacity:0;pointer-events:none;transition:opacity .35s,transform .35s;max-width:92vw;}
+.welcome-toast.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.welcome-toast b{font-weight:800;}
+.welcome-toast .wt-x{cursor:pointer;color:var(--co-muted);font-size:16px;line-height:1;padding:2px 4px;}
+@media(max-width:760px){.user-chip .tier-badge{display:none;}.welcome-toast{top:66px;font-size:12.5px;}}
 .admin-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;font:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--co-radius-pill);cursor:pointer;margin-left:auto;margin-right:12px;transition:.15s;}
 .user-chip{margin-left:auto;}
 .admin-btn+.user-chip{margin-left:0;}
@@ -630,7 +641,7 @@ async function revalidate(){
       AUTH.role=r.role;AUTH.pricing=!!r.pricing;if(r.regions&&r.regions.length)AUTH.regions=r.regions;if(r.token)AUTH.token=r.token;
       try{localStorage.setItem('co_auth',JSON.stringify(AUTH));}catch(e){}
       var _ab=$('adminBtn');if(_ab)_ab.style.display=(AUTH.role==='admin')?'':'none';
-      syncPriceBtns();
+      renderUserChip();syncPriceBtns();
     }else if(r&&r.ok===false&&r.error==='session'){logout();}
   }catch(e){}
 }
@@ -639,7 +650,29 @@ function rememberedEmails(){try{return JSON.parse(localStorage.getItem('co_email
 function rememberEmail(email){email=(email||'').trim().toLowerCase();if(!email)return;try{var a=rememberedEmails().filter(function(x){return x!==email;});a.unshift(email);localStorage.setItem('co_emails',JSON.stringify(a.slice(0,8)));}catch(e){}}
 function fillEmailList(){var dl=$('coEmailList');if(!dl)return;dl.innerHTML=rememberedEmails().map(function(e){return '<option value="'+e.replace(/"/g,'&quot;')+'">';}).join('');}
 function showLogin(){fillEmailList();var _sb=$('searchBtn');if(_sb)_sb.style.display='none';$('screenSearch').classList.remove('on');$('loginLogo').innerHTML=LOGO('#282828');$('loginScreen').classList.add('on');$('screenCities').style.display='none';$('screenCity').classList.remove('on');resetLogin();}
-function showApp(){$('loginScreen').classList.remove('on');$('screenCities').style.display='';var _ab=$('adminBtn');if(_ab)_ab.style.display=(AUTH&&AUTH.role==='admin')?'':'none';var _sb=$('searchBtn');if(_sb)_sb.style.display='';$('userChip').innerHTML='<span class="uc-email">'+(AUTH.email||'')+'</span><span class="out" onclick="logout()"><svg class="uc-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="uc-tx">Sign out</span></span>';syncPriceBtns();renderCities();applyDeepLink();}
+/* Tiers: Crew (viewer, Bronze) < Captain (viewer+pricing, Gold) < Admin (Compass Black) */
+function tierInfo(role,pricing){
+  if(role==='admin')return {name:'Admin',cls:'tb-admin'};
+  if(pricing)return {name:'Captain',cls:'tb-captain'};
+  return {name:'Crew',cls:'tb-crew'};
+}
+function tierBadgeHtml(role,pricing){const t=tierInfo(role,pricing);return '<span class="tier-badge '+t.cls+'">'+t.name+'</span>';}
+function firstNameFromEmail(email){const p=((email||'').split('@')[0]||'').split(/[._\-\d]/)[0]||'';return p?p.charAt(0).toUpperCase()+p.slice(1):'';}
+function renderUserChip(){
+  $('userChip').innerHTML=tierBadgeHtml(AUTH.role,AUTH.pricing)+'<span class="uc-email">'+(AUTH.email||'')+'</span><span class="out" onclick="logout()"><svg class="uc-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="uc-tx">Sign out</span></span>';
+}
+function welcomeToast(){
+  try{if(sessionStorage.getItem('co_welcomed')===AUTH.email)return;sessionStorage.setItem('co_welcomed',AUTH.email);}catch(e){}
+  const t=tierInfo(AUTH.role,AUTH.pricing),nm=firstNameFromEmail(AUTH.email);
+  const what=t.name==='Admin'?'full access':(t.name==='Captain'?'you can adjust pricing':'view access');
+  const rg=(AUTH.regions||[]).length;
+  let el=$('welcomeToast');
+  if(!el){el=document.createElement('div');el.id='welcomeToast';el.className='welcome-toast';document.body.appendChild(el);}
+  el.innerHTML=tierBadgeHtml(AUTH.role,AUTH.pricing)+'<span>Welcome back'+(nm?', <b>'+nm+'</b>':'')+' — '+t.name+' tier · '+what+' · '+rg+' region'+(rg===1?'':'s')+'</span><span class="wt-x" onclick="this.parentNode.classList.remove(\'on\')">&times;</span>';
+  requestAnimationFrame(function(){el.classList.add('on');});
+  clearTimeout(el._t);el._t=setTimeout(function(){el.classList.remove('on');},6000);
+}
+function showApp(){$('loginScreen').classList.remove('on');$('screenCities').style.display='';var _ab=$('adminBtn');if(_ab)_ab.style.display=(AUTH&&AUTH.role==='admin')?'':'none';var _sb=$('searchBtn');if(_sb)_sb.style.display='';renderUserChip();welcomeToast();syncPriceBtns();renderCities();applyDeepLink();}
 async function proceedLogin(){
   var emailEl=$('loginEmail'),pw=$('passWrap'),btn=$('loginBtn'),err=$('loginErr');err.textContent='';
   if(pw.style.display==='none'){
@@ -687,7 +720,7 @@ async function doForgot(){
     fl.style.display='none';$('loginSub').textContent='If that email has access, a new passcode has been emailed to it.';
   }catch(e){fl.textContent='Forgot passcode?';$('loginErr').textContent='Could not reach the server.';}
 }
-function logout(){AUTH=null;REPORTS={};CITY_ITEMS={};FP_BAKE_CACHE={};SEARCH_INDEX=null;SEARCH_SEL={};SEARCH_DISC={};PRICE_ADJ={};HIDE_ORIG=false;try{localStorage.removeItem('co_auth');}catch(e){}CUR=null;showLogin();}
+function logout(){AUTH=null;REPORTS={};CITY_ITEMS={};FP_BAKE_CACHE={};SEARCH_INDEX=null;SEARCH_SEL={};SEARCH_DISC={};PRICE_ADJ={};HIDE_ORIG=false;try{localStorage.removeItem('co_auth');sessionStorage.removeItem('co_welcomed');}catch(e){}CUR=null;showLogin();}
 let ADMIN_REGIONS=[];
 function adminOpen(){$('adminPanel').classList.add('on');adminLoad();}
 function adminClose(){$('adminPanel').classList.remove('on');}
@@ -705,7 +738,7 @@ function adminRowHtml(p,isNew){
   const days=['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   const opt=(p.options||'');
   const emailCell=isNew?('<input class="ar-new" id="'+id+'_em" type="email" placeholder="name@compassoffices.com">')
-                       :('<div class="ar-email" title="'+esc(p.email)+'">'+esc(p.email)+'</div>');
+                       :('<div class="ar-email" title="'+esc(p.email)+'">'+tierBadgeHtml(p.role,p.pricing)+' '+esc(p.email)+'</div>');
   return '<div class="arow" id="'+id+'">'+emailCell+
     '<select class="ar-role" id="'+id+'_role" onchange="adminRoleChg(\''+id+'\')"><option value="viewer"'+(p.role==='admin'?'':' selected')+'>viewer</option><option value="admin"'+(p.role==='admin'?' selected':'')+'>admin</option></select>'+
     '<label class="ar-prc" title="Can adjust room prices (session-only, never saved to the report)"><input type="checkbox" id="'+id+'_price"'+((p.pricing||p.role==='admin')?' checked':'')+(p.role==='admin'?' disabled':'')+'>%</label>'+
