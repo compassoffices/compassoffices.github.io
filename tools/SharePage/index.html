@@ -46,6 +46,7 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .langedit .le-hint{margin-top:9px;font-size:11px;color:var(--co-muted);line-height:1.5;}
 .langedit.editing{border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
 .fpctl{display:flex;gap:12px;align-items:center;margin-top:10px;padding:10px;background:var(--co-bg);border:1px solid var(--co-line);border-radius:10px;}
+.fpctl[hidden]{display:none;}
 .fp-prev{width:72px;height:72px;flex:none;border-radius:8px;overflow:hidden;background:var(--co-fill);}
 .fp-prev img{width:100%;height:100%;object-fit:cover;display:block;}
 .fp-prev img.rnd{border-radius:50%;}
@@ -764,11 +765,21 @@ function renderSpeakers(){
   });
 }
 function bindFocus(d,o,rerenderRow){
+  const ctl=d.querySelector('.fpctl');
   const prev=d.querySelector('.fp-prev img');
+  const sync=()=>{                                   // show only when there's a photo; keep thumb in step
+    if(!ctl) return;
+    if(o.photo){ ctl.removeAttribute('hidden'); if(prev) prev.src=o.photo; }
+    else ctl.setAttribute('hidden','');
+  };
   const apply=()=>{ const x=(o.fx!=null)?o.fx:50, y=(o.fy!=null)?o.fy:50; if(prev) prev.style.objectPosition=x+'% '+y+'%'; queueRender(); };
   d.querySelectorAll('[data-fp]').forEach(r=>r.addEventListener('input',()=>{ o[r.dataset.fp]=parseInt(r.value,10); apply(); }));
   const rst=d.querySelector('[data-fp-reset]');
   if(rst) rst.onclick=()=>{ o.fx=50; o.fy=50; d.querySelectorAll('[data-fp]').forEach(r=>{ r.value=50; }); apply(); };
+  const pf=d.querySelector('[data-f="photo"]');      // typing/pasting a URL reveals the control immediately
+  if(pf) pf.addEventListener('input',sync);
+  sync();
+  return sync;
 }
 function addSpeaker(){S.speakers.push({name:'',title:'',photo:''});renderSpeakers();queueRender();}
 
@@ -864,10 +875,9 @@ function pset(o,path,v){const ks=path.split('.');let a=o;for(let i=0;i<ks.length
 function baseLang(){ return (S&&S.baseLang&&LANGS.indexOf(S.baseLang)>-1)?S.baseLang:'en'; }
 /* photo crop focus: fx/fy are 0–100 (%), default centred */
 function focusCtl(o,round){
-  if(!o.photo) return '';
   const x=(o.fx!=null)?o.fx:50, y=(o.fy!=null)?o.fy:50;
-  return `<div class="fpctl">
-    <div class="fp-prev"><img src="${escAttr(o.photo)}" style="object-position:${x}% ${y}%" class="${round?'rnd':''}"></div>
+  return `<div class="fpctl"${o.photo?'':' hidden'}>
+    <div class="fp-prev"><img src="${escAttr(o.photo||'')}" style="object-position:${x}% ${y}%" class="${round?'rnd':''}"></div>
     <div class="fp-sliders">
       <label>Across<input type="range" min="0" max="100" step="1" value="${x}" data-fp="fx"></label>
       <label>Up / down<input type="range" min="0" max="100" step="1" value="${y}" data-fp="fy"></label>
