@@ -694,7 +694,7 @@ function applyGlassBlurs(canvas){
 
     let layersHTML=
       `<div style="position:absolute;inset:0;border-radius:inherit;overflow:hidden;z-index:0;pointer-events:none">`+
-        `<img src="${blurSrc}" style="position:absolute;top:${-y}px;left:${-x}px;width:${w}px;height:${h}px;display:block;max-width:none;max-height:none;user-select:none" draggable="false">`+
+        `<img src="${blurSrc}" style="position:absolute;top:${-y}px;left:${-x}px;width:${w}px;height:${EX_BGH||h}px;display:block;max-width:none;max-height:none;user-select:none" draggable="false">`+
       `</div>`+
       `<div style="position:absolute;inset:0;border-radius:inherit;background:${tint};z-index:1;pointer-events:none"></div>`;
     if(sheen){
@@ -711,6 +711,8 @@ function applyGlassBlurs(canvas){
 }
 
 let BG_BLUR1=null, BG_BLUR2=null;
+let EX_BGH=0;       // export-time image-area height (differs from canvas h in layouts like L11 where a footer cuts the photo short)
+let GRAD_PNG=null;  // pre-rendered gradient overlay for radial presets html2canvas can't parse
 
 function logoImg(h){
   const svg=S.logoDark?LOGO_DK:LOGO_W;
@@ -868,7 +870,9 @@ function bgD(n=1){
     const png=n===1?(isDuo?BG_PNG1D:BG_PNG1):(isDuo?BG_PNG2D:BG_PNG2);
     if(!png) return`<div style="position:absolute;inset:0;background:#1a1a1a"></div>`;
     const fh=FMT[S.fmt].h;
-    const imgH=isDuo?Math.round(fh*.5):fh;
+    // Image height: duo = half canvas; others = the actual image-area height (EX_BGH),
+    // which matches the container the preview's object-fit:cover was computed against.
+    const imgH=isDuo?Math.round(fh*.5):(EX_BGH||fh);
     return`<div style="position:absolute;inset:0;overflow:hidden;background:#1a1a1a"><img src="${png}" style="position:absolute;top:0;left:0;width:1080px;height:${imgH}px;display:block" draggable="false"></div>`;
   }
 
@@ -890,11 +894,65 @@ function grd(dir='to top',stops='rgba(0,0,0,.88) 0%,rgba(0,0,0,.3) 50%,rgba(0,0,
   let out='';
   if(S.grad){
     const style=S.gradStyle||'auto';
-    const g=style==='auto'?`linear-gradient(${dir},${stops})`:(GRAD_PRESETS[style]||GRAD_PRESETS['dark']);
-    out+=`<div style="position:absolute;inset:0;background:${g};pointer-events:none"></div>`;
+    // On export, radial presets are pre-rendered to PNG (html2canvas can't parse modern radial syntax)
+    if(EX&&GRAD_PNG&&RADIAL_PRESETS.includes(style)){
+      out+=`<div style="position:absolute;inset:0;overflow:hidden;pointer-events:none"><img src="${GRAD_PNG}" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block" draggable="false"></div>`;
+    } else {
+      const g=style==='auto'?`linear-gradient(${dir},${stops})`:(GRAD_PRESETS[style]||GRAD_PRESETS['dark']);
+      out+=`<div style="position:absolute;inset:0;background:${g};pointer-events:none"></div>`;
+    }
   }
   out+=sideDarkD();
   return out;
+}
+const RADIAL_PRESETS=['mesh','glow','vignette'];
+// Draw the radial gradient presets with the canvas 2D API so exports match the preview.
+// Canvas radial gradients are circular; the ellipse shapes are achieved with a scale transform.
+function rasterizeGradPreset(style,w,h){
+  const SC=2;
+  const c=document.createElement('canvas');
+  c.width=w*SC; c.height=h*SC;
+  const ctx=c.getContext('2d');
+  const W=w*SC, H=h*SC;
+  // helper: elliptical radial gradient via scale trick
+  function ellipseGrad(cx,cy,rx,ry,stops){
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.scale(rx/Math.max(rx,ry),ry/Math.max(rx,ry));
+    const r=Math.max(rx,ry);
+    const g=ctx.createRadialGradient(0,0,0,0,0,r);
+    stops.forEach(s=>g.addColorStop(s[0],s[1]));
+    ctx.fillStyle=g;
+    ctx.fillRect(-r,-r,r*2,r*2);
+    ctx.restore();
+  }
+  if(style==='mesh'){
+    ellipseGrad(W*.22,H*.30,W*.5,H*.45,[[0,'rgba(255,102,0,.32)'],[0.45,'rgba(255,102,0,0)'],[1,'rgba(255,102,0,0)']]);
+    ellipseGrad(W*.78,H*.70,W*.6,H*.55,[[0,'rgba(40,40,40,.55)'],[0.55,'rgba(40,40,40,0)'],[1,'rgba(40,40,40,0)']]);
+    const lg=ctx.createLinearGradient(0,H,0,0);
+    lg.addColorStop(0,'rgba(0,0,0,.55)');lg.addColorStop(0.7,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=lg;ctx.fillRect(0,0,W,H);
+  } else if(style==='glow'){
+    ellipseGrad(W*.5,H,W*.8,H*.6,[[0,'rgba(255,102,0,.35)'],[0.6,'rgba(255,102,0,0)'],[1,'rgba(255,102,0,0)']]);
+    const lg=ctx.createLinearGradient(0,H,0,0);
+    lg.addColorStop(0,'rgba(0,0,0,.5)');lg.addColorStop(0.6,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=lg;ctx.fillRect(0,0,W,H);
+  } else if(style==='vignette'){
+    // transparent center → dark edges: draw inverted radial
+    ctx.save();
+    ctx.translate(W/2,H/2);
+    const rx=W*1.2/2*2, ry=H*1.0/2*2; // ellipse 120% 100%
+    ctx.scale(rx/Math.max(rx,ry),ry/Math.max(rx,ry));
+    const r=Math.max(rx,ry);
+    const g=ctx.createRadialGradient(0,0,0,0,0,r);
+    g.addColorStop(0,'rgba(0,0,0,0)');
+    g.addColorStop(0.35,'rgba(0,0,0,0)');
+    g.addColorStop(1,'rgba(0,0,0,.78)');
+    ctx.fillStyle=g;
+    ctx.fillRect(-r,-r,r*2,r*2);
+    ctx.restore();
+  }
+  return c.toDataURL('image/png');
 }
 // Side darkening overlay — dark fade from left or right edge, independent of the main gradient.
 // Layers on top of gradients so it works with any existing style.
@@ -1571,15 +1629,24 @@ async function doExport(){
   //   a) SVG logo → PNG
   //   b) Background image(s) → flat PNG (crop + zoom + pan baked in)
   //   c) Blurred backdrops so glass panels can display real liquid glass in the JPG
+  //   d) Radial gradient presets → PNG (html2canvas can't parse modern radial syntax)
   const duoTop=Math.round(h*.5), duoBot=h-Math.round(h*.5);
   const blurAmt=Math.max(10,S.glBl);
+  // Image-area height: the container the preview's object-fit:cover crop is computed against.
+  // L11's photo container is cut short by the white footer (18% of h) — everything else is full-bleed.
+  EX_BGH=S.layout===11?h-Math.round(h*.18):h;
   await Promise.all([
     prerasterizeLogo(Math.round(h*0.046)*2),
-    rasterizeBg(S.bgImg,w,h,S.imgOffX,S.imgOffY,S.imgZoom).then(p=>BG_PNG1=p),
+    rasterizeBg(S.bgImg,w,EX_BGH,S.imgOffX,S.imgOffY,S.imgZoom).then(p=>BG_PNG1=p),
     rasterizeBg(S.bgImg2,w,h,S.imgOffX2,S.imgOffY2,S.imgZoom2).then(p=>BG_PNG2=p),
     rasterizeBg(S.bgImg,w,duoTop,S.imgOffX,S.imgOffY,S.imgZoom).then(p=>BG_PNG1D=p),
     rasterizeBg(S.bgImg2,w,duoBot,S.imgOffX2,S.imgOffY2,S.imgZoom2).then(p=>BG_PNG2D=p),
   ]);
+  // Pre-render the gradient overlay if the active preset uses radial gradients
+  GRAD_PNG=null;
+  if(S.grad&&RADIAL_PRESETS.includes(S.gradStyle)){
+    GRAD_PNG=rasterizeGradPreset(S.gradStyle,w,EX_BGH);
+  }
   // Now blur them — requires the non-blurred versions to exist first.
   // For Duo layout, we composite the two half images into ONE full-canvas image
   // then blur it — so glass panels that span the midline get correct content.
@@ -1587,9 +1654,10 @@ async function doExport(){
     const composite=await compositeDuo(BG_PNG1D,BG_PNG2D,w,h);
     BG_BLUR1=await blurPNG(composite,w,h,blurAmt);
     BG_BLUR2=BG_BLUR1;
+    EX_BGH=h; // duo blur backdrop spans the full canvas
   } else {
     await Promise.all([
-      blurPNG(BG_PNG1,w,h,blurAmt).then(p=>BG_BLUR1=p),
+      blurPNG(BG_PNG1,w,EX_BGH,blurAmt).then(p=>BG_BLUR1=p),
       blurPNG(BG_PNG2,w,h,blurAmt).then(p=>BG_BLUR2=p),
     ]);
   }
@@ -1648,7 +1716,7 @@ async function doExport(){
     pvScale.style.width='';
     pvWrap.style.width=savedWW;
     pvWrap.style.height=savedWH;
-    BG_PNG1=null;BG_PNG2=null;BG_PNG1D=null;BG_PNG2D=null;BG_BLUR1=null;BG_BLUR2=null;LOGO_PNG=null;
+    BG_PNG1=null;BG_PNG2=null;BG_PNG1D=null;BG_PNG2D=null;BG_BLUR1=null;BG_BLUR2=null;LOGO_PNG=null;EX_BGH=0;GRAD_PNG=null;
     EX=false;render();
   }
 
