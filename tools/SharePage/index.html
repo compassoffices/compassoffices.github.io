@@ -45,8 +45,18 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .langedit .le-label{font-size:12px;font-weight:800;color:var(--co-text);}
 .langedit .le-hint{margin-top:9px;font-size:11px;color:var(--co-muted);line-height:1.5;}
 .langedit.editing{border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
-#langSeg button{color:var(--co-text-2);}
+.fpctl{display:flex;gap:12px;align-items:center;margin-top:10px;padding:10px;background:var(--co-bg);border:1px solid var(--co-line);border-radius:10px;}
+.fp-prev{width:72px;height:72px;flex:none;border-radius:8px;overflow:hidden;background:var(--co-fill);}
+.fp-prev img{width:100%;height:100%;object-fit:cover;display:block;}
+.fp-prev img.rnd{border-radius:50%;}
+.fp-sliders{flex:1;display:flex;flex-direction:column;gap:6px;}
+.fp-sliders label{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--co-muted);}
+.fp-sliders input[type=range]{flex:1;accent-color:var(--co-orange);height:4px;}
+.fp-reset{align-self:flex-start;border:1px solid var(--co-line);background:var(--co-paper);color:var(--co-text-2);font:inherit;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;cursor:pointer;}
+.fp-reset:hover{border-color:var(--co-orange);color:var(--co-orange);}
+#langSeg button,#baseSeg button{color:var(--co-text-2);}
 #langSeg button.enabled:not(.editing){color:var(--co-orange);}
+#baseSeg button.editing{background:var(--co-orange);color:#fff;box-shadow:0 3px 10px rgba(255,102,0,.3);}
 #langSeg button.editing{background:var(--co-orange);color:#fff;box-shadow:0 3px 10px rgba(255,102,0,.3);}
 .acc{background:var(--co-paper);border:1px solid var(--co-line);border-radius:var(--co-radius);margin-bottom:12px;overflow:hidden;}
 .acc>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;padding:15px 17px;font-weight:700;font-size:14px;user-select:none;}
@@ -179,7 +189,16 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
   <div class="form" id="form">
 
     <div class="langedit">
-      <div class="le-row"><span class="le-label">Editing language</span>
+      <div class="le-row"><span class="le-label">Main language</span>
+        <div class="seg" id="baseSeg" style="background:var(--co-fill)">
+          <button data-b="en">EN</button>
+          <button data-b="tc">繁 TC</button>
+          <button data-b="sc">简 SC</button>
+          <button data-b="jp">日 JP</button>
+        </div>
+      </div>
+      <div class="le-hint">The language the page is written in. Pick 繁 for a Chinese-only page, 日 for Japanese-only — no toggle appears unless you add another language below.</div>
+      <div class="le-row" style="margin-top:12px"><span class="le-label">Editing</span>
         <div class="seg" id="langSeg" style="background:var(--co-fill)">
           <button data-l="en">EN</button>
           <button data-l="tc">繁 TC</button>
@@ -187,7 +206,7 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
           <button data-l="jp">日 JP</button>
         </div>
       </div>
-      <div class="le-hint" id="leHint">Pick a language and translate the fields — a language toggle appears on the page only for languages you actually fill in. Blank fields fall back to English. To drop a language, clear its fields.</div>
+      <div class="le-hint" id="leHint">Add other languages only if you want a toggle on the page. Blank fields fall back to the main language.</div>
     </div>
 
     <details class="acc" open>
@@ -621,7 +640,7 @@ function loadPreset(p){
     liTitle:"",enquireEmail:"hksales@compassoffices.com",
     ftEmail:"www.compassoffices.com",ftPhone:"",ftAddr:"Compass Offices · Hong Kong",
     highlights:[],agenda:[],speakers:[],sessions:[],listings:[],
-    tr:{tc:{},sc:{},jp:{}},langs:['en'],
+    tr:{tc:{},sc:{},jp:{}},langs:['en'],baseLang:'en',
     on:{partner:false,listings:false,highlights:true,agenda:false,speakers:false,sessions:false,about:false,offer:false,finalCta:true}
   };
   // Load the type's worked example so you can see how it looks; use "Clear fields"
@@ -640,7 +659,7 @@ function syncInputs(){
     if(isImg && typeof v==='string' && v.startsWith('data:')){ inp.value=''; inp.placeholder='Image embedded — type a URL to replace'; }
     else {
       inp.value=v;
-      if(!isImg && curLang!=='en'){ const en=trEN(k); if(en) inp.placeholder='EN: '+en; }   // show the English source to translate from
+      if(!isImg && curLang!==baseLang()){ const src=trEN(k); if(src) inp.placeholder=LANGLABEL[baseLang()]+': '+src; }   // show the main-language source to translate from
       else { const ex=PRESETS[curPreset] && PRESETS[curPreset][k]; if((v===''||v==null)&&typeof ex==='string'&&ex){ inp.placeholder=ex; } }
     }
   });
@@ -657,6 +676,9 @@ function bindStaticInputs(){
   });
   document.querySelectorAll('#langSeg button').forEach(b=>{
     b.addEventListener('click',()=>setEditLang(b.dataset.l,true));
+  });
+  document.querySelectorAll('#baseSeg button').forEach(b=>{
+    b.addEventListener('click',()=>setBaseLang(b.dataset.b));
   });
   document.querySelectorAll('[data-upk]').forEach(up=>{
     up.addEventListener('change',()=>{ handleUpload(up.files[0],(d)=>{ S[up.dataset.upk]=d; syncInputs(); queueRender(); }); up.value=''; });
@@ -733,12 +755,20 @@ function renderSpeakers(){
     d.innerHTML=`<button class="rm">&times;</button>
       <div class="field" style="margin-top:2px"><label>Name</label><input type="text" data-f="name" value="${fv(p+'name')}"${fph(p+'name','Full name')}></div>
       <div class="field"><label>Title / company</label><input type="text" data-f="title" value="${fv(p+'title')}"${fph(p+'title','Job title, Company')}></div>
-      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'Headshot — upload, or paste an image URL')}</div>`;
+      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'Headshot — upload, or paste an image URL')}${focusCtl(s,true)}</div>`;
     d.querySelector('.rm').onclick=()=>{S.speakers.splice(i,1);renderSpeakers();queueRender();};
     d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{ if(f.dataset.f==='photo') s.photo=f.value; else trSet(p+f.dataset.f,f.value); queueRender(); }));
+    bindFocus(d,s,renderSpeakers);
     d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;handleUpload(up.files[0],(dd)=>{s[fld]=dd;renderSpeakers();queueRender();});up.value='';}));
     box.appendChild(d);
   });
+}
+function bindFocus(d,o,rerenderRow){
+  const prev=d.querySelector('.fp-prev img');
+  const apply=()=>{ const x=(o.fx!=null)?o.fx:50, y=(o.fy!=null)?o.fy:50; if(prev) prev.style.objectPosition=x+'% '+y+'%'; queueRender(); };
+  d.querySelectorAll('[data-fp]').forEach(r=>r.addEventListener('input',()=>{ o[r.dataset.fp]=parseInt(r.value,10); apply(); }));
+  const rst=d.querySelector('[data-fp-reset]');
+  if(rst) rst.onclick=()=>{ o.fx=50; o.fy=50; d.querySelectorAll('[data-fp]').forEach(r=>{ r.value=50; }); apply(); };
 }
 function addSpeaker(){S.speakers.push({name:'',title:'',photo:''});renderSpeakers();queueRender();}
 
@@ -760,6 +790,7 @@ function migrateState(st){
   if(!st.tr||typeof st.tr!=='object') st.tr={};
   ['tc','sc','jp'].forEach(l=>{ if(!st.tr[l]||typeof st.tr[l]!=='object') st.tr[l]={}; });
   if(!Array.isArray(st.langs)||!st.langs.length) st.langs=['en'];
+  if(LANGS.indexOf(st.baseLang)<0) st.baseLang='en';
   const don={partner:false,listings:false,highlights:false,agenda:false,speakers:false,sessions:false,about:false,offer:false,finalCta:false};
   st.on=Object.assign({},don,(st.on&&typeof st.on==='object')?st.on:{});
   return st;
@@ -775,13 +806,14 @@ function renderSessions(){
         <div class="field"><label>Topic <span class="hint">(optional)</span></label><input type="text" data-f="topic" value="${fv(p+'topic')}"${fph(p+'topic','Session 1 — or a theme, e.g. "Opening keynote"')}></div>
         <div class="field"><label>Time <span class="hint">(optional)</span></label><input type="text" data-f="stime" value="${fv(p+'stime')}"${fph(p+'stime','2:30 PM')}></div>
       </div>
-      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'Headshot — upload, or paste an image URL')}</div>
+      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'Headshot — upload, or paste an image URL')}${focusCtl(s,false)}</div>
       <div class="field"><label>Speaker name <span class="hint">(optional)</span></label><input type="text" data-f="name" value="${fv(p+'name')}"${fph(p+'name','Full name, with title if used (e.g. Dr / Ms)')}></div>
       <div class="field"><label>Credentials / bio <span class="hint">(optional)</span></label><textarea data-f="bio"${fph(p+'bio',"Job title, Company — one line on why they're worth listening to.")}>${fv(p+'bio')}</textarea></div>
       <div class="field"><label>Talk title <span class="hint">(optional)</span></label><input type="text" data-f="talk" value="${fv(p+'talk')}"${fph(p+'talk','The title of their talk')}></div>
       <div class="field"><label>Talk description <span class="hint">(optional)</span></label><textarea data-f="talkDesc"${fph(p+'talkDesc','One or two sentences on what it covers and what people take away.')}>${fv(p+'talkDesc')}</textarea></div>`;
     d.querySelector('.rm').onclick=()=>{S.sessions.splice(i,1);renderSessions();queueRender();};
     d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{ const fld=f.dataset.f; if(fld==='photo') s.photo=f.value; else trSet(p+fld,f.value); queueRender(); }));
+    bindFocus(d,s,renderSessions);
     d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;handleUpload(up.files[0],(dd)=>{s[fld]=dd;renderSessions();queueRender();});up.value='';}));
     box.appendChild(d);
   });
@@ -829,15 +861,68 @@ const LANGCODE={en:'en',tc:'zh-Hant',sc:'zh-Hans',jp:'ja'};   // per-span lang �
 let curLang='en';
 function pget(o,path){return path.split('.').reduce((a,k)=>(a==null?a:a[k]), o);}
 function pset(o,path,v){const ks=path.split('.');let a=o;for(let i=0;i<ks.length-1;i++){if(a[ks[i]]==null)a[ks[i]]={};a=a[ks[i]];}a[ks[ks.length-1]]=v;}
-function trGet(path){ return curLang==='en' ? (pget(S,path)??'') : ((S.tr&&S.tr[curLang]&&S.tr[curLang][path])??''); }
-function trSet(path,v){ if(curLang==='en'){pset(S,path,v);} else { S.tr=S.tr||{}; S.tr[curLang]=S.tr[curLang]||{}; if(v==='') delete S.tr[curLang][path]; else S.tr[curLang][path]=v; } }
+function baseLang(){ return (S&&S.baseLang&&LANGS.indexOf(S.baseLang)>-1)?S.baseLang:'en'; }
+/* photo crop focus: fx/fy are 0–100 (%), default centred */
+function focusCtl(o,round){
+  if(!o.photo) return '';
+  const x=(o.fx!=null)?o.fx:50, y=(o.fy!=null)?o.fy:50;
+  return `<div class="fpctl">
+    <div class="fp-prev"><img src="${escAttr(o.photo)}" style="object-position:${x}% ${y}%" class="${round?'rnd':''}"></div>
+    <div class="fp-sliders">
+      <label>Across<input type="range" min="0" max="100" step="1" value="${x}" data-fp="fx"></label>
+      <label>Up / down<input type="range" min="0" max="100" step="1" value="${y}" data-fp="fy"></label>
+      <button type="button" class="fp-reset" data-fp-reset>Centre</button>
+    </div>
+  </div>`;
+}
+function fpStyle(o){
+  const x=(o&&o.fx!=null)?o.fx:50, y=(o&&o.fy!=null)?o.fy:50;
+  return (x===50&&y===50)?'':` style="--fp:${x}% ${y}%"`;
+}
+function trGet(path){ return curLang===baseLang() ? (pget(S,path)??'') : ((S.tr&&S.tr[curLang]&&S.tr[curLang][path])??''); }
+function trSet(path,v){ if(curLang===baseLang()){pset(S,path,v);} else { S.tr=S.tr||{}; S.tr[curLang]=S.tr[curLang]||{}; if(v==='') delete S.tr[curLang][path]; else S.tr[curLang][path]=v; } }
 function trEN(path){ return pget(S,path)??''; }
 function fv(path){ return esc(trGet(path)); }                                   // row field value (translated)
-function fph(path,stat){ const en=trEN(path); const p=(curLang!=='en'&&en)?en:(stat||''); return p?' placeholder="'+escAttr(p)+'"':''; }
-function langHasContent(l){ return l!=='en' && S.tr && S.tr[l] && Object.keys(S.tr[l]).length>0; }
-function refreshLangTabs(){ document.querySelectorAll('#langSeg button').forEach(b=>{ const l=b.dataset.l; b.classList.toggle('editing', l===curLang); b.classList.toggle('enabled', langHasContent(l)); }); }
-function resetLangUI(){ curLang='en'; refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.remove('editing'); }
-function setEditLang(l,rerender){ if(LANGS.indexOf(l)<0) return; curLang=l; refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.toggle('editing',l!=='en'); syncInputs(); if(rerender) queueRender(true); }
+function fph(path,stat){ const src=trEN(path); const p=(curLang!==baseLang()&&src)?src:(stat||''); return p?' placeholder="'+escAttr(p)+'"':''; }
+function langHasContent(l){ return l!==baseLang() && S.tr && S.tr[l] && Object.keys(S.tr[l]).length>0; }
+function refreshLangTabs(){
+  const bl=baseLang();
+  document.querySelectorAll('#langSeg button').forEach(b=>{ const l=b.dataset.l; b.classList.toggle('editing', l===curLang); b.classList.toggle('enabled', l===bl || langHasContent(l)); });
+  document.querySelectorAll('#baseSeg button').forEach(b=>{ b.classList.toggle('editing', b.dataset.b===bl); });
+}
+/* Changing the main language swaps which store holds the page's primary text,
+   so nothing typed is lost: the old base text moves into that language's translations,
+   and the new base language's translations move up into the base fields. */
+function setBaseLang(nl){
+  if(LANGS.indexOf(nl)<0) return;
+  const ol=baseLang(); if(nl===ol) return;
+  S.tr=S.tr||{}; LANGS.forEach(l=>{ if(l!=='en'||true){ if(!S.tr[l]) S.tr[l]={}; } });
+  const incoming=Object.assign({},S.tr[nl]||{});          // text already written in the new base language
+  const outgoing={};                                       // current base text, demoted to a translation
+  TR_PATHS().forEach(p=>{ const v=pget(S,p); if(typeof v==='string' && v!=='') outgoing[p]=v; });
+  TR_PATHS().forEach(p=>{ pset(S, p, incoming[p]!==undefined?incoming[p]:''); });
+  S.tr[nl]={};
+  S.tr[ol]=Object.assign({}, S.tr[ol]||{}, outgoing);
+  if(!Object.keys(S.tr[ol]).length) delete S.tr[ol];
+  S.baseLang=nl;
+  curLang=nl;
+  refreshLangTabs(); syncInputs(); queueRender(true);
+  toast('Main language: '+LANGLABEL[nl]);
+}
+/* every translatable path currently in play */
+function TR_PATHS(){
+  const p=['badge','hlLight','hlBold','subhead','date','time','venue','ctaLabel',
+           'hlTitle','agTitle','spTitle','seTitle','abTitle','abBody','liTitle',
+           'ofTitle','ofBody','ofValid','ofTerms','finalLine','ftAddr'];
+  (S.highlights||[]).forEach((_,i)=>{p.push('highlights.'+i+'.title','highlights.'+i+'.text');});
+  (S.agenda||[]).forEach((_,i)=>{p.push('agenda.'+i+'.time','agenda.'+i+'.activity');});
+  (S.speakers||[]).forEach((_,i)=>{p.push('speakers.'+i+'.name','speakers.'+i+'.title');});
+  (S.sessions||[]).forEach((_,i)=>{p.push('sessions.'+i+'.topic','sessions.'+i+'.stime','sessions.'+i+'.name','sessions.'+i+'.bio','sessions.'+i+'.talk','sessions.'+i+'.talkDesc');});
+  (S.listings||[]).forEach((_,i)=>{p.push('listings.'+i+'.location','listings.'+i+'.room','listings.'+i+'.seats','listings.'+i+'.feature','listings.'+i+'.price');});
+  return p;
+}
+function resetLangUI(){ curLang=baseLang(); msgLang=baseLang(); refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.remove('editing'); }
+function setEditLang(l,rerender){ if(LANGS.indexOf(l)<0) return; curLang=l; refreshLangTabs(); const le=document.querySelector('.langedit'); if(le) le.classList.toggle('editing',l!==baseLang()); syncInputs(); if(rerender) queueRender(true); }
 
 /* read an image file into a data URI (always embeddable, no CORS) */
 function embedFile(file,cb){
@@ -912,19 +997,20 @@ function buildPage(S,opts){
   const heroLogo = (dark||orange)?LOGO_DARK:LOGO_LIGHT;
   const ctaOnHero = orange ? 'background:#1A1A1A;color:#fff' : 'background:#FF6600;color:#fff';
 
-  // a language appears on the page only once it actually has translated content
+  // the page's main language, plus any other language that actually has content
   const tr=S.tr||{};
-  const trLangs=['tc','sc','jp'].filter(l=>tr[l]&&Object.keys(tr[l]).length);
-  const activeLangs=['en',...trLangs];
+  const bl=(S.baseLang&&LANGS.indexOf(S.baseLang)>-1)?S.baseLang:'en';
+  const trLangs=LANGS.filter(l=>l!==bl && tr[l] && Object.keys(tr[l]).length);
+  const activeLangs=[bl,...trLangs];
   const multiLang=trLangs.length>0;
-  // emit a translatable text: plain when single-language, else one span per active language (fallback to EN)
+  // emit a translatable text: plain when single-language, else one span per active language (fallback to the main language)
   const T=(path,opt)=>{
     opt=opt||{};
-    const enStr=String(pget(S,path)??'');
+    const baseStr=String(pget(S,path)??'');
     const fmt=opt.nl2br?nl2br:esc;
-    if(!multiLang) return fmt(enStr);
+    if(!multiLang) return fmt(baseStr);
     return activeLangs.map(l=>{
-      const v=l==='en'?enStr:((tr[l]&&tr[l][path])||enStr);
+      const v=l===bl?baseStr:((tr[l]&&tr[l][path])||baseStr);
       return `<span class="l l-${l}" lang="${LANGCODE[l]}">${fmt(v)}</span>`;
     }).join('');
   };
@@ -1025,7 +1111,7 @@ function buildPage(S,opts){
         (s.topic?`<span class="se-topic">${T(p+'topic')}</span>`:'')+
         (s.stime?`<span class="se-time">${svg(I.clock,2)}<span>${T(p+'stime')}</span></span>`:'')+
       `</div>`:'';
-      const pic=s.photo?`<div class="se-pic"><img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}"></div>`:'';
+      const pic=s.photo?`<div class="se-pic"><img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}"${fpStyle(s)}></div>`:'';
       const bodyIn=`<div class="se-body">`+
         (s.name?`<h3 class="se-name">${T(p+'name')}</h3>`:'')+
         (s.bio?`<p class="se-bio">${T(p+'bio',{nl2br:true})}</p>`:'')+
@@ -1042,7 +1128,7 @@ function buildPage(S,opts){
   }
   if(S.on.speakers && S.speakers.length){
     body+=`<section class="sec"><div class="inner">${eyebrow('spTitle','Speakers')}<div class="speakers">`+
-      S.speakers.map((s,i)=>`<div class="sp">${s.photo?`<img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}">`:`<span class="spav">${esc((s.name||'?').trim().charAt(0))}</span>`}<div><h3>${T('speakers.'+i+'.name')}</h3>${s.title?`<p>${T('speakers.'+i+'.title')}</p>`:''}</div></div>`).join('')+
+      S.speakers.map((s,i)=>`<div class="sp">${s.photo?`<img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}"${fpStyle(s)}>`:`<span class="spav">${esc((s.name||'?').trim().charAt(0))}</span>`}<div><h3>${T('speakers.'+i+'.name')}</h3>${s.title?`<p>${T('speakers.'+i+'.title')}</p>`:''}</div></div>`).join('')+
       `</div></div></section>`;
   }
   if(S.on.about && (S.abBody||S.abTitle)){
@@ -1075,17 +1161,18 @@ function buildPage(S,opts){
   foot+=`<div class="copy">© ${new Date().getFullYear()} Compass Offices</div></footer>`;
 
   // pure-CSS language switch (only when translations exist) — works with no JS
-  const shown=(opts.viewLang && activeLangs.indexOf(opts.viewLang)>-1)?opts.viewLang:'en';
-  let langRadios='', langBar='', langSync='';
+  const shown=(opts.viewLang && activeLangs.indexOf(opts.viewLang)>-1)?opts.viewLang:bl;
+  let langRadios='', langBar='', langSync='', langCSS='';
   if(multiLang){
     langRadios=activeLangs.map(l=>`<input class="langswitch" type="radio" name="pglang" id="L-${l}"${l===shown?' checked':''}>`).join('');
     langBar=`<div class="langbar"><div class="langgroup">`+activeLangs.map(l=>`<label for="L-${l}">${LANGLABEL[l]}</label>`).join('')+`</div></div>`;
+    langCSS=`.l-${bl}{display:inline;}`;   // main language stays visible even if a viewer ignores :checked
     if(opts.preview) langSync=`<script>document.addEventListener('change',function(e){if(e.target&&e.target.name==='pglang'){try{parent.postMessage({shareLang:e.target.id.replace('L-','')},'*');}catch(x){}}});<\/script>`;
   }
 
   const css = PAGE_CSS;
 
-  return `<!DOCTYPE html><html lang="en"><head>
+  return `<!DOCTYPE html><html lang="${LANGCODE[bl]}"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="${FAVICON}">
 <title>${title}</title>
@@ -1109,7 +1196,7 @@ ${ogUrl?`<meta property="og:url" content="${ogUrl}">`:''}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>${css}</style>
+<style>${css}${langCSS}</style>
 </head><body class="co" style="background:${({grey:'#F5F5F5',warm:'#FFF3EB',white:'#FFFFFF'}[S.pageBg]||'#F5F5F5')}">${langRadios}<main class="pg">${langBar}${header}${hero}${body}${foot}</main>${langSync}</body></html>`;
 }
 
@@ -1121,7 +1208,6 @@ body.co{font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;co
 /* pure-CSS language switch (no JS) */
 .langswitch{position:absolute;width:0;height:0;opacity:0;pointer-events:none;}
 .l{display:none;}
-.l-en{display:inline;}   /* default language stays visible even if a viewer ignores :checked (never blank) */
 #L-en:checked~main .l,#L-tc:checked~main .l,#L-sc:checked~main .l,#L-jp:checked~main .l{display:none;}
 #L-en:checked~main .l-en,#L-tc:checked~main .l-tc,#L-sc:checked~main .l-sc,#L-jp:checked~main .l-jp{display:inline;}
 /* regional Han / JP glyphs follow each span's own lang attribute */
@@ -1190,17 +1276,17 @@ a{color:inherit;}
 .se-time svg{width:15px;height:15px;flex:none;}
 .se-card{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
 .se-pic{width:100%;aspect-ratio:4/3;background:var(--fill);}
-.se-pic img{width:100%;height:100%;object-fit:cover;display:block;}
+.se-pic img{width:100%;height:100%;object-fit:cover;object-position:var(--fp,50% 50%);display:block;}
 .se-body{padding:16px 18px 18px;}
 .se-name{font-size:17px;font-weight:800;color:var(--ink);margin-bottom:5px;}
 .se-bio{font-size:13.5px;color:var(--tx2);line-height:1.55;}
 .se-talk{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
 .se-tt{font-size:14px;font-weight:700;color:var(--ink);line-height:1.45;margin-bottom:4px;}
 .se-td{font-size:13.5px;color:var(--tx2);line-height:1.55;}
-.speakers{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
-.sp{display:flex;gap:14px;align-items:center;}
-.sp img{width:58px;height:58px;border-radius:50%;object-fit:cover;flex:none;}
-.sp .spav{width:58px;height:58px;border-radius:50%;background:var(--wash);color:var(--o);font-weight:800;font-size:22px;display:flex;align-items:center;justify-content:center;flex:none;}
+.speakers{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px;}
+.sp{display:flex;gap:16px;align-items:center;}
+.sp img{width:78px;height:78px;border-radius:50%;object-fit:cover;object-position:var(--fp,50% 50%);flex:none;}
+.sp .spav{width:78px;height:78px;border-radius:50%;background:var(--wash);color:var(--o);font-weight:800;font-size:28px;display:flex;align-items:center;justify-content:center;flex:none;}
 .sp h3{font-size:16px;font-weight:800;}
 .sp p{font-size:13.5px;color:var(--tx2);}
 
@@ -1347,7 +1433,7 @@ function copyHTML(){navigator.clipboard.writeText(buildPage(S)).then(()=>toast('
 /* ===== WhatsApp / chat blurb, tailored per type and per language ===== */
 function waMessage(S,lang){
   lang=lang||curLang||'en';
-  const res=(path)=>{ let v = lang==='en' ? pget(S,path) : ((S.tr&&S.tr[lang]&&S.tr[lang][path]) || pget(S,path)); return v||''; };
+  const res=(path)=>{ let v = lang===baseLang() ? pget(S,path) : ((S.tr&&S.tr[lang]&&S.tr[lang][path]) || pget(S,path)); return v||''; };
   const clean=v=>String(v||'').replace(/\s+/g,' ').trim();
   const r=path=>clean(res(path));
   const E={party:'\u{1F389}',spark:'\u{2728}',gift:'\u{1F381}',bldg:'\u{1F3E2}',mega:'\u{1F4E3}',
@@ -1394,11 +1480,11 @@ function waMessage(S,lang){
 
   return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
-let msgLang='en';
-function activeMsgLangs(){ return ['en',...['tc','sc','jp'].filter(l=>S.tr&&S.tr[l]&&Object.keys(S.tr[l]).length)]; }
+let msgLang='en';   // reset to the page's main language on load/preset
+function activeMsgLangs(){ const bl=baseLang(); return [bl,...LANGS.filter(l=>l!==bl && S.tr && S.tr[l] && Object.keys(S.tr[l]).length)]; }
 function renderMessage(){
   const langs=activeMsgLangs();
-  if(langs.indexOf(msgLang)<0) msgLang='en';
+  if(langs.indexOf(msgLang)<0) msgLang=baseLang();
   const sel=document.getElementById('waLangSel');
   if(sel){
     if(langs.length>1){
@@ -1411,7 +1497,7 @@ function renderMessage(){
 }
 function copyWA(){navigator.clipboard.writeText(waMessage(S,msgLang)).then(()=>toast('WhatsApp message copied'),()=>toast('Copy failed'));}
 function clearFields(){
-  const keep={heroStyle:1,pageBg:1,ftEmail:1,ftPhone:1,ftAddr:1,enquireEmail:1,on:1,tr:1,langs:1};
+  const keep={heroStyle:1,pageBg:1,ftEmail:1,ftPhone:1,ftAddr:1,enquireEmail:1,on:1,tr:1,langs:1,baseLang:1};
   Object.keys(S).forEach(k=>{
     if(keep[k]) return;
     if(Array.isArray(S[k])) S[k]=[];
