@@ -15,7 +15,7 @@
 }
 .co *,.co *::before,.co *::after{box-sizing:border-box;}
 html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
-.co{height:100vh;overflow:hidden;display:flex;flex-direction:column;background:var(--co-paper);}
+.co{height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column;background:var(--co-paper);}
 .btn{border:1px solid var(--co-line);background:var(--co-paper);color:var(--co-text);border-radius:10px;padding:8px 15px;font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;}
 .btn:hover{border-color:var(--co-orange);color:var(--co-orange);}
 .btn.pri{background:var(--co-ink);border-color:var(--co-ink);color:#fff;}
@@ -101,10 +101,17 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .city-head .ttl{font-weight:800;font-size:16px;letter-spacing:-.3px;}
 .city-body{flex:1;display:flex;min-height:0;}
 .clist{width:340px;flex-shrink:0;border-right:1px solid var(--co-line);display:flex;flex-direction:column;min-height:0;}
-.cview{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--co-bg);}
+.cview{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--co-bg);}
 .cdetail{width:290px;flex-shrink:0;border-left:1px solid var(--co-line);display:none;flex-direction:column;min-height:0;background:var(--co-paper);}
 .cdetail.on{display:flex;}
-@media(max-width:900px){.city-body{flex-direction:column;}.clist,.cdetail{width:100%;border:none;border-bottom:1px solid var(--co-line);max-height:40vh;}}
+@media(max-width:900px){
+  .city-body{flex-direction:column;}
+  .clist,.cdetail{width:100%;border:none;border-bottom:1px solid var(--co-line);min-height:0;}
+  .clist{max-height:30vh;max-height:30dvh;}
+  .cdetail{max-height:34vh;max-height:34dvh;}
+  .stage{padding:.7rem .7rem 4.5rem;} /* room for the fixed selection bar */
+  .pwrap img{max-height:none;} /* full-width plan; stage scrolls vertically */
+}
 
 .clist-head{padding:1rem 1.4rem .7rem;flex-shrink:0;}
 .field{position:relative;}
@@ -152,7 +159,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 
 .stage{flex:1;position:relative;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:1.1rem 1.4rem;min-height:0;}
 .pwrap{position:relative;display:inline-block;line-height:0;box-shadow:0 3px 26px rgba(0,0,0,.13);background:#fff;}
-.pwrap img{display:block;max-width:100%;max-height:calc(100vh - 172px);width:auto;height:auto;user-select:none;}
+.pwrap img{display:block;max-width:100%;max-height:calc(100vh - 172px);max-height:calc(100dvh - 172px);width:auto;height:auto;user-select:none;}
 .pwrap svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
 .room{cursor:pointer;transition:opacity .12s;}.room.dim{opacity:.13;}
 .room-num{font-weight:700;pointer-events:none;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;}
@@ -478,7 +485,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
           <div class="fld"><label>Desks (min–max)</label><div class="rng"><input id="fDeskMin" type="number" min="0" placeholder="min" oninput="renderSearchResults()"><span>–</span><input id="fDeskMax" type="number" min="0" placeholder="max" oninput="renderSearchResults()"></div></div>
           <div class="fld"><label>Size sq ft (min–max)</label><div class="rng"><input id="fSizeMin" type="number" min="0" placeholder="min" oninput="renderSearchResults()"><span>–</span><input id="fSizeMax" type="number" min="0" placeholder="max" oninput="renderSearchResults()"></div></div>
           <div class="fld"><label>Monthly price (min–max)</label><div class="rng"><input id="fPriceMin" type="number" min="0" placeholder="min" oninput="renderSearchResults()"><span>–</span><input id="fPriceMax" type="number" min="0" placeholder="max" oninput="renderSearchResults()"></div></div>
-          <div class="fld"><label>Discount % (max 40)</label><input id="fDisc" type="number" min="0" max="40" step="1" placeholder="0" oninput="discInput(this)"></div>
+          <div class="fld"><label>Discount % (max <span id="fDiscMaxLb">40</span>)</label><input id="fDisc" type="number" min="0" max="40" step="1" placeholder="0" oninput="discInput(this)"></div>
           <div class="fld fld-clear"><button class="btn" onclick="clearSearch()">Clear filters</button></div>
         </div>
       </div>
@@ -674,7 +681,7 @@ async function revalidate(){
       AUTH.role=r.role;AUTH.pricing=!!r.pricing;if(r.regions&&r.regions.length)AUTH.regions=r.regions;if(r.token)AUTH.token=r.token;
       try{localStorage.setItem('co_auth',JSON.stringify(AUTH));}catch(e){}
       var _ab=$('adminBtn');if(_ab)_ab.style.display=(AUTH.role==='admin')?'':'none';
-      renderUserChip();syncPriceBtns();
+      applySettings(r.settings);renderUserChip();syncPriceBtns();
     }else if(r&&r.ok===false&&r.error==='session'){logout();}
   }catch(e){}
 }
@@ -749,7 +756,7 @@ async function doLogin(){
       $('loginSub').textContent='Temporary code accepted — set your new passcode.';$('loginForgot').style.display='none';
       btn.disabled=false;btn.textContent='Save passcode';setTimeout(function(){$('loginPass').focus();},30);return;
     }
-    AUTH={token:r.token,email:r.email,role:r.role,pricing:!!r.pricing,regions:r.regions,ts:Date.now()};
+    AUTH={token:r.token,email:r.email,role:r.role,pricing:!!r.pricing,regions:r.regions,ts:Date.now()};applySettings(r.settings);
     try{localStorage.setItem('co_auth',JSON.stringify(AUTH));}catch(e){}rememberEmail(AUTH.email);
     $('loginPass').value='';$('loginPass2').value='';SETUP=false;showApp();
   }catch(e){$('loginErr').textContent='Could not reach the server.';}
@@ -856,11 +863,20 @@ let SEARCH_INDEX=null,SEARCH_SEL={},SEARCH_MONTHS=[],SEARCH_DISC={};
 /* Discount: global % (fDisc, clamped 0–40) is the default; SEARCH_DISC[id] is a per-room
    override. Effective % = override if set, else global. Applied on screen, in Copy for
    email, and in the shortlist PDF. */
-function clampDisc(v){v=parseFloat(v);if(isNaN(v)||v<0)return 0;return Math.min(40,Math.round(v));}
-function globalDisc(){const el=$('fDisc');return el?clampDisc(el.value):0;}
+let DISC_MAX=40,DISC_DEFAULT=0; // shared: saved in the gate's Settings tab, delivered at login/whoami
+function clampDisc(v){v=parseFloat(v);if(isNaN(v)||v<0)return 0;return Math.min(DISC_MAX,Math.round(v));}
+function globalDisc(){const el=$('fDisc');if(el&&el.value!=='')return clampDisc(el.value);return clampDisc(DISC_DEFAULT);}
+function applySettings(st){
+  if(!st)return;
+  if(st.discMax)DISC_MAX=Math.max(1,Math.min(100,Math.round(st.discMax)));
+  DISC_DEFAULT=Math.min(clampDisc(st.discDefault||0),DISC_MAX);
+  const f=$('fDisc');if(f){f.max=DISC_MAX;f.placeholder=DISC_DEFAULT;}
+  const lb=$('fDiscMaxLb');if(lb)lb.textContent=DISC_MAX;
+  document.querySelectorAll('.disc-max-lb').forEach(e=>e.textContent=DISC_MAX);
+}
 function discFor(id){return SEARCH_DISC[id]!=null?SEARCH_DISC[id]:globalDisc();}
 function discPrice(p,d){return Math.round(p*(1-d/100));}
-function discInput(el){if(el.value!==''){const v=parseFloat(el.value);if(v>40)el.value=40;if(v<0)el.value=0;}renderSearchResults();}
+function discInput(el){if(el.value!==''){const v=parseFloat(el.value);if(v>DISC_MAX)el.value=DISC_MAX;if(v<0)el.value=0;}renderSearchResults();}
 function setRoomDisc(id,v){if(v===''||v==null)delete SEARCH_DISC[id];else SEARCH_DISC[id]=clampDisc(v);renderSearchResults();}
 /* Session-only price adjustments (pricing/admin roles). NEVER written back to the report:
    PRICE_ADJ lives in memory, is gone on reload/logout, and other users never see it. */
@@ -952,7 +968,7 @@ function renderSearchResults(){
       '<div class="sr-meta">'+(o.cls||'')+' · '+(o.size||'?')+' sq ft · '+(o.desks||'?')+' desks'+(view?(' · '+view):'')+'</div></div>'+
       '<span class="sr-avail" style="background:'+o.color+'33;color:#282828">'+o.availLabel+'</span>'+
       pHtml+
-      '<span class="sr-disc"><input type="number" min="0" max="40" value="'+(SEARCH_DISC[o.id]!=null?SEARCH_DISC[o.id]:'')+'" placeholder="'+globalDisc()+'" onclick="event.stopPropagation()" onchange="setRoomDisc(\''+esc+'\',this.value)"><span>%</span></span>'+
+      '<span class="sr-disc"><input type="number" min="0" max="'+DISC_MAX+'" value="'+(SEARCH_DISC[o.id]!=null?SEARCH_DISC[o.id]:'')+'" placeholder="'+globalDisc()+'" onclick="event.stopPropagation()" onchange="setRoomDisc(\''+esc+'\',this.value)"><span>%</span></span>'+
       '<button class="sr-add" onclick="toggleSearchSel(\''+esc+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>'+
     '</div>';
   }).join('')+(list.length>400?'<div class="srch-empty">Showing first 400 — narrow your filters to see the rest.</div>':'');
@@ -1007,7 +1023,7 @@ function renderPadj(){
       +'<td>'+r.avail+'</td>'
       +'<td class="num">'+fmtPriceReg(r.region,r.price)+'</td>'
       +'<td class="num"><input type="number" min="0" class="pd-np" value="'+(PRICE_ADJ[r.key]!=null?PRICE_ADJ[r.key]:'')+'" placeholder="—" oninput="padjPrice('+i+',this.value)" onkeydown="padjKey(event,'+i+',\'pd-np\')"></td>'
-      +'<td class="num"><input type="number" min="0" max="40" class="pd-disc" value="'+(SEARCH_DISC[r.key]!=null?SEARCH_DISC[r.key]:'')+'" placeholder="'+globalDisc()+'" oninput="padjDisc('+i+',this.value)" onkeydown="padjKey(event,'+i+',\'pd-disc\')"></td>'
+      +'<td class="num"><input type="number" min="0" max="'+DISC_MAX+'" class="pd-disc" value="'+(SEARCH_DISC[r.key]!=null?SEARCH_DISC[r.key]:'')+'" placeholder="'+globalDisc()+'" oninput="padjDisc('+i+',this.value)" onkeydown="padjKey(event,'+i+',\'pd-disc\')"></td>'
       +'<td class="num pd-final" id="pdf'+i+'"></td>'
     +'</tr>';
   });
@@ -1058,9 +1074,13 @@ function renderPadjFoot(){
     +'<b>'+(n||'All')+'</b>&nbsp;row'+(n===1?'':'s')+':'
     +'<input type="number" min="0" id="pdBulkP" placeholder="price"><button class="btn" onclick="padjBulk(\'set\')">Set price</button>'
     +'<input type="number" id="pdBulkPct" placeholder="±%"><button class="btn" onclick="padjBulk(\'pct\')">Change %</button>'
-    +'<input type="number" min="0" max="40" id="pdBulkD" placeholder="disc %"><button class="btn" onclick="padjBulk(\'disc\')">Set disc</button>'
+    +'<input type="number" min="0" max="'+DISC_MAX+'" id="pdBulkD" placeholder="disc %"><button class="btn" onclick="padjBulk(\'disc\')">Set disc</button>'
     +'<button class="btn" onclick="padjBulk(\'clear\')">Clear</button>'
     +'<span class="sep"></span><label><input type="checkbox" '+(HIDE_ORIG?'checked':'')+' onchange="HIDE_ORIG=this.checked;renderPadj();">Don\'t show original price</label>'
+    +'<span class="sep"></span>'
+    +'<input type="number" min="0" max="'+DISC_MAX+'" id="pdDefD" placeholder="'+DISC_DEFAULT+'" title="Shared default discount — auto-applies for every user"><button class="btn pri" onclick="padjApplyAll()">Apply to all</button>'
+    +'<input type="number" min="1" max="100" id="pdMaxD" placeholder="'+DISC_MAX+'" title="Discount cap for all users"><button class="btn" onclick="padjSaveMax()">Save max</button>'
+    +'<span class="ar-msg" id="pdSetMsg"></span>'
     +'<div style="flex:1"></div><button class="btn" onclick="padjResetAll()">Reset all</button>';
 }
 function padjBulk(op){
@@ -1076,6 +1096,29 @@ function padjBulk(op){
   renderPadj();
 }
 function padjResetAll(){PADJ_ROWS.forEach(r=>{delete PRICE_ADJ[r.key];delete SEARCH_DISC[r.key];});renderPadj();}
+async function saveSettings(params,msgEl){
+  msgEl.style.color='var(--co-muted)';msgEl.textContent='Saving…';
+  try{const r=await jsonp(CONFIG.GATE_URL+'?action=settings_set&token='+encodeURIComponent(AUTH.token)+params);
+    if(r&&r.ok){applySettings(r.settings);msgEl.style.color='var(--co-ok)';msgEl.textContent='Saved for everyone';return true;}
+    msgEl.style.color='#c0392b';msgEl.textContent=(r&&r.error)||'Failed';return false;
+  }catch(e){msgEl.style.color='#c0392b';msgEl.textContent='Server error';return false;}
+}
+async function padjApplyAll(){
+  const v=($('pdDefD')||{}).value;if(v==='')return;
+  const d=clampDisc(v);
+  const ok=await saveSettings('&discDefault='+d,$('pdSetMsg'));
+  if(!ok)return;
+  // clear per-room overrides so the shared default shows through, then confirm visually
+  PADJ_ROWS.forEach(r=>{delete SEARCH_DISC[r.key];});
+  renderPadj();
+  document.querySelectorAll('.pd-chk').forEach(c=>c.checked=true);const all=$('pdAll');if(all)all.checked=true;
+  renderPadjFoot();const m=$('pdSetMsg');if(m){m.style.color='var(--co-ok)';m.textContent='Saved — applies for every user';}
+}
+async function padjSaveMax(){
+  const v=($('pdMaxD')||{}).value;if(v==='')return;
+  const ok=await saveSettings('&discMax='+Math.round(parseFloat(v)),$('pdSetMsg'));
+  if(ok)renderPadj();
+}
 function padjClose(){
   $('padj').classList.remove('on');PADJ_RANGE=-1;clearTimeout(PADJ_TIMER);
   if(PADJ_MODE==='search'){renderSearchResults();updateSearchBar();}
@@ -1459,7 +1502,7 @@ function showRoomDetail(o,anchorEl){const d0=$('rdetail');if(anchorEl)LAST_ROOM_
   let discRow='';
   if(showDisc){
     if(canPrice())discRow+='<div class="r"><span>New price</span><span class="rd-di"><input type="number" min="0" value="'+(PRICE_ADJ[dk]!=null?PRICE_ADJ[dk]:'')+'" placeholder="'+Math.round(o.price)+'" onchange="setRoomPriceCity(\''+dEsc+'\',this.value)" style="width:76px"><em>session only</em></span></div>';
-    discRow+='<div class="r"><span>Discount</span><span class="rd-di"><input type="number" min="0" max="40" value="'+(SEARCH_DISC[dk]!=null?SEARCH_DISC[dk]:'')+'" placeholder="'+globalDisc()+'" onchange="setRoomDiscCity(\''+dEsc+'\',this.value)"><b>%</b><em>max 40</em></span></div>';
+    discRow+='<div class="r"><span>Discount</span><span class="rd-di"><input type="number" min="0" max="'+DISC_MAX+'" value="'+(SEARCH_DISC[dk]!=null?SEARCH_DISC[dk]:'')+'" placeholder="'+globalDisc()+'" onchange="setRoomDiscCity(\''+dEsc+'\',this.value)"><b>%</b><em>max <span class="disc-max-lb">'+DISC_MAX+'</span></em></span></div>';
     discRow+='<div class="r"><span></span><label class="rd-ho"><input type="checkbox"'+(HIDE_ORIG?' checked':'')+' onchange="setHideOrig(this.checked)">Don\'t show original price</label></div>';
   }
   d0.innerHTML='<span class="x" onclick="closeDetail()">&times;</span><div class="o">Office '+o.office+'</div><div class="av" style="background:'+o.color+'">'+o.availLabel+'</div>'+
