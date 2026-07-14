@@ -318,6 +318,19 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 
     <details class="acc">
       <summary>
+        <span class="nib"></span>Sessions <span class="hint" style="font-weight:500">(talks with speakers)</span>
+        <label class="switch sw"><input type="checkbox" data-toggle="sessions"><span class="track"></span></label>
+      </summary>
+      <div class="body">
+        <div class="field"><label>Section title</label><input type="text" data-k="seTitle" placeholder="Sessions"></div>
+        <div class="hint" style="margin:0 0 10px;line-height:1.5">Each session shows a photo on top, then the speaker and their talk. Every field is optional — leave any blank and it's left out.</div>
+        <div id="sessionRows"></div>
+        <button class="addbtn" onclick="addSession()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add session</button>
+      </div>
+    </details>
+
+    <details class="acc">
+      <summary>
         <span class="nib"></span>About
         <label class="switch sw"><input type="checkbox" data-toggle="about"><span class="track"></span></label>
       </summary>
@@ -486,7 +499,7 @@ const PRESETS = {
     venue:"Compass Offices, The Center, 99 Queen's Road Central, Hong Kong",
     ctaLabel:"Reserve my seat", ctaUrl:"",
     heroStyle:"dark", ogDesc:"Join our hands-on workshop at Compass Offices. Limited seats — reserve yours.",
-    on:{highlights:true,agenda:true,speakers:true,about:true,offer:false,finalCta:true,partner:false},
+    on:{highlights:true,agenda:true,speakers:true,sessions:true,about:true,offer:false,finalCta:true,partner:false},
     hlTitle:"What you'll get",
     highlights:[
       {icon:'bulb',title:"Practical, not theory",text:"Build a working tool you can take straight back to your desk."},
@@ -501,7 +514,12 @@ const PRESETS = {
       {time:"5:00 PM",activity:"Networking"}
     ],
     spTitle:"Your hosts",
-    speakers:[{name:"Speaker Name",title:"Title, Company",photo:""}],
+    speakers:[{name:"Alex Chan",title:"Head of Community, Compass Offices",photo:""}],
+    seTitle:"Sessions",
+    sessions:[
+      {topic:"Session 1",stime:"2:30 PM",name:"Alex Chan",title:"",bio:"Head of Community, Compass Offices — ten years building workplace programmes across Asia.",talk:"Designing a workspace people want to come back to",talkDesc:"What actually drives members to show up: the small operational choices that shape daily life at work.",photo:""},
+      {topic:"Session 2",stime:"3:30 PM",name:"Priya Raman",title:"",bio:"Founder, Northlane Studio — scaled a five-person team into three markets.",talk:"Scaling without the overhead",talkDesc:"How a small team grows across borders while keeping costs and commitments flexible.",photo:""}
+    ],
     abTitle:"About this session",
     abBody:"Spaces are limited and offered to Compass members first. Bring a laptop — everything else is provided.",
     finalLine:"Seats are limited — secure yours today."
@@ -598,13 +616,13 @@ function loadPreset(p){
     badge:"",hlLight:"",hlBold:"",subhead:"",heroImg:"",heroStyle:"light",pageBg:"grey",
     date:"",time:"",venue:"",ctaLabel:"",ctaUrl:"",
     partnerName:"",partnerLogo:"",
-    hlTitle:"",agTitle:"",spTitle:"",abTitle:"",abBody:"",
+    hlTitle:"",agTitle:"",spTitle:"",seTitle:"",abTitle:"",abBody:"",
     ofTitle:"",ofBody:"",ofCode:"",ofValid:"",ofTerms:"",finalLine:"",
     liTitle:"",enquireEmail:"hksales@compassoffices.com",
     ftEmail:"www.compassoffices.com",ftPhone:"",ftAddr:"Compass Offices · Hong Kong",
-    highlights:[],agenda:[],speakers:[],listings:[],
+    highlights:[],agenda:[],speakers:[],sessions:[],listings:[],
     tr:{tc:{},sc:{},jp:{}},langs:['en'],
-    on:{partner:false,listings:false,highlights:true,agenda:false,speakers:false,about:false,offer:false,finalCta:true}
+    on:{partner:false,listings:false,highlights:true,agenda:false,speakers:false,sessions:false,about:false,offer:false,finalCta:true}
   };
   // Load the type's worked example so you can see how it looks; use "Clear fields"
   // to blank everything to the grey hints when starting a real page.
@@ -630,7 +648,7 @@ function syncInputs(){
   document.querySelectorAll('#heroStyleSeg button').forEach(b=>b.classList.toggle('on', b.dataset.hs===S.heroStyle));
   document.querySelectorAll('#pageBgSeg button').forEach(b=>b.classList.toggle('on', b.dataset.bg===(S.pageBg||'grey')));
   document.querySelectorAll('#presetSeg button').forEach(b=>b.classList.toggle('on', b.dataset.p===curPreset));
-  renderHighlights(); renderAgenda(); renderSpeakers(); renderListings();
+  renderHighlights(); renderAgenda(); renderSpeakers(); renderSessions(); renderListings();
 }
 
 function bindStaticInputs(){
@@ -678,8 +696,8 @@ function renderHighlights(){
     const d=document.createElement('div'); d.className='rep';
     d.innerHTML=`<button class="rm" title="Remove">&times;</button>
       <div class="field" style="margin-top:2px"><label>Icon</label><div class="iconpick">${HL_ICONS.map(ic=>`<button data-ic="${ic}" class="${h.icon===ic?'on':''}">${svg(I[ic])}</button>`).join('')}</div></div>
-      <div class="field"><label>Title</label><input type="text" data-f="title" value="${fv(p+'title')}"${fph(p+'title','')}></div>
-      <div class="field"><label>Text</label><textarea data-f="text"${fph(p+'text','')}>${fv(p+'text')}</textarea></div>`;
+      <div class="field"><label>Title</label><input type="text" data-f="title" value="${fv(p+'title')}"${fph(p+'title','Short benefit, 2–4 words')}></div>
+      <div class="field"><label>Text</label><textarea data-f="text"${fph(p+'text','One line explaining it — keep it concrete.')}>${fv(p+'text')}</textarea></div>`;
     d.querySelector('.rm').onclick=()=>{S.highlights.splice(i,1);renderHighlights();queueRender();};
     d.querySelectorAll('.iconpick button').forEach(b=>b.onclick=()=>{h.icon=b.dataset.ic;d.querySelectorAll('.iconpick button').forEach(x=>x.classList.toggle('on',x===b));queueRender();});
     d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{trSet(p+f.dataset.f,f.value);queueRender();}));
@@ -696,8 +714,8 @@ function renderAgenda(){
     const d=document.createElement('div'); d.className='rep';
     d.innerHTML=`<button class="rm">&times;</button>
       <div class="two" style="margin-top:2px">
-        <div class="field"><label>Time</label><input type="text" data-f="time" value="${fv(p+'time')}"${fph(p+'time','')}></div>
-        <div class="field"><label>Activity</label><input type="text" data-f="activity" value="${fv(p+'activity')}"${fph(p+'activity','')}></div>
+        <div class="field"><label>Time</label><input type="text" data-f="time" value="${fv(p+'time')}"${fph(p+'time','2:00 PM')}></div>
+        <div class="field"><label>Activity</label><input type="text" data-f="activity" value="${fv(p+'activity')}"${fph(p+'activity','Welcome & coffee')}></div>
       </div>`;
     d.querySelector('.rm').onclick=()=>{S.agenda.splice(i,1);renderAgenda();queueRender();};
     d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{trSet(p+f.dataset.f,f.value);queueRender();}));
@@ -713,9 +731,9 @@ function renderSpeakers(){
     const p='speakers.'+i+'.';
     const d=document.createElement('div'); d.className='rep';
     d.innerHTML=`<button class="rm">&times;</button>
-      <div class="field" style="margin-top:2px"><label>Name</label><input type="text" data-f="name" value="${fv(p+'name')}"${fph(p+'name','')}></div>
-      <div class="field"><label>Title / company</label><input type="text" data-f="title" value="${fv(p+'title')}"${fph(p+'title','')}></div>
-      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'https://…/photo.jpg')}</div>`;
+      <div class="field" style="margin-top:2px"><label>Name</label><input type="text" data-f="name" value="${fv(p+'name')}"${fph(p+'name','Full name')}></div>
+      <div class="field"><label>Title / company</label><input type="text" data-f="title" value="${fv(p+'title')}"${fph(p+'title','Job title, Company')}></div>
+      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'Headshot — upload, or paste an image URL')}</div>`;
     d.querySelector('.rm').onclick=()=>{S.speakers.splice(i,1);renderSpeakers();queueRender();};
     d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{ if(f.dataset.f==='photo') s.photo=f.value; else trSet(p+f.dataset.f,f.value); queueRender(); }));
     d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;handleUpload(up.files[0],(dd)=>{s[fld]=dd;renderSpeakers();queueRender();});up.value='';}));
@@ -723,6 +741,29 @@ function renderSpeakers(){
   });
 }
 function addSpeaker(){S.speakers.push({name:'',title:'',photo:''});renderSpeakers();queueRender();}
+
+function renderSessions(){
+  const box=document.getElementById('sessionRows'); if(!box) return; box.innerHTML='';
+  S.sessions.forEach((s,i)=>{
+    const p='sessions.'+i+'.';
+    const d=document.createElement('div'); d.className='rep';
+    d.innerHTML=`<button class="rm">&times;</button>
+      <div class="two" style="margin-top:2px">
+        <div class="field"><label>Topic <span class="hint">(optional)</span></label><input type="text" data-f="topic" value="${fv(p+'topic')}"${fph(p+'topic','Session 1 — or a theme, e.g. "Opening keynote"')}></div>
+        <div class="field"><label>Time <span class="hint">(optional)</span></label><input type="text" data-f="stime" value="${fv(p+'stime')}"${fph(p+'stime','2:30 PM')}></div>
+      </div>
+      <div class="field"><label>Photo <span class="hint">(optional; URL or upload)</span></label>${imgField('photo',s.photo,'Headshot — upload, or paste an image URL')}</div>
+      <div class="field"><label>Speaker name <span class="hint">(optional)</span></label><input type="text" data-f="name" value="${fv(p+'name')}"${fph(p+'name','Full name, with title if used (e.g. Dr / Ms)')}></div>
+      <div class="field"><label>Credentials / bio <span class="hint">(optional)</span></label><textarea data-f="bio"${fph(p+'bio',"Job title, Company — one line on why they're worth listening to.")}>${fv(p+'bio')}</textarea></div>
+      <div class="field"><label>Talk title <span class="hint">(optional)</span></label><input type="text" data-f="talk" value="${fv(p+'talk')}"${fph(p+'talk','The title of their talk')}></div>
+      <div class="field"><label>Talk description <span class="hint">(optional)</span></label><textarea data-f="talkDesc"${fph(p+'talkDesc','One or two sentences on what it covers and what people take away.')}>${fv(p+'talkDesc')}</textarea></div>`;
+    d.querySelector('.rm').onclick=()=>{S.sessions.splice(i,1);renderSessions();queueRender();};
+    d.querySelectorAll('[data-f]').forEach(f=>f.addEventListener('input',()=>{ const fld=f.dataset.f; if(fld==='photo') s.photo=f.value; else trSet(p+fld,f.value); queueRender(); }));
+    d.querySelectorAll('[data-up]').forEach(up=>up.addEventListener('change',()=>{const fld=up.dataset.up;handleUpload(up.files[0],(dd)=>{s[fld]=dd;renderSessions();queueRender();});up.value='';}));
+    box.appendChild(d);
+  });
+}
+function addSession(){S.sessions.push({topic:'',stime:'',name:'',bio:'',talk:'',talkDesc:'',photo:''});renderSessions();queueRender();}
 
 /* ===== repeatable: property listings (broker) ===== */
 function renderListings(){
@@ -954,6 +995,28 @@ function buildPage(S,opts){
       S.agenda.map((a,i)=>`<div class="arow"><span class="atime">${T('agenda.'+i+'.time')}</span><span class="aact">${T('agenda.'+i+'.activity')}</span></div>`).join('')+
       `</div></div></section>`;
   }
+  if(S.on.sessions && S.sessions.length){
+    const one=(s,i)=>{
+      const p='sessions.'+i+'.';
+      const head=(s.topic||s.stime)?`<div class="se-head">`+
+        (s.topic?`<span class="se-topic">${T(p+'topic')}</span>`:'')+
+        (s.stime?`<span class="se-time">${svg(I.clock,2)}<span>${T(p+'stime')}</span></span>`:'')+
+      `</div>`:'';
+      const pic=s.photo?`<div class="se-pic"><img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}"></div>`:'';
+      const bodyIn=`<div class="se-body">`+
+        (s.name?`<h3 class="se-name">${T(p+'name')}</h3>`:'')+
+        (s.bio?`<p class="se-bio">${T(p+'bio',{nl2br:true})}</p>`:'')+
+        ((s.talk||s.talkDesc)?`<div class="se-talk">`+
+          (s.talk?`<p class="se-tt">${T(p+'talk')}</p>`:'')+
+          (s.talkDesc?`<p class="se-td">${T(p+'talkDesc',{nl2br:true})}</p>`:'')+
+        `</div>`:'')+
+      `</div>`;
+      return `<div class="session">${head}<div class="se-card">${pic}${bodyIn}</div></div>`;
+    };
+    body+=`<section class="sec alt"><div class="inner">${eyebrow('seTitle','Sessions')}<div class="sessions">`+
+      S.sessions.map(one).join('')+
+      `</div></div></section>`;
+  }
   if(S.on.speakers && S.speakers.length){
     body+=`<section class="sec"><div class="inner">${eyebrow('spTitle','Speakers')}<div class="speakers">`+
       S.speakers.map((s,i)=>`<div class="sp">${s.photo?`<img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}">`:`<span class="spav">${esc((s.name||'?').trim().charAt(0))}</span>`}<div><h3>${T('speakers.'+i+'.name')}</h3>${s.title?`<p>${T('speakers.'+i+'.title')}</p>`:''}</div></div>`).join('')+
@@ -1053,11 +1116,10 @@ a{color:inherit;}
 .inner{max-width:600px;margin:0 auto;padding:0 32px;}
 .inner.narrow{max-width:520px;}
 
-.pg-head{display:flex;align-items:center;gap:14px;padding:24px 32px;}
-.pg-head .hl svg{height:46px;width:auto;display:block;}
-.cobrand{display:flex;align-items:center;gap:11px;}
+.pg-head{display:flex;align-items:center;gap:14px;padding:24px 32px;}.pg-head .hl svg{height:46px;width:auto;display:block;}
+.cobrand{display:flex;align-items:center;gap:11px;margin-left:auto;}
 .cobrand .x{color:var(--mut);font-size:18px;font-weight:300;}
-.cobrand .plogo{height:26px;width:auto;}
+.cobrand .plogo{height:34px;width:auto;}
 .cobrand .pname{font-weight:700;color:var(--tx);font-size:15px;}
 
 .hero{padding:46px 32px 52px;}
@@ -1097,6 +1159,21 @@ a{color:inherit;}
 .atime{flex:none;width:96px;font-weight:800;color:var(--o);font-size:14.5px;}
 .aact{font-size:16px;color:var(--ink);font-weight:500;}
 
+.sessions{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px;}
+.session{display:flex;flex-direction:column;}
+.se-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 12px;margin-bottom:10px;}
+.se-topic{font-size:16px;font-weight:800;color:var(--ink);line-height:1.3;}
+.se-time{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--o);white-space:nowrap;}
+.se-time svg{width:15px;height:15px;flex:none;}
+.se-card{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
+.se-pic{width:100%;aspect-ratio:4/3;background:var(--fill);}
+.se-pic img{width:100%;height:100%;object-fit:cover;display:block;}
+.se-body{padding:16px 18px 18px;}
+.se-name{font-size:17px;font-weight:800;color:var(--ink);margin-bottom:5px;}
+.se-bio{font-size:13.5px;color:var(--tx2);line-height:1.55;}
+.se-talk{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+.se-tt{font-size:14px;font-weight:700;color:var(--ink);line-height:1.45;margin-bottom:4px;}
+.se-td{font-size:13.5px;color:var(--tx2);line-height:1.55;}
 .speakers{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
 .sp{display:flex;gap:14px;align-items:center;}
 .sp img{width:58px;height:58px;border-radius:50%;object-fit:cover;flex:none;}
