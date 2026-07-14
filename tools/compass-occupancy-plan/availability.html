@@ -279,11 +279,24 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .tb-captain{background:rgb(212,175,55);color:#282828;}
 .tb-admin{background:#1A1A1A;color:#fff;border:1px solid rgba(255,255,255,.35);}
 .user-chip .tier-badge{margin-right:8px;}
-.welcome-toast{position:fixed;top:74px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:300;background:#fff;border:1px solid var(--co-line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:13px 18px;display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--co-ink);opacity:0;pointer-events:none;transition:opacity .35s,transform .35s;max-width:92vw;}
-.welcome-toast.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
-.welcome-toast b{font-weight:800;}
-.welcome-toast .wt-x{cursor:pointer;color:var(--co-muted);font-size:16px;line-height:1;padding:2px 4px;}
-@media(max-width:760px){.user-chip .tier-badge{display:none;}.welcome-toast{top:66px;font-size:12.5px;}}
+/* ---- welcome toast: Compass Black card, tier-coloured medal ---- */
+.welcome-toast{position:fixed;top:82px;left:50%;transform:translateX(-50%) translateY(-14px) scale(.97);z-index:300;
+  background:#1A1A1A;color:#fff;border:1px solid rgba(255,255,255,.10);border-radius:20px;
+  box-shadow:0 24px 60px rgba(0,0,0,.38),0 4px 14px rgba(0,0,0,.22);
+  padding:16px 20px 16px 16px;display:flex;align-items:center;gap:14px;max-width:min(480px,92vw);
+  opacity:0;pointer-events:none;transition:opacity .4s cubic-bezier(.2,.8,.25,1),transform .4s cubic-bezier(.2,.8,.25,1);overflow:hidden;}
+.welcome-toast.on{opacity:1;transform:translateX(-50%) translateY(0) scale(1);pointer-events:auto;}
+.welcome-toast .wt-medal{width:44px;height:44px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25),0 4px 10px rgba(0,0,0,.3);}
+.welcome-toast .wt-medal svg{width:22px;height:22px;}
+.welcome-toast .wt-body{min-width:0;display:flex;flex-direction:column;gap:5px;}
+.welcome-toast .wt-hi{font-size:15px;font-weight:800;letter-spacing:.01em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.welcome-toast .wt-sub{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(255,255,255,.66);line-height:1.3;flex-wrap:wrap;}
+.welcome-toast .wt-sub .tier-badge{font-size:9px;padding:3px 8px;}
+.welcome-toast .wt-x{cursor:pointer;color:rgba(255,255,255,.45);flex-shrink:0;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;margin-left:2px;transition:.15s;}
+.welcome-toast .wt-x:hover{background:rgba(255,255,255,.12);color:#fff;}
+.welcome-toast .wt-bar{position:absolute;left:0;bottom:0;height:3px;width:100%;transform-origin:left;background:var(--co-orange);animation:wtbar 6s linear forwards;}
+@keyframes wtbar{from{transform:scaleX(1);}to{transform:scaleX(0);}}
+@media(max-width:760px){.user-chip .tier-badge{display:none;}.welcome-toast{top:70px;padding:13px 16px 13px 13px;gap:11px;}.welcome-toast .wt-medal{width:38px;height:38px;}.welcome-toast .wt-hi{font-size:14px;}}
 .admin-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;font:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--co-radius-pill);cursor:pointer;margin-left:auto;margin-right:12px;transition:.15s;}
 .user-chip{margin-left:auto;}
 .admin-btn+.user-chip{margin-left:0;}
@@ -666,9 +679,19 @@ function welcomeToast(){
   const t=tierInfo(AUTH.role,AUTH.pricing),nm=firstNameFromEmail(AUTH.email);
   const what=t.name==='Admin'?'full access':(t.name==='Captain'?'you can adjust pricing':'view access');
   const rg=(AUTH.regions||[]).length;
+  const medalBg=t.name==='Admin'?'#282828':(t.name==='Captain'?'rgb(212,175,55)':'rgb(176,141,87)');
+  const medalInk=t.name==='Captain'?'#282828':'#fff';
+  const compassSvg='<svg viewBox="0 0 24 24" fill="none" stroke="'+medalInk+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5 15.5 8.5" fill="'+medalInk+'" stroke="none"/></svg>';
   let el=$('welcomeToast');
   if(!el){el=document.createElement('div');el.id='welcomeToast';el.className='welcome-toast';document.body.appendChild(el);}
-  el.innerHTML=tierBadgeHtml(AUTH.role,AUTH.pricing)+'<span>Welcome back'+(nm?', <b>'+nm+'</b>':'')+' — '+t.name+' tier · '+what+' · '+rg+' region'+(rg===1?'':'s')+'</span><span class="wt-x" onclick="this.parentNode.classList.remove(\'on\')">&times;</span>';
+  el.innerHTML=
+    '<div class="wt-medal" style="background:'+medalBg+'">'+compassSvg+'</div>'+
+    '<div class="wt-body">'+
+      '<div class="wt-hi">Welcome back'+(nm?', '+nm:'')+'</div>'+
+      '<div class="wt-sub">'+tierBadgeHtml(AUTH.role,AUTH.pricing)+'<span>'+what+' &middot; '+rg+' region'+(rg===1?'':'s')+'</span></div>'+
+    '</div>'+
+    '<div class="wt-x" onclick="this.parentNode.classList.remove(\'on\')">&times;</div>'+
+    '<div class="wt-bar"></div>';
   requestAnimationFrame(function(){el.classList.add('on');});
   clearTimeout(el._t);el._t=setTimeout(function(){el.classList.remove('on');},6000);
 }
