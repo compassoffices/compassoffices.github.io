@@ -190,6 +190,8 @@ html,body{margin:0;padding:0;height:100%;background:var(--co-paper);}
 .rdetail .rd-di{display:flex;align-items:center;gap:4px;}
 .rdetail .rd-di input{width:52px;padding:5px 4px;border:1px solid var(--co-line);border-radius:7px;text-align:center;font:inherit;font-size:12.5px;background:#fff;}
 .rdetail .rd-di em{font-size:10px;color:var(--co-muted);font-style:normal;}
+.rdetail .rd-ho{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--co-ink);cursor:pointer;font-weight:600;}
+.rdetail .rd-ho input{width:14px;height:14px;accent-color:var(--co-orange);}
 
 .dh{padding:1rem 1.2rem .7rem;border-bottom:1px solid var(--co-line);display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
 .dh .t{font-weight:800;font-size:15px;letter-spacing:-.3px;}.dh .c{font-size:12px;color:var(--co-ok);font-weight:700;}
@@ -1370,14 +1372,21 @@ let RD_DISC_OPEN=false,LAST_ROOM_O=null;
 function cityDiscKey(o){return CITY+'|'+o.centre+'|'+o.office;}
 function toggleRdDisc(e){if(e)e.stopPropagation();RD_DISC_OPEN=!RD_DISC_OPEN;if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);}
 function setRoomDiscCity(dk,v){if(v===''||v==null)delete SEARCH_DISC[dk];else SEARCH_DISC[dk]=clampDisc(v);if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);populateRail();updateSelBar();}
+function setRoomPriceCity(dk,v){const n=parseFloat(v);if(v===''||isNaN(n)||n<=0)delete PRICE_ADJ[dk];else PRICE_ADJ[dk]=Math.round(n);if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);populateRail();updateSelBar();}
+function setHideOrig(on){HIDE_ORIG=!!on;if(LAST_ROOM_O)showRoomDetail(LAST_ROOM_O);if(CUR){populateRail();updateSelBar();}if($('screenSearch')&&$('screenSearch').classList.contains('on'))renderSearchResults();}
 function showRoomDetail(o,anchorEl){const d0=$('rdetail');if(anchorEl)LAST_ROOM_ANCHOR=anchorEl;
   if(LAST_ROOM_O&&LAST_ROOM_O.office!==o.office)RD_DISC_OPEN=false;LAST_ROOM_O=o;
   const inSel=selected.has(o.office);const view=(o.view||'—')+((o.viewType&&o.viewType!=='N/A')?(' ('+o.viewType+')'):'');
   const dk=cityDiscKey(o),dEsc=dk.replace(/'/g,"\\'"),pi=priceInfo(dk,o.price),disc=pi.d;
   const priceB=pi.changed?((pi.showOrig?('<s class="rd-was">'+fmtPrice(pi.orig)+'</s>'):'')+'<span class="rd-dp">'+fmtPrice(pi.final)+'</span> /mo'):(fmtPrice(o.price)+' /mo');
   const priceRow=o.price?('<div class="r"><span>Price</span><span style="display:flex;align-items:center"><b>'+priceB+'</b><button class="rd-pct" style="margin-left:6px" onclick="toggleRdDisc(event)" title="Discount">%</button></span></div>'):'';
-  const showDisc=o.price&&(RD_DISC_OPEN||disc>0);
-  const discRow=showDisc?('<div class="r"><span>Discount</span><span class="rd-di"><input type="number" min="0" max="40" value="'+(SEARCH_DISC[dk]!=null?SEARCH_DISC[dk]:'')+'" placeholder="'+globalDisc()+'" onchange="setRoomDiscCity(\''+dEsc+'\',this.value)"><b>%</b><em>max 40</em></span></div>'):'';
+  const showDisc=o.price&&(RD_DISC_OPEN||disc>0||PRICE_ADJ[dk]!=null);
+  let discRow='';
+  if(showDisc){
+    if(canPrice())discRow+='<div class="r"><span>New price</span><span class="rd-di"><input type="number" min="0" value="'+(PRICE_ADJ[dk]!=null?PRICE_ADJ[dk]:'')+'" placeholder="'+Math.round(o.price)+'" onchange="setRoomPriceCity(\''+dEsc+'\',this.value)" style="width:76px"><em>session only</em></span></div>';
+    discRow+='<div class="r"><span>Discount</span><span class="rd-di"><input type="number" min="0" max="40" value="'+(SEARCH_DISC[dk]!=null?SEARCH_DISC[dk]:'')+'" placeholder="'+globalDisc()+'" onchange="setRoomDiscCity(\''+dEsc+'\',this.value)"><b>%</b><em>max 40</em></span></div>';
+    discRow+='<div class="r"><span></span><label class="rd-ho"><input type="checkbox"'+(HIDE_ORIG?' checked':'')+' onchange="setHideOrig(this.checked)">Don\'t show original price</label></div>';
+  }
   d0.innerHTML='<span class="x" onclick="closeDetail()">&times;</span><div class="o">Office '+o.office+'</div><div class="av" style="background:'+o.color+'">'+o.availLabel+'</div>'+
     '<div class="r"><span>Class</span><b>'+(o.class||'—')+'</b></div><div class="r"><span>View</span><b>'+view+'</b></div><div class="r"><span>Size</span><b>'+(o.size||'?')+' sq ft</b></div><div class="r"><span>Max desks</span><b>'+(o.maxConfig||'?')+'</b></div>'+
     priceRow+discRow+
