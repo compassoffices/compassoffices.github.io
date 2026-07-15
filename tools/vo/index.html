@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compass Offices — VO Price List Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* ============ scoped: .vopl ============ */
+.vopl{
+  --co-orange:#FF6600;      --co-orange-dk:#E55A00;
+  --co-orange-wash:#FFF3EB; --co-orange-tint:#FFD9BD;
+  --co-ink:#1A1A1A;         --co-ink-deep:#161616;
+  --co-text:#333333;        --co-text-2:#555555;
+  --co-muted:#888888;       --co-faint:#BBBBBB;
+  --co-line:#E5E5E5;        --co-line-soft:rgba(0,0,0,.08);
+  --co-bg:#F5F5F5;          --co-fill:#EFEFEF;      --co-paper:#FFFFFF;
+  --co-radius:10px;         --co-radius-pill:999px;
+  color:var(--co-ink);
+  font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  background:var(--co-bg);
+  margin:0; min-height:100vh;
+}
+.vopl *,.vopl *::before,.vopl *::after{box-sizing:border-box;}
+
+/* ---- toolbar ---- */
+.vopl-bar{position:sticky;top:0;z-index:50;background:var(--co-paper);border-bottom:1px solid var(--co-line);
+  padding:12px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.vopl-bar-logo{height:26px;width:auto;display:block;}
+.vopl-bar label{font-size:12px;font-weight:600;color:var(--co-text-2);margin-right:2px;}
+.vopl-sel{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--co-line);border-radius:8px;
+  background:var(--co-paper);color:var(--co-ink);cursor:pointer;}
+.vopl-langs{display:flex;border:1px solid var(--co-line);border-radius:var(--co-radius-pill);overflow:hidden;}
+.vopl-lang{font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 13px;border:0;background:var(--co-paper);
+  color:var(--co-text-2);cursor:pointer;}
+.vopl-lang.on{background:var(--co-orange);color:#fff;}
+.vopl-lang:disabled{opacity:.35;cursor:not-allowed;}
+.vopl-btn{font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:var(--co-radius-pill);
+  border:1px solid var(--co-line);background:var(--co-paper);color:var(--co-ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+.vopl-btn:hover{border-color:var(--co-faint);}
+.vopl-btn.primary{background:var(--co-orange);border-color:var(--co-orange);color:#fff;}
+.vopl-btn.primary:hover{background:var(--co-orange-dk);border-color:var(--co-orange-dk);}
+.vopl-btn:disabled{opacity:.45;cursor:not-allowed;}
+.vopl-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.vopl-status{font-size:12px;color:var(--co-muted);margin-left:auto;max-width:340px;}
+.vopl-status.err{color:#C0392B;}
+.vopl-status.ok{color:#2E7D32;}
+.vopl-file{display:none;}
+
+/* ---- page stage ---- */
+.vopl-stage{padding:28px 12px 60px;display:flex;flex-direction:column;align-items:center;gap:24px;}
+.vopl-page{width:794px;height:1123px;background:var(--co-paper);position:relative;
+  box-shadow:0 4px 24px rgba(0,0,0,.10);padding:46px 48px 64px;display:flex;flex-direction:column;overflow:hidden;}
+.vopl-phead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px;flex:0 0 auto;}
+.vopl-phead-logo{width:190px;height:auto;display:block;margin-top:6px;}
+.vopl-ptitle{text-align:right;}
+.vopl-ptitle .t1{font-size:40px;font-weight:800;color:var(--co-orange);line-height:1.05;letter-spacing:.5px;}
+.vopl-ptitle .t2{font-size:26px;font-weight:300;color:var(--co-ink);line-height:1.15;letter-spacing:.5px;}
+.vopl-pbody{flex:1 1 auto;overflow:hidden;}
+.vopl-pfoot{position:absolute;left:48px;right:48px;bottom:28px;display:flex;justify-content:space-between;
+  font-size:9px;color:var(--co-muted);}
+.vopl-pfoot span{margin-right:18px;}
+
+/* ---- price table ---- */
+.vopl-cols{display:grid;grid-template-columns:1fr 128px 128px 128px;}
+.vopl-chead{padding:8px 6px 10px;text-align:center;font-weight:700;font-size:13.5px;color:var(--co-orange);}
+.vopl-chead.lbl{text-align:left;}
+.vopl-vline{border-left:1px solid var(--co-line);}
+.vopl-city{grid-column:1 / -1;padding:10px 0 4px;font-size:15px;font-weight:800;color:var(--co-ink);
+  letter-spacing:.4px;border-top:1px solid var(--co-ink);}
+.vopl-dist{grid-column:1 / -1;padding:7px 0 3px;font-size:13.5px;font-weight:700;color:var(--co-ink);
+  border-top:1px solid var(--co-faint);}
+.vopl-dist.first,.vopl-city.first{border-top:1px solid var(--co-ink);}
+.vopl-grp-l{padding:5px 8px 5px 0;border-top:1px dotted var(--co-line);}
+.vopl-grp-l.nodot{border-top:0;}
+.vopl-grp-l .lv,.vopl-grp-l .ad{font-size:10.5px;color:var(--co-text);line-height:1.45;}
+.vopl-grp-l .bd{font-size:11.5px;font-weight:700;color:var(--co-orange);line-height:1.45;}
+.vopl-price{display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;
+  color:var(--co-ink);border-top:1px dotted var(--co-line);}
+.vopl-price.nodot{border-top:0;}
+.vopl-endline{grid-column:1 / -1;border-top:1px solid var(--co-ink);}
+
+/* ---- features table ---- */
+.vopl-fcat{grid-column:1 / -1;padding:16px 0 6px;font-size:13px;font-weight:700;color:var(--co-ink);border-top:1px solid var(--co-line);}
+.vopl-fcat.first{border-top:1px solid var(--co-ink);padding-top:12px;}
+.vopl-frow-l{padding:7px 10px 7px 0;font-size:11px;color:var(--co-text);border-top:1px dotted var(--co-line);line-height:1.5;}
+.vopl-fval{display:flex;align-items:center;justify-content:center;font-size:11px;border-top:1px dotted var(--co-line);color:var(--co-ink);}
+.vopl-fval .dot{width:6px;height:6px;border-radius:50%;background:var(--co-orange);display:inline-block;}
+.vopl-fval .dash{width:14px;height:2px;background:var(--co-ink);display:inline-block;}
+.vopl-fval .txt{font-weight:700;font-size:10.5px;text-align:center;}
+.vopl-fnotes{margin-top:26px;border-top:1px dotted var(--co-faint);padding-top:14px;}
+.vopl-fnote{font-size:8.8px;color:var(--co-text);line-height:1.6;padding-left:0;}
+.vopl-fnote.b{font-weight:700;}
+.vopl-fnote.i{padding-left:10px;}
+
+.vopl-empty{padding:60px 20px;text-align:center;color:var(--co-muted);font-size:14px;}
+@media (max-width:840px){.vopl-page{transform:scale(.44);transform-origin:top center;margin-bottom:-600px;}}
+</style>
+</head>
+<body class="vopl">
+
+<div class="vopl-bar">
+  <svg class="vopl-bar-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 400"><path fill="#FF6600" d="M321.05,200c0,63.81-51.72,115.52-115.52,115.52s-115.53-51.71-115.53-115.52,51.72-115.53,115.53-115.53,115.52,51.72,115.52,115.53Z"/><polygon fill="#fff" points="207.5 195.58 232.27 240.03 263.79 240.03 207.5 139.14 149.17 240.03 181.8 240.03 207.5 195.58"/><path fill="#282828" d="M428.25,179.59c8.25,0,15.73-1.65,22.23-4.9l.64-.32v-13.24l-1.69.86c-6.05,3.08-12.74,4.65-19.88,4.65-8.32,0-15.27-2.49-20.65-7.4-5.35-4.88-8.06-11.06-8.06-18.36.06-7.31,2.78-13.39,8.1-18.1,5.35-4.74,12.32-7.14,20.71-7.14,7.16,0,13.85,1.27,19.87,3.78l1.61.67v-13.43l-.73-.29c-6.05-2.45-13.5-3.69-22.14-3.69-12.23,0-22.42,3.54-30.27,10.52-7.89,7.01-11.89,16.32-11.89,27.66s4.01,20.81,11.93,27.97c7.88,7.13,18.05,10.75,30.23,10.75Z"/><path fill="#282828" d="M507.71,102.69c-11.88,0-21.73,3.59-29.27,10.67-7.57,7.1-11.41,16.23-11.41,27.15s3.83,20.69,11.39,28.03c7.55,7.33,17.4,11.04,29.29,11.04s21.74-3.71,29.29-11.04c7.56-7.34,11.39-16.77,11.39-28.03s-3.84-20.04-11.4-27.15c-7.55-7.08-17.4-10.67-29.28-10.67ZM533.73,140.6c0,7.45-2.43,13.72-7.23,18.64-4.79,4.91-11.08,7.4-18.69,7.4s-13.91-2.49-18.69-7.4h0c-4.8-4.91-7.23-11.19-7.23-18.64s2.44-13.08,7.26-17.81c4.82-4.74,11.1-7.14,18.67-7.14s13.84,2.4,18.66,7.14c4.82,4.74,7.26,10.73,7.26,17.81Z"/><path fill="#282828" d="M614.61,160.27l-25.49-56.32h-20.19v74.37h14.11v-55.11c.48,1.08,1.04,2.35,1.67,3.81l23.32,51.3h13.01l22.82-51.25c.19-.37.69-1.46,1.51-3.3.1-.21.19-.42.28-.63v55.17h14.29v-74.37h-20.38l-24.95,56.32Z"/><path fill="#282828" d="M721.39,103.95h-34.56v74.37h14.66v-20.09h19.9c8.98,0,16.21-2.5,21.48-7.43,5.29-4.95,7.97-11.6,7.97-19.76s-2.68-14.8-7.98-19.72c-5.27-4.9-12.5-7.38-21.48-7.38ZM736.83,131.05c0,4.51-1.48,8.05-4.54,10.85-3.04,2.79-7.18,4.2-12.3,4.2h-18.5v-30.01h18.5c5.24,0,9.41,1.38,12.39,4.11,2.99,2.74,4.45,6.29,4.45,10.85Z"/><path fill="#282828" d="M788.45,103.95l-33.52,74.37h15.64l6.22-14.41h40.68l6.22,14.41h16.38l-33.51-74.37h-18.11ZM812.02,151.15h-29.77l14.84-34.62,14.93,34.62Z"/><path fill="#282828" d="M888.04,134.14l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.45-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.07l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.55,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.05,3.35,3.05,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.54,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.21-2.06,23.37-6.13,6.32-4.17,9.52-10.14,9.52-17.72,0-5.47-1.96-10.09-5.84-13.73-3.8-3.56-10.04-6.2-18.57-7.86Z"/><path fill="#282828" d="M984.16,142c-3.79-3.56-10.04-6.2-18.57-7.86l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.45-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.07l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.55,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.05,3.35,3.05,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.54,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.21-2.06,23.37-6.13,6.32-4.18,9.52-10.14,9.52-17.72,0-5.47-1.96-10.09-5.84-13.73Z"/><path fill="#282828" d="M426.86,220.41c-11.88,0-21.73,3.59-29.28,10.67-7.57,7.1-11.4,16.23-11.4,27.15s3.83,20.7,11.39,28.03c7.55,7.33,17.4,11.04,29.29,11.04s21.74-3.72,29.29-11.04c7.56-7.34,11.39-16.77,11.39-28.03s-3.84-20.04-11.41-27.15c-7.55-7.08-17.4-10.67-29.27-10.67ZM452.88,258.32c0,7.45-2.43,13.72-7.23,18.64-4.79,4.91-11.08,7.4-18.69,7.4s-13.91-2.49-18.69-7.39h0c-4.8-4.92-7.23-11.19-7.23-18.64s2.44-13.08,7.26-17.81c4.82-4.74,11.1-7.14,18.67-7.14s13.84,2.4,18.66,7.14c4.82,4.74,7.26,10.73,7.26,17.81Z"/><polygon fill="#282828" points="488.08 296.05 502.74 296.05 502.74 270.83 541.61 270.83 541.61 258.33 502.74 258.33 502.74 234.53 545.32 234.53 545.32 221.68 488.08 221.68 488.08 296.05"/><polygon fill="#282828" points="565.82 296.05 580.48 296.05 580.48 270.83 619.35 270.83 619.35 258.33 580.48 258.33 580.48 234.53 623.06 234.53 623.06 221.68 565.82 221.68 565.82 296.05"/><rect fill="#282828" x="644.62" y="221.68" width="14.66" height="74.37"/><path fill="#282828" d="M720.83,220.41c-12.23,0-22.42,3.54-30.27,10.52-7.89,7.01-11.89,16.32-11.89,27.66s4.01,20.81,11.93,27.97c7.88,7.13,18.06,10.75,30.23,10.75,8.25,0,15.73-1.65,22.23-4.9l.64-.32v-13.24l-1.69.86c-6.05,3.08-12.74,4.65-19.88,4.65-8.32,0-15.27-2.49-20.65-7.4-5.35-4.88-8.06-11.06-8.06-18.36.06-7.31,2.78-13.39,8.1-18.1,5.35-4.74,12.32-7.14,20.71-7.14,7.17,0,13.85,1.27,19.87,3.78l1.61.67v-13.43l-.73-.29c-6.05-2.45-13.5-3.69-22.14-3.69Z"/><polygon fill="#282828" points="782.9 264.53 825.1 264.53 825.1 252.48 782.9 252.48 782.9 234.08 826.96 234.08 826.96 221.68 768.24 221.68 768.24 296.05 827.89 296.05 827.89 283.64 782.9 283.64 782.9 264.53"/><path fill="#282828" d="M888.03,251.87l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.44-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.06l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.56,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.04,3.35,3.04,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.53,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.2-2.06,23.37-6.13,6.32-4.18,9.52-10.14,9.52-17.72,0-5.47-1.97-10.09-5.84-13.73-3.8-3.56-10.04-6.2-18.57-7.86Z"/></svg>
+  <label>Market</label>
+  <select class="vopl-sel" id="mkt"></select>
+  <div class="vopl-langs" id="langs"></div>
+  <button class="vopl-btn" id="btnRefresh" title="Re-fetch data from Google Sheet">
+    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>Refresh
+  </button>
+  <button class="vopl-btn" id="btnLoad" title="Load the exported XLSX for offline testing">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Load XLSX
+  </button>
+  <input type="file" id="fileIn" class="vopl-file" accept=".xlsx,.xls">
+  <button class="vopl-btn" id="btnPdf">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Download PDF
+  </button>
+  <button class="vopl-btn primary" id="btnDrive">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M20 21H4a1 1 0 0 1-1-1v-3h18v3a1 1 0 0 1-1 1z"/></svg>Save to Drive
+  </button>
+  <div class="vopl-status" id="status">No data loaded yet.</div>
+</div>
+
+<div class="vopl-stage" id="stage">
+  <div class="vopl-empty">Fetching data&hellip; (or use <b>Load XLSX</b> to test offline)</div>
+</div>
+
+<script>
+/* =====================================================================
+   CONFIG — edit these
+   ===================================================================== */
+var SCRIPT_URL = "";  // <-- paste your Apps Script Web App URL here after deploying Code.gs
+
+var MARKETS = {
+  "Hong Kong":        { currency:"HK$", featuresTab:"Data",
+                        contact:{ t:"+852 3796 7188", e:"HKsales@compassoffices.com" } },
+  "Japan":            { currency:"\u00A5", featuresTab:"Data", contact:{ t:"", e:"" } },
+  "Australia":        { currency:"AU$",  featuresTab:"Data-au", order:"building-first", contact:{ t:"", e:"" } },
+  "Singapore":        { currency:"S$",   featuresTab:"Data", contact:{ t:"", e:"" } },
+  "Manila":           { currency:"\u20B1", featuresTab:"Data", contact:{ t:"", e:"" } },
+  "Kuala Lumpur":     { currency:"RM",   featuresTab:"Data", contact:{ t:"", e:"" } },
+  "Ho Chi Minh City": { currency:"\u20AB", featuresTab:"Data", contact:{ t:"", e:"" } }
+};
+// TODO: fill in each market's sales phone/email above (footer shows website only when blank).
+
+var WEBSITE = "www.compassoffices.com";
+
+/* Column offsets of each language block in the market tabs (0-based: label,gold,plat,diamond) */
+var LANG_BLOCKS = {
+  "EN": { col:0,  label:"EN" },
+  "TC": { col:7,  label:"\u7E41" },
+  "SC": { col:14, label:"\u7C21" },
+  "JP": { col:21, label:"\u65E5" },
+  "VI": { col:28, label:"VI" }
+};
+
+/* Marker rows that split the features (Data) tab into language sections */
+var FEATURE_MARKERS = { "\u7E41\u9AD4":"TC", "\u7C21\u9AD4":"SC", "\u7C21\u4F53":"SC", "\u65E5\u6587":"JP", "Viet":"VI" };
+
+/* Page titles per language — confirm translations with the team */
+var TITLES = {
+  EN: { t1:"VIRTUAL OFFICE", t2:"SOLUTIONS" },
+  TC: { t1:"\u865B\u64EC\u8FA6\u516C\u5BA4", t2:"\u670D\u52D9\u65B9\u6848" },
+  SC: { t1:"\u865A\u62DF\u529E\u516C\u5BA4", t2:"\u670D\u52A1\u65B9\u6848" },
+  JP: { t1:"\u30D0\u30FC\u30C1\u30E3\u30EB\u30AA\u30D5\u30A3\u30B9", t2:"\u30BD\u30EA\u30E5\u30FC\u30B7\u30E7\u30F3" },
+  VI: { t1:"V\u0102N PH\u00D2NG \u1EA2O", t2:"GI\u1EA2I PH\u00C1P" }
+};
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+var DATA = null;          // { tabName: values[][] }
+var curMarket = "Hong Kong";
+var curLang = "EN";
+var LEVEL_RE = /^level\b|\u6A13|\u697C|\u968E|^t\u1EA7ng|^\d+\s*f\b/i;
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+var mktSel = document.getElementById("mkt");
+Object.keys(MARKETS).forEach(function(m){
+  var o = document.createElement("option"); o.value = m; o.textContent = m; mktSel.appendChild(o);
+});
+mktSel.addEventListener("change", function(){ curMarket = mktSel.value; render(); });
+
+var langsEl = document.getElementById("langs");
+Object.keys(LANG_BLOCKS).forEach(function(k){
+  var b = document.createElement("button");
+  b.className = "vopl-lang"; b.textContent = LANG_BLOCKS[k].label; b.dataset.lang = k;
+  b.addEventListener("click", function(){ curLang = k; render(); });
+  langsEl.appendChild(b);
+});
+
+document.getElementById("btnRefresh").addEventListener("click", fetchData);
+document.getElementById("btnLoad").addEventListener("click", function(){ document.getElementById("fileIn").click(); });
+document.getElementById("fileIn").addEventListener("change", loadXlsx);
+document.getElementById("btnPdf").addEventListener("click", function(){ exportPdf(false); });
+document.getElementById("btnDrive").addEventListener("click", function(){ exportPdf(true); });
+
+function setStatus(msg, cls){
+  var el = document.getElementById("status");
+  el.textContent = msg; el.className = "vopl-status" + (cls ? " " + cls : "");
+}
+
+if (SCRIPT_URL) { fetchData(); }
+else { setStatus("Set SCRIPT_URL in the file, or Load XLSX to test offline."); }
+
+/* =====================================================================
+   DATA LOADING
+   ===================================================================== */
+function fetchData(){
+  if (!SCRIPT_URL) { setStatus("SCRIPT_URL is not set — deploy Code.gs first.", "err"); return; }
+  setStatus("Fetching from Google Sheet\u2026");
+  fetch(SCRIPT_URL + (SCRIPT_URL.indexOf("?")>-1 ? "&" : "?") + "action=data")
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) throw new Error(j.error || "backend error");
+      DATA = normalizeAll(j.sheets);
+      setStatus("Data loaded " + new Date().toLocaleTimeString(), "ok");
+      render();
+    })
+    .catch(function(err){ setStatus("Fetch failed: " + err.message, "err"); });
+}
+
+function loadXlsx(ev){
+  var f = ev.target.files[0]; if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function(e){
+    try{
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type:"array" });
+      var sheets = {};
+      wb.SheetNames.forEach(function(n){
+        sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, raw:true, defval:null });
+      });
+      DATA = normalizeAll(sheets);
+      setStatus("Loaded " + f.name, "ok");
+      render();
+    }catch(err){ setStatus("XLSX parse failed: " + err.message, "err"); }
+  };
+  rd.readAsArrayBuffer(f);
+  ev.target.value = "";
+}
+
+function normalizeAll(sheets){
+  var out = {};
+  Object.keys(sheets).forEach(function(n){
+    out[n] = sheets[n].map(function(row){
+      return (row || []).map(function(v){
+        if (v === "" || v === undefined) return null;
+        if (typeof v === "string") { var t = v.trim(); return t === "" ? null : t; }
+        return v;
+      });
+    });
+  });
+  return out;
+}
+
+/* =====================================================================
+   PARSERS
+   ===================================================================== */
+function cell(rows, r, c){ return (rows[r] && rows[r][c] !== undefined) ? rows[r][c] : null; }
+
+/* Price list: walk one language block. Priced row starts a 3-line group;
+   standalone unpriced rows are headers (two consecutive = city + district). */
+function parsePriceBlock(rows, base){
+  var items = [], r = 1; // row 0 = column headers
+  var n = rows.length;
+  while (r < n){
+    var label = cell(rows, r, base);
+    if (label === null){ r++; continue; }
+    var g = cell(rows, r, base+1), p = cell(rows, r, base+2), d = cell(rows, r, base+3);
+    if (g !== null){
+      var lines = [String(label)], j = r + 1;
+      while (j < n && lines.length < 3){
+        var nl = cell(rows, j, base);
+        if (nl === null || cell(rows, j, base+1) !== null) break;
+        lines.push(String(nl)); j++;
+      }
+      items.push({ type:"group", lines:lines, prices:[g, p, d] });
+      r = j;
+    } else {
+      items.push({ type:"header", text:String(label) });
+      r++;
+    }
+  }
+  // mark city headers (header immediately followed by another header)
+  for (var i = 0; i < items.length - 1; i++){
+    if (items[i].type === "header" && items[i+1].type === "header") items[i].type = "city";
+  }
+  return items;
+}
+
+/* Split a group's 3 lines into level / building(orange) / address.
+   Auto-detects by line 1; a market can pin it via MARKETS[m].order. */
+function splitGroup(lines, forced){
+  if (lines.length < 3) return { pre:lines[0]||"", bld:lines[1]||"", post:lines[2]||"", order:"lbp" };
+  var bf = forced ? (forced === "building-first") : !LEVEL_RE.test(lines[0]);
+  if (bf) return { pre:lines[1], bld:lines[0], post:lines[2], order:"building-first" };
+  return { pre:lines[0], bld:lines[1], post:lines[2], order:"level-first" };
+}
+
+/* Features tab: language sections split by marker rows; each section =
+   header row + categories + feature rows + trailing footnotes. */
+function parseFeatures(rows, lang){
+  var sections = { EN:{ start:0, end:rows.length } }, cur = "EN";
+  for (var r = 0; r < rows.length; r++){
+    var a = cell(rows, r, 0);
+    if (a !== null && FEATURE_MARKERS[String(a).trim()]){
+      sections[cur].end = r;
+      cur = FEATURE_MARKERS[String(a).trim()];
+      sections[cur] = { start:r + 1, end:rows.length };
+    }
+  }
+  var sec = sections[lang] || sections.EN;
+  var heads = null, feats = [], lastVal = -1;
+  for (var r2 = sec.start; r2 < sec.end; r2++){
+    var lbl = cell(rows, r2, 0), v1 = cell(rows, r2, 1);
+    if (lbl === null && v1 !== null && !heads){
+      heads = [String(v1), String(cell(rows, r2, 2)||""), String(cell(rows, r2, 3)||"")]; continue;
+    }
+    if (lbl === null) continue;
+    if (v1 !== null){
+      feats.push({ type:"feat", label:String(lbl),
+        vals:[v1, cell(rows, r2, 2), cell(rows, r2, 3)].map(function(x){ return x === null ? "" : String(x); }) });
+      lastVal = feats.length - 1;
+    } else {
+      feats.push({ type:"cat", label:String(lbl) });
+    }
+  }
+  // everything after the last valued row = footnotes (they parsed as "cat")
+  var notes = [];
+  if (lastVal > -1){
+    notes = feats.slice(lastVal + 1).map(function(x){ return x.label; });
+    feats = feats.slice(0, lastVal + 1);
+    // drop trailing categories that had no rows (defensive)
+    while (feats.length && feats[feats.length-1].type === "cat") feats.pop();
+  }
+  return { heads: heads || ["Gold","Platinum","Diamond"], feats:feats, notes:notes };
+}
+
+/* =====================================================================
+   RENDER
+   ===================================================================== */
+function fmtPrice(v, prefix){
+  if (v === null || v === undefined || v === "") return "";
+  var num = (typeof v === "number") ? v : parseFloat(String(v).replace(/[^\d.]/g, ""));
+  if (isNaN(num)) return String(v);
+  return prefix + num.toLocaleString("en-US");
+}
+
+function esc(s){
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function langAvailable(lang){
+  if (!DATA || !DATA[curMarket]) return false;
+  var base = LANG_BLOCKS[lang].col, rows = DATA[curMarket];
+  for (var r = 0; r < Math.min(rows.length, 200); r++){ if (cell(rows, r, base) !== null) return true; }
+  return false;
+}
+
+function newPage(titles, market){
+  var pg = document.createElement("div");
+  pg.className = "vopl-page";
+  var c = MARKETS[market].contact || {};
+  var foot = "";
+  if (c.t) foot += "<span>T: " + esc(c.t) + "</span>";
+  if (c.e) foot += "<span>E: " + esc(c.e) + "</span>";
+  pg.innerHTML =
+    '<div class="vopl-phead">' +
+      '<div class="vopl-phead-logo"><svg style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 400"><path fill="#FF6600" d="M321.05,200c0,63.81-51.72,115.52-115.52,115.52s-115.53-51.71-115.53-115.52,51.72-115.53,115.53-115.53,115.52,51.72,115.52,115.53Z"/><polygon fill="#fff" points="207.5 195.58 232.27 240.03 263.79 240.03 207.5 139.14 149.17 240.03 181.8 240.03 207.5 195.58"/><path fill="#282828" d="M428.25,179.59c8.25,0,15.73-1.65,22.23-4.9l.64-.32v-13.24l-1.69.86c-6.05,3.08-12.74,4.65-19.88,4.65-8.32,0-15.27-2.49-20.65-7.4-5.35-4.88-8.06-11.06-8.06-18.36.06-7.31,2.78-13.39,8.1-18.1,5.35-4.74,12.32-7.14,20.71-7.14,7.16,0,13.85,1.27,19.87,3.78l1.61.67v-13.43l-.73-.29c-6.05-2.45-13.5-3.69-22.14-3.69-12.23,0-22.42,3.54-30.27,10.52-7.89,7.01-11.89,16.32-11.89,27.66s4.01,20.81,11.93,27.97c7.88,7.13,18.05,10.75,30.23,10.75Z"/><path fill="#282828" d="M507.71,102.69c-11.88,0-21.73,3.59-29.27,10.67-7.57,7.1-11.41,16.23-11.41,27.15s3.83,20.69,11.39,28.03c7.55,7.33,17.4,11.04,29.29,11.04s21.74-3.71,29.29-11.04c7.56-7.34,11.39-16.77,11.39-28.03s-3.84-20.04-11.4-27.15c-7.55-7.08-17.4-10.67-29.28-10.67ZM533.73,140.6c0,7.45-2.43,13.72-7.23,18.64-4.79,4.91-11.08,7.4-18.69,7.4s-13.91-2.49-18.69-7.4h0c-4.8-4.91-7.23-11.19-7.23-18.64s2.44-13.08,7.26-17.81c4.82-4.74,11.1-7.14,18.67-7.14s13.84,2.4,18.66,7.14c4.82,4.74,7.26,10.73,7.26,17.81Z"/><path fill="#282828" d="M614.61,160.27l-25.49-56.32h-20.19v74.37h14.11v-55.11c.48,1.08,1.04,2.35,1.67,3.81l23.32,51.3h13.01l22.82-51.25c.19-.37.69-1.46,1.51-3.3.1-.21.19-.42.28-.63v55.17h14.29v-74.37h-20.38l-24.95,56.32Z"/><path fill="#282828" d="M721.39,103.95h-34.56v74.37h14.66v-20.09h19.9c8.98,0,16.21-2.5,21.48-7.43,5.29-4.95,7.97-11.6,7.97-19.76s-2.68-14.8-7.98-19.72c-5.27-4.9-12.5-7.38-21.48-7.38ZM736.83,131.05c0,4.51-1.48,8.05-4.54,10.85-3.04,2.79-7.18,4.2-12.3,4.2h-18.5v-30.01h18.5c5.24,0,9.41,1.38,12.39,4.11,2.99,2.74,4.45,6.29,4.45,10.85Z"/><path fill="#282828" d="M788.45,103.95l-33.52,74.37h15.64l6.22-14.41h40.68l6.22,14.41h16.38l-33.51-74.37h-18.11ZM812.02,151.15h-29.77l14.84-34.62,14.93,34.62Z"/><path fill="#282828" d="M888.04,134.14l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.45-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.07l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.55,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.05,3.35,3.05,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.54,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.21-2.06,23.37-6.13,6.32-4.17,9.52-10.14,9.52-17.72,0-5.47-1.96-10.09-5.84-13.73-3.8-3.56-10.04-6.2-18.57-7.86Z"/><path fill="#282828" d="M984.16,142c-3.79-3.56-10.04-6.2-18.57-7.86l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.45-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.07l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.55,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.05,3.35,3.05,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.54,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.21-2.06,23.37-6.13,6.32-4.18,9.52-10.14,9.52-17.72,0-5.47-1.96-10.09-5.84-13.73Z"/><path fill="#282828" d="M426.86,220.41c-11.88,0-21.73,3.59-29.28,10.67-7.57,7.1-11.4,16.23-11.4,27.15s3.83,20.7,11.39,28.03c7.55,7.33,17.4,11.04,29.29,11.04s21.74-3.72,29.29-11.04c7.56-7.34,11.39-16.77,11.39-28.03s-3.84-20.04-11.41-27.15c-7.55-7.08-17.4-10.67-29.27-10.67ZM452.88,258.32c0,7.45-2.43,13.72-7.23,18.64-4.79,4.91-11.08,7.4-18.69,7.4s-13.91-2.49-18.69-7.39h0c-4.8-4.92-7.23-11.19-7.23-18.64s2.44-13.08,7.26-17.81c4.82-4.74,11.1-7.14,18.67-7.14s13.84,2.4,18.66,7.14c4.82,4.74,7.26,10.73,7.26,17.81Z"/><polygon fill="#282828" points="488.08 296.05 502.74 296.05 502.74 270.83 541.61 270.83 541.61 258.33 502.74 258.33 502.74 234.53 545.32 234.53 545.32 221.68 488.08 221.68 488.08 296.05"/><polygon fill="#282828" points="565.82 296.05 580.48 296.05 580.48 270.83 619.35 270.83 619.35 258.33 580.48 258.33 580.48 234.53 623.06 234.53 623.06 221.68 565.82 221.68 565.82 296.05"/><rect fill="#282828" x="644.62" y="221.68" width="14.66" height="74.37"/><path fill="#282828" d="M720.83,220.41c-12.23,0-22.42,3.54-30.27,10.52-7.89,7.01-11.89,16.32-11.89,27.66s4.01,20.81,11.93,27.97c7.88,7.13,18.06,10.75,30.23,10.75,8.25,0,15.73-1.65,22.23-4.9l.64-.32v-13.24l-1.69.86c-6.05,3.08-12.74,4.65-19.88,4.65-8.32,0-15.27-2.49-20.65-7.4-5.35-4.88-8.06-11.06-8.06-18.36.06-7.31,2.78-13.39,8.1-18.1,5.35-4.74,12.32-7.14,20.71-7.14,7.17,0,13.85,1.27,19.87,3.78l1.61.67v-13.43l-.73-.29c-6.05-2.45-13.5-3.69-22.14-3.69Z"/><polygon fill="#282828" points="782.9 264.53 825.1 264.53 825.1 252.48 782.9 252.48 782.9 234.08 826.96 234.08 826.96 221.68 768.24 221.68 768.24 296.05 827.89 296.05 827.89 283.64 782.9 283.64 782.9 264.53"/><path fill="#282828" d="M888.03,251.87l-6.59-1.26c-6.24-1.17-10.47-2.51-12.58-4-1.95-1.37-2.89-3.05-2.89-5.13,0-2.67,1.7-4.62,5.19-5.94,3.81-1.44,8.44-2.18,13.78-2.18,7.73,0,15.18,1.37,22.12,4.06l1.58.61v-13.34l-.79-.27c-7.82-2.67-15.53-4.03-22.92-4.03-9.56,0-17.57,1.81-23.82,5.38-6.45,3.69-9.72,9.27-9.72,16.59,0,5.16,1.95,9.75,5.81,13.65,3.81,3.85,10.11,6.56,18.71,8.03l7.14,1.26c5.55.99,9.48,2.3,11.67,3.89,2.05,1.49,3.04,3.35,3.04,5.68,0,2.85-1.64,5.06-5.02,6.75-3.6,1.8-8.32,2.71-14.04,2.71-9.53,0-18.24-2.1-25.88-6.25l-1.72-.93v13.85l.65.32c8.16,3.96,17.5,5.97,27.78,5.97,9.34,0,17.2-2.06,23.37-6.13,6.32-4.18,9.52-10.14,9.52-17.72,0-5.47-1.97-10.09-5.84-13.73-3.8-3.56-10.04-6.2-18.57-7.86Z"/></svg></div>' +
+      '<div class="vopl-ptitle"><div class="t1">' + esc(titles.t1) + '</div><div class="t2">' + esc(titles.t2) + '</div></div>' +
+    '</div>' +
+    '<div class="vopl-pbody"></div>' +
+    '<div class="vopl-pfoot"><div>' + foot + '</div><div>' + WEBSITE + '</div></div>';
+  return pg;
+}
+
+function priceHeaderRow(heads){
+  return '<div class="vopl-chead lbl"></div>' +
+    heads.map(function(h, i){ return '<div class="vopl-chead vopl-vline">' + esc(h) + '</div>'; }).join("");
+}
+
+function render(){
+  // language buttons state
+  var btns = langsEl.querySelectorAll(".vopl-lang");
+  btns.forEach(function(b){
+    b.classList.toggle("on", b.dataset.lang === curLang);
+    b.disabled = DATA ? !langAvailable(b.dataset.lang) : false;
+  });
+
+  var stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  if (!DATA){ stage.innerHTML = '<div class="vopl-empty">No data loaded.</div>'; return; }
+  if (!DATA[curMarket]){ stage.innerHTML = '<div class="vopl-empty">Tab "' + esc(curMarket) + '" not found in the sheet.</div>'; return; }
+
+  var mkt = MARKETS[curMarket];
+  var titles = TITLES[curLang] || TITLES.EN;
+  var rows = DATA[curMarket];
+  var base = LANG_BLOCKS[curLang].col;
+  var items = parsePriceBlock(rows, base);
+  var headsRow0 = [cell(rows,0,base+1), cell(rows,0,base+2), cell(rows,0,base+3)]
+      .map(function(h,i){ return h === null ? ["Gold","Platinum","Diamond"][i] : String(h); });
+
+  /* ---- PRICE PAGES (measured pagination) ---- */
+  var page = newPage(titles, curMarket);
+  stage.appendChild(page);
+  var body = page.querySelector(".vopl-pbody");
+  var grid = document.createElement("div");
+  grid.className = "vopl-cols";
+  grid.innerHTML = priceHeaderRow(headsRow0);
+  body.appendChild(grid);
+
+  var firstSection = true, prevType = "head";
+  function overflowed(){ return body.scrollHeight > body.clientHeight; }
+  function startNewPage(){
+    page = newPage(titles, curMarket);
+    stage.appendChild(page);
+    body = page.querySelector(".vopl-pbody");
+    grid = document.createElement("div");
+    grid.className = "vopl-cols";
+    grid.innerHTML = priceHeaderRow(headsRow0);
+    body.appendChild(grid);
+    firstSection = true; prevType = "head";
+  }
+  function itemHtml(it){
+    if (it.type === "city")   return '<div class="vopl-city' + (firstSection ? " first" : "") + '">' + esc(it.text) + '</div>';
+    if (it.type === "header") return '<div class="vopl-dist' + (firstSection ? " first" : "") + '">' + esc(it.text) + '</div>';
+    var sp = splitGroup(it.lines, mkt.order);
+    var nodot = (prevType !== "group") ? " nodot" : "";
+    var h = '<div class="vopl-grp-l' + nodot + '">';
+    if (sp.order === "building-first"){
+      h += '<div class="bd">' + esc(sp.bld) + '</div><div class="lv">' + esc(sp.pre) + '</div>';
+    } else {
+      h += '<div class="lv">' + esc(sp.pre) + '</div><div class="bd">' + esc(sp.bld) + '</div>';
+    }
+    h += '<div class="ad">' + esc(sp.post) + '</div></div>';
+    for (var i = 0; i < 3; i++){
+      h += '<div class="vopl-price vopl-vline' + nodot + '">' + esc(fmtPrice(it.prices[i], mkt.currency)) + '</div>';
+    }
+    return h;
+  }
+  for (var i = 0; i < items.length; i++){
+    var it = items[i];
+    var frag = document.createElement("template");
+    frag.innerHTML = itemHtml(it);
+    var nodes = Array.prototype.slice.call(frag.content.childNodes);
+    nodes.forEach(function(nd){ grid.appendChild(nd); });
+    if (it.type !== "group") firstSection = false;
+    if (overflowed()){
+      nodes.forEach(function(nd){ grid.removeChild(nd); });
+      // pull a dangling header along to the next page
+      var carry = [];
+      if (it.type === "group"){
+        var last = grid.querySelectorAll(".vopl-city,.vopl-dist");
+        if (last.length){
+          var lastHdr = last[last.length-1];
+          if (lastHdr === grid.lastElementChild){ carry.push(lastHdr); grid.removeChild(lastHdr); }
+        }
+      }
+      startNewPage();
+      carry.forEach(function(nd){ nd.classList.add("first"); grid.appendChild(nd); firstSection = false; });
+      var frag2 = document.createElement("template");
+      prevType = "head";
+      frag2.innerHTML = itemHtml(it);
+      Array.prototype.slice.call(frag2.content.childNodes).forEach(function(nd){ grid.appendChild(nd); });
+      if (it.type !== "group") firstSection = false;
+    }
+    prevType = it.type === "group" ? "group" : "head";
+  }
+  grid.insertAdjacentHTML("beforeend", '<div class="vopl-endline"></div>');
+
+  /* ---- FEATURES PAGE ---- */
+  var ftab = DATA[mkt.featuresTab] ? mkt.featuresTab : (DATA["Data"] ? "Data" : null);
+  if (ftab){
+    var F = parseFeatures(DATA[ftab], curLang);
+    var fp = newPage(titles, curMarket);
+    stage.appendChild(fp);
+    var fbody = fp.querySelector(".vopl-pbody");
+    var fg = document.createElement("div");
+    fg.className = "vopl-cols";
+    var fh = '<div class="vopl-chead lbl"></div>' + F.heads.map(function(h){
+      return '<div class="vopl-chead vopl-vline">' + esc(h) + '</div>'; }).join("");
+    var firstCat = true;
+    F.feats.forEach(function(x){
+      if (x.type === "cat"){
+        fh += '<div class="vopl-fcat' + (firstCat ? " first" : "") + '">' + esc(x.label) + '</div>';
+        firstCat = false;
+      } else {
+        fh += '<div class="vopl-frow-l">' + esc(x.label) + '</div>';
+        x.vals.forEach(function(v){
+          var inner;
+          var vv = v.trim();
+          if (vv === "\u2022") inner = '<span class="dot"></span>';
+          else if (vv === "\u2014" || vv === "-" || vv === "\u2013") inner = '<span class="dash"></span>';
+          else if (vv === "") inner = "";
+          else inner = '<span class="txt">' + esc(vv) + '</span>';
+          fh += '<div class="vopl-fval vopl-vline">' + inner + '</div>';
+        });
+      }
+    });
+    fh += '<div class="vopl-endline"></div>';
+    fg.innerHTML = fh;
+    fbody.appendChild(fg);
+    if (F.notes.length){
+      var nt = document.createElement("div");
+      nt.className = "vopl-fnotes";
+      nt.innerHTML = F.notes.map(function(x, idx){
+        var bold = /^\*/.test(x) || /[:\uFF1A]\s*$/.test(x) || idx === F.notes.length - 1;
+        return '<div class="vopl-fnote ' + (bold ? "b" : "i") + '">' + esc(x) + '</div>';
+      }).join("");
+      fbody.appendChild(nt);
+    }
+  }
+}
+
+/* =====================================================================
+   PDF EXPORT + SAVE TO DRIVE
+   ===================================================================== */
+function pdfFilename(){
+  return curMarket.replace(/\s+/g, "") + "-" + curLang + ".pdf";
+}
+
+function exportPdf(toDrive){
+  var pages = document.querySelectorAll(".vopl-page");
+  if (!pages.length){ setStatus("Nothing to export.", "err"); return; }
+  if (toDrive) {
+    if (!SCRIPT_URL){ setStatus("SCRIPT_URL is not set — cannot save to Drive.", "err"); return; }
+  }
+  setStatus("Rendering PDF\u2026");
+  document.getElementById("btnPdf").disabled = true;
+  document.getElementById("btnDrive").disabled = true;
+
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ unit:"pt", format:"a4", orientation:"portrait" });
+  var W = 595.28, H = 841.89;
+  var idx = 0;
+
+  function next(){
+    if (idx >= pages.length){ finish(); return; }
+    // force reflow before capture (export-fidelity gotcha)
+    pages[idx].getBoundingClientRect();
+    html2canvas(pages[idx], { scale:2.2, useCORS:true, backgroundColor:"#FFFFFF", logging:false })
+      .then(function(cv){
+        if (idx > 0) doc.addPage();
+        doc.addImage(cv.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, W, H);
+        idx++; next();
+      })
+      .catch(function(err){ setStatus("Capture failed: " + err.message, "err"); unlock(); });
+  }
+
+  function finish(){
+    var name = pdfFilename();
+    if (!toDrive){
+      doc.save(name);
+      setStatus("Downloaded " + name, "ok");
+      unlock();
+      return;
+    }
+    setStatus("Uploading to Drive\u2026");
+    var b64 = doc.output("datauristring").split(",")[1];
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action:"savePdf", filename:name, pdfBase64:b64 })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) throw new Error(j.error || "backend error");
+      setStatus("Saved to Drive: " + name, "ok");
+      unlock();
+    })
+    .catch(function(err){ setStatus("Drive save failed: " + err.message, "err"); unlock(); });
+  }
+
+  function unlock(){
+    document.getElementById("btnPdf").disabled = false;
+    document.getElementById("btnDrive").disabled = false;
+  }
+  next();
+}
+</script>
+</body>
+</html>
