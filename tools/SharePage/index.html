@@ -46,6 +46,10 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .langedit .le-hint{margin-top:9px;font-size:11px;color:var(--co-muted);line-height:1.5;}
 .langedit.editing{border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
 .cl-div{height:1px;background:var(--co-line);margin:16px 0 14px;}
+.pubres{margin-top:10px;padding:12px;background:var(--co-orange-wash);border:1px solid var(--co-tint,#FFD9BD);border-radius:10px;}
+.pubres-row a{font-size:12.5px;font-weight:700;color:var(--co-orange);word-break:break-all;text-decoration:none;}
+.pubres-btns{display:flex;gap:8px;margin-top:9px;}
+.pubres-btns .btn{padding:6px 12px;font-size:12px;}
 .le-status{margin-top:10px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;}
 .ls-one{color:var(--co-muted);}
 .ls-one strong{color:var(--co-orange);}
@@ -209,7 +213,12 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
         <div class="cl-div"></div>
         <div class="field"><label>Page name <span class="hint">(how it's saved)</span></label><input type="text" id="cloudName" placeholder="HK broker offer — June"></div>
         <button class="btn ghost" onclick="saveToSheet()" style="margin-top:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7M8 14h8"/></svg>Save to Sheet</button>
-        <div class="hint" style="margin-top:12px;line-height:1.5"><strong>Save to Sheet</strong> keeps the page so you can load and re-edit it later. <strong>Upload</strong> on any image sends it to your Drive folder.</div>
+        <div class="cl-div"></div>
+        <div class="field"><label>Publish a public link <span class="hint">(hosted on GitHub Pages)</span></label>
+          <button class="btn" id="pubBtn" onclick="publishPage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0-12l-4 4m4-4l4 4M5 21h14"/></svg>Publish link</button>
+        </div>
+        <div id="pubResult" class="pubres" style="display:none"></div>
+        <div class="hint" style="margin-top:12px;line-height:1.5"><strong>Save to Sheet</strong> keeps the page so you can load and re-edit it later. <strong>Upload</strong> on any image sends it to your Drive folder. <strong>Publish</strong> renders everything into one file and hosts it at a public link (great for a WhatsApp/social preview).</div>
       </div>
     </details>
 
@@ -1559,6 +1568,44 @@ async function downloadPage(){
   dl(new Blob([html],{type:'text/html'}),n);
 }
 function copyHTML(){navigator.clipboard.writeText(buildPage(S)).then(()=>toast('HTML copied to clipboard'),()=>toast('Copy failed'));}
+
+async function publishPage(){
+  const btn=document.getElementById('pubBtn');
+  const out=document.getElementById('pubResult');
+  if(!CLOUD.url){ toast('Backend not connected'); return; }
+  const name=(CLOUD.name||(document.getElementById('cloudName')||{}).value||'').trim();
+  if(!name){ toast('Give the page a name first (used for the link)'); const cn=document.getElementById('cloudName'); if(cn) cn.focus(); return; }
+  if(!CLOUD.id) CLOUD.id=freshId();
+  if(btn){ btn.disabled=true; btn.dataset.t=btn.innerHTML; btn.innerHTML='Publishing…'; }
+  try{
+    // 1) render + embed every image so the hosted file is fully self-contained
+    let html=buildPage(S);
+    if(/<img[^>]+src="https?:\/\//.test(html)){ toast('Embedding images…'); try{ const r=await embedRemote(html); html=r.html; }catch(e){} }
+    // 2) hand it to the backend, which writes it to GitHub (token stays server-side)
+    toast('Publishing to GitHub Pages…');
+    const token='pub'+Date.now()+Math.floor(Math.random()*1e5);
+    await postNoCors(CLOUD.url,{action:'publish',token,id:CLOUD.id,name,slug:name,html});
+    // 3) poll for the result (no-cors POST can't return a body)
+    let res=null;
+    for(let i=0;i<40;i++){
+      await new Promise(r=>setTimeout(r,1000));
+      try{ const r=await jsonp(CLOUD.url,{action:'publishstatus',token},8000); if(r&&r.done){ res=r.result; break; } }catch(e){}
+    }
+    if(res&&res.url){ showPublished(res); toast('Published'); }
+    else { toast('Publish timed out — check the backend deployment'); }
+  }catch(e){ toast('Publish failed'); }
+  finally{ if(btn){ btn.disabled=false; if(btn.dataset.t) btn.innerHTML=btn.dataset.t; } }
+}
+function showPublished(res){
+  const out=document.getElementById('pubResult'); if(!out) return;
+  out.style.display='block';
+  out.innerHTML=`<div class="pubres-row"><a href="${escAttr(res.url)}" target="_blank" rel="noopener">${esc(res.url)}</a></div>
+    <div class="pubres-btns">
+      <button class="btn ghost" onclick="navigator.clipboard.writeText('${escAttr(res.url)}').then(()=>toast('Link copied'))">Copy link</button>
+      <a class="btn ghost" href="${escAttr(res.url)}" target="_blank" rel="noopener">Open</a>
+    </div>
+    <div class="hint" style="margin-top:6px">${res.updated?'Updated the existing page.':'New page — may take up to a minute to go live on first publish.'}</div>`;
+}
 
 /* ===== WhatsApp / chat blurb, tailored per type and per language ===== */
 function waMessage(S,lang){
