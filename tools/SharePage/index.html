@@ -50,6 +50,8 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .pubres-row a{font-size:12.5px;font-weight:700;color:var(--co-orange);word-break:break-all;text-decoration:none;}
 .pubres-btns{display:flex;gap:8px;margin-top:9px;}
 .pubres-btns .btn{padding:6px 12px;font-size:12px;}
+.pubres-btns .btn.danger{color:#B42318;border-color:#F3C6C0;}
+.pubres-btns .btn.danger:hover{background:#B42318;border-color:#B42318;color:#fff;}
 .le-status{margin-top:10px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;}
 .ls-one{color:var(--co-muted);}
 .ls-one strong{color:var(--co-orange);}
@@ -1550,6 +1552,19 @@ function renderOG(){
   }).catch(()=>{});
 }
 
+/* render the 1200×630 OG card to a JPEG data URI (for publish link previews) */
+async function ogDataURL(){
+  if(lastOGCanvas){ try{ return lastOGCanvas.toDataURL('image/jpeg',0.9); }catch(e){} }
+  if(typeof html2canvas==='undefined') return '';
+  try{
+    const stage=document.getElementById('ogStage'); if(!stage) return '';
+    stage.innerHTML=''; const node=buildOGNode(S); stage.appendChild(node);
+    const canvas=await html2canvas(node,{width:1200,height:630,scale:1,backgroundColor:null,useCORS:true,logging:false});
+    lastOGCanvas=canvas;
+    return canvas.toDataURL('image/jpeg',0.9);
+  }catch(e){ return ''; }
+}
+
 /* ===== outputs ===== */
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},100);}
 async function downloadPage(){
@@ -1581,10 +1596,13 @@ async function publishPage(){
     // 1) render + embed every image so the hosted file is fully self-contained
     let html=buildPage(S);
     if(/<img[^>]+src="https?:\/\//.test(html)){ toast('Embedding images…'); try{ const r=await embedRemote(html); html=r.html; }catch(e){} }
+    // 1b) build a preview thumbnail so a shared LINK shows an image card
+    toast('Making the link preview…');
+    let ogImage=''; try{ ogImage=await ogDataURL(); }catch(e){}
     // 2) hand it to the backend, which writes it to GitHub (token stays server-side)
     toast('Publishing to GitHub Pages…');
     const token='pub'+Date.now()+Math.floor(Math.random()*1e5);
-    await postNoCors(CLOUD.url,{action:'publish',token,id:CLOUD.id,name,slug:name,html});
+    await postNoCors(CLOUD.url,{action:'publish',token,id:CLOUD.id,name,slug:name,html,ogImage});
     // 3) poll for the result (no-cors POST can't return a body)
     let res=null;
     for(let i=0;i<40;i++){
@@ -1599,12 +1617,35 @@ async function publishPage(){
 function showPublished(res){
   const out=document.getElementById('pubResult'); if(!out) return;
   out.style.display='block';
+  out.dataset.slug=res.slug||'';
   out.innerHTML=`<div class="pubres-row"><a href="${escAttr(res.url)}" target="_blank" rel="noopener">${esc(res.url)}</a></div>
     <div class="pubres-btns">
       <button class="btn ghost" onclick="navigator.clipboard.writeText('${escAttr(res.url)}').then(()=>toast('Link copied'))">Copy link</button>
       <a class="btn ghost" href="${escAttr(res.url)}" target="_blank" rel="noopener">Open</a>
+      <button class="btn ghost danger" onclick="unpublishPage('${escAttr(res.slug||'')}')">Delete published</button>
     </div>
-    <div class="hint" style="margin-top:6px">${res.updated?'Updated the existing page.':'New page — may take up to a minute to go live on first publish.'}</div>`;
+    <div class="hint" style="margin-top:6px">${res.updated?'Updated the existing page.':'New page — may take up to a minute to go live on first publish.'}${res.og?' Link preview image added.':''}</div>`;
+}
+async function unpublishPage(slug){
+  slug=slug||(document.getElementById('pubResult')||{}).dataset&&document.getElementById('pubResult').dataset.slug||'';
+  const name=(CLOUD.name||(document.getElementById('cloudName')||{}).value||'').trim();
+  const which=slug||name;
+  if(!which){ toast('Nothing to delete'); return; }
+  if(!confirm('Delete the published page for "'+which+'"?\nThe public link will stop working. This does not delete your saved copy.')) return;
+  if(!CLOUD.url){ toast('Backend not connected'); return; }
+  toast('Deleting published page…');
+  const token='pub'+Date.now()+Math.floor(Math.random()*1e5);
+  try{
+    await postNoCors(CLOUD.url,{action:'unpublish',token,slug:which,name:which});
+    let res=null;
+    for(let i=0;i<25;i++){ await new Promise(r=>setTimeout(r,1000));
+      try{ const r=await jsonp(CLOUD.url,{action:'publishstatus',token},8000); if(r&&r.done){ res=r.result; break; } }catch(e){} }
+    if(res){
+      const out=document.getElementById('pubResult');
+      if(res.removed){ if(out){ out.style.display='none'; out.innerHTML=''; } toast('Deleted — link no longer live'); }
+      else toast('No published page found for that name');
+    } else toast('Delete timed out — check the backend');
+  }catch(e){ toast('Delete failed'); }
 }
 
 /* ===== WhatsApp / chat blurb, tailored per type and per language ===== */
