@@ -412,8 +412,13 @@ function renderTransit(stage, style){
   /* ---- info blocks around the diagram ---- */
   var blocks = "";
   var conn = "";     // light grey connector lines
-  function connect(x1, y1, stub, x2, y2){
-    conn += '<path d="M ' + x1 + ' ' + y1 + ' l 0 ' + stub + ' L ' + x2 + ' ' + y2 +
+  /* Elbow built backwards from the endpoint: vertical stub from the start,
+     then a diagonal locked to 45\u00B0 \u2014 parallel to the rotated station labels,
+     so it threads the gaps between them instead of crossing text. */
+  function connect(sx, sy, ex, ey){
+    var k = ey + (sy > ey ? 1 : -1) * Math.abs(ex - sx);   // bend height for a 45\u00B0 diagonal
+    if ((sy > ey && (k > sy || k < ey)) || (sy < ey && (k < sy || k > ey))) k = (sy + ey) / 2;
+    conn += '<path d="M ' + sx + ' ' + sy + ' L ' + sx + ' ' + k + ' L ' + ex + ' ' + ey +
       '" fill="none" stroke="#E3E3E3" stroke-width="1.3" stroke-linejoin="round"/>';
   }
   var seen = {}, mainDist = [];
@@ -435,7 +440,7 @@ function renderTransit(stage, style){
     var tl = bottom.shift();
     blocks += blockHtml(L(tl, "label") ? shortDist(tl) : "", centresForNodeDistrict(tl.district_en),
       "left:96px;top:126px;width:250px;");
-    connect(112, 126 + 186, 58, tl._x + 4, mainY - 18);
+    connect(112, 126 + 186, tl._x + 2, mainY - 20);
   }
   /* top-right block: branch district (or rightmost main) */
   var tr = branchDist[0] || (bottom.length > 4 ? bottom.pop() : null);
@@ -443,7 +448,7 @@ function renderTransit(stage, style){
     blocks += blockHtml(shortDist(tr), centresForNodeDistrict(tr.district_en),
       "left:538px;top:126px;width:158px;");
     var trX = (tr._x !== undefined ? tr._x : 600), trY = (tr._y !== undefined ? tr._y : mainY);
-    connect(534, 168, 130, trX + 64, trY + 2);
+    connect(534, 168, trX + 128, trY + 14);
   }
   /* bottom row */
   var n = Math.max(bottom.length, 1);
@@ -452,7 +457,7 @@ function renderTransit(stage, style){
     var left = 4 + i * ((W - 8) / n);
     blocks += blockHtml(shortDist(nd), centresForNodeDistrict(nd.district_en),
       "left:" + left + "px;top:678px;width:" + colW + "px;");
-    connect(left + 56, 674, -44, nd._x - 4, mainY + 22);
+    connect(left + 56, 674, nd._x - 6, mainY + 24);
   });
 
   body.innerHTML = '<div class="sk-tcanvas">' +
@@ -467,10 +472,17 @@ function shortDist(node){
 }
 
 /* ---- geo (map-image) style ---- */
+function geoWard(ct){
+  var d = L(ct, "district");
+  return d.indexOf(" \u2014 ") > -1 ? d.split(" \u2014 ").slice(1).join(" \u2014 ") : "";
+}
+function geoHeading(ct){
+  return geoWard(ct) || L(ct, "building");        // JP: ward; AU/others: building name
+}
 function geoCard(ct){
   var a = L(ct, "address");
-  var street = a.split(",")[0];
-  return '<div class="sk-loc"><div class="b">' + esc(street) + '</div>' +
+  var orange = geoWard(ct) ? L(ct, "building") : a.split(",")[0];   // ward cards show the building; else the street
+  return '<div class="sk-loc"><div class="b">' + esc(orange) + '</div>' +
     '<div class="l">' + esc(ct.levels) + '</div>' +
     '<div class="a">' + esc(a) + '</div></div>';
 }
@@ -529,11 +541,14 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
     else { side = "L"; slot = slotsL[Math.min(usedL++, 2)]; }
     var cardLeft = side === "L" ? 3 : 51;    /* % */
     cards += '<div class="sk-card" style="left:' + cardLeft + '%;top:' + slot + '%;">' +
-      '<div class="dn">' + esc(L(p.ct, "building")) + '</div>' + geoCard(p.ct) + '</div>';
+      '<div class="dn">' + esc(geoHeading(p.ct)) + '</div>' + geoCard(p.ct) + '</div>';
     /* connector in % coordinates via a 100x100 viewBox overlay */
     var ax = side === "L" ? cardLeft + 43 : cardLeft;   /* card edge x% */
     var ay = slot + 9;
-    ovl += '<path d="M ' + ax + ' ' + ay + ' L ' + p.x + ' ' + ay + ' L ' + p.x + ' ' + (p.y - 5) + '" fill="none" stroke="#FF6600" stroke-width="0.45" vector-effect="non-scaling-stroke"/>';
+    var route = Math.abs(p.y - ay) > 14
+      ? 'M ' + ax + ' ' + ay + ' L ' + ax + ' ' + (p.y + 1.5) + ' L ' + p.x + ' ' + (p.y + 1.5)
+      : 'M ' + ax + ' ' + ay + ' L ' + p.x + ' ' + ay + ' L ' + p.x + ' ' + (p.y + 1.5);
+    ovl += '<path d="' + route + '" fill="none" stroke="#FF6600" stroke-width="0.45" vector-effect="non-scaling-stroke"/>';
     ovl += '<circle cx="' + ax + '" cy="' + ay + '" r="0.8" fill="#FF6600"/>';
     /* pin */
     ovl += '<g transform="translate(' + p.x + ' ' + p.y + ')">' +
@@ -549,7 +564,7 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
   if (rest.length){
     var sub = {}, so = [];
     h += '<div class="sk-cards">' + rest.map(function(ct){
-      return '<div class="sk-dist"><div class="dn">' + esc(L(ct, "building")) + '</div>' + geoCard(ct) + '</div>';
+      return '<div class="sk-dist"><div class="dn">' + esc(geoHeading(ct)) + '</div>' + geoCard(ct) + '</div>';
     }).join("") + '</div>';
     var sub = {}, so = [];
   }
@@ -562,8 +577,13 @@ function cityKey(d){
   return "";                                                 // plain district -> one market-wide map
 }
 function renderLocations(stage){
-  var mapStyle = curMarket === "Hong Kong" ? "mtr" : (curMarket === "Japan" ? "jr" : "geo");
-  if (mapStyle !== "geo"){ renderTransit(stage, mapStyle); return; }
+  // Data decides the style: SK-MapNodes rows -> transit diagram
+  // (JR badges when station codes are filled, MTR otherwise); no rows -> geo maps.
+  var nodes = DB.skMapNodes.filter(function(n){ return n.market === curMarket; });
+  if (nodes.length){
+    var style = nodes.some(function(n){ return String(n.station_code || "").trim() !== ""; }) ? "jr" : "mtr";
+    renderTransit(stage, style); return;
+  }
   var t1 = COUNTRY[curMarket].toUpperCase();
   var groups = {}, order = [];
   marketCentres(curMarket).forEach(function(ct){
