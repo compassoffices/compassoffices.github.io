@@ -128,7 +128,7 @@ var LK = { EN:"en", TC:"tc", SC:"sc", JP:"jp", VI:"vi" };
 var COUNTRY = { "Hong Kong":"Hong Kong", "Japan":"Japan", "Australia":"Australia",
   "Singapore":"Singapore", "Manila":"Philippines", "Kuala Lumpur":"Malaysia", "Ho Chi Minh City":"Vietnam" };
 
-var DB = null, IMG = {};      // IMG: assetKey -> dataUri | null(pending) | "" (none)
+var DB = null, IMG = {}, GEO = {};   // GEO["market|city"] = {dataUri,pins} | null(pending) | false(failed)      // IMG: assetKey -> dataUri | null(pending) | "" (none)
 var curMarket = "Hong Kong", curLang = "EN";
 
 /* ---------- boot ---------- */
@@ -225,7 +225,8 @@ function imgTag(key, cls){
   return '<div class="' + cls + ' ph">image unavailable</div>';
 }
 function imagesPending(){
-  return Object.keys(IMG).some(function(k){ return IMG[k] === null; });
+  return Object.keys(IMG).some(function(k){ return IMG[k] === null; }) ||
+         Object.keys(GEO).some(function(k){ return GEO[k] === null; });
 }
 
 /* ---------- page frame ---------- */
@@ -356,7 +357,7 @@ function renderTransit(stage, style){
   var main = nodes.filter(function(n){ return n.line === lines[0]; });
   var branch = lines[1] ? nodes.filter(function(n){ return n.line === lines[1]; }) : [];
   var W = 698, H = 915, mainY = 560;
-  var padL = 46, padR = 46;
+  var padL = 78, padR = 40;
   var step = (W - padL - padR) / Math.max(main.length - 1, 1);
   main.forEach(function(n, i){ n._x = padL + step * i; });
   var mainCol = style === "jr" ? "#2E7D32" : "#1B5FA6";
@@ -365,16 +366,16 @@ function renderTransit(stage, style){
   /* branch (red) line: vertical, elbow joining the main line */
   var bx = 0, joinX = 0;
   if (branch.length){
-    var bi = Math.min(main.length - 2, Math.max(2, Math.round((main.length - 1) * 0.45)));
+    var bi = Math.min(main.length - 2, Math.max(2, Math.round((main.length - 1) * 0.42)));
     bx = (main[bi]._x + main[bi + 1]._x) / 2;
-    joinX = (main[Math.max(bi - 2, 0)]._x + main[Math.max(bi - 1, 1)]._x) / 2 + 14;
-    var topY = 165, lastY = 435;
+    joinX = main[Math.max(bi - 1, 1)]._x + 10;
+    var topY = 160, lastY = 430;
     branch.forEach(function(n, i){
       n._x = bx;
       n._y = topY + (lastY - topY) * (branch.length > 1 ? (branch.length - 1 - i) / (branch.length - 1) : 0);
     });
-    svg += '<path d="M ' + bx + ' 118 L ' + bx + ' ' + (lastY + 26) +
-      ' L ' + (joinX + 26) + ' ' + (mainY - 7) + ' L ' + joinX + ' ' + (mainY - 7) +
+    svg += '<path d="M ' + bx + ' 116 L ' + bx + ' ' + (lastY + 24) +
+      ' L ' + joinX + ' ' + (mainY - 7) +
       '" fill="none" stroke="#C0392B" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>';
   }
   /* main (blue/green) line */
@@ -391,7 +392,7 @@ function renderTransit(stage, style){
   branch.forEach(function(n){
     var act = String(n.active).indexOf("\u2713") > -1;
     svg += marker(n._x, n._y, act, false, "#C0392B", n.label_en);
-    svg += '<text x="' + (n._x + 24) + '" y="' + (n._y + 5.5) + '" font-size="16" font-weight="' + (act ? "800" : "600") + '" fill="' + (act ? "#1A1A1A" : "#BBBBBB") + '" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">' + esc(L(n, "label")) + '</text>';
+    svg += '<text x="' + (n._x + 22) + '" y="' + (n._y + 5.5) + '" font-size="14.5" font-weight="' + (act ? "800" : "600") + '" fill="' + (act ? "#1A1A1A" : "#BBBBBB") + '" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">' + esc(L(n, "label")) + '</text>';
   });
   main.forEach(function(n){
     var act = String(n.active).indexOf("\u2713") > -1;
@@ -410,7 +411,7 @@ function renderTransit(stage, style){
   var blocks = "";
   var conn = "";     // light grey connector lines
   function connect(x1, y1, x2, y2){
-    conn += '<path d="M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2 + '" fill="none" stroke="#D9D9D9" stroke-width="1.4"/>';
+    conn += '<path d="M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2 + '" fill="none" stroke="#E3E3E3" stroke-width="1.3"/>';
   }
   var seen = {}, mainDist = [];
   main.forEach(function(n){
@@ -430,15 +431,16 @@ function renderTransit(stage, style){
   if (mainDist.length > 3){
     var tl = bottom.shift();
     blocks += blockHtml(L(tl, "label") ? shortDist(tl) : "", centresForNodeDistrict(tl.district_en),
-      "left:76px;top:132px;width:260px;");
-    connect(96, 132 + 176, tl._x + 5, mainY - 16);
+      "left:96px;top:126px;width:250px;");
+    connect(112, 126 + 188, tl._x + 4, mainY - 18);
   }
   /* top-right block: branch district (or rightmost main) */
   var tr = branchDist[0] || (bottom.length > 4 ? bottom.pop() : null);
   if (tr){
     blocks += blockHtml(shortDist(tr), centresForNodeDistrict(tr.district_en),
-      "left:452px;top:132px;width:238px;");
-    connect(448, 236, (tr._x !== undefined ? tr._x : 600) + (branchDist[0] ? 52 : 0), (tr._y !== undefined ? tr._y : mainY) - (branchDist[0] ? 40 : 20));
+      "left:538px;top:126px;width:158px;");
+    var trX = (tr._x !== undefined ? tr._x : 600), trY = (tr._y !== undefined ? tr._y : mainY);
+    connect(534, 172, trX + 96, trY - 10);
   }
   /* bottom row */
   var n = Math.max(bottom.length, 1);
@@ -446,8 +448,8 @@ function renderTransit(stage, style){
   bottom.forEach(function(nd, i){
     var left = 4 + i * ((W - 8) / n);
     blocks += blockHtml(shortDist(nd), centresForNodeDistrict(nd.district_en),
-      "left:" + left + "px;top:672px;width:" + colW + "px;");
-    connect(left + 34, 668, nd._x, mainY + 16);
+      "left:" + left + "px;top:678px;width:" + colW + "px;");
+    connect(left + 56, 674, nd._x - 4, mainY + 20);
   });
 
   body.innerHTML = '<div class="sk-tcanvas">' +
@@ -472,21 +474,45 @@ function geoCard(ct){
 function titleCase(s2){
   return String(s2).toLowerCase().replace(/(^|\s|-)([a-z\u00e0-\u024f])/g, function(m){ return m.toUpperCase(); });
 }
+function geoAuto(city){
+  var key = curMarket + "|" + city;
+  if (GEO[key] === undefined){
+    if (typeof fetch === "undefined" || !SCRIPT_URL){ GEO[key] = false; return GEO[key]; }
+    GEO[key] = null;
+    fetch(SCRIPT_URL + "?action=staticmap&market=" + encodeURIComponent(curMarket) + "&city=" + encodeURIComponent(city))
+      .then(function(r){ return r.json(); })
+      .then(function(j){ GEO[key] = j.ok ? j : false; render(); })
+      .catch(function(){ GEO[key] = false; render(); });
+  }
+  return GEO[key];
+}
 function pinsFor(city, cityCentres){
   var ids = {};
   cityCentres.forEach(function(ct){ ids[ct.id] = ct; });
-  return DB.skMapPins.filter(function(p){
+  var manual = DB.skMapPins.filter(function(p){
     return p.market === curMarket && ids[p.centre_id] && p.x_pct !== "" && p.y_pct !== "";
   }).map(function(p){
     return { ct: ids[p.centre_id], x: Number(p.x_pct), y: Number(p.y_pct) };
   });
+  if (manual.length) return manual;                      // designer override wins
+  var auto = geoAuto(city);
+  if (auto && auto.pins) return auto.pins.filter(function(p){ return ids[p.centre_id]; })
+    .map(function(p){ return { ct: ids[p.centre_id], x: Number(p.x_pct), y: Number(p.y_pct) }; });
+  return [];
 }
 function geoCityHtml(city, cityCentres){
   var pins = pinsFor(city, cityCentres);
   var h = '<div class="sk-cityhead">' + esc(/^[A-Z\s]+$/.test(city) ? titleCase(city) : city) + '</div>';
   h += '<div class="sk-geobox">';
   var bgKey1 = "map." + curMarket + "." + city, bgKey2 = "map." + curMarket;
-  h += (assetId(bgKey1) ? imgTag(bgKey1, "bg") : imgTag(bgKey2, "bg"));
+  if (assetId(bgKey1)) h += imgTag(bgKey1, "bg");
+  else if (assetId(bgKey2)) h += imgTag(bgKey2, "bg");
+  else {
+    var auto = geoAuto(city);
+    if (auto && auto.dataUri) h += '<img class="bg" src="' + auto.dataUri + '">';
+    else if (auto === null) h += '<div class="bg ph">building map from Google\u2026</div>';
+    else h += '<div class="bg ph">map unavailable \u2014 add an image in SK-Assets</div>';
+  }
   /* overlay: pins + connectors */
   var ovl = "", cards = "";
   var slotsL = [4, 40, 68], slotsR = [4, 40, 68], usedL = 0, usedR = 0;
