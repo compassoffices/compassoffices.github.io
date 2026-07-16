@@ -132,6 +132,7 @@
     <button data-view="centres" class="on"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg><span>Centres</span></button>
     <button data-view="mrprices"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg><span>MR Prices</span></button>
     <button data-view="texts"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Texts &amp; T&amp;C</span></button>
+    <button data-view="saleskit"><svg viewBox="0 0 24 24"><path d="M3 7h18M3 7l2 12h14l2-12M9 7V5a3 3 0 0 1 6 0v2"/></svg><span>Sales Kit</span></button>
     <button data-view="config"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg><span>Config</span></button>
   </nav>
   <main class="coed-main" id="main"><div class="coed-empty">Loading data from Google Sheets&hellip;</div></main>
@@ -215,7 +216,13 @@ function load(){
         mrPrices: rowsToObjects(j.tabs["MR-Prices"]),
         mrTiers:  rowsToObjects(j.tabs["MR-Tiers"]),
         mrMatrix: rowsToObjects(j.tabs["MR-Matrix"]),
-        texts:    rowsToObjects(j.tabs["Text"])
+        texts:    rowsToObjects(j.tabs["Text"]),
+        skIncluded:  rowsToObjects(j.tabs["SK-Included"] || []),
+        skAdditional:rowsToObjects(j.tabs["SK-Additional"] || []),
+        skAddPrices: rowsToObjects(j.tabs["SK-AddPrices"] || []),
+        skAssets:    rowsToObjects(j.tabs["SK-Assets"] || []),
+        skText:      rowsToObjects(j.tabs["SK-Text"] || []),
+        skMapNodes:  rowsToObjects(j.tabs["SK-MapNodes"] || [])
       };
       if (!mkt) mkt = DB.config.length ? DB.config[0].market : null;
       dirty = {}; syncSavebar();
@@ -472,6 +479,58 @@ function renderTexts(){
   bindChips(); bindCells();
 }
 
+/* ================= VIEW: SALES KIT ================= */
+var SK_TABLES = [
+  { title:"Included Services", data:"skIncluded", kind:"ski",
+    keys:["category","sort","row_type"],
+    fields:["label_en","label_tc","label_sc","label_jp","label_vi","image_1","image_2"], area:true },
+  { title:"Additional Services \u2014 bullets (market 'all' = standard; market rows replace per category)", data:"skAdditional", kind:"ska",
+    keys:["category","market","sort","row_type"],
+    fields:["label_en","label_tc","label_sc","label_jp","label_vi"], area:true },
+  { title:"Additional Services \u2014 price notes", data:"skAddPrices", kind:"skp",
+    keys:["market","category","bullet_sort"],
+    fields:["note_en","note_tc","note_sc","note_jp","note_vi"] },
+  { title:"Photos & map images (Google Drive file IDs)", data:"skAssets", kind:"sks",
+    keys:["key"], fields:["drive_file_id"], extras:["note"] },
+  { title:"Sales Kit texts (page titles, network blurb)", data:"skText", kind:"skt",
+    keys:["key"], fields:["text_en","text_tc","text_sc","text_jp","text_vi"], area:true },
+  { title:"Train map stations (rows here = transit style; delete a market's rows for Google maps)", data:"skMapNodes", kind:"skn",
+    keys:["market","line","sort"],
+    fields:["label_en","label_tc","label_sc","label_jp","station_code","active","district_en","marker"] }
+];
+function renderSalesKit(){
+  var h = '<h2 class="coed-h2">Sales Kit content</h2>' +
+    '<p class="coed-sub">Everything the Sales Kit generator reads, except centres (edit those in the Centres section \u2014 the Locations and Global Network pages derive from them automatically). Grey cells are row keys and are fixed.</p>';
+  SK_TABLES.forEach(function(t){
+    var rows = DB[t.data] || [];
+    if (!rows.length){
+      h += '<div class="coed-group">' + t.title + '</div><div class="coed-sub">Tab empty or not imported.</div>';
+      return;
+    }
+    h += '<div class="coed-group">' + t.title + '</div>';
+    h += '<table class="coed-table"><tr>' +
+      t.keys.map(function(k){ return '<th>' + esc(k) + '</th>'; }).join("") +
+      t.fields.map(function(f){ return '<th>' + esc(f.replace(/^(label_|note_|text_)/, "")) + '</th>'; }).join("") +
+      (t.extras || []).map(function(f){ return '<th>' + esc(f) + '</th>'; }).join("") + '</tr>';
+    rows.forEach(function(r){
+      var key = [t.kind].concat(t.keys.map(function(k){ return r[k]; })).join("|");
+      h += '<tr>' + t.keys.map(function(k){
+        return '<td style="color:var(--co-muted);white-space:nowrap">' + esc(r[k]) + '</td>'; }).join("");
+      h += t.fields.map(function(f){
+        var v = esc(r[f]);
+        return '<td data-cell="' + esc(key) + '|' + f + '">' +
+          (t.area ? '<textarea>' + v + '</textarea>' : '<input value="' + v + '">') + '</td>';
+      }).join("");
+      h += (t.extras || []).map(function(f){
+        return '<td style="color:var(--co-muted)">' + esc(r[f]) + '</td>'; }).join("");
+      h += '</tr>';
+    });
+    h += '</table>';
+  });
+  el("#main").innerHTML = h;
+  bindCells();
+}
+
 /* ================= VIEW: CONFIG ================= */
 function renderConfig(){
   var h = '<h2 class="coed-h2">Market Config</h2>';
@@ -526,6 +585,7 @@ function renderView(){
   if (view === "centres") renderCentres();
   else if (view === "mrprices") renderMrPrices();
   else if (view === "texts") renderTexts();
+  else if (view === "saleskit") renderSalesKit();
   else renderConfig();
 }
 load();
