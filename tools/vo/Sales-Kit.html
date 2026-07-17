@@ -41,7 +41,7 @@
 .vopl-page{width:794px;height:1123px;background:var(--co-paper);position:relative;box-shadow:0 4px 24px rgba(0,0,0,.10);
   padding:46px 48px 64px;display:flex;flex-direction:column;overflow:hidden;}
 .vopl-phead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex:0 0 auto;}
-.vopl-phead-logo{width:190px;height:auto;display:block;margin-top:6px;}
+.vopl-phead-logo{width:140px;height:auto;display:block;margin-top:6px;}
 .vopl-ptitle{text-align:right;}
 .vopl-ptitle .t1{font-size:40px;font-weight:800;color:var(--co-orange);line-height:1.05;letter-spacing:.5px;}
 .vopl-ptitle .t2{font-size:26px;font-weight:300;color:var(--co-ink);line-height:1.15;letter-spacing:.5px;}
@@ -69,6 +69,9 @@
 .sk-tcanvas{position:relative;width:698px;height:915px;}
 .sk-tcanvas > svg{position:absolute;inset:0;width:698px;height:915px;}
 .sk-block{position:absolute;}
+.sk-block .sk-loc .b{font-size:13.5px;}
+.sk-block .sk-loc .l{font-size:11.5px;}
+.sk-block .sk-loc .a{font-size:11px;}
 .sk-block .dn{font-size:23px;font-weight:800;color:var(--co-ink);margin-bottom:9px;letter-spacing:.2px;}
 .sk-loc{margin-bottom:13px;}
 .sk-loc .b{font-size:14.5px;font-weight:700;color:var(--co-orange);line-height:1.3;}
@@ -77,7 +80,8 @@
 /* ---- Locations: geo (map-image) style ---- */
 .sk-cityhead{font-size:24px;font-weight:700;color:var(--co-muted);border-bottom:1px solid var(--co-line);padding-bottom:5px;margin:6px 0 12px;}
 .sk-geobox{position:relative;width:698px;height:428px;margin-bottom:6px;border-radius:16px;overflow:hidden;}
-.sk-geobox .bg.auto{transform:scale(1.13);transform-origin:50% 42%;}
+.sk-geobox.auto{height:476px;}
+.sk-geobox .bg.auto{position:absolute;top:0;left:0;width:100%;height:auto;}
 .sk-mapcredit{font-size:8.5px;color:var(--co-faint);text-align:right;margin:0 4px 14px 0;}
 .sk-geobox .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
 .sk-geobox .bg.ph{background:var(--co-bg);display:flex;align-items:center;justify-content:center;color:var(--co-faint);font-size:11px;}
@@ -417,10 +421,14 @@ function renderTransit(stage, style){
   /* Elbow built backwards from the endpoint: vertical stub from the start,
      then a diagonal locked to 45\u00B0 \u2014 parallel to the rotated station labels,
      so it threads the gaps between them instead of crossing text. */
-  function connect(sx, sy, ex, ey){
-    var k = ey + (sy > ey ? 1 : -1) * Math.abs(ex - sx);   // bend height for a 45\u00B0 diagonal
-    if ((sy > ey && (k > sy || k < ey)) || (sy < ey && (k < sy || k > ey))) k = (sy + ey) / 2;
-    conn += '<path d="M ' + sx + ' ' + sy + ' L ' + sx + ' ' + k + ' L ' + ex + ' ' + ey +
+  /* Four-point connector: vertical stub -> 45\u00B0 diagonal (parallel to the rotated
+     labels, running in the corridor between them) -> short vertical approach.
+     Built backwards from the endpoint so the diagonal angle is exact and the
+     line never crosses label text. */
+  function connect(sx, sy, ex, ey, my){
+    var k = my + (sy > my ? 1 : -1) * Math.abs(ex - sx);
+    if ((sy > my && (k > sy || k < my)) || (sy < my && (k < sy || k > my))) k = (sy + my) / 2;
+    conn += '<path d="M ' + sx + ' ' + sy + ' L ' + sx + ' ' + k + ' L ' + ex + ' ' + my + ' L ' + ex + ' ' + ey +
       '" fill="none" stroke="#ECECEC" stroke-width="1.3" stroke-linejoin="round"/>';
   }
   var seen = {}, mainDist = [];
@@ -442,7 +450,7 @@ function renderTransit(stage, style){
     var tl = bottom.shift();
     blocks += blockHtml(L(tl, "label") ? shortDist(tl) : "", centresForNodeDistrict(tl.district_en),
       "left:96px;top:126px;width:250px;");
-    connect(112, 126 + 186, tl._x + 2, mainY - 20);
+    connect(112, 126 + 186, tl._x, mainY - 13, mainY - 27);
   }
   /* top-right block: branch district (or rightmost main) */
   var tr = branchDist[0] || (bottom.length > 4 ? bottom.pop() : null);
@@ -450,7 +458,7 @@ function renderTransit(stage, style){
     blocks += blockHtml(shortDist(tr), centresForNodeDistrict(tr.district_en),
       "left:538px;top:126px;width:158px;");
     var trX = (tr._x !== undefined ? tr._x : 600), trY = (tr._y !== undefined ? tr._y : mainY);
-    connect(534, 168, trX + 128, trY + 14);
+    connect(534, 168, trX + 96, trY + 30, trY + 54);
   }
   /* bottom row */
   var n = Math.max(bottom.length, 1);
@@ -459,7 +467,9 @@ function renderTransit(stage, style){
     var left = 4 + i * ((W - 8) / n);
     blocks += blockHtml(shortDist(nd), centresForNodeDistrict(nd.district_en),
       "left:" + left + "px;top:678px;width:" + colW + "px;");
-    connect(left + 56, 674, nd._x - 16, mainY + 20);
+    var bex = nd._x - 22, bsx = left + 56;
+    if (Math.abs(bex - bsx) > 78) bsx = bex + (bsx > bex ? 78 : -78);   // keep the 45\u00B0 diagonal inside the stub zone
+    connect(bsx, 674, bex, mainY + 16, mainY + 30);
   });
 
   body.innerHTML = '<div class="sk-tcanvas">' +
@@ -540,16 +550,16 @@ function pinsFor(city, cityCentres){
 function geoCityHtml(displayCity, cityCentres, rawKey){
   var city = rawKey === undefined ? displayCity : rawKey;
   var pins = pinsFor(city, cityCentres);
-  var W = 698, H = 428;
-  var h = '<div class="sk-cityhead">' + esc(/^[A-Z\s]+$/.test(displayCity) ? titleCase(displayCity) : displayCity) + '</div>';
-  h += '<div class="sk-geobox">';
   var bgKey1 = "map." + curMarket + "." + city, bgKey2 = "map." + curMarket;
-  var isAuto = false;
-  if (assetId(bgKey1)) h += imgTag(bgKey1, "bg");
-  else if (assetId(bgKey2)) h += imgTag(bgKey2, "bg");
+  var isAuto = !assetId(bgKey1) && !assetId(bgKey2);
+  /* auto maps: box shows the top 436 of the 472px-tall source (640-wide), so the
+     bottom strip with Google's attribution falls outside; 698*436/640 = 476 */
+  var W = 698, H = isAuto ? 476 : 428;
+  var h = '<div class="sk-cityhead">' + esc(/^[A-Z\s]+$/.test(displayCity) ? titleCase(displayCity) : displayCity) + '</div>';
+  h += '<div class="sk-geobox' + (isAuto ? " auto" : "") + '">';
+  if (!isAuto) h += imgTag(assetId(bgKey1) ? bgKey1 : bgKey2, "bg");
   else {
     var auto = geoAuto(city);
-    isAuto = true;
     if (auto && auto.dataUri) h += '<img class="bg auto" src="' + auto.dataUri + '">';
     else if (auto === null) h += '<div class="bg ph">building map from Google\u2026</div>';
     else h += '<div class="bg ph">map unavailable \u2014 add an image in SK-Assets</div>';
