@@ -46,6 +46,16 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
 .langedit .le-hint{margin-top:9px;font-size:11px;color:var(--co-muted);line-height:1.5;}
 .langedit.editing{border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
 .cl-div{height:1px;background:var(--co-line);margin:16px 0 14px;}
+.lockwrap{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--co-bg);padding:24px;}
+.lockbox{background:var(--co-paper);border:1px solid var(--co-line);border-radius:18px;padding:34px 30px 30px;width:100%;max-width:340px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.1);}
+.lock-ic{width:46px;height:46px;margin:0 auto 16px;border-radius:50%;background:var(--co-orange-wash);color:var(--co-orange);display:flex;align-items:center;justify-content:center;}
+.lock-ic svg{width:23px;height:23px;}
+.lockbox h2{font-size:18px;font-weight:800;color:var(--co-ink);margin-bottom:6px;}
+.lockbox p{font-size:13px;color:var(--co-muted);margin-bottom:18px;}
+.lockbox input{width:100%;font:inherit;font-size:15px;text-align:center;letter-spacing:.08em;color:var(--co-ink);background:var(--co-paper);border:1.5px solid var(--co-line);border-radius:10px;padding:11px 12px;transition:.15s;}
+.lockbox input:focus{outline:none;border-color:var(--co-orange);box-shadow:0 0 0 3px var(--co-orange-wash);}
+.lockbox .btn{width:100%;justify-content:center;margin-top:12px;}
+.lock-err{font-size:12px;color:#B42318;min-height:16px;margin-top:8px;}
 .pubres{margin-top:10px;padding:12px;background:var(--co-orange-wash);border:1px solid var(--co-tint,#FFD9BD);border-radius:10px;}
 .pubres-row a{font-size:12.5px;font-weight:700;color:var(--co-orange);word-break:break-all;text-decoration:none;}
 .pubres-btns{display:flex;gap:8px;margin-top:9px;}
@@ -208,7 +218,7 @@ body{background:var(--co-bg);font-family:'Hanken Grotesk','Noto Sans TC','Noto S
     <details class="acc">
       <summary><span class="nib"></span>Cloud — open &amp; save<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></summary>
       <div class="body">
-        <div id="cloudStatus" class="hint" style="margin:6px 0 10px">Connecting…</div>
+        <div class="imgrow" style="align-items:center;margin:6px 0 10px"><div id="cloudStatus" class="hint" style="flex:1">Connecting…</div><button class="up" onclick="lockTool()" title="Lock this tool">Lock</button></div>
         <div class="field"><label>Open a saved page</label>
           <div class="imgrow"><select id="cloudList"><option value="">— pick a saved page —</option></select><button class="up" onclick="refreshList()">Refresh</button></div>
         </div>
@@ -1765,12 +1775,14 @@ function toast(msg){const t=document.getElementById('toast');document.getElement
 
 /* ===== cloud backend: Google Sheet (pages) + Drive (images) via Apps Script ===== */
 let CLOUD={url:'https://script.google.com/macros/s/AKfycbwexQvX_SQOnYQPBRM6JGvb3nFduE0gCWmYGta1lMtbXLzrBrayPoKMrZwFjjkpG_eI1w/exec',name:'',id:''};
+try{ CLOUD.key=localStorage.getItem('cospKey')||''; }catch(e){ CLOUD.key=''; }
 function freshId(){return 'p'+Date.now()+Math.floor(Math.random()*1000);}
 function cstat(m){const el=document.getElementById('cloudStatus'); if(el) el.textContent=m||'';}
 function jsonp(base,params,timeout){
   return new Promise((res,rej)=>{
     const cb='cb'+Date.now()+Math.floor(Math.random()*1e5);
     const q=Object.assign({},params,{callback:cb});
+    if(CLOUD.key) q.key=CLOUD.key;
     const qs=Object.keys(q).map(k=>encodeURIComponent(k)+'='+encodeURIComponent(q[k])).join('&');
     const s=document.createElement('script');
     const to=setTimeout(()=>{cleanup();rej(new Error('timeout'));},timeout||15000);
@@ -1781,13 +1793,62 @@ function jsonp(base,params,timeout){
     document.body.appendChild(s);
   });
 }
-function postNoCors(url,obj){return fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(obj)});}
+function postNoCors(url,obj){const o=Object.assign({},obj); if(CLOUD.key) o.key=CLOUD.key; return fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(o)});}
 function fileToDataUrl(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
 async function testBackend(){
   if(!CLOUD.url){cstat('Paste your Apps Script /exec URL first.');return;}
   cstat('Testing…');
-  try{const r=await jsonp(CLOUD.url,{action:'ping'},10000);cstat(r&&r.ok?'Connected.':'Reached it, but got an unexpected reply.');refreshList();}
+  try{
+    const r=await jsonp(CLOUD.url,{action:'ping'},10000);
+    if(r&&r.locked){                                  // backend requires a passcode
+      let ok=false;
+      if(CLOUD.key){ try{ const a=await jsonp(CLOUD.url,{action:'auth'},10000); ok=!!(a&&a.ok); }catch(e){} }
+      if(!ok){ showLock(); cstat('Locked — enter the passcode.'); return; }
+    }
+    cstat(r&&r.ok?'Connected.':'Reached it, but got an unexpected reply.');
+    refreshList();
+  }
   catch(e){cstat('Could not reach the backend — check the URL and that it is deployed for "Anyone".');}
+}
+/* ---- passcode gate ---- */
+function showLock(){
+  let el=document.getElementById('lockScreen');
+  if(!el){
+    el=document.createElement('div'); el.id='lockScreen'; el.className='lockwrap';
+    el.innerHTML=`<div class="lockbox">
+      <div class="lock-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></div>
+      <h2>Share Page Studio</h2>
+      <p>Enter the passcode to use this tool.</p>
+      <input type="password" id="lockKey" placeholder="Passcode" autocomplete="current-password">
+      <div class="lock-err" id="lockErr"></div>
+      <button class="btn" onclick="tryUnlock()">Unlock</button>
+    </div>`;
+    document.body.appendChild(el);
+    const inp=el.querySelector('#lockKey');
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') tryUnlock(); });
+    setTimeout(()=>inp.focus(),50);
+  }
+  el.style.display='flex';
+}
+async function tryUnlock(){
+  const inp=document.getElementById('lockKey'), err=document.getElementById('lockErr');
+  const v=(inp.value||'').trim();
+  if(!v){ err.textContent='Enter the passcode.'; return; }
+  err.textContent='Checking…';
+  CLOUD.key=v;
+  try{
+    const a=await jsonp(CLOUD.url,{action:'auth'},10000);
+    if(a&&a.ok){
+      try{ localStorage.setItem('cospKey',v); }catch(e){}
+      document.getElementById('lockScreen').style.display='none';
+      cstat('Connected.'); refreshList(); toast('Unlocked');
+    } else { CLOUD.key=''; err.textContent='Wrong passcode.'; }
+  }catch(e){ CLOUD.key=''; err.textContent='Could not reach the backend.'; }
+}
+function lockTool(){
+  CLOUD.key=''; try{ localStorage.removeItem('cospKey'); }catch(e){}
+  const inp=document.getElementById('lockKey'); if(inp) inp.value='';
+  showLock(); toast('Locked');
 }
 async function uploadToDrive(file){
   const data=await fileToDataUrl(file);
