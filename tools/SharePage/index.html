@@ -829,7 +829,7 @@ function bindFocus(d,o,rerenderRow){
   const prev=d.querySelector('.fp-prev img');
   const sync=()=>{                                   // show only when there's a photo; keep thumb in step
     if(!ctl) return;
-    if(o.photo){ ctl.removeAttribute('hidden'); if(prev) prev.src=o.photo; }
+    if(o.photo){ ctl.removeAttribute('hidden'); if(prev) prev.src=imgSrc(o.photo); }
     else ctl.setAttribute('hidden','');
   };
   const apply=()=>{ const x=(o.fx!=null)?o.fx:50, y=(o.fy!=null)?o.fy:50; if(prev) prev.style.objectPosition=x+'% '+y+'%'; queueRender(); };
@@ -939,13 +939,21 @@ function baseLang(){ return (S&&S.baseLang&&LANGS.indexOf(S.baseLang)>-1)?S.base
 function focusCtl(o,round){
   const x=(o.fx!=null)?o.fx:50, y=(o.fy!=null)?o.fy:50;
   return `<div class="fpctl"${o.photo?'':' hidden'}>
-    <div class="fp-prev"><img src="${escAttr(o.photo||'')}" style="object-position:${x}% ${y}%" class="${round?'rnd':''}"></div>
+    <div class="fp-prev"><img src="${escAttr(imgSrc(o.photo||''))}" style="object-position:${x}% ${y}%" class="${round?'rnd':''}"></div>
     <div class="fp-sliders">
       <label>Across<input type="range" min="0" max="100" step="1" value="${x}" data-fp="fx"></label>
       <label>Up / down<input type="range" min="0" max="100" step="1" value="${y}" data-fp="fy"></label>
       <button type="button" class="fp-reset" data-fp-reset>Centre</button>
     </div>
   </div>`;
+}
+/* Drive's "uc?export=view" and "/file/d/…/view" links return an HTML page, not image
+   bytes, so <img> shows nothing. Rewrite any Drive link to the host that serves bytes. */
+function imgSrc(u){
+  u=String(u||'');
+  if(!/drive\.google\.com|docs\.google\.com/i.test(u)) return u;
+  const m=u.match(/[?&]id=([A-Za-z0-9_-]{10,})/) || u.match(/\/d\/([A-Za-z0-9_-]{10,})/);
+  return m?('https://lh3.googleusercontent.com/d/'+m[1]):u;
 }
 function fpStyle(o){
   const x=(o&&o.fx!=null)?o.fx:50, y=(o&&o.fy!=null)?o.fy:50;
@@ -1132,7 +1140,7 @@ function buildPage(S,opts){
   let header = `<header class="pg-head"><span class="hl">${LOGO_LIGHT}</span>`;
   if(S.on.partner && (S.partnerName||S.partnerLogo)){
     header += `<span class="cobrand">`+
-      (S.partnerLogo? `<img class="plogo" src="${escAttr(S.partnerLogo)}" alt="${escAttr(S.partnerName)}">` : `<span class="pname">${esc(S.partnerName)}</span>`)+
+      (S.partnerLogo? `<img class="plogo" src="${escAttr(imgSrc(S.partnerLogo))}" alt="${escAttr(S.partnerName)}">` : `<span class="pname">${esc(S.partnerName)}</span>`)+
       `</span>`;
   }
   header += `</header>`;
@@ -1149,7 +1157,7 @@ function buildPage(S,opts){
   if(S.subhead) hero+=`<p class="sub" style="color:${heroSub}">${T('subhead',{nl2br:true})}</p>`;
   if(heroChips) hero+=`<div class="chips">${heroChips}</div>`;
   hero+=cta('ctaLabel',S.ctaUrl,ctaOnHero);
-  if(S.heroImg) hero+=`<div class="heroimg"><img src="${escAttr(S.heroImg)}" alt=""></div>`;
+  if(S.heroImg) hero+=`<div class="heroimg"><img src="${escAttr(imgSrc(S.heroImg))}" alt=""></div>`;
   hero+=`</div></section>`;
 
   // sections
@@ -1167,11 +1175,11 @@ function buildPage(S,opts){
       const wrapA=(url,inner)=> l.link?`<a href="${escAttr(l.link)}" target="_blank" rel="noopener">${inner}</a>`:inner;
       const smalls=[l.small1,l.small2].filter(Boolean);
       if(!smalls.length){
-        return `<div class="collage solo">${wrapA(l.link,`<div class="big">${l.big?`<img src="${escAttr(l.big)}" alt="${escAttr(l.location)}">`:''}</div>`)}</div>`;
+        return `<div class="collage solo">${wrapA(l.link,`<div class="big">${l.big?`<img src="${escAttr(imgSrc(l.big))}" alt="${escAttr(l.location)}">`:''}</div>`)}</div>`;
       }
       return `<div class="collage">`+
-        `<div class="big">${l.big?`<img src="${escAttr(l.big)}" alt="${escAttr(l.location)}">`:''}</div>`+
-        `<div class="col">${smalls.map(s=>`<div class="sm"><img src="${escAttr(s)}" alt=""></div>`).join('')}</div>`+
+        `<div class="big">${l.big?`<img src="${escAttr(imgSrc(l.big))}" alt="${escAttr(l.location)}">`:''}</div>`+
+        `<div class="col">${smalls.map(s=>`<div class="sm"><img src="${escAttr(imgSrc(s))}" alt=""></div>`).join('')}</div>`+
       `</div>`;
     };
     const one=(l,i)=>{
@@ -1186,7 +1194,7 @@ function buildPage(S,opts){
         (enq?`<a class="l-enq" href="${escAttr(enq)}">Enquire${svg(I.arrow,2.2)}</a>`:'')+
       `</div>`;
       const detail = l.floor
-        ? `<div class="l-detail"><div class="l-floor"><img src="${escAttr(l.floor)}" alt="Floor plan"></div>${info}</div>`
+        ? `<div class="l-detail"><div class="l-floor"><img src="${escAttr(imgSrc(l.floor))}" alt="Floor plan"></div>${info}</div>`
         : `<div class="l-detail nofloor">${info}</div>`;
       return `<div class="listing">${l.location?`<h2 class="l-name">${name}</h2>`:''}${collage(l)}${detail}</div>`;
     };
@@ -1213,7 +1221,7 @@ function buildPage(S,opts){
         (s.topic?`<span class="se-topic">${T(p+'topic')}</span>`:'')+
         (s.stime?`<span class="se-time">${svg(I.clock,2)}<span>${T(p+'stime')}</span></span>`:'')+
       `</div>`:'';
-      const pic=s.photo?`<div class="se-pic"><img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}"${fpStyle(s)}></div>`
+      const pic=s.photo?`<div class="se-pic"><img src="${escAttr(imgSrc(s.photo))}" alt="${escAttr(s.name)}"${fpStyle(s)}></div>`
                        :(s.name?`<div class="se-pic"><span class="se-av">${esc((s.name||'?').trim().charAt(0))}</span></div>`:'');
       const bodyIn=`<div class="se-body">`+
         (s.name?`<h3 class="se-name">${T(p+'name')}</h3>`:'')+
@@ -1233,7 +1241,7 @@ function buildPage(S,opts){
   }
   if(S.on.speakers && S.speakers.length){
     body+=`<section class="sec"><div class="inner">${eyebrow('spTitle','Speakers')}<div class="speakers">`+
-      S.speakers.map((s,i)=>`<div class="sp">${s.photo?`<img src="${escAttr(s.photo)}" alt="${escAttr(s.name)}"${fpStyle(s)}>`:`<span class="spav">${esc((s.name||'?').trim().charAt(0))}</span>`}<div><h3>${T('speakers.'+i+'.name')}</h3>${s.title?`<p>${T('speakers.'+i+'.title')}</p>`:''}</div></div>`).join('')+
+      S.speakers.map((s,i)=>`<div class="sp">${s.photo?`<img src="${escAttr(imgSrc(s.photo))}" alt="${escAttr(s.name)}"${fpStyle(s)}>`:`<span class="spav">${esc((s.name||'?').trim().charAt(0))}</span>`}<div><h3>${T('speakers.'+i+'.name')}</h3>${s.title?`<p>${T('speakers.'+i+'.title')}</p>`:''}</div></div>`).join('')+
       `</div></div></section>`;
   }
   if(S.on.about && (S.abBody||S.abTitle)){
@@ -1269,7 +1277,7 @@ function buildPage(S,opts){
     }).join('')+`</div>`:'';
     body+=`<section class="sec"><div class="inner narrow"><div class="pcontact">`+
       (S.pcTitle?eyebrow('pcTitle',''):'')+
-      (S.pcLogo?`<img class="pc-logo" src="${escAttr(S.pcLogo)}" alt="${escAttr(S.pcName)}">`:'')+
+      (S.pcLogo?`<img class="pc-logo" src="${escAttr(imgSrc(S.pcLogo))}" alt="${escAttr(S.pcName)}">`:'')+
       (S.pcName?`<h2 class="pc-name">${T('pcName')}</h2>`:'')+
       (S.pcBlurb?`<p class="pc-blurb">${T('pcBlurb',{nl2br:true})}</p>`:'')+
       (rows.length?`<div class="pc-rows">${rows.join('')}</div>`:'')+
@@ -1508,7 +1516,7 @@ function buildOGNode(S){
     </div>
     <div style="display:flex;align-items:center;gap:22px;position:relative;">
       <span style="display:block;height:44px">${logo.replace('<svg','<svg height="44" style="height:44px;width:auto;display:block"')}</span>
-      ${S.on.partner&&(S.partnerName||S.partnerLogo)?`<span style="color:rgba(255,255,255,.5);font-size:26px;font-weight:300">&times;</span>${S.partnerLogo?`<img src="${escAttr(S.partnerLogo)}" style="height:40px;width:auto" crossorigin="anonymous">`:`<span style="font-weight:700;font-size:24px;color:#fff">${esc(S.partnerName)}</span>`}`:''}
+      ${S.on.partner&&(S.partnerName||S.partnerLogo)?`<span style="color:rgba(255,255,255,.5);font-size:26px;font-weight:300">&times;</span>${S.partnerLogo?`<img src="${escAttr(imgSrc(S.partnerLogo))}" style="height:40px;width:auto" crossorigin="anonymous">`:`<span style="font-weight:700;font-size:24px;color:#fff">${esc(S.partnerName)}</span>`}`:''}
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;position:relative;">
       ${S.badge?`<span style="display:inline-block;align-self:flex-start;background:${orange?'rgba(255,255,255,.18)':'#FF6600'};color:#fff;font-size:18px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:9px 18px;border-radius:999px;margin-bottom:26px;">${esc(S.badge)}</span>`:''}
