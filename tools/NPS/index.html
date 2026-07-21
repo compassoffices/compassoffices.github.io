@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compass Offices — NPS Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23.13 23.13'%3E%3Cpath fill='%23FF6600' d='M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+.co{
+  --co-orange:#FF6600;      --co-orange-dk:#E55A00;
+  --co-orange-wash:#FFF3EB; --co-orange-tint:#FFD9BD;
+  --co-ink:#1A1A1A;         --co-ink-deep:#161616;  --co-char:#1A1A1A;
+  --co-text:#333333;        --co-text-2:#555555;
+  --co-muted:#888888;       --co-faint:#BBBBBB;
+  --co-line:#E5E5E5;        --co-line-soft:rgba(0,0,0,.08); --co-line-dark:rgba(255,255,255,.16);
+  --co-bg:#F5F5F5;          --co-fill:#EFEFEF;      --co-paper:#FFFFFF;
+  --co-radius:10px;         --co-radius-pill:999px; --co-radius-img:3px;
+  --co-good:#2E7D46;        --co-neutral:#B8860B;   --co-bad:#B23A48;
+  color:var(--co-ink); font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP','Noto Sans SC','Noto Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  line-height:1.55; -webkit-font-smoothing:antialiased;
+  background:var(--co-bg); min-height:100vh;
+}
+.co *,.co *::before,.co *::after{box-sizing:border-box;}
+.co{margin:0;}
+body{margin:0;}
+
+.co-header{position:sticky; top:0; z-index:20; background:var(--co-paper); border-bottom:1px solid var(--co-line); padding:14px 24px;}
+.co-header-row{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; max-width:1400px; margin:0 auto;}
+.co-brand{display:flex; align-items:center; gap:10px;}
+.co-brand svg{width:28px; height:28px; flex:none;}
+.co-brand-text{display:flex; flex-direction:column; line-height:1.15;}
+.co-brand-text .co-name{font-weight:700; font-size:16px; color:var(--co-ink);}
+.co-brand-text .co-sub{font-size:12px; color:var(--co-muted); letter-spacing:.02em;}
+.co-status{display:flex; align-items:center; gap:14px; font-size:13px; color:var(--co-text-2);}
+.co-live{display:flex; align-items:center; gap:6px; font-weight:600; color:var(--co-good);}
+.co-live-dot{width:8px; height:8px; border-radius:50%; background:var(--co-good); box-shadow:0 0 0 0 rgba(46,125,70,.5); animation:co-pulse 2s infinite;}
+.co-live.co-live-off .co-live-dot{background:var(--co-faint); animation:none;}
+.co-live.co-live-off{color:var(--co-muted);}
+@keyframes co-pulse{
+  0%{box-shadow:0 0 0 0 rgba(46,125,70,.45);}
+  70%{box-shadow:0 0 0 7px rgba(46,125,70,0);}
+  100%{box-shadow:0 0 0 0 rgba(46,125,70,0);}
+}
+.co-btn{appearance:none; border:1px solid var(--co-line); background:var(--co-paper); color:var(--co-ink); font:inherit; font-size:13px; font-weight:600; padding:8px 14px; border-radius:var(--co-radius-pill); cursor:pointer; transition:.15s ease; white-space:nowrap;}
+.co-btn:hover{border-color:var(--co-orange); color:var(--co-orange-dk);}
+.co-btn:active{transform:scale(.97);}
+.co-btn.co-btn-primary{background:var(--co-orange); border-color:var(--co-orange); color:#fff;}
+.co-btn.co-btn-primary:hover{background:var(--co-orange-dk); border-color:var(--co-orange-dk); color:#fff;}
+.co-btn svg{width:14px; height:14px; vertical-align:-2px; margin-right:5px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+
+.co-main{max-width:1400px; margin:0 auto; padding:22px 24px 60px;}
+
+.co-error{background:#FBEAEA; border:1px solid rgba(178,58,72,.35); color:var(--co-bad); border-radius:var(--co-radius); padding:12px 16px; font-size:13px; margin-bottom:18px; display:none;}
+.co-error.co-show{display:block;}
+
+.co-filters{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px;}
+.co-chip{appearance:none; border:1px solid var(--co-line); background:var(--co-paper); color:var(--co-text-2); font:inherit; font-size:13px; font-weight:600; padding:7px 14px; border-radius:var(--co-radius-pill); cursor:pointer; transition:.15s ease;}
+.co-chip:hover{border-color:var(--co-orange-tint);}
+.co-chip.co-active{background:var(--co-orange-wash); border-color:var(--co-orange); color:var(--co-orange-dk);}
+.co-select{appearance:none; border:1px solid var(--co-line); background:var(--co-paper); color:var(--co-ink); font:inherit; font-size:13px; font-weight:600; padding:7px 30px 7px 14px; border-radius:var(--co-radius-pill); cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23888' d='M5.5 7.5l4.5 4.5 4.5-4.5z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 10px center; background-size:12px;}
+.co-spacer{flex:1;}
+
+.co-kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;}
+.co-kpi{background:var(--co-paper); border:1px solid var(--co-line); border-radius:var(--co-radius); padding:18px 20px;}
+.co-kpi-label{font-size:12px; color:var(--co-muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;}
+.co-kpi-value{font-size:32px; font-weight:800; color:var(--co-ink); line-height:1;}
+.co-kpi-value.co-orange{color:var(--co-orange);}
+.co-kpi-sub{font-size:12px; color:var(--co-text-2); margin-top:8px;}
+.co-bar3{display:flex; height:8px; border-radius:4px; overflow:hidden; margin-top:10px; background:var(--co-fill);}
+.co-bar3 span{height:100%;}
+
+.co-section{margin-bottom:26px;}
+.co-section-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:12px; flex-wrap:wrap;}
+.co-section-title{font-size:15px; font-weight:700; color:var(--co-ink);}
+.co-section-note{font-size:12px; color:var(--co-muted);}
+
+.co-countries{display:grid; grid-template-columns:repeat(4,1fr); gap:12px;}
+.co-country-card{background:var(--co-paper); border:1px solid var(--co-line); border-left:3px solid var(--co-faint); border-radius:var(--co-radius); padding:14px 16px; cursor:pointer; transition:.15s ease;}
+.co-country-card:hover{border-color:var(--co-orange-tint);}
+.co-country-card.co-selected{border-color:var(--co-orange); background:var(--co-orange-wash);}
+.co-country-card.co-dim{opacity:.45;}
+.co-cc-top{display:flex; align-items:center; justify-content:space-between;}
+.co-cc-name{font-weight:700; font-size:13.5px;}
+.co-cc-dot{width:9px; height:9px; border-radius:50%; flex:none;}
+.co-cc-nps{font-size:26px; font-weight:800; margin-top:6px;}
+.co-cc-meta{font-size:11.5px; color:var(--co-muted); margin-top:2px;}
+.co-cc-tier{display:inline-block; margin-top:8px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 8px; border-radius:var(--co-radius-pill);}
+
+.co-charts{display:grid; grid-template-columns:1.4fr 1fr; gap:14px;}
+.co-panel{background:var(--co-paper); border:1px solid var(--co-line); border-radius:var(--co-radius); padding:16px 18px;}
+.co-panel-title{font-size:13px; font-weight:700; margin-bottom:10px; color:var(--co-ink);}
+.co-chart-wrap{position:relative; height:280px;}
+
+.co-table-wrap{overflow-x:auto;}
+table.co-table{width:100%; border-collapse:collapse; font-size:13px;}
+table.co-table th, table.co-table td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--co-line); white-space:nowrap;}
+table.co-table th{font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--co-muted); cursor:pointer; user-select:none;}
+table.co-table th:hover{color:var(--co-orange-dk);}
+table.co-table tbody tr:hover{background:var(--co-orange-wash);}
+.co-nps-pill{display:inline-block; font-weight:800; padding:2px 10px; border-radius:var(--co-radius-pill); font-size:12.5px;}
+
+.co-feed-controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;}
+.co-search{flex:1; min-width:180px; border:1px solid var(--co-line); border-radius:var(--co-radius-pill); padding:7px 14px; font:inherit; font-size:13px; color:var(--co-ink); background:var(--co-paper);}
+.co-search:focus{outline:none; border-color:var(--co-orange);}
+.co-feed{display:flex; flex-direction:column; gap:10px;}
+.co-feed-item{background:var(--co-paper); border:1px solid var(--co-line); border-radius:var(--co-radius); padding:13px 16px;}
+.co-feed-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;}
+.co-badge{font-weight:800; font-size:12px; padding:2px 9px; border-radius:var(--co-radius-pill); color:#fff;}
+.co-tag{font-size:11.5px; color:var(--co-text-2); background:var(--co-fill); padding:2px 9px; border-radius:var(--co-radius-pill);}
+.co-feed-date{font-size:11.5px; color:var(--co-muted); margin-left:auto;}
+.co-feed-quote{font-size:13.5px; color:var(--co-text); margin:0;}
+.co-feed-suggestion{font-size:12.5px; color:var(--co-text-2); margin:6px 0 0; padding-left:10px; border-left:2px solid var(--co-orange-tint);}
+.co-loadmore{display:block; margin:14px auto 0;}
+.co-empty{font-size:13px; color:var(--co-muted); padding:20px; text-align:center;}
+
+.co-footer{max-width:1400px; margin:0 auto; padding:20px 24px 40px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--co-muted); border-top:1px solid var(--co-line);}
+.co-footer a{color:var(--co-text-2);}
+
+@media (max-width:1100px){
+  .co-kpis{grid-template-columns:repeat(2,1fr);}
+  .co-countries{grid-template-columns:repeat(2,1fr);}
+  .co-charts{grid-template-columns:1fr;}
+}
+@media (max-width:600px){
+  .co-kpis{grid-template-columns:1fr 1fr;}
+  .co-countries{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+<div class="co">
+
+  <header class="co-header">
+    <div class="co-header-row">
+      <div class="co-brand">
+        <svg viewBox="0 0 23.13 23.13" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>
+        <div class="co-brand-text">
+          <span class="co-name">Compass Offices</span>
+          <span class="co-sub">Net Promoter Score — APAC Dashboard</span>
+        </div>
+      </div>
+      <div class="co-status">
+        <span class="co-live" id="coLive"><span class="co-live-dot"></span><span id="coLiveText">Live</span></span>
+        <span id="coLastUpdated">Loading…</span>
+        <button class="co-btn" id="coRefreshBtn" type="button">
+          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="co-main">
+
+    <div class="co-error" id="coError"></div>
+
+    <div class="co-filters" id="coFilters">
+      <!-- country chips injected here -->
+      <div class="co-spacer"></div>
+      <select class="co-select" id="coRangeSelect">
+        <option value="all">All time</option>
+        <option value="90">Last 90 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="7">Last 7 days</option>
+      </select>
+    </div>
+
+    <section class="co-section">
+      <div class="co-kpis" id="coKpis"></div>
+    </section>
+
+    <section class="co-section">
+      <div class="co-section-head">
+        <span class="co-section-title" id="coCountriesTitle">Markets</span>
+        <span class="co-section-note">Click a market to focus the charts below · click again to deselect</span>
+      </div>
+      <div class="co-countries" id="coCountries"></div>
+    </section>
+
+    <section class="co-section">
+      <div class="co-charts">
+        <div class="co-panel">
+          <div class="co-panel-title" id="coTrendTitle">NPS trend (weekly)</div>
+          <div class="co-chart-wrap"><canvas id="coTrendChart"></canvas></div>
+        </div>
+        <div class="co-panel">
+          <div class="co-panel-title" id="coRadarTitle">Satisfaction profile</div>
+          <div class="co-chart-wrap"><canvas id="coRadarChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="co-section">
+      <div class="co-section-head">
+        <span class="co-section-title">Centre breakdown</span>
+        <select class="co-select" id="coCentreCountrySelect"></select>
+      </div>
+      <div class="co-panel co-table-wrap">
+        <table class="co-table" id="coCentreTable">
+          <thead>
+            <tr>
+              <th data-key="centre">Centre</th>
+              <th data-key="total">Responses</th>
+              <th data-key="nps">NPS</th>
+              <th data-key="cs">Service</th>
+              <th data-key="cleanliness">Cleanliness</th>
+              <th data-key="amenities">Amenities</th>
+              <th data-key="improvementSatisfaction">Improvement Satisfaction</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="co-section">
+      <div class="co-section-head">
+        <span class="co-section-title">Recent feedback</span>
+      </div>
+      <div class="co-feed-controls">
+        <button class="co-chip co-active" data-sentiment="all" type="button">All</button>
+        <button class="co-chip" data-sentiment="promoter" type="button">Promoters</button>
+        <button class="co-chip" data-sentiment="passive" type="button">Passives</button>
+        <button class="co-chip" data-sentiment="detractor" type="button">Detractors</button>
+        <input class="co-search" id="coSearch" type="text" placeholder="Search feedback, centre…">
+      </div>
+      <div class="co-feed" id="coFeed"></div>
+      <button class="co-btn co-loadmore" id="coLoadMore" type="button">Load more</button>
+    </section>
+
+  </main>
+
+  <footer class="co-footer">
+    <span>Data pulled live from the Compass Offices client-survey master sheet · auto-refreshes every 5 minutes</span>
+    <span>/ A GREAT PLACE TO WORK /</span>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+
+// ---------- CONFIG ----------
+var SHEET_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQJLWyZeMM3yIJlh_yhep3PkgmzLO6uPoYAoXoNW-sAOqCY-VEAJ066Ag23GbygBlDh63PmbYZZF6Q3/pub";
+var COUNTRIES = [
+  {code:'JP',  name:'Japan',       gid:'2118217267', color:'#3A6EA5'},
+  {code:'HK',  name:'Hong Kong',   gid:'2111554679', color:'#6B4E71'},
+  {code:'SYD', name:'Sydney',      gid:'640541149',  color:'#2F6F62'},
+  {code:'SG',  name:'Singapore',   gid:'1256224320', color:'#8A5A2C'},
+  {code:'MEL', name:'Melbourne',   gid:'2036152264', color:'#4A4E69'},
+  {code:'PH',  name:'Philippines', gid:'887531880',  color:'#B08968'},
+  {code:'MY',  name:'Malaysia',    gid:'2021063522', color:'#5C7A99'},
+  {code:'VN',  name:'Vietnam',     gid:'1751686965', color:'#7A6C5D'}
+];
+var OVERALL_COLOR = '#FF6600';
+var REFRESH_MS = 5 * 60 * 1000;
+var FEED_PAGE = 25;
+
+var SAT_FIELDS = [
+  {key:'cs', label:'Service'},
+  {key:'issueResolution', label:'Responsiveness'},
+  {key:'cleanliness', label:'Cleanliness'},
+  {key:'amenities', label:'Amenities'},
+  {key:'communityImportance', label:'Community'},
+  {key:'eventInterest', label:'Event Interest'},
+  {key:'networkingSupport', label:'Networking'},
+  {key:'improvementSatisfaction', label:'Improvements'}
+];
+
+// ---------- STATE ----------
+var state = {
+  rows: [],
+  selected: new Set(),   // selected country codes (empty = all)
+  range: 'all',
+  sentiment: 'all',
+  search: '',
+  feedLimit: FEED_PAGE,
+  sort: {key:'nps', dir:'desc'},
+  centreCountry: null,
+  trendChart: null,
+  radarChart: null
+};
+
+// ---------- DOM ----------
+var $ = function(id){ return document.getElementById(id); };
+
+// ---------- FETCH & PARSE ----------
+function sheetUrl(gid){
+  return SHEET_BASE + '?gid=' + gid + '&single=true&output=csv&cb=' + Date.now();
+}
+
+function toNum(v){
+  var n = parseInt(v, 10);
+  return isNaN(n) ? null : n;
+}
+
+function parseDate(str){
+  if(!str) return null;
+  var datePart = String(str).trim().split(' ')[0];
+  var m = datePart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return null;
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+}
+
+function buildIndex(headers){
+  function find(re){
+    for(var i = 0; i < headers.length; i++){
+      if(re.test(String(headers[i] || ''))) return i;
+    }
+    return -1;
+  }
+  var nps = find(/recommend\s+compass\s+offices/i);
+  var centreRaw = find(/centre/i);
+  var centre = (centreRaw >= 0 && (nps < 0 || centreRaw < nps)) ? centreRaw : -1;
+  return {
+    timestamp: 0,
+    centre: centre,
+    nps: nps,
+    reason: nps + 1,
+    cs: nps + 2,
+    issueResolution: nps + 3,
+    cleanliness: nps + 4,
+    amenities: nps + 5,
+    communityImportance: nps + 6,
+    eventInterest: nps + 7,
+    networkingSupport: nps + 8,
+    eventSuggestions: nps + 9,
+    partnerPerks: nps + 10,
+    improvementSatisfaction: nps + 11,
+    improvementSuggestions: nps + 12,
+    email: nps + 13
+  };
+}
+
+function loadCountry(c){
+  return fetch(sheetUrl(c.gid), {cache:'no-store'}).then(function(res){
+    if(!res.ok) throw new Error(c.name + ': HTTP ' + res.status);
+    return res.text();
+  }).then(function(text){
+    var parsed = Papa.parse(text.trim(), {skipEmptyLines:true});
+    var rows = parsed.data;
+    if(!rows.length) return [];
+    var idx = buildIndex(rows[0]);
+    if(idx.nps < 0) throw new Error(c.name + ': could not locate NPS column');
+    var out = [];
+    for(var i = 1; i < rows.length; i++){
+      var r = rows[i];
+      var npsVal = toNum(r[idx.nps]);
+      if(npsVal === null || npsVal < 0 || npsVal > 10) continue;
+      out.push({
+        country: c.code,
+        countryName: c.name,
+        centre: (idx.centre >= 0 && r[idx.centre] && r[idx.centre].trim()) ? r[idx.centre].trim() : c.name,
+        date: parseDate(r[idx.timestamp]),
+        nps: npsVal,
+        reason: (r[idx.reason] || '').trim(),
+        cs: toNum(r[idx.cs]),
+        issueResolution: toNum(r[idx.issueResolution]),
+        cleanliness: toNum(r[idx.cleanliness]),
+        amenities: toNum(r[idx.amenities]),
+        communityImportance: toNum(r[idx.communityImportance]),
+        eventInterest: toNum(r[idx.eventInterest]),
+        networkingSupport: toNum(r[idx.networkingSupport]),
+        eventSuggestions: (r[idx.eventSuggestions] || '').trim(),
+        partnerPerks: (r[idx.partnerPerks] || '').trim(),
+        improvementSatisfaction: toNum(r[idx.improvementSatisfaction]),
+        improvementSuggestions: (r[idx.improvementSuggestions] || '').trim()
+      });
+    }
+    return out;
+  });
+}
+
+function fetchAll(){
+  setLive('loading');
+  var errEl = $('coError');
+  errEl.classList.remove('co-show');
+  errEl.innerHTML = '';
+  var jobs = COUNTRIES.map(function(c){ return loadCountry(c); });
+  return Promise.allSettled(jobs).then(function(results){
+    var rows = [];
+    var errors = [];
+    results.forEach(function(r, i){
+      if(r.status === 'fulfilled') rows = rows.concat(r.value);
+      else errors.push(COUNTRIES[i].name + ': ' + r.reason.message);
+    });
+    state.rows = rows;
+    if(errors.length){
+      errEl.classList.add('co-show');
+      errEl.innerHTML = '<strong>Some markets failed to load:</strong> ' + errors.join(' · ');
+    }
+    setLive(errors.length === COUNTRIES.length ? 'error' : 'ok');
+    $('coLastUpdated').textContent = 'Last updated ' + new Date().toLocaleTimeString();
+    renderAll();
+  }).catch(function(e){
+    setLive('error');
+    errEl.classList.add('co-show');
+    errEl.textContent = 'Failed to load data: ' + e.message;
+  });
+}
+
+function setLive(status){
+  var el = $('coLive');
+  var txt = $('coLiveText');
+  if(status === 'ok'){ el.classList.remove('co-live-off'); txt.textContent = 'Live'; }
+  else if(status === 'loading'){ txt.textContent = 'Syncing…'; }
+  else { el.classList.add('co-live-off'); txt.textContent = 'Offline'; }
+}
+
+// ---------- FILTER HELPERS ----------
+function withinRange(d){
+  if(state.range === 'all') return true;
+  if(!d) return true;
+  var days = Number(state.range);
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return d >= cutoff;
+}
+
+function getFilteredRows(countryCodes){
+  var useSel = countryCodes || (state.selected.size ? Array.from(state.selected) : null);
+  return state.rows.filter(function(r){
+    if(useSel && useSel.indexOf(r.country) === -1) return false;
+    if(!withinRange(r.date)) return false;
+    return true;
+  });
+}
+
+function computeNPS(rows){
+  var total = rows.length;
+  if(!total) return {nps:null, promoters:0, passives:0, detractors:0, total:0};
+  var p = 0, pa = 0, d = 0;
+  rows.forEach(function(r){
+    if(r.nps >= 9) p++; else if(r.nps >= 7) pa++; else d++;
+  });
+  return {nps: Math.round(((p - d) / total) * 100), promoters:p, passives:pa, detractors:d, total:total};
+}
+
+function avgField(rows, key){
+  var vals = rows.map(function(r){ return r[key]; }).filter(function(v){ return v !== null && v !== undefined; });
+  if(!vals.length) return null;
+  return vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+}
+
+function npsTier(nps){
+  if(nps === null) return {label:'No data', color:'var(--co-faint)'};
+  if(nps >= 70) return {label:'Excellent', color:'var(--co-good)'};
+  if(nps >= 30) return {label:'Great', color:'var(--co-good)'};
+  if(nps >= 0)  return {label:'Good', color:'var(--co-neutral)'};
+  return {label:'Needs attention', color:'var(--co-bad)'};
+}
+
+function weekKey(d){
+  var date = new Date(d);
+  var day = (date.getDay() + 6) % 7; // Monday = 0
+  date.setDate(date.getDate() - day);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function fmtWeek(d){
+  return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+}
+
+// ---------- RENDER: FILTER CHIPS ----------
+function renderFilterChips(){
+  var container = $('coFilters');
+  var existing = container.querySelectorAll('.co-country-chip');
+  existing.forEach(function(el){ el.remove(); });
+  var allChip = document.createElement('button');
+  allChip.className = 'co-chip co-country-chip' + (state.selected.size === 0 ? ' co-active' : '');
+  allChip.type = 'button';
+  allChip.textContent = 'All markets';
+  allChip.addEventListener('click', function(){
+    state.selected.clear();
+    renderAll();
+  });
+  container.insertBefore(allChip, container.firstChild);
+
+  COUNTRIES.slice().reverse().forEach(function(c){
+    var chip = document.createElement('button');
+    chip.className = 'co-chip co-country-chip' + (state.selected.has(c.code) ? ' co-active' : '');
+    chip.type = 'button';
+    chip.textContent = c.name;
+    chip.addEventListener('click', function(){
+      if(state.selected.has(c.code)) state.selected.delete(c.code);
+      else state.selected.add(c.code);
+      renderAll();
+    });
+    container.insertBefore(chip, container.firstChild.nextSibling);
+  });
+}
+
+// ---------- RENDER: KPIs ----------
+function renderKpis(){
+  var rows = getFilteredRows();
+  var agg = computeNPS(rows);
+  var tier = npsTier(agg.nps);
+  var el = $('coKpis');
+  var pPct = agg.total ? Math.round(agg.promoters/agg.total*100) : 0;
+  var paPct = agg.total ? Math.round(agg.passives/agg.total*100) : 0;
+  var dPct = agg.total ? 100 - pPct - paPct : 0;
+
+  el.innerHTML =
+    '<div class="co-kpi">' +
+      '<div class="co-kpi-label">Overall NPS</div>' +
+      '<div class="co-kpi-value co-orange">' + (agg.nps === null ? '—' : agg.nps) + '</div>' +
+      '<div class="co-kpi-sub" style="color:' + tier.color + '">' + tier.label + '</div>' +
+    '</div>' +
+    '<div class="co-kpi">' +
+      '<div class="co-kpi-label">Responses</div>' +
+      '<div class="co-kpi-value">' + agg.total + '</div>' +
+      '<div class="co-kpi-sub">' + (state.selected.size ? Array.from(state.selected).join(', ') : 'All 8 markets') + '</div>' +
+    '</div>' +
+    '<div class="co-kpi">' +
+      '<div class="co-kpi-label">Promoters / Passives / Detractors</div>' +
+      '<div class="co-kpi-value" style="font-size:20px;">' + pPct + '% / ' + paPct + '% / ' + dPct + '%</div>' +
+      '<div class="co-bar3"><span style="width:' + pPct + '%; background:var(--co-good);"></span><span style="width:' + paPct + '%; background:var(--co-neutral);"></span><span style="width:' + dPct + '%; background:var(--co-bad);"></span></div>' +
+    '</div>' +
+    '<div class="co-kpi">' +
+      '<div class="co-kpi-label">Avg. Cleanliness / Amenities</div>' +
+      '<div class="co-kpi-value" style="font-size:20px;">' + fmt1(avgField(rows,'cleanliness')) + ' / ' + fmt1(avgField(rows,'amenities')) + '</div>' +
+      '<div class="co-kpi-sub">out of 10</div>' +
+    '</div>';
+}
+function fmt1(v){ return v === null ? '—' : v.toFixed(1); }
+
+// ---------- RENDER: COUNTRY CARDS ----------
+function renderCountryCards(){
+  var el = $('coCountries');
+  el.innerHTML = '';
+  var hasSelection = state.selected.size > 0;
+  COUNTRIES.forEach(function(c){
+    var rows = getFilteredRows([c.code]);
+    var agg = computeNPS(rows);
+    var tier = npsTier(agg.nps);
+    var card = document.createElement('div');
+    var isSel = state.selected.has(c.code);
+    card.className = 'co-country-card' + (isSel ? ' co-selected' : '') + (hasSelection && !isSel ? ' co-dim' : '');
+    card.style.borderLeftColor = c.color;
+    card.innerHTML =
+      '<div class="co-cc-top"><span class="co-cc-name">' + c.name + '</span><span class="co-cc-dot" style="background:' + c.color + '"></span></div>' +
+      '<div class="co-cc-nps" style="color:' + (agg.nps===null?'var(--co-faint)':'var(--co-ink)') + '">' + (agg.nps === null ? '—' : agg.nps) + '</div>' +
+      '<div class="co-cc-meta">' + agg.total + ' responses</div>' +
+      '<span class="co-cc-tier" style="background:' + tier.color + '22; color:' + tier.color + '">' + tier.label + '</span>';
+    card.addEventListener('click', function(){
+      if(state.selected.has(c.code)) state.selected.delete(c.code);
+      else state.selected.add(c.code);
+      renderAll();
+    });
+    el.appendChild(card);
+  });
+}
+
+// ---------- RENDER: TREND CHART ----------
+function renderTrendChart(){
+  var activeCountries = state.selected.size ? COUNTRIES.filter(function(c){ return state.selected.has(c.code); }) : null;
+  var buckets = {}; // weekKey ISO -> {label, seriesData: {code: rows[]}}
+  var rows = getFilteredRows();
+  rows.forEach(function(r){
+    if(!r.date) return;
+    var wk = weekKey(r.date);
+    var key = wk.getTime();
+    if(!buckets[key]) buckets[key] = {date: wk, rows: []};
+    buckets[key].rows.push(r);
+  });
+  var sortedKeys = Object.keys(buckets).sort(function(a,b){ return a-b; });
+  var labels = sortedKeys.map(function(k){ return fmtWeek(buckets[k].date); });
+
+  var datasets = [];
+  if(activeCountries){
+    activeCountries.forEach(function(c){
+      var data = sortedKeys.map(function(k){
+        var subset = buckets[k].rows.filter(function(r){ return r.country === c.code; });
+        return computeNPS(subset).nps;
+      });
+      datasets.push({label:c.name, data:data, borderColor:c.color, backgroundColor:c.color, tension:.3, spanGaps:true, pointRadius:3});
+    });
+  } else {
+    var data = sortedKeys.map(function(k){ return computeNPS(buckets[k].rows).nps; });
+    datasets.push({label:'Overall', data:data, borderColor:OVERALL_COLOR, backgroundColor:OVERALL_COLOR, tension:.3, spanGaps:true, pointRadius:3, fill:true, backgroundColor:'rgba(255,102,0,.08)'});
+  }
+
+  var ctx = $('coTrendChart').getContext('2d');
+  if(state.trendChart) state.trendChart.destroy();
+  state.trendChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:labels, datasets:datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ min:-100, max:100, grid:{color:'#E5E5E5'}, ticks:{color:'#555'} }, x:{grid:{display:false}, ticks:{color:'#555'}} },
+      plugins:{ legend:{display: !!activeCountries, labels:{color:'#333'}}, tooltip:{mode:'index', intersect:false} }
+    }
+  });
+  $('coTrendTitle').textContent = activeCountries ? 'NPS trend — ' + activeCountries.map(function(c){return c.name;}).join(', ') : 'NPS trend — all markets (weekly)';
+}
+
+// ---------- RENDER: RADAR CHART ----------
+function renderRadarChart(){
+  var activeCountries = state.selected.size ? COUNTRIES.filter(function(c){ return state.selected.has(c.code); }) : null;
+  var labels = SAT_FIELDS.map(function(f){ return f.label; });
+  var datasets = [];
+  if(activeCountries){
+    activeCountries.forEach(function(c){
+      var rows = getFilteredRows([c.code]);
+      var data = SAT_FIELDS.map(function(f){ var v = avgField(rows, f.key); return v === null ? 0 : Math.round(v*10)/10; });
+      datasets.push({label:c.name, data:data, borderColor:c.color, backgroundColor:c.color+'33', pointBackgroundColor:c.color});
+    });
+  } else {
+    var rows = getFilteredRows();
+    var data = SAT_FIELDS.map(function(f){ var v = avgField(rows, f.key); return v === null ? 0 : Math.round(v*10)/10; });
+    datasets.push({label:'Overall', data:data, borderColor:OVERALL_COLOR, backgroundColor:'rgba(255,102,0,.15)', pointBackgroundColor:OVERALL_COLOR});
+  }
+  var ctx = $('coRadarChart').getContext('2d');
+  if(state.radarChart) state.radarChart.destroy();
+  state.radarChart = new Chart(ctx, {
+    type:'radar',
+    data:{labels:labels, datasets:datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ r:{ min:0, max:10, ticks:{stepSize:2, color:'#888', backdropColor:'transparent'}, grid:{color:'#E5E5E5'}, angleLines:{color:'#E5E5E5'}, pointLabels:{color:'#333', font:{size:11}} } },
+      plugins:{ legend:{display:true, position:'bottom', labels:{color:'#333', boxWidth:10}} }
+    }
+  });
+}
+
+// ---------- RENDER: CENTRE TABLE ----------
+function populateCentreCountrySelect(){
+  var sel = $('coCentreCountrySelect');
+  if(sel.options.length) return;
+  COUNTRIES.forEach(function(c){
+    var opt = document.createElement('option');
+    opt.value = c.code; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+  state.centreCountry = COUNTRIES[0].code;
+  sel.value = state.centreCountry;
+  sel.addEventListener('change', function(){
+    state.centreCountry = sel.value;
+    renderCentreTable();
+  });
+}
+
+function renderCentreTable(){
+  var rows = getFilteredRows([state.centreCountry]);
+  var byCentre = {};
+  rows.forEach(function(r){
+    if(!byCentre[r.centre]) byCentre[r.centre] = [];
+    byCentre[r.centre].push(r);
+  });
+  var records = Object.keys(byCentre).map(function(name){
+    var subset = byCentre[name];
+    var agg = computeNPS(subset);
+    return {
+      centre: name,
+      total: agg.total,
+      nps: agg.nps,
+      cs: avgField(subset,'cs'),
+      cleanliness: avgField(subset,'cleanliness'),
+      amenities: avgField(subset,'amenities'),
+      improvementSatisfaction: avgField(subset,'improvementSatisfaction')
+    };
+  });
+  records.sort(function(a,b){
+    var k = state.sort.key, dir = state.sort.dir === 'asc' ? 1 : -1;
+    var av = a[k] === null ? -Infinity : a[k];
+    var bv = b[k] === null ? -Infinity : b[k];
+    if(typeof av === 'string') return av.localeCompare(bv) * dir;
+    return (av - bv) * dir;
+  });
+  var tbody = document.querySelector('#coCentreTable tbody');
+  if(!records.length){
+    tbody.innerHTML = '<tr><td colspan="7" class="co-empty">No responses for this market in the selected period.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = records.map(function(r){
+    var tier = npsTier(r.nps);
+    return '<tr>' +
+      '<td>' + escapeHtml(r.centre) + '</td>' +
+      '<td>' + r.total + '</td>' +
+      '<td><span class="co-nps-pill" style="background:' + tier.color + '22; color:' + tier.color + '">' + (r.nps===null?'—':r.nps) + '</span></td>' +
+      '<td>' + fmt1(r.cs) + '</td>' +
+      '<td>' + fmt1(r.cleanliness) + '</td>' +
+      '<td>' + fmt1(r.amenities) + '</td>' +
+      '<td>' + fmt1(r.improvementSatisfaction) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function escapeHtml(s){
+  return String(s || '').replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ---------- RENDER: FEEDBACK FEED ----------
+function renderFeed(){
+  var rows = getFilteredRows().filter(function(r){
+    if(state.sentiment === 'promoter') return r.nps >= 9;
+    if(state.sentiment === 'passive') return r.nps >= 7 && r.nps <= 8;
+    if(state.sentiment === 'detractor') return r.nps <= 6;
+    return true;
+  }).filter(function(r){
+    if(!r.reason && !r.improvementSuggestions) return false;
+    if(!state.search) return true;
+    var hay = (r.reason + ' ' + r.improvementSuggestions + ' ' + r.centre + ' ' + r.countryName).toLowerCase();
+    return hay.indexOf(state.search.toLowerCase()) !== -1;
+  }).sort(function(a,b){
+    var ad = a.date ? a.date.getTime() : 0, bd = b.date ? b.date.getTime() : 0;
+    return bd - ad;
+  });
+
+  var el = $('coFeed');
+  if(!rows.length){
+    el.innerHTML = '<div class="co-empty">No feedback matches the current filters.</div>';
+    $('coLoadMore').style.display = 'none';
+    return;
+  }
+  var shown = rows.slice(0, state.feedLimit);
+  el.innerHTML = shown.map(function(r){
+    var tier = r.nps >= 9 ? {c:'var(--co-good)', l:'Promoter'} : r.nps >= 7 ? {c:'var(--co-neutral)', l:'Passive'} : {c:'var(--co-bad)', l:'Detractor'};
+    var dateStr = r.date ? r.date.toLocaleDateString() : '—';
+    return '<div class="co-feed-item">' +
+      '<div class="co-feed-top">' +
+        '<span class="co-badge" style="background:' + tier.c + '">' + r.nps + '</span>' +
+        '<span class="co-tag">' + escapeHtml(r.countryName) + '</span>' +
+        '<span class="co-tag">' + escapeHtml(r.centre) + '</span>' +
+        '<span class="co-feed-date">' + dateStr + '</span>' +
+      '</div>' +
+      (r.reason ? '<p class="co-feed-quote">“' + escapeHtml(r.reason) + '”</p>' : '') +
+      (r.improvementSuggestions ? '<p class="co-feed-suggestion">Suggestion: ' + escapeHtml(r.improvementSuggestions) + '</p>' : '') +
+    '</div>';
+  }).join('');
+  $('coLoadMore').style.display = rows.length > state.feedLimit ? 'block' : 'none';
+}
+
+// ---------- MASTER RENDER ----------
+function renderAll(){
+  renderFilterChips();
+  renderKpis();
+  renderCountryCards();
+  renderTrendChart();
+  renderRadarChart();
+  renderCentreTable();
+  renderFeed();
+}
+
+// ---------- EVENTS ----------
+$('coRefreshBtn').addEventListener('click', function(){ fetchAll(); });
+$('coRangeSelect').addEventListener('change', function(e){ state.range = e.target.value; renderAll(); });
+$('coSearch').addEventListener('input', function(e){ state.search = e.target.value; state.feedLimit = FEED_PAGE; renderFeed(); });
+$('coLoadMore').addEventListener('click', function(){ state.feedLimit += FEED_PAGE; renderFeed(); });
+document.querySelectorAll('[data-sentiment]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('[data-sentiment]').forEach(function(b){ b.classList.remove('co-active'); });
+    btn.classList.add('co-active');
+    state.sentiment = btn.getAttribute('data-sentiment');
+    state.feedLimit = FEED_PAGE;
+    renderFeed();
+  });
+});
+document.querySelectorAll('#coCentreTable th').forEach(function(th){
+  th.addEventListener('click', function(){
+    var key = th.getAttribute('data-key');
+    if(state.sort.key === key) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+    else { state.sort.key = key; state.sort.dir = 'desc'; }
+    renderCentreTable();
+  });
+});
+
+// ---------- INIT ----------
+populateCentreCountrySelect();
+fetchAll();
+setInterval(fetchAll, REFRESH_MS);
+
+})();
+</script>
+</body>
+</html>
