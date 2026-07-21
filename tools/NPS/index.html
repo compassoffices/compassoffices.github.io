@@ -140,7 +140,7 @@ table.co-table tbody tr:hover{background:var(--co-orange-wash);}
         <svg viewBox="0 0 23.13 23.13" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>
         <div class="co-brand-text">
           <span class="co-name">Compass Offices</span>
-          <span class="co-sub">Net Promoter Score — Dashboard</span>
+          <span class="co-sub">Net Promoter Score — APAC Dashboard</span>
         </div>
       </div>
       <div class="co-status">
@@ -196,13 +196,14 @@ table.co-table tbody tr:hover{background:var(--co-orange-wash);}
     <section class="co-section">
       <div class="co-section-head">
         <span class="co-section-title">Centre breakdown</span>
-        <select class="co-select" id="coCentreCountrySelect"></select>
+        <span class="co-section-note" id="coCentreContext"></span>
       </div>
       <div class="co-panel co-table-wrap">
         <table class="co-table" id="coCentreTable">
           <thead>
             <tr>
               <th data-key="centre">Centre</th>
+              <th data-key="countryName">Market</th>
               <th data-key="total">Responses</th>
               <th data-key="nps">NPS</th>
               <th data-key="cs">Service</th>
@@ -218,7 +219,7 @@ table.co-table tbody tr:hover{background:var(--co-orange-wash);}
 
     <section class="co-section">
       <div class="co-section-head">
-        <span class="co-section-title">Recent feedback</span>
+        <span class="co-section-title">Feedback</span>
       </div>
       <div class="co-feed-controls">
         <button class="co-chip co-active" data-sentiment="all" type="button">All</button>
@@ -226,6 +227,15 @@ table.co-table tbody tr:hover{background:var(--co-orange-wash);}
         <button class="co-chip" data-sentiment="passive" type="button">Passives</button>
         <button class="co-chip" data-sentiment="detractor" type="button">Detractors</button>
         <input class="co-search" id="coSearch" type="text" placeholder="Search feedback, centre…">
+      </div>
+      <div class="co-feed-controls">
+        <button class="co-chip co-active" data-topic="all" type="button">All topics</button>
+        <button class="co-chip" data-topic="internet" type="button" title="Wi-Fi and Internet stability">Internet</button>
+        <button class="co-chip" data-topic="cleanliness" type="button" title="Toilet &amp; General Cleanliness">Cleanliness</button>
+        <button class="co-chip" data-topic="noise" type="button" title="Noise Management &amp; Etiquette Enforcement">Noise</button>
+        <button class="co-chip" data-topic="coffee" type="button" title="Coffee Machine Quality / Availability">Coffee Machine</button>
+        <button class="co-chip" data-topic="aircon" type="button" title="Air-Conditioning">Air-Con</button>
+        <button class="co-chip" data-topic="facilities" type="button" title="Facilities Age &amp; Maintenance">Facilities</button>
       </div>
       <div class="co-feed" id="coFeed"></div>
       <button class="co-btn co-loadmore" id="coLoadMore" type="button">Load more</button>
@@ -270,16 +280,39 @@ var SAT_FIELDS = [
   {key:'improvementSatisfaction', label:'Improvements'}
 ];
 
+var TOPIC_KEYWORDS = {
+  internet: ['wifi','wi-fi','wi fi','internet','network','連線不穩','無線網絡','ワイファイ','インターネット','電波','接続','回線'],
+  cleanliness: ['toilet','restroom','washroom','bathroom','hygiene','dirty','filthy','トイレ','洗手間','廁所','清潔','衛生','汚れ','汚い','不衛生'],
+  noise: ['noise','noisy','loud','うるさい','騒がしい','騒音','manners','etiquette','嘈','吵'],
+  coffee: ['coffee','espresso','barista','コーヒー','咖啡','アイスコーヒー','icedコーヒー'],
+  aircon: ['air-con','aircon','air condition','air-condition','冷氣','冷房','空調','エアコン','温度','室温'],
+  facilities: ['outdated','aging','ageing','renovate','renovated','renovation','renovating','maintenance','老舊','老朽','陳舊','古い','設備が古','施設が古']
+};
+
+function isCJKText(str){ return /[　-鿿豈-﫿＀-￯]/.test(str); }
+
+function keywordMatches(hayLower, kwLower){
+  if(isCJKText(kwLower)) return hayLower.indexOf(kwLower) !== -1;
+  var idx = hayLower.indexOf(kwLower);
+  while(idx !== -1){
+    var before = idx > 0 ? hayLower[idx - 1] : '';
+    var after = hayLower[idx + kwLower.length] || '';
+    if(!/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after)) return true;
+    idx = hayLower.indexOf(kwLower, idx + 1);
+  }
+  return false;
+}
+
 // ---------- STATE ----------
 var state = {
   rows: [],
   selected: new Set(),   // selected country codes (empty = all)
   range: 'all',
   sentiment: 'all',
+  topic: 'all',
   search: '',
   feedLimit: FEED_PAGE,
   sort: {key:'nps', dir:'desc'},
-  centreCountry: null,
   trendChart: null,
   radarChart: null
 };
@@ -627,40 +660,26 @@ function renderRadarChart(){
 }
 
 // ---------- RENDER: CENTRE TABLE ----------
-function populateCentreCountrySelect(){
-  var sel = $('coCentreCountrySelect');
-  if(sel.options.length) return;
-  COUNTRIES.forEach(function(c){
-    var opt = document.createElement('option');
-    opt.value = c.code; opt.textContent = c.name;
-    sel.appendChild(opt);
-  });
-  state.centreCountry = COUNTRIES[0].code;
-  sel.value = state.centreCountry;
-  sel.addEventListener('change', function(){
-    state.centreCountry = sel.value;
-    renderCentreTable();
-  });
-}
-
 function renderCentreTable(){
-  var rows = getFilteredRows([state.centreCountry]);
+  var rows = getFilteredRows();
   var byCentre = {};
   rows.forEach(function(r){
-    if(!byCentre[r.centre]) byCentre[r.centre] = [];
-    byCentre[r.centre].push(r);
+    var key = r.country + '|' + r.centre;
+    if(!byCentre[key]) byCentre[key] = {centre:r.centre, countryName:r.countryName, rows:[]};
+    byCentre[key].rows.push(r);
   });
-  var records = Object.keys(byCentre).map(function(name){
-    var subset = byCentre[name];
-    var agg = computeNPS(subset);
+  var records = Object.keys(byCentre).map(function(key){
+    var entry = byCentre[key];
+    var agg = computeNPS(entry.rows);
     return {
-      centre: name,
+      centre: entry.centre,
+      countryName: entry.countryName,
       total: agg.total,
       nps: agg.nps,
-      cs: avgField(subset,'cs'),
-      cleanliness: avgField(subset,'cleanliness'),
-      amenities: avgField(subset,'amenities'),
-      improvementSatisfaction: avgField(subset,'improvementSatisfaction')
+      cs: avgField(entry.rows,'cs'),
+      cleanliness: avgField(entry.rows,'cleanliness'),
+      amenities: avgField(entry.rows,'amenities'),
+      improvementSatisfaction: avgField(entry.rows,'improvementSatisfaction')
     };
   });
   records.sort(function(a,b){
@@ -670,15 +689,21 @@ function renderCentreTable(){
     if(typeof av === 'string') return av.localeCompare(bv) * dir;
     return (av - bv) * dir;
   });
+
+  $('coCentreContext').textContent = state.selected.size
+    ? Array.from(state.selected).map(function(code){ return COUNTRIES.filter(function(c){return c.code===code;})[0].name; }).join(', ')
+    : 'All markets';
+
   var tbody = document.querySelector('#coCentreTable tbody');
   if(!records.length){
-    tbody.innerHTML = '<tr><td colspan="7" class="co-empty">No responses for this market in the selected period.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="co-empty">No responses for this selection in the selected period.</td></tr>';
     return;
   }
   tbody.innerHTML = records.map(function(r){
     var tier = npsTier(r.nps);
     return '<tr>' +
       '<td>' + escapeHtml(r.centre) + '</td>' +
+      '<td>' + escapeHtml(r.countryName) + '</td>' +
       '<td>' + r.total + '</td>' +
       '<td><span class="co-nps-pill" style="background:' + tier.color + '22; color:' + tier.color + '">' + (r.nps===null?'—':r.nps) + '</span></td>' +
       '<td>' + fmt1(r.cs) + '</td>' +
@@ -695,6 +720,10 @@ function escapeHtml(s){
   });
 }
 
+function feedbackText(r){
+  return [r.reason, r.improvementSuggestions].join(' ');
+}
+
 // ---------- RENDER: FEEDBACK FEED ----------
 function renderFeed(){
   var rows = getFilteredRows().filter(function(r){
@@ -703,9 +732,13 @@ function renderFeed(){
     if(state.sentiment === 'detractor') return r.nps <= 6;
     return true;
   }).filter(function(r){
-    if(!r.reason && !r.improvementSuggestions) return false;
+    if(state.topic === 'all') return true;
+    var keywords = TOPIC_KEYWORDS[state.topic] || [];
+    var hay = feedbackText(r).toLowerCase();
+    return keywords.some(function(kw){ return keywordMatches(hay, kw.toLowerCase()); });
+  }).filter(function(r){
     if(!state.search) return true;
-    var hay = (r.reason + ' ' + r.improvementSuggestions + ' ' + r.centre + ' ' + r.countryName).toLowerCase();
+    var hay = (feedbackText(r) + ' ' + r.centre + ' ' + r.countryName).toLowerCase();
     return hay.indexOf(state.search.toLowerCase()) !== -1;
   }).sort(function(a,b){
     var ad = a.date ? a.date.getTime() : 0, bd = b.date ? b.date.getTime() : 0;
@@ -729,7 +762,7 @@ function renderFeed(){
         '<span class="co-tag">' + escapeHtml(r.centre) + '</span>' +
         '<span class="co-feed-date">' + dateStr + '</span>' +
       '</div>' +
-      (r.reason ? '<p class="co-feed-quote">“' + escapeHtml(r.reason) + '”</p>' : '') +
+      (r.reason ? '<p class="co-feed-quote">“' + escapeHtml(r.reason) + '”</p>' : '<p class="co-feed-quote" style="color:var(--co-muted);">No written comment</p>') +
       (r.improvementSuggestions ? '<p class="co-feed-suggestion">Suggestion: ' + escapeHtml(r.improvementSuggestions) + '</p>' : '') +
     '</div>';
   }).join('');
@@ -761,6 +794,15 @@ document.querySelectorAll('[data-sentiment]').forEach(function(btn){
     renderFeed();
   });
 });
+document.querySelectorAll('[data-topic]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('[data-topic]').forEach(function(b){ b.classList.remove('co-active'); });
+    btn.classList.add('co-active');
+    state.topic = btn.getAttribute('data-topic');
+    state.feedLimit = FEED_PAGE;
+    renderFeed();
+  });
+});
 document.querySelectorAll('#coCentreTable th').forEach(function(th){
   th.addEventListener('click', function(){
     var key = th.getAttribute('data-key');
@@ -771,7 +813,6 @@ document.querySelectorAll('#coCentreTable th').forEach(function(th){
 });
 
 // ---------- INIT ----------
-populateCentreCountrySelect();
 fetchAll();
 setInterval(fetchAll, REFRESH_MS);
 
