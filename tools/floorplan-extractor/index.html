@@ -1855,6 +1855,7 @@ const COUNTRIES = [
   { code:'VN', flag:'🇻🇳', name:'Vietnam',     gid: 234333070  },
   { code:'SG', flag:'🇸🇬', name:'Singapore',   gid: 1294236502 },
   { code:'PH', flag:'🇵🇭', name:'Philippines', gid: 618007799  },
+  { code:'MY', flag:'🇲🇾', name:'Malaysia',    gid: 835069222  },
 ];
 
 // Column mapping — which column in your sheet contains what
@@ -2011,8 +2012,12 @@ function renderLocList(items){
   }
 }
 
-async function loadLocation(item, el){
+async async function loadLocation(item, el){
   if(!item.pdfUrl){ alert('No file URL for this location.'); return; }
+  // Normalise URL — strip any PDFJSON__ prefix format if pasted from column
+  let rawUrl = item.pdfUrl.trim();
+  if(rawUrl.startsWith('PDFJSON__')) rawUrl = rawUrl.split('__')[1] || rawUrl;
+  item = {...item, pdfUrl: rawUrl};
 
   // Check API key is configured if this is a Drive link
   const isDriveUrl = item.pdfUrl.includes('drive.google.com') || item.pdfUrl.includes('drive.usercontent.google.com');
@@ -2026,6 +2031,9 @@ async function loadLocation(item, el){
   try{
     // Step 1: fetch the PDF/image via Drive API
     const fetchUrl = driveFetchUrl(item.pdfUrl);
+    console.log('[loadLocation] Fetching:', fetchUrl);
+    console.log('[loadLocation] Original URL:', item.pdfUrl);
+    console.log('[loadLocation] Extracted file ID:', driveFileId(item.pdfUrl));
     const resp = await fetch(fetchUrl);
     if(!resp.ok){
       const body = await resp.text().catch(()=>'');
@@ -2101,9 +2109,24 @@ function setLocStatus(html, isError=false){
 // Extracts the Google Drive file ID from any share link format
 function driveFileId(url){
   if(!url) return null;
-  for(const p of [/\/file\/d\/([a-zA-Z0-9_-]+)/, /id=([a-zA-Z0-9_-]+)/]){
+  // Match various Google Drive URL formats:
+  // /file/d/FILE_ID/view  or  /file/d/FILE_ID
+  // ?id=FILE_ID  or  &id=FILE_ID
+  // /d/FILE_ID/
+  // Just a raw file ID (44 chars alphanumeric)
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]{10,})/,   // share link
+    /\/d\/([a-zA-Z0-9_-]{10,})\//,        // short /d/ID/
+    /[?&]id=([a-zA-Z0-9_-]{10,})/,        // ?id= or &id=
+    /open\?id=([a-zA-Z0-9_-]{10,})/,      // open?id=
+    /\/uc\?.*id=([a-zA-Z0-9_-]{10,})/,    // uc?export=download&id=
+  ];
+  for(const p of patterns){
     const m = url.match(p); if(m) return m[1];
   }
+  // Bare file ID check (no slashes, 25-60 chars), but exclude API keys (start with AIza)
+  const trimmed = url.trim();
+  if(/^[a-zA-Z0-9_-]{25,60}$/.test(trimmed) && !trimmed.startsWith('AIza')) return trimmed;
   return null;
 }
 
@@ -2128,12 +2151,19 @@ function driveFetchUrl(url){
       .replace('/raw/','/');;
   }
 
-  // ── Google Drive ─────────────────────────────────────────────────────────
-  // Requires a Drive API key in the config section above.
+  // ── Google Drive / googleapis (already-constructed URL) ─────────────────
+  if(url.includes('googleapis.com/drive')){
+    // Extract file ID from googleapis URL: /files/FILE_ID?
+    const m = url.match(/\/files\/([a-zA-Z0-9_-]{10,})/);
+    if(m && !m[1].startsWith('AIza')){
+      return `https://www.googleapis.com/drive/v3/files/${m[1]}?alt=media&key=${DRIVE_API_KEY}`;
+    }
+  }
   if(url.includes('drive.google.com') || url.includes('drive.usercontent.google.com')){
     const id = driveFileId(url);
-    if(!id) return url;
-    if(!DRIVE_API_KEY) return null; // will trigger setup instructions
+    if(!id){ console.warn('[driveFetchUrl] Could not extract file ID from:', url); return url; }
+    if(!DRIVE_API_KEY) return null;
+    console.log('[driveFetchUrl] Extracted file ID:', id);
     return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${DRIVE_API_KEY}`;
   }
 
@@ -2698,6 +2728,57 @@ window.initCanvas = function(img){
 // (handled by saveLayout function patching legendItems into payload.colourMode)
 
 // ── downloadFloorplan override in colour mode ─────────────────────────────
+
+async function downloadFloorplan(){
+  // Regular (non-colour-mode) floorplan download
+  if(!origImage && !pdfDoc){ alert('No floorplan loaded.'); return; }
+  const btn = gel('fp-btn');
+  const status = gel('dl-status');
+  if(btn) btn.disabled = true;
+  if(status) status.textContent = 'Rendering floorplan…';
+  try{
+    let img = origImage, w = origW, h = origH;
+    if(pdfDoc){
+      const page = await pdfDoc.getPage(currentPage);
+      const vp = page.getViewport({scale:3.5});
+      const tmp = document.createElement('canvas');
+      tmp.width=vp.width; tmp.height=vp.height;
+      await page.render({canvasContext:tmp.getContext('2d'),viewport:vp}).promise;
+      const pi = new Image();
+      await new Promise(r=>{pi.onload=r; pi.src=tmp.toDataURL('image/png');});
+      img=pi; w=vp.width; h=vp.height;
+    }
+    const out = document.createElement('canvas');
+    out.width=w; out.height=h;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(img,0,0);
+    // Draw fill colours for coloured rooms
+    for(const [lbl,room] of Object.entries(rooms)){
+      if(!room.fillColor || lbl.toLowerCase().includes('master')) continue;
+      const fr=parseInt(room.fillColor.slice(1,3),16),fg=parseInt(room.fillColor.slice(3,5),16),fb=parseInt(room.fillColor.slice(5,7),16);
+      ctx.save();
+      if(room.polygon&&room.polygon.length>=3){
+        ctx.beginPath();ctx.moveTo(room.polygon[0].x,room.polygon[0].y);
+        for(let i=0;i<room.polygon.length;i++){const A=room.polygon[i],B=room.polygon[(i+1)%room.polygon.length];if(A.hOut){ctx.bezierCurveTo(A.x+A.hOut[0],A.y+A.hOut[1],B.x+(B.hIn?B.hIn[0]:-A.hOut[0]*.4),B.y+(B.hIn?B.hIn[1]:-A.hOut[1]*.4),B.x,B.y);}else if(B.hIn){ctx.bezierCurveTo(A.x,A.y,B.x+B.hIn[0],B.y+B.hIn[1],B.x,B.y);}else{ctx.lineTo(B.x,B.y);}}
+        ctx.closePath();
+      } else {
+        ctx.beginPath();ctx.rect(room.rect.x1,room.rect.y1,room.rect.x2-room.rect.x1,room.rect.y2-room.rect.y1);
+      }
+      ctx.fillStyle=`rgba(${fr},${fg},${fb},0.55)`;ctx.fill();ctx.restore();
+    }
+    await drawCompassLogo(ctx, w, h);
+    const blob = await new Promise(r=>out.toBlob(r,'image/jpeg',0.93));
+    const a = document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='floorplan.jpg'; a.click();
+    if(status) status.textContent='Floorplan exported';
+    setTimeout(()=>{ if(status) status.textContent=''; },3000);
+  } catch(err){
+    console.error('downloadFloorplan error:', err);
+    if(status) status.textContent='Export failed: '+err.message;
+  }
+  if(btn) btn.disabled=false;
+}
+
 const _origDownloadFloorplan = downloadFloorplan;
 window.downloadFloorplan = async function(){
   if(appMode!=='colour'){await _origDownloadFloorplan();return;}
