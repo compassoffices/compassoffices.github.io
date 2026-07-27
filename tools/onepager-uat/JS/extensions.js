@@ -1547,6 +1547,9 @@ function _ausUpdateAddBtnPulse(){
 // mgmt (monthly) + avail (avg/status) + init for every row that carries a
 // stored raw market price (_mp), then re-renders so the inline inputs and
 // expanded fields show the new values immediately.
+// 12-Month Commitment auto-fill text (AUS rows). Price-free by design so it
+// never goes stale — 2 months free on a 12-month term is always 16.66%.
+const COMMITMENT_TEXT = '2 Months Free on 12 – Save 16.66%';
 function _syncRowPrices(){
   let changed = false;
   S.rows.forEach(r => {
@@ -1557,7 +1560,7 @@ function _syncRowPrices(){
     if(r._isAus){
       // AUS format: avail = avg price, init = commitment string
       r.avail = `${cur}${avg.toLocaleString()}`;
-      r.init  = `16.6% Saving - 2 Months Free on 12! | Avg ${cur}${avg.toLocaleString()}`;
+      r.init  = COMMITMENT_TEXT;
     }
     changed = true;
   });
@@ -1612,9 +1615,10 @@ function ausAddToRows(){
     const sqmStr  = (o.sq != null && o.sq !== '')
       ? (String(o.sq) + (_sqUnit ? ' '+_sqUnit : ''))
       : '';
-    // The auto "16.6% Saving - 2 Months Free…" line was removed: it stayed
-    // frozen when a user manually adjusted the price, making it inaccurate.
-    const initStr    = '';
+    // 12-Month Commitment auto-fill. Uses a PRICE-FREE constant so it never
+    // goes stale when the discount/price is adjusted (the earlier version
+    // embedded the average price, which froze on manual edits).
+    const initStr    = COMMITMENT_TEXT;
     const availStr = isAus
       ? avgStr  // AUS view: 'avail' column = Average Price
       : ((o.av === 'Y') ? 'NOW'
@@ -2403,9 +2407,13 @@ function buildEmailHTML(toName, fromName, company){
   </td></tr>
 </table>` : '';
 
-    const pageBtn = (PAGE_URL_ON && loc.pageUrl) ? `
+    // View Location Page + House Rules — grouped together as the location links.
+    // House Rules moved here from the sign-off so it sits beside the page link.
+    const _pageLink = (PAGE_URL_ON && loc.pageUrl) ? `<a href="${loc.pageUrl}" target="_blank" class="em-btn-page" style="display:inline-block;margin:0 8px 8px 0;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:${FF};font-size:13px;font-weight:700;text-decoration:none;">${T.view_location}</a>` : '';
+    const _hrLink   = HOUSE_RULES_ON ? `<a href="${houseRulesUrl(lc)}" target="_blank" class="em-btn-page" style="display:inline-block;margin:0 8px 8px 0;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:${FF};font-size:13px;font-weight:700;text-decoration:none;">${T.house_rules} →</a>` : '';
+    const pageBtn = (_pageLink || _hrLink) ? `
 <table class="em-pagebtn" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:12px 0;">
-  <tr><td><a href="${loc.pageUrl}" target="_blank" class="em-btn-page" style="display:inline-block;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:${FF};font-size:13px;font-weight:700;text-decoration:none;">${T.view_location}</a></td></tr>
+  <tr><td>${_pageLink}${_hrLink}</td></tr>
 </table>` : '';
 
     // Location divider header (multi-location only)
@@ -2432,7 +2440,7 @@ function buildEmailHTML(toName, fromName, company){
   // Benefits (from first location, shown once). The "…deposit, fully
   // refundable…" benefit (id:'deposit') is omitted from the email — that
   // detail lives in the proposal attachment. It still shows on the proposal.
-  const bens = (firstLoc.benefits||[]).filter(b=>b.id!=='deposit');
+  const bens = (firstLoc.benefits||[]).filter(b=>b.id!=='deposit' && !/deposit|refundable|保證金|押金|保証金/i.test(b.text||''));
   const bensHTML = bens.length
     ? bens.map(b=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${b.text}</li>`).join('')
     : T.default_benefits.map(t=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${t}</li>`).join('');
@@ -2534,7 +2542,6 @@ function buildEmailHTML(toName, fromName, company){
     <td class="em-foot-pad" style="padding:0 36px 32px;">
       <p style="margin:0 0 12px;font-family:${FF};font-size:13.5px;color:#555;line-height:1.65;">${T.questions}</p>
       <p style="margin:0 0 18px;font-family:${FF};font-size:13.5px;color:#555;line-height:1.65;">${T.look_forward}</p>
-      ${HOUSE_RULES_ON?`<p style="margin:0 0 18px;font-family:${FF};font-size:12.5px;line-height:1.6;"><a href="${houseRulesUrl(lc)}" target="_blank" style="color:#FF6600;font-weight:700;text-decoration:none;">${T.house_rules} →</a></p>`:''}
       <p style="margin:0;font-family:${FF};font-size:13.5px;color:#1a1a1a;line-height:1.7;">${T.best_regards}<br>
         <strong style="font-size:15px;color:#FF6600;">${fromName||'[Your Name]'}</strong><br>
         <span style="font-size:12px;color:#888;">${T.company_suffix}</span>
@@ -2598,11 +2605,11 @@ function buildEmailPlainText(toName, fromName, company){
       loc.tours.forEach((u,i)=>{ body += (loc.tours.length>1 ? T.pt_tour_n(i+1) : '') + u + '\n'; });
     }
     if(PAGE_URL_ON && loc.pageUrl) body += `\n${T.pt_loc_page}${loc.pageUrl}\n`;
+    // House Rules link sits with the location page link (matches email language)
+    if(HOUSE_RULES_ON) body += `${T.house_rules}: ${houseRulesUrl(getEmailLang())}\n`;
   });
 
   body += `\n${'─'.repeat(40)}\n`;
-  // House Rules link in the plain-text sign-off (matches email language)
-  if(HOUSE_RULES_ON) body += `${T.house_rules}: ${houseRulesUrl(getEmailLang())}\n\n`;
   body += `${T.pt_questions}\n\n${T.pt_best_regards}\n${fromName||'[Your Name]'}\nCompass Offices`;
   return body;
 }
