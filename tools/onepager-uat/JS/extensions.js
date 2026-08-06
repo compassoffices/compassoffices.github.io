@@ -1570,6 +1570,78 @@ function _syncRowPrices(){
   });
   if(changed){ renderRows(); gen(); }
 }
+// ── Cross-floor room injection (multi-floor proposals) ────────────────────────
+// Fetches the OTHER floor's floorplan data.json to get each office's real room
+// `file`, then injects synthetic room entries (absolute URLs) into the current
+// FP_MASTER_DATA so page 1 shows those rooms too. No filename guessing.
+async function _injectCrossFloorRooms(oids, otherBase, otherDataUrl){
+  // Resolve the data.json URL: explicit fp_data_url, else base + data.json
+  const dataUrl = otherDataUrl || (otherBase ? otherBase + 'data.json' : '');
+  let rooms = null;
+  if(dataUrl){
+    try{
+      const resp = await fetch(dataUrl, {mode:'cors', credentials:'omit', cache:'no-cache'});
+      if(resp.ok){ const j = await resp.json(); rooms = Array.isArray(j?.rooms) ? j.rooms : null; }
+    }catch(e){ console.warn('[multi-floor] other-floor data.json fetch failed:', e.message); }
+  }
+  // Image directory for that floor: prefer fp_base_url; else the data.json's dir
+  const imgBase = otherBase || (dataUrl ? dataUrl.substring(0, dataUrl.lastIndexOf('/')+1) : '');
+  if(!imgBase) return;
+
+  // Variant matcher — mirrors fpFindRoom's logic
+  const _match = raw => {
+    if(!rooms) return null;
+    const noHyphen = raw.replace(/(\d)-(\d)/g,'$1$2');
+    const stripC   = raw.replace(/\s*-\s*C\b.*/i,'').trim();
+    const stripCnh = noHyphen.replace(/\s*-\s*C\b.*/i,'').trim();
+    const slug     = typeof _fpRoomSlug==='function' ? _fpRoomSlug(raw) : raw;
+    const variants = [raw,noHyphen,slug,stripC,stripCnh].filter((v,i,a)=>v&&a.indexOf(v)===i);
+    for(const n of variants){
+      const f = rooms.find(r=>r.displayLabel===n) || rooms.find(r=>r.label===n);
+      if(f) return f;
+    }
+    return null;
+  };
+
+  let injected = 0;
+  oids.forEach(oid=>{
+    const rawOid = String(oid).trim();
+    const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(rawOid) : rawOid.replace(/\s*-\s*C$/i,'').trim();
+    if(!slug) return;
+    const real   = _match(rawOid);
+    const file   = real?.file ? String(real.file) : (slug + '.png');
+    const absUrl = /^https?:\/\//i.test(file) ? file : imgBase + file;
+    if(FP_MASTER_DATA){
+      if(!fpFindRoom(rawOid)){
+        if(!FP_MASTER_DATA.rooms) FP_MASTER_DATA.rooms = [];
+        FP_MASTER_DATA.rooms.push({
+          displayLabel: rawOid,
+          label: real?.label || slug,
+          file: absUrl,
+          polygon: [],                 // no polygon — image-only, never painted on the wrong master
+          fillColor: real?.fillColor || '#FF6600',
+          _synthetic: true, _crossFloor: true,
+        });
+      }
+      if(typeof fpHighlightAdd==='function') fpHighlightAdd(rawOid);
+      _AUS_FP_AUTO_ADDED.add(slug);
+      injected++;
+    } else if(FP_BASE_URL || FP_PLANS.length){
+      if(!FP_PLANS.some(p=>p.url===absUrl||p.label===rawOid)){
+        FP_PLANS.push({url:absUrl,label:rawOid});
+        _AUS_FP_AUTO_ADDED.add(slug);
+        if(typeof applyFpSmartDefaults==='function') applyFpSmartDefaults();
+        injected++;
+      }
+    }
+  });
+  if(injected){
+    if(typeof renderFpList==='function') renderFpList();
+    if(typeof renderPrFpChips==='function') renderPrFpChips();
+    gen();
+  }
+}
+
 function ausAddToRows(){
   if(!AUS_SELECTED.size){showStatus('Select at least one office first.','s-info');return;}
   const disc=AUS_DISCOUNT;
@@ -1670,39 +1742,16 @@ function ausAddToRows(){
           EXTRA_MASTERS.push({url:murl,label:'Level '+fl,fp_base_url:mbase,fp_data_url:mdata});_newMasters++;
         }
         // ── Cross-floor room images on page 1 ──
-        // _ausAddOfficeToFp() couldn't add these offices (their rooms aren't in
-        // the CURRENT floor's data.json). Resolve each from the OTHER floor's
-        // image base and inject with an ABSOLUTE file URL (the room-URL
-        // builders use absolute file values verbatim, same as master.file).
-        if(mbase){
+        // _ausAddOfficeToFp() couldn't add these offices — their rooms aren't
+        // in the CURRENT floor's data.json. Fetch the OTHER floor's data.json,
+        // find each office's REAL room entry (same variant matching as
+        // fpFindRoom), and inject it with an ABSOLUTE file URL so the room-URL
+        // builders use it verbatim. Falls back to slug-guess if fetch fails.
+        if(mbase||mdata){
           const flOffices=[...AUS_SELECTED].map(k=>{
             const o=AUS_OFFICES[k];return o?o.oid:String(k).split('||').pop();
           }).filter(oid=>((String(oid).match(/^(\d+)/)||[])[1])===fl);
-          flOffices.forEach(oid=>{
-            const rawOid=String(oid).trim();
-            const slug=typeof _fpRoomSlug==='function'?_fpRoomSlug(rawOid):rawOid.replace(/\s*-\s*C$/i,'').trim();
-            if(!slug) return;
-            const absUrl=mbase+slug+'.png';
-            if(FP_MASTER_DATA){
-              if(!fpFindRoom(rawOid)){
-                if(!FP_MASTER_DATA.rooms) FP_MASTER_DATA.rooms=[];
-                FP_MASTER_DATA.rooms.push({
-                  displayLabel:rawOid,label:slug,file:absUrl,
-                  polygon:[],fillColor:'#FF6600',_synthetic:true,_crossFloor:true,
-                });
-              }
-              if(typeof fpHighlightAdd==='function') fpHighlightAdd(rawOid);
-              _AUS_FP_AUTO_ADDED.add(slug);
-            } else if(FP_BASE_URL||FP_PLANS.length){
-              if(!FP_PLANS.some(p=>p.url===absUrl||p.label===rawOid)){
-                FP_PLANS.push({url:absUrl,label:rawOid});
-                _AUS_FP_AUTO_ADDED.add(slug);
-                if(typeof applyFpSmartDefaults==='function') applyFpSmartDefaults();
-              }
-            }
-          });
-          if(typeof renderFpList==='function') renderFpList();
-          if(typeof renderPrFpChips==='function') renderPrFpChips();
+          if(flOffices.length) _injectCrossFloorRooms(flOffices, mbase, mdata);
         }
       });
       if(_newMasters&&typeof renderExtraMasters==='function') renderExtraMasters();

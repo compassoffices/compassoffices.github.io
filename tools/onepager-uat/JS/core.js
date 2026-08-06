@@ -8,7 +8,16 @@ function gen(){
   // Triggers async re-render when state has changed; calls gen() again on completion.
   if(typeof ensureHighlightRender === 'function') ensureHighlightRender();
   const name=g('n-main')||'Location Name';
-  const addr=g('addr');const city=g('city')||'Hong Kong';const floor=g('floor');const purl=g('purl');
+  const addr=g('addr');const city=g('city')||'Hong Kong';const purl=g('purl');
+  // Multi-floor: header shows all floors, e.g. "17F + 24F"
+  let floor=g('floor');
+  if(typeof EXTRA_MASTERS!=='undefined'&&EXTRA_MASTERS.length){
+    const _sfx=(String(floor).match(/[Ff]|樓|楼|階/)||['F'])[0];
+    const _flNums=new Set();
+    const _cur=(String(floor).match(/\d+/)||[])[0];if(_cur)_flNums.add(_cur);
+    EXTRA_MASTERS.forEach(m=>{const d=(String(m.label||'').match(/\d+/)||[])[0];if(d)_flNums.add(d);});
+    if(_flNums.size>1) floor=[..._flNums].sort((a,b)=>+a-+b).map(d=>d+_sfx).join(' + ');
+  }
   const trLines=TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
   const mkPair=(k1,v1,k2,v2)=>{if(!v1&&!v2)return null;if(v1&&!v2)return{k:k1,v:v1,pair:false};if(!v1&&v2)return{k:k2,v:v2,pair:false};return{k:k1,v:v1,k2,v2,pair:true};};
   const specRows=!SHOW_SPECS?[]:[
@@ -219,9 +228,9 @@ function gen(){
   <div class="sl-body" style="grid-template-columns:${bodyGrid}">
     <div class="sl-photos">
       <div class="sl-ph-stack" style="flex:${photoAreaFlex}">
-        <div class="sl-ph-cell">${S.photos[0]?`<img src="${S.photos[0]}">`:`${noph()}`}</div>
-        <div class="sl-ph-cell">${S.photos[1]?`<img src="${S.photos[1]}">`:`${noph('#E0E0E0')}`}</div>
-        <div class="sl-ph-cell">${S.photos[2]?`<img src="${S.photos[2]}">`:`${noph('#E8E8E8')}`}</div>
+        <div class="sl-ph-cell">${S.photos[0]?`<img src="${S.photos[0]}" onerror="this.parentNode.innerHTML='<div class=noph></div>'">`:`${noph()}`}</div>
+        <div class="sl-ph-cell">${S.photos[1]?`<img src="${S.photos[1]}" onerror="this.parentNode.innerHTML='<div class=noph></div>'">`:`${noph('#E0E0E0')}`}</div>
+        <div class="sl-ph-cell">${S.photos[2]?`<img src="${S.photos[2]}" onerror="this.parentNode.innerHTML='<div class=noph></div>'">`:`${noph('#E8E8E8')}`}</div>
       </div>
       ${amenChecked.length?`<div class="sl-amen-below"><div class="sl-amen-below-grid">${amenChecked.map(a=>`<div class="sl-amen-cell">${renderIcHtml(a.id)||renderIcHtml("norestore")}<span>${amenLabel(a)}</span></div>`).join('')}</div></div>`:''}
     </div>
