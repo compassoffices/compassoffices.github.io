@@ -1,254 +1,208 @@
-// ══════════════════════════════════════════════════════════
-//  TRANSPORT
-// ══════════════════════════════════════════════════════════
-const CO_CITIES=['Hong Kong','Singapore','Tokyo','Osaka','Manila','Kuala Lumpur','Melbourne','Sydney','Ho Chi Minh City','Jakarta','Bangkok','Seoul','Taipei','Shanghai','Beijing','Shenzhen','Guangzhou','Chengdu','Dubai','Mumbai'].sort();
+// Compass Offices One-Pager Builder
+// https://github.com/compassoffices/compassoffices.github.io
 
-let TRANSPORT=[];
-let _trIdSeq=0; // guaranteed unique even within same millisecond
-function _trId(){ return 'tr_'+(++_trIdSeq)+'_'+Date.now(); }
-function initTransport(lines){
-  TRANSPORT=(lines||[]).map((l,i)=>({id:_trId(),iconId:l.iconId||'tr_metro',text:typeof l==='string'?l:(l.text||'')}));
-}
-function addTransport(text='',iconId='tr_metro'){
-  TRANSPORT.push({id:_trId(),iconId,text});
-  renderTransport();
-  setTimeout(()=>{const eds=document.querySelectorAll('#tr-list .tr-rich-editor');if(eds.length)eds[eds.length-1].focus();},40);
-}
-function delTransport(id){TRANSPORT=TRANSPORT.filter(t=>t.id!==id);renderTransport();}
-function renderTransport(){
-  const list=document.getElementById('tr-list');if(!list)return;
-  list.innerHTML=TRANSPORT.map(t=>{
-    const iconSvg=(renderIcHtml(t.iconId)||IC[t.iconId]||'')||IC.tr_metro;
-    const eid='tr-ed-'+t.id;
-    return`<div class="tr-row" style="flex-direction:column;align-items:stretch;gap:5px;padding:8px 10px;">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <button class="tr-ico-btn" onpointerdown="event.stopPropagation();openTrPicker('${t.id}',this)">${iconSvg}</button>
-        <div class="tr-rich-mini">
-          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('bold','${eid}')"><b>B</b></button>
-          <button class="spec-rb orange" onmousedown="event.preventDefault();trRichOp('orange','${eid}')">●</button>
-          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('black','${eid}')" style="color:#333">●</button>
-          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('small','${eid}')" style="color:var(--lt)">S↓</button>
-          <button class="spec-rb" onmousedown="event.preventDefault();trRichOp('clear','${eid}')">✕</button>
-        </div>
-        <button class="tr-del" onclick="delTransport('${t.id}')"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="tr-rich-editor" id="${eid}" contenteditable="true" data-tr-id="${t.id}" oninput="updateTrHtml('${t.id}',this);genDebounced(500);" placeholder="e.g. MTR Central — 2 min walk">${t.text||''}</div>
-    </div>`;
-  }).join('');
-}
-function updateTrHtml(id,el){const t=TRANSPORT.find(t=>t.id===id);if(t){let h=(el.innerHTML||'').trim();if(h==='<br>')h='';t.text=h;}}
-function updateTr(id,val){const t=TRANSPORT.find(t=>t.id===id);if(t)t.text=val;}
-function trRichOp(cmd,editorId){
-  const el=document.getElementById(editorId);if(!el)return;el.focus();
-  if(cmd==='bold')document.execCommand('bold',false,null);
-  else if(cmd==='orange')document.execCommand('foreColor',false,'#FF6600');
-  else if(cmd==='black')document.execCommand('foreColor',false,'#333333');
-  else if(cmd==='clear')document.execCommand('removeFormat',false,null);
-  else if(cmd==='small'){const sel=window.getSelection();if(sel&&sel.rangeCount&&!sel.isCollapsed){const range=sel.getRangeAt(0);const small=document.createElement('small');try{range.surroundContents(small);}catch(e){const frag=range.extractContents();small.appendChild(frag);range.insertNode(small);}}}
-  updateTrHtml(el.dataset.trId,el);gen();
-}
+// ══════════════════════════════════════════════════════════════════════════
+//  PERKS PAGE — fixed marketing page injected before Let's Talk in every PDF
+//  Body = 794 - 76 = 718px │ Top = 445px (62%) │ Bottom = 273px (38%)
+// ══════════════════════════════════════════════════════════════════════════
 
-// ── ICON PICKER SHARED RESET ─────────────────────────────
-function resetPickerTabs(){
-  // Always start with builtin tab visible, CO hidden
-  const builtin=document.getElementById('ico-pack-builtin');
-  const co=document.getElementById('ico-pack-co');
-  if(builtin){builtin.style.display='';builtin.classList.add('on');}
-  if(co){co.style.display='none';co.classList.remove('on');}
-  document.querySelectorAll('.ico-pack-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
-}
-// Populate the CO panel with correct handler for current mode
-function buildCOPanel(){
-  const co=document.getElementById('ico-pack-co');if(!co)return;
-  co.innerHTML=(Array.isArray(CO_ICONS)?CO_ICONS:[]).map(ic=>
-    `<div class="ico-opt" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')" title="${ic.label}">` +
-    `<img src="${ic.url}" class="co-icon-img" style="width:18px;height:18px;object-fit:contain" alt="${ic.label}">` +
-    `<span>${ic.label.split(' ')[0].slice(0,8)}</span></div>`
-  ).join('')||'<div style="padding:10px;font-size:11px;color:var(--xlt);text-align:center;grid-column:1/-1">No CO icons loaded</div>';
-}
-
-let _trPickerId=null;
-function openTrPicker(id,btn){
-  _pickerMode='tr';_trPickerId=id;_pickerBenIdx=null;_amenPickerIdx=null;
-  if(document.getElementById('ico-picker').classList.contains('open')&&_trPickerId===id){closeIconPicker();return;}
-  const picker=document.getElementById('ico-picker');
-  const cur=(TRANSPORT.find(t=>t.id===id)||{}).iconId||'tr_metro';
-  document.getElementById('ico-picker-grid').innerHTML=TR_IC_LIST.map(ic=>
-    `<div class="ico-opt${cur===ic.id?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')">` +
-    `<span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${(renderIcHtml(ic.id)||IC[ic.id]||'')||''}</span>` +
-    `<span>${ic.label}</span></div>`
-  ).join('');
-  buildCOPanel();
-  resetPickerTabs();
-  const r=btn.getBoundingClientRect();
-  picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-240)+'px';
-  picker.classList.add('open');
-  document.removeEventListener('pointerdown',outsidePickerClick);
-  setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
-}
-function selectTrIcon(iconId){
-  if(_trPickerId===null)return;
-  const t=TRANSPORT.find(t=>t.id===_trPickerId);if(t)t.iconId=iconId;
-  closeIconPicker();_trPickerId=null;renderTransport();gen();
-}
-
-// ══════════════════════════════════════════════════════════
-//  AMENITIES
-// ══════════════════════════════════════════════════════════
-const AMENITY_ICONS=[
-  {id:'concierge',on:true,en:'Concierge',tc:'禮賓',sc:'礼宾',ja:'コンシェルジュ'},
-  {id:'lounge',on:true,en:'Lounge',tc:'休息室',sc:'休息室',ja:'ラウンジ'},
-  {id:'drinks',on:true,en:'Drinks',tc:'飲品',sc:'饮品',ja:'ドリンク'},
-  {id:'flexible',on:true,en:'Flexible',tc:'靈活',sc:'灵活',ja:'柔軟契約'},
-  {id:'deposit',on:true,en:'Deposit',tc:'保證金',sc:'押金',ja:'保証金'},
-  {id:'furniture',on:true,en:'Furnished',tc:'傢俱齊備',sc:'家具齐备',ja:'家具完備'},
-  {id:'utilities',on:true,en:'Utilities',tc:'水電包含',sc:'水电包含',ja:'光熱費込'},
-  {id:'access24',on:true,en:'24/7',tc:'全天候',sc:'全天候',ja:'24時間'},
-  {id:'phonebooth',on:false,en:'Phone Booth',tc:'電話亭',sc:'电话亭',ja:'フォンブース'},
-  {id:'parking',on:false,en:'Parking',tc:'停車場',sc:'停车场',ja:'駐車場'},
-  {id:'norestore',on:true,en:'No Restore',tc:'免還原',sc:'免复原',ja:'原状回復不要'},
-  {id:'security',on:false,en:'Security',tc:'保安',sc:'保安',ja:'セキュリティ'},
-];
-function amenLabel(a){const map={'zh-hant':'tc','zh-hans':'sc','ja':'ja'};return a[map[LANG]]||a.en;}
-function renderAmenities(){
-  document.getElementById('amen-grid').innerHTML=AMENITY_ICONS.map((a,i)=>`
-    <div class="amen-item${a.on?' on':''}" style="position:relative;padding-right:22px">
-      <div style="display:flex;align-items:center;gap:7px;flex:1" onclick="toggleAmenIcon(${i})">
-        <span class="aico">${renderIcHtml(a.id)||''}</span><span>${amenLabel(a)}</span>
-      </div>
-      <button onpointerdown="event.stopPropagation();openAmenIconPicker(${i},this)" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;padding:2px;color:var(--xlt);font-size:10px;">⚙</button>
-    </div>`).join('');
-}
-function toggleAmenIcon(i){AMENITY_ICONS[i].on=!AMENITY_ICONS[i].on;renderAmenities();gen();}
-
-// ══════════════════════════════════════════════════════════
-//  BENEFITS
-// ══════════════════════════════════════════════════════════
-const BEN_DEFAULTS={
-  en:[{id:'concierge',text:'Concierge staff on-site (English available)'},{id:'lounge',text:'Lounge & meeting rooms shared'},{id:'drinks',text:'Coffee, drinks, microwave & fridge included'},{id:'flexible',text:'Flexible contracts — monthly or annual'},{id:'deposit',text:'3-month deposit, fully refundable on exit'},{id:'furniture',text:'Fully furnished, no fit-out required'},{id:'utilities',text:'Utilities, Free Wi-Fi & cleaning included'},{id:'access24',text:'24-hour access available'},{id:'norestore',text:'No restoration required on exit'},{id:'phonebooth',text:'Private phone booths available',on:false},{id:'parking',text:'Parking available on-site',on:false},{id:'security',text:'Security card access included',on:false}],
-  'zh-hant':[{id:'concierge',text:'禮賓服務員常駐（可英語溝通）'},{id:'lounge',text:'休息室及會議室共用，可利用面積增倍'},{id:'drinks',text:'咖啡、飲品、微波爐及冰箱'},{id:'flexible',text:'月度或年度合約，靈活選擇'},{id:'deposit',text:'保證金3個月，退租時全額退還'},{id:'furniture',text:'辦公傢俱完備，無需裝修'},{id:'utilities',text:'水電費、免費WiFi及清潔費全包'},{id:'access24',text:'24小時全天候出入'},{id:'norestore',text:'退租毋須還原，僅需清潔費'},{id:'phonebooth',text:'私人電話亭及會議室獨佔使用',on:false},{id:'parking',text:'大廈設有停車場',on:false},{id:'security',text:'安全卡進出及全天候大廈保安',on:false}],
-  'zh-hans':[{id:'concierge',text:'礼宾服务员常驻（可英语沟通）'},{id:'lounge',text:'休息室及会议室共用，可利用面积增倍'},{id:'drinks',text:'咖啡、饮品、微波炉及冰箱'},{id:'flexible',text:'月度或年度合同，灵活选择'},{id:'deposit',text:'押金3个月，退租时全额退还'},{id:'furniture',text:'办公家具完备，无需装修'},{id:'utilities',text:'水电费、免费WiFi及清洁费全包'},{id:'access24',text:'24小时全天候出入'},{id:'norestore',text:'退租无需复原，仅需清洁费'},{id:'phonebooth',text:'私人电话亭及会议室独占使用',on:false},{id:'parking',text:'大厦设有停车场',on:false},{id:'security',text:'安全卡进出及全天候大厦保安',on:false}],
-  ja:[{id:'concierge',text:'コンシェルジュスタッフが常駐（英語対応可能）'},{id:'lounge',text:'ラウンジ・会議室など共有部利用で利用面積２倍'},{id:'drinks',text:'コーヒー・ドリンクアメニティ・冷蔵庫・電子レンジ付'},{id:'flexible',text:'月・年単位での契約期間設定可、保証会社不要'},{id:'deposit',text:'保証金3か月分　退去時全額返金'},{id:'furniture',text:'初期内装工事不要、オフィス家具完備'},{id:'utilities',text:'空調、水道光熱費、Free WiFi、清掃費用込'},{id:'access24',text:'24時間アクセス可・駐車場・喫煙場所有'},{id:'norestore',text:'退去時原状回復原則不要、クリーニング費用のみ'},{id:'phonebooth',text:'フォンブース、会議室の占有利用可',on:false},{id:'parking',text:'駐車場有',on:false},{id:'security',text:'セキュリティカード付',on:false}],
+const PERKS_I18N = {
+  'en': {
+    eyebrow:        'BEYOND THE WORKSPACE',
+    title:          'Perks that Boost\nYour Happiness',
+    desc:           'Our exclusive perks and partnerships deliver discounts, complimentary access, and curated gifts on gyms, restaurants, hotels, and storage — enhancing your wellbeing inside and outside the office.',
+    cats:           ['FITNESS', 'FOOD & BEVERAGE', 'LIFESTYLE', 'STORAGE'],
+    perks_cta:      'View Our Perks →',
+    perks_site:     'compassoffices.com/client-perks',
+    events_eyebrow: 'NETWORK. SHARE. GROW.',
+    events_title:   'Events & Community',
+    events_desc:    'Bringing together diverse professionals for networking, knowledge sharing, and collaboration across all Compass Offices locations.',
+    events_cta:     'Explore Our Events →',
+    events_site:    'compassoffices.com/events',
+    tagline:        'FLEXIBLE. CONNECTED. HUMAN CENTRIC.',
+    a_great_place:  'A Great Place to Work',
+  },
+  'zh-hant': {
+    eyebrow:        '工作空間以外',
+    title:          '提升您幸福感\n的專屬特權',
+    desc:           '我們獨家的優惠與合作夥伴，為您提供健身房、餐廳、酒店及儲存等各方面的折扣、免費使用及精心策劃的禮品——全面提升您的健康與生產力。',
+    cats:           ['健康與養生', '飲食', '生活方式', '儲存服務'],
+    perks_cta:      '查看專屬特權 →',
+    perks_site:     'compassoffices.com/client-perks',
+    events_eyebrow: '聯繫。分享。成長。',
+    events_title:   '活動與社群',
+    events_desc:    '匯聚各行各業的專業人士，共同參與交流、知識分享及協作活動。',
+    events_cta:     '瀏覽我們的活動 →',
+    events_site:    'compassoffices.com/events',
+    tagline:        '靈活。互聯。以人為本。',
+    a_great_place:  '優質工作好去處',
+  },
+  'zh-hans': {
+    eyebrow:        '工作空间以外',
+    title:          '提升您幸福感\n的专属特权',
+    desc:           '我们独家的优惠与合作伙伴，为您提供健身房、餐厅、酒店及储存等各方面的折扣、免费使用及精心策划的礼品——全面提升您的健康与生产力。',
+    cats:           ['健康与养生', '饮食', '生活方式', '存储服务'],
+    perks_cta:      '查看专属特权 →',
+    perks_site:     'compassoffices.com/client-perks',
+    events_eyebrow: '联系。分享。成长。',
+    events_title:   '活动与社群',
+    events_desc:    '汇聚各行各业的专业人士，共同参与交流、知识分享及协作活动。',
+    events_cta:     '浏览我们的活动 →',
+    events_site:    'compassoffices.com/events',
+    tagline:        '灵活。互联。以人为本。',
+    a_great_place:  '优质工作好去处',
+  },
+  'ja': {
+    eyebrow:        'ワークスペースを超えて',
+    title:          '幸せを高める\n特典',
+    desc:           '独自のパークスとパートナーシップにより、ジム、レストラン、ホテル、ストレージなどの割引や無料アクセス、厳選されたギフトをお届けします。',
+    cats:           ['フィットネス', 'フード&ビバレッジ', 'ライフスタイル', 'ストレージ'],
+    perks_cta:      '特典を見る →',
+    perks_site:     'compassoffices.com/client-perks',
+    events_eyebrow: 'つながる。共有する。成長する。',
+    events_title:   'イベント&コミュニティ',
+    events_desc:    '多様な専門家が集まり、ネットワーキング、知識共有、コラボレーションを行います。',
+    events_cta:     'イベントを見る →',
+    events_site:    'compassoffices.com/events',
+    tagline:        'フレキシブル。コネクテッド。人中心。',
+    a_great_place:  'A Great Place to Work',
+  },
 };
-let BENEFITS=[];
-function initBenefits(lc){
-  const defaults=BEN_DEFAULTS[lc]||BEN_DEFAULTS.en;
-  BENEFITS=defaults.map((d,i)=>({id:d.id||('custom_'+i),on:d.on!==false,text:d.text}));
-}
-const TICK_SVG=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-const IC_LIST=[{id:'concierge',label:'Concierge'},{id:'lounge',label:'Lounge'},{id:'drinks',label:'Drinks'},{id:'flexible',label:'Flexible'},{id:'deposit',label:'Deposit'},{id:'furniture',label:'Furnished'},{id:'utilities',label:'Utilities'},{id:'access24',label:'24/7'},{id:'phonebooth',label:'Phone'},{id:'parking',label:'Parking'},{id:'norestore',label:'No Restore'},{id:'security',label:'Security'}];
 
-function getBenIconHtml(b){
-  const id=b.iconId!==undefined?b.iconId:b.id;
-  const html=renderIcHtml(id);
-  if(!html)return`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-  if(html.startsWith('<img'))return html;
-  const inner=html.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||'';
-  return`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-}
-function getBenIcon(b){
-  const id=b.iconId!==undefined?b.iconId:b.id;
-  return(id&&(renderIcHtml(id)||IC[id]||''))?(renderIcHtml(id)||IC[id]||''):TICK_SVG;
-}
-function renderBenefits(){
-  const list=document.getElementById('ben-list');if(!list)return;
-  list.innerHTML=BENEFITS.map((b,i)=>{
-    const safeText=(b.text||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    return`<div class="ben-row${b.on?' on':''}">
-      <button class="ben-toggle${b.on?' on':''}" onclick="toggleBen(${i})"></button>
-      <button class="ben-ico-btn" onpointerdown="event.stopPropagation();openIconPicker(${i},this)">${getBenIcon(b)}</button>
-      <input class="ben-input" type="text" value="${safeText}" oninput="BENEFITS[${i}].text=this.value;genDebounced(500);" placeholder="Type benefit text…">
-      <button class="ben-del" onclick="delBenefit(${i})"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>`;
-  }).join('');
-}
+const _PERKS_IMGS = {
+  fitness:    'https://www.compassoffices.com/wp-content/uploads/2026/01/image-1080x450-87KB-2026-01-12T05-59-01-248Z.jpg',
+  food:       'https://www.compassoffices.com/wp-content/uploads/2025/07/image-1080x450-126KB-2025-07-30T06-33-26-434Z.jpg',
+  lifestyle:  'https://www.compassoffices.com/wp-content/uploads/2025/07/image-1080x450-80KB-2025-07-22T16-41-30-242Z.jpg',
+  storage:    'https://www.compassoffices.com/wp-content/uploads/2026/03/redbox.jpg',
+  events:     'https://www.compassoffices.com/wp-content/uploads/2025/08/image-1080x450-144KB-2025-08-12T05-47-39-785Z.jpg',
+  logo_white: 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779196609/_CompassOffices/compass-logo-white.svg',
+};
 
-// ── ICON PICKER ──────────────────────────────────────────
-let _pickerBenIdx=null,_pickerMode='ben';
-function openIconPicker(i,btn){
-  _pickerMode='ben';_pickerBenIdx=i;_amenPickerIdx=null;_trPickerId=null;
-  if(document.getElementById('ico-picker').classList.contains('open')){closeIconPicker();return;}
-  const picker=document.getElementById('ico-picker');
-  const curId=BENEFITS[i].iconId!==undefined?BENEFITS[i].iconId:BENEFITS[i].id;
-  document.getElementById('ico-picker-grid').innerHTML=[{id:'_tick',label:'Default ✓'},...IC_LIST].map(ic=>
-    `<div class="ico-opt${curId===ic.id||(!curId&&ic.id==='_tick')?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')">` +
-    `<span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center">${ic.id==='_tick'?TICK_SVG:(renderIcHtml(ic.id)||IC[ic.id]||'')||TICK_SVG}</span>` +
-    `<span>${ic.label}</span></div>`
-  ).join('');
-  buildCOPanel();
-  resetPickerTabs();
-  const r=btn.getBoundingClientRect();
-  picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-240)+'px';
-  picker.classList.add('open');
-  document.removeEventListener('pointerdown',outsidePickerClick);
-  setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
-}
-function outsidePickerClick(e){
-  const p=document.getElementById('ico-picker');
-  if(p&&!p.contains(e.target)&&!e.target.closest('.ben-ico-btn,.tr-ico-btn,.ico-picker')){
-    closeIconPicker();
-    document.removeEventListener('pointerdown',outsidePickerClick);
+const _PERKS_GPTW       = 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779459810/_CompassOffices/a-great-place-to-work.svg';
+const _PERKS_PAGE_URL   = 'https://www.compassoffices.com/client-perks/';
+const _PERKS_EVENTS_URL = 'https://www.compassoffices.com/events/';
+
+// Pixel-perfect split — same values used on BOTH left and right panels
+const _PH  = 76;           // header height
+const _PB  = 794 - _PH;    // body height = 718px
+const _PT  = Math.round(_PB * 0.62); // top section  = 445px
+const _PBT = _PB - _PT;    // bottom section = 273px
+
+function buildPerksPageHtml(lang) {
+  try {
+  const t  = PERKS_I18N[lang] || PERKS_I18N['en'];
+  const im = _PERKS_IMGS;
+  const ff = "font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;";
+  const fmtTitle = s => s.replace(/\n/g, '<br>');
+
+  // Image cell with category label overlay
+  const imgCell = (src, label) =>
+    `<div style="position:relative;overflow:hidden;background:#222;">
+       <img src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;" crossorigin="anonymous">
+       <div style="position:absolute;bottom:0;left:0;right:0;padding:9px 14px;background:rgba(0,0,0,.52);">
+         <span style="${ff}color:#fff;font-size:12px;font-weight:700;letter-spacing:.08em;">${label}</span>
+       </div>
+     </div>`;
+
+  // Orange line + small caps eyebrow
+  const eyebrow = txt =>
+    `<div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
+       <div style="width:26px;height:2.5px;background:#FF6600;flex-shrink:0;"></div>
+       <span style="${ff}color:#FF6600;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;">${txt}</span>
+     </div>`;
+
+  // Compact pill button — wraps to natural width, not stretched
+  const pillBtn = (href, label) =>
+    `<div style="display:inline-block;">
+       <a href="${href}" target="_blank"
+          style="${ff}background:#FF6600;color:#fff;font-size:11px;font-weight:700;
+                 letter-spacing:.06em;padding:9px 22px;border-radius:20px;
+                 display:inline-block;text-decoration:none;white-space:nowrap;">${label}</a>
+     </div>`;
+
+  const cats = t.cats;
+
+  return `
+<div style="width:1122px;height:794px;${ff}display:flex;flex-direction:column;
+     overflow:hidden;background:#fff;
+     -webkit-print-color-adjust:exact;print-color-adjust:exact;">
+
+  <!-- BLACK HEADER ${_PH}px -->
+  <div style="background:#111;height:${_PH}px;display:flex;align-items:center;
+       padding:0 34px;justify-content:space-between;flex-shrink:0;">
+    <img src="${im.logo_white}" style="height:28px;object-fit:contain;" crossorigin="anonymous">
+    <div style="border:1.5px solid rgba(255,102,0,.7);color:#FF6600;
+         font-size:13px;font-weight:700;letter-spacing:.1em;padding:5px 14px;border-radius:2px;">
+      ${t.tagline}
+    </div>
+    <img src="${_PERKS_GPTW}" style="height:20px;object-fit:contain;" crossorigin="anonymous">
+  </div>
+
+  <!-- BODY ${_PB}px -->
+  <div style="height:${_PB}px;display:flex;">
+
+    <!-- LEFT WHITE PANEL -->
+    <div style="width:416px;flex-shrink:0;background:#fff;display:flex;flex-direction:column;
+         border-right:1.5px solid #e8e0d8;">
+
+      <!-- TOP ${_PT}px — Perks -->
+      <div style="height:${_PT}px;padding:30px 30px 26px 32px;
+           display:flex;flex-direction:column;justify-content:center;
+           border-bottom:3px solid #e8e0d8;box-sizing:border-box;overflow:hidden;">
+        ${eyebrow(t.eyebrow)}
+        <div style="font-size:28px;font-weight:800;line-height:1.1;color:#111;margin-bottom:12px;">
+          ${fmtTitle(t.title)}
+        </div>
+        <div style="font-size:12px;color:#999;line-height:1.7;margin-bottom:18px;">${t.desc}</div>
+        ${pillBtn(_PERKS_PAGE_URL, t.perks_cta)}
+        <div style="font-size:10px;color:#ccc;margin-top:7px;">${t.perks_site}</div>
+      </div>
+
+      <!-- BOTTOM ${_PBT}px — Events -->
+      <div style="height:${_PBT}px;padding:22px 30px 22px 32px;
+           display:flex;flex-direction:column;justify-content:center;
+           box-sizing:border-box;overflow:hidden;">
+        ${eyebrow(t.events_eyebrow)}
+        <div style="font-size:26px;font-weight:800;line-height:1.1;color:#111;margin-bottom:10px;">
+          ${t.events_title}
+        </div>
+        <div style="font-size:12px;color:#999;line-height:1.65;margin-bottom:14px;">${t.events_desc}</div>
+        ${pillBtn(_PERKS_EVENTS_URL, t.events_cta)}
+        <div style="font-size:10px;color:#ccc;margin-top:7px;">${t.events_site}</div>
+      </div>
+    </div>
+
+    <!-- RIGHT IMAGE PANEL -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:2px;background:#ccc;">
+
+      <!-- 2×2 grid — ${_PT}px matches left top -->
+      <div style="height:${_PT}px;display:grid;
+           grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
+           gap:2px;flex-shrink:0;">
+        ${imgCell(im.fitness,   cats[0])}
+        ${imgCell(im.food,      cats[1])}
+        ${imgCell(im.lifestyle, cats[2])}
+        ${imgCell(im.storage,   cats[3])}
+      </div>
+
+      <!-- Events banner — ${_PBT}px matches left bottom -->
+      <div style="height:${_PBT}px;position:relative;overflow:hidden;background:#222;flex-shrink:0;">
+        <img src="${im.events}" style="width:100%;height:100%;object-fit:cover;
+             object-position:center 30%;display:block;" crossorigin="anonymous">
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,.22);"></div>
+        <div style="position:absolute;bottom:14px;left:16px;display:flex;align-items:center;gap:10px;">
+          <div style="width:22px;height:2.5px;background:#FF6600;"></div>
+          <span style="${ff}color:#fff;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;">
+            ${t.events_title}
+          </span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>`;
+  } catch(e) {
+    console.error('[Perks page] render error:', e);
+    return ''; // return empty string — print continues without perks page
   }
 }
-function selectBenIcon(iconId){
-  if(_pickerBenIdx===null)return;
-  BENEFITS[_pickerBenIdx].iconId=(iconId==='_tick')?null:iconId;
-  closeIconPicker();renderBenefits();gen();
-}
-function switchIcoPack(pack,btn){
-  document.querySelectorAll('.ico-pack-tab').forEach(b=>b.classList.remove('on'));
-  if(btn)btn.classList.add('on');
-  const builtin=document.getElementById('ico-pack-builtin');const co=document.getElementById('ico-pack-co');
-  if(pack==='builtin'){
-    builtin.style.display='';builtin.classList.add('on');
-    co.style.display='none';co.classList.remove('on');
-  } else {
-    builtin.style.display='none';builtin.classList.remove('on');
-    co.style.display='grid';co.classList.add('on');
-    buildCOPanel(); // always rebuild with correct selectIconByMode handler
-  }
-}
-function selectIconByMode(iconId){
-  if(_pickerMode==='tr') selectTrIcon(iconId);
-  else if(_pickerMode==='amen') selectAmenIcon(iconId);
-  else selectBenIcon(iconId);
-}
-function selectAmenIcon(iconId){
-  if(_amenPickerIdx===null)return;
-  if(!window.ICON_OVERRIDES)window.ICON_OVERRIDES={};
-  if(iconId==='_reset'){
-    delete window.ICON_OVERRIDES[AMENITY_ICONS[_amenPickerIdx].id];
-  } else {
-    window.ICON_OVERRIDES[AMENITY_ICONS[_amenPickerIdx].id]=iconId;
-  }
-  closeIconPicker();_amenPickerIdx=null;renderAmenities();gen();
-}
-let _amenPickerIdx=null;
-function openAmenIconPicker(i,btn){
-  _pickerMode='amen';_amenPickerIdx=i;_pickerBenIdx=null;_trPickerId=null;
-  if(document.getElementById('ico-picker').classList.contains('open')){closeIconPicker();return;}
-  const picker=document.getElementById('ico-picker');
-  const curId=window.ICON_OVERRIDES?.[AMENITY_ICONS[i].id]||AMENITY_ICONS[i].id;
-  document.getElementById('ico-picker-grid').innerHTML=[{id:'_reset',label:'Default'},...IC_LIST].map(ic=>
-    `<div class="ico-opt${curId===ic.id||(!window.ICON_OVERRIDES?.[AMENITY_ICONS[i].id]&&ic.id==='_reset')?' sel':''}" onpointerdown="event.stopPropagation();selectIconByMode('${ic.id}')">` +
-    `<span style="width:16px;height:16px;display:flex;align-items:center;justify-content:center">${ic.id==='_reset'?TICK_SVG:renderIcHtml(ic.id)||IC[ic.id]||''}</span>` +
-    `<span>${ic.label}</span></div>`
-  ).join('');
-  buildCOPanel();
-  resetPickerTabs();
-  const r=btn.getBoundingClientRect();
-  picker.style.top=(r.bottom+6)+'px';picker.style.left=Math.min(r.left,window.innerWidth-300)+'px';
-  picker.classList.add('open');
-  document.removeEventListener('pointerdown',outsidePickerClick);
-  setTimeout(()=>document.addEventListener('pointerdown',outsidePickerClick),50);
-}
-function closeIconPicker(){
-  const p=document.getElementById('ico-picker');
-  if(p)p.classList.remove('open');
-  _pickerBenIdx=null;_trPickerId=null;_amenPickerIdx=null;
-  document.removeEventListener('pointerdown',outsidePickerClick);
-}
-function toggleBen(i){BENEFITS[i].on=!BENEFITS[i].on;renderBenefits();gen();}
-function delBenefit(i){BENEFITS.splice(i,1);renderBenefits();}
-function addBenefit(){BENEFITS.push({id:'custom_'+Date.now(),on:true,text:''});renderBenefits();setTimeout(()=>{const inputs=document.querySelectorAll('#ben-list .ben-input');if(inputs.length)inputs[inputs.length-1].focus();},50);}
-

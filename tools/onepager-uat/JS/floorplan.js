@@ -1,195 +1,570 @@
-// ══════════════════════════════════════════════════════════
-//  GENERATE SLIDES
-// ══════════════════════════════════════════════════════════
-function gen(){
-  const _captureMode = gen._captureMode || false;
-  const name=g('n-main')||'Location Name';
-  const addr=g('addr');const city=g('city')||'Hong Kong';const floor=g('floor');const purl=g('purl');
-  const trLines=TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
-  const mkPair=(k1,v1,k2,v2)=>{if(!v1&&!v2)return null;if(v1&&!v2)return{k:k1,v:v1,pair:false};if(!v1&&v2)return{k:k2,v:v2,pair:false};return{k:k1,v:v1,k2,v2,pair:true};};
-  const specRows=!SHOW_SPECS?[]:[
-    (!HIDDEN_SPECS.has('s-struct')&&g('s-struct'))&&{k:sl('struct'),v:g('s-struct'),pair:false},
-    (!HIDDEN_SPECS.has('s-comp')&&g('s-comp'))&&{k:sl('comp'),v:g('s-comp'),pair:false},
-    mkPair(HIDDEN_SPECS.has('s-fa')?'':sl('area_fa'),HIDDEN_SPECS.has('s-fa')?'':g('s-fa'),HIDDEN_SPECS.has('s-ca')?'':sl('area_ca'),HIDDEN_SPECS.has('s-ca')?'':g('s-ca')),
-    mkPair(HIDDEN_SPECS.has('s-ceil')?'':sl('ceiling'),HIDDEN_SPECS.has('s-ceil')?'':g('s-ceil'),HIDDEN_SPECS.has('s-oa')?'':sl('oa'),HIDDEN_SPECS.has('s-oa')?'':g('s-oa')),
-    (!HIDDEN_SPECS.has('s-ac')&&g('s-ac'))&&{k:sl('ac'),v:g('s-ac'),pair:false},
-    (!HIDDEN_SPECS.has('s-net')&&g('s-net'))&&{k:sl('net'),v:g('s-net'),pair:false},
-    mkPair(HIDDEN_SPECS.has('s-el')?'':sl('lifts'),HIDDEN_SPECS.has('s-el')?'':g('s-el'),HIDDEN_SPECS.has('s-hrs')?'':sl('hrs'),HIDDEN_SPECS.has('s-hrs')?'':g('s-hrs')),
-    (!HIDDEN_SPECS.has('s-fac')&&g('s-fac'))&&{k:sl('fac'),v:g('s-fac'),pair:false},
-    (!HIDDEN_SPECS.has('s-park')&&g('s-park'))&&{k:sl('park'),v:g('s-park'),pair:false},
-  ].filter(Boolean);
-
-  const checked=BENEFITS.filter(b=>b.on);
-  const amenChecked=AMENITY_ICONS.filter(a=>a.on);
-  const bTitle=getBenefitsTitle();
-  // pHdr now uses PRICING_COLS custom labels with i18n fallback
-  const pHdr={seats:getPricingColLabel('seats'),type:getPricingColLabel('type'),rent:getPricingColLabel('rent'),mgmt:getPricingColLabel('mgmt'),init:getPricingColLabel('init'),avail:getPricingColLabel('avail')};
-  // Active (visible) columns
-  const activeCols=PRICING_COLS.filter(col=>col.on).map(col=>col.key);
-
-  const nSpecs=specRows.length;const nPricing=S.rows.length;
-  const stripTags=h=>(h||'').replace(/<[^>]*>/g,'');
-  const estHeight=(s,cpl)=>{const textH=v=>{const raw=stripTags(v||'');const brs=((v||'').match(/<br\s*\/?>/gi)||[]).length;return Math.max(1,Math.ceil(raw.length/cpl)+brs);};let h=0.5+textH(s.v)+0.3;if(s.pair)h+=0.3+0.5+textH(s.v2)+0.3;return h;};
-  const toSpan=(h,ncols)=>{if(ncols<=1)return 1;if(h<2.5)return 1;if(h<4.2)return 2;if(h<6.0)return 3;return 4;};
-  const simulate=(ncols,cards)=>{const cplMap={1:50,2:32,3:22,4:16};const cpl=cplMap[ncols]||16;const withH=cards.map(s=>{const h=estHeight(s,cpl);const span=toSpan(h,ncols);return{...s,h,span};});const colH=new Array(ncols).fill(0);const placed=withH.map(s=>{const minH=Math.min(...colH);const col=colH.indexOf(minH);const row=colH[col];colH[col]+=s.span;return{...s,gridCol:col+1,gridRow:row+1};});const maxH=Math.max(...colH);const avgH=colH.reduce((a,b)=>a+b,0)/ncols;const imbalance=colH.reduce((a,b)=>a+Math.abs(b-avgH),0);const score=maxH*2+imbalance;return{placed,totalRows:maxH,score,cpl};};
-
-  const hasExtra=trLines.length>0||amenChecked.length>0;
-  const pressure=nPricing*1.4+(hasExtra?1:0);
-  const minCols=nSpecs<=3?1:nSpecs<=5?(pressure>1?2:1):2;
-  const maxCols=nSpecs<=3?2:nSpecs<=5?3:nSpecs<=8?4:4;
-  const candidates=[];for(let nc=minCols;nc<=maxCols;nc++)candidates.push(nc);
-  let best=null;
-  for(const nc of candidates){const result=simulate(nc,specRows);const colPenalty=(nc-minCols)*1.5;const adjustedScore=result.score+colPenalty;if(!best||adjustedScore<best.adjustedScore){best={...result,cols:nc,adjustedScore};}}
-  const cols=best.cols;const placed=best.placed;const totalRows=best.totalRows;
-  const sizeKey=cols>=4?'xs':cols===3?'sm':cols===2?'md':'lg';
-  const specGridHTML=specRows.length?`<div class="sl-specs-grid" data-size="${sizeKey}" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${totalRows},auto)">${placed.map(s=>`<div class="sl-spec-card" style="grid-column:${s.gridCol};grid-row:${s.gridRow}${s.span>1?` / span ${s.span}`:''}">
-    ${s.pair?`<div class="sl-spec-lbl">${s.k}</div><div class="sl-spec-val">${s.v}</div><div style="height:1px;background:#E8E8E8;margin:calc(var(--fs)*0.2) 0"></div><div class="sl-spec-lbl">${s.k2}</div><div class="sl-spec-val">${s.v2}</div>`:`<div class="sl-spec-lbl">${s.k}</div><div class="sl-spec-val">${s.v}</div>`}
-  </div>`).join('')}</div>`:'';
-
-  const fpFlex='1 1 0';
-  const noph=(bg='#EEEEEE')=>`<div class="noph" style="background:${bg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
-  const sepHtml=S.partnerLogo?(()=>{if(LOGO_SEP==='x')return`<span class="sl-logo-sep">×</span>`;if(LOGO_SEP==='bar')return`<span class="sl-logo-sep" style="font-size:.8em">|</span>`;return`<span style="width:.4em"></span>`;})():'';
-
-  const slideWrap=document.querySelector('.slide-wrap');
-  // In capture mode, always use 1122px so font scaling matches desktop Chrome/print
-  const previewW=_captureMode ? 1122 : (slideWrap?slideWrap.offsetWidth:600);
-  const rawFs=previewW/1122*16*1.5;
-  const hasCustom=!!(g('custom-title')||(document.getElementById('custom-body-editor')?.innerHTML||'').trim().replace('<br>',''));
-  const nBenOn=checked.length;const nAmenOn=amenChecked.length;const amenRowCount=Math.ceil(nAmenOn/4);
-  const rightPressure=nBenOn*1.2+nPricing*1.8;
-  const centrePressure=specRows.length*0.9+trLines.length*1.0+(hasCustom?1.5:0);
-  const leftPressure=amenRowCount*1.8;
-  const totalPressure=Math.max(rightPressure,centrePressure,leftPressure);
-  const dScale=totalPressure<=6?1.10:totalPressure<=9?1.00:totalPressure<=12?0.92:totalPressure<=15?0.84:totalPressure<=18?0.76:totalPressure<=22?0.68:0.60;
-  const fsNum=Math.max(8,Math.min(18,rawFs*dScale));const fsVal=fsNum.toFixed(1)+'px';
-
-  const topBarHTML=(pg)=>`
-  <div class="${pg===2?'p2-top':'sl-top'}">
-    <div class="sl-logos">
-      <div class="sl-cologo"><img src="https://www.compassoffices.com/wp-content/themes/compass-offices/assets/images/compassoffices-logo-web-all-in-one-2025_ob.svg" onerror="this.style.display='none';this.nextSibling.style.display='block'"><span class="sl-cologo-fb" style="display:none">COMPASS OFFICES</span></div>
-      ${S.partnerLogo?`${sepHtml}<div class="sl-partner"><img src="${S.partnerLogo}"></div>`:''}
-    </div>
-    <div class="sl-title-block">
-      <div class="sl-title">${name}${floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''}</div>
-      ${addr?`<div class="sl-addr-row"><div class="sl-addr">${addr}</div></div>`:''}
-    </div>
-    <div class="sl-meta"><div class="sl-city">${city}</div></div>
-  </div>`;
-
-  const page1El=document.getElementById('slide');
-  page1El.style.setProperty('--fs',fsVal);
-  const amenRowHeight=amenRowCount*2.4*fsNum*0.264;const leftBodyMm=178;
-  const photoFraction=Math.max(0.45,Math.min(0.80,(leftBodyMm-amenRowHeight-8)/leftBodyMm));
-  const photoAreaFlex=amenChecked.length===0?'1 1 100%':`1 1 ${(photoFraction*100).toFixed(0)}%`;
-  const centreHasCoreContent=specRows.length>0||trLines.length>0||hasCustom;
-  const specsMissing=specRows.length===0;
-  // Auto + no specs → 3-col new layout (photos | fp+transport+custom | benefits)
-  // Auto + specs present → Classic (photos | specs+transport+custom | fp+benefits)
-  // Centre → benefits forced to centre column
-  const noSpecsMode=specsMissing&&BENEFITS_POS==='auto';
-  const putBenInCentre=BENEFITS_POS==='centre'; // no longer triggered by noSpecsMode
-  const bodyGrid=noSpecsMode?'30% 1fr':'24% 1fr 35%';
-
-  // In Auto mode: 2-col layout when 5+ benefits (matches Transport 2-col grid)
-  const bUseTwoCol = BENEFITS_POS==='auto' && checked.length>=5;
-  const bFScale = b => { const len=b.text.length; return len<=38?0.82:len<=50?0.74:len<=62?0.65:len<=75?0.58:0.52; };
-  const meritsHTML=checked.length?`<div class="sl-merits-wrap"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:flex-start;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;word-break:break-word;white-space:normal;line-height:1.25;">${b.text}</span></span></li>`).join('')}</ul></div>`:'';
-  // Determine which floorplan(s) to show on each page
-  const fpPh=`<div class="sl-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:32%;opacity:.15;display:block;margin:0 auto 6px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>Floor Plan</div>`;
-  function buildFpHtml(pgIdx, showAll){
-    const plans=FP_PLANS.length>0?FP_PLANS:(S.floorplan?[{url:S.floorplan,label:'Master'}]:[]);
-    if(!plans.length) return fpPh;
-    // pgIdx: -2 = rooms only (exclude master/index 0), -1 = all collage, 0+ = specific plan
-    if(pgIdx===-2){
-      // Rooms only — skip master (index 0)
-      const rooms=plans.slice(1);
-      if(!rooms.length) return buildFpHtml(0,false); // fallback to master if no rooms
-      if(rooms.length===1) return`<img src="${rooms[0].url}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
-      const n=rooms.length;
-      const cols=n===2?2:n===3?3:n<=4?2:3;
-      const lastCol=(n%cols===0)?1:(cols-(n%cols)+1);
-      return`<div class="sl-fp-collage" style="grid-template-columns:repeat(${cols},1fr)">${rooms.map((p,pi)=>`<img src="${p.url}" alt="${p.label}" style="${pi===rooms.length-1&&lastCol>1?'grid-column:span '+lastCol+';':''}">`).join('')}</div>`;
-    }
-    if(showAll||pgIdx===-1){
-      if(plans.length===1) return`<img src="${plans[0].url}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
-      // Collage grid: 2→2col, 3→3col, 4→2×2, 5-6→3col
-      const n=plans.length;
-      const cols=n===2?2:n===3?3:n<=4?2:3;
-      // Last item spans remaining columns if row isn't full
-      const lastCol=(n%cols===0)?1:(cols-(n%cols)+1);
-      return`<div class="sl-fp-collage" style="grid-template-columns:repeat(${cols},1fr)">${plans.map((p,pi)=>`<img src="${p.url}" alt="${p.label}" style="${pi===n-1&&lastCol>1?'grid-column:span '+lastCol+';':''}">`).join('')}</div>`;
-    }
-    const idx=Math.max(0,Math.min(pgIdx,plans.length-1));
-    return`<img src="${plans[idx].url}" style="width:100%;height:100%;object-fit:contain;display:block;">`;
-  }
-  // pgIdx: -2 = rooms-only collage, -1 = all collage, 0+ = specific plan
-  const fp1Idx = FP_PAGE2_SAME ? -1 : FP_PAGE1_IDX;
-  const fp2Idx = FP_PAGE2_SAME ? -1 : FP_PAGE2_IDX;
-  const fp1All = fp1Idx <= -1;  // any collage mode
-  const fp2All = fp2Idx <= -1;
-  const fpHTML=`<div class="sl-fp" style="flex:${fpFlex}">${buildFpHtml(fp1Idx,fp1All)}</div>`;
-
-  page1El.innerHTML=`
-  ${topBarHTML(1)}
-  <div class="sl-body" style="grid-template-columns:${bodyGrid}">
-    <div class="sl-photos">
-      <div class="sl-ph-stack" style="flex:${photoAreaFlex}">
-        <div class="sl-ph-cell">${S.photos[0]?`<img src="${S.photos[0]}">`:`${noph()}`}</div>
-        <div class="sl-ph-cell">${S.photos[1]?`<img src="${S.photos[1]}">`:`${noph('#E0E0E0')}`}</div>
-        <div class="sl-ph-cell">${S.photos[2]?`<img src="${S.photos[2]}">`:`${noph('#E8E8E8')}`}</div>
-      </div>
-      ${amenChecked.length?`<div class="sl-amen-below"><div class="sl-amen-below-grid">${amenChecked.map(a=>`<div class="sl-amen-cell">${renderIcHtml(a.id)||renderIcHtml("norestore")}<span>${amenLabel(a)}</span></div>`).join('')}</div></div>`:''}
-    </div>
-    ${noSpecsMode?`
-    <div style="display:flex;flex-direction:column;overflow:hidden;grid-column:2 / span 2;">
-      <!-- Top: Floor plan full width -->
-      <div style="flex:0 0 55%;border-bottom:1px solid var(--bd);padding:calc(var(--fs)*0.5) calc(var(--fs)*0.8) calc(var(--fs)*0.3);overflow:hidden;">
-        ${(FP_PLANS.length||S.floorplan)
-          ?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">${buildFpHtml(fp1Idx,fp1All)}</div>`
-          :`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--bd);border-radius:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:18%;opacity:.15;display:block;margin-bottom:calc(var(--fs)*0.4)"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span style="font-size:calc(var(--fs)*0.6);color:var(--xlt)">Floor Plan</span></div>`}
-      </div>
-      <!-- Bottom: Transport+Custom (left) | Benefits (right) -->
-      <div style="flex:1 1 0;overflow:hidden;min-height:0;display:grid;grid-template-columns:1fr 1fr;">
-        <div style="overflow:hidden;padding:calc(var(--fs)*0.4) calc(var(--fs)*0.65);display:flex;flex-direction:column;gap:calc(var(--fs)*0.22);border-right:1px solid var(--bd);">
-          ${(()=>{const _nsTr=trLines.length?`<div style="flex-shrink:0;"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:1fr">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _nsCu=hasCustom?`<div style="flex-shrink:0;">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div>`:'';return CUSTOM_POS==='above'?_nsCu+_nsTr:_nsTr+_nsCu;})()}
-        </div>
-        <div style="overflow:hidden;padding:calc(var(--fs)*0.4) calc(var(--fs)*0.6);display:flex;flex-direction:column;">
-          ${checked.length?`<div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits" style="margin-top:calc(var(--fs)*0.1)">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul>`:''}
-        </div>
-      </div>
-    </div>
-    `:`
-    <div class="sl-specs">
-      <div class="sl-specs-inner">
-        ${specRows.length?`<div class="sl-section ${(trLines.length||hasCustom||putBenInCentre)?'shrink':'grow'}"><div class="sl-sec">${sl('specs')}</div>${specGridHTML}</div>`:''}
-        ${(()=>{const _tr=trLines.length?`<div class="sl-section shrink"><div class="sl-sec">${sl('transport')}</div><div class="sl-trans-grid" style="grid-template-columns:${trLines.length===1?'1fr':'1fr 1fr'}">${trLines.map(t=>{const trIconHtml=renderIcHtml(t.iconId)||IC[t.iconId]||IC.tr_metro;const trIsImg=trIconHtml.startsWith('<img');const trIconEl=trIsImg?trIconHtml.replace('co-icon-img','co-icon-img sl-ticon-img'):`<svg class="sl-ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${trIconHtml.match(/<svg[^>]*>([\s\S]*?)<\/svg>/)?.[1]||''}</svg>`;return`<div class="sl-trans">${trIconEl}<span class="sl-trans-txt">${t.text}</span></div>`;}).join('')}</div></div>`:'';const _cu=hasCustom?`<div class="sl-section shrink"><div class="sl-custom-block">${g('custom-title')?`<div class="sl-custom-title">${g('custom-title')}</div>`:''} ${(()=>{const el=document.getElementById('custom-body-editor');const html=(el?.innerHTML||'').trim();return html&&html!=='<br>'?`<div class="sl-custom-body">${html}</div>`:''})()}</div></div>`:'';return CUSTOM_POS==='above'?_cu+_tr:_tr+_cu;})()}
-        ${putBenInCentre&&checked.length?`<div class="sl-section shrink"><div class="sl-merits-ttl">${bTitle}</div><ul class="sl-merits${bUseTwoCol?' two-col':''}">${checked.map(b=>`<li class="sl-merit"><span style="display:flex;align-items:center;gap:calc(var(--fs)*0.28);overflow:hidden;min-width:0;width:100%">${getBenIconHtml(b)}<span style="font-size:calc(var(--fs)*${bFScale(b)});overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${b.text}</span></span></li>`).join('')}</ul></div>`:''}
-      </div>
-    </div>
-    <div class="sl-right">${fpHTML}${putBenInCentre?'':meritsHTML}</div>
-    `}
-  </div>
-  <div class="sl-foot">
-    ${S.rows.length?`<table class="sl-ptbl"><thead><tr>${activeCols.map(k=>`<th>${pHdr[k]}</th>`).join('')}</tr></thead><tbody>${S.rows.map(r=>`<tr>${activeCols.map(k=>{const v=r[k]||'';const isPrice=k==='rent'||k==='mgmt'||k==='avail';return isPrice?`<td class="acc">${v}</td>`:k==='init'?`<td class="init-cell">${v}</td>`:`<td>${v}</td>`;}).join('')}</tr>`).join('')}</tbody></table>`:`<p style="font-size:.65em;color:#CCC">Add pricing rows in the Pricing tab</p>`}
-    ${purl?`<div class="sl-url">${purl}</div>`:''}
-  </div>`;
-
-  const page2El=document.getElementById('slide2');
-  page2El.style.setProperty('--fs',fsVal);
-  const noph2=(bg='#E8E8E8')=>`<div class="p2-noph" style="background:${bg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
-  page2El.innerHTML=`
-  ${topBarHTML(2)}
-  <div class="p2-body">
-    <div class="p2-fp-area">
-      ${(FP_PLANS.length||S.floorplan)?buildFpHtml(fp2Idx,fp2All):`<div class="p2-fp-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8" style="width:60px;height:60px;opacity:.18;display:block;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>Upload a floor plan in the Media tab</span></div>`}
-    </div>
-    <div class="p2-right">
-            <div class="p2-photos">
-        ${(()=>{const p2=[S.photos[3]||S.photos[0],S.photos[4]||S.photos[1],S.photos[5]||S.photos[2]];return p2.map((ph,i)=>'<div class="p2-ph-cell">'+(ph?'<img src="'+ph+'">':`${noph2(i===0?'#E8E8E8':i===1?'#DCDCDC':'#E4E4E4')}`)+'</div>').join('');})()}
-      </div>
-      ${amenChecked.length?`<div class="p2-amen"><div class="p2-amen-grid">${amenChecked.map(a=>`<div class="p2-amen-cell">${renderIcHtml(a.id)||renderIcHtml("norestore")}<span>${amenLabel(a)}</span></div>`).join('')}</div></div>`:''}
-    </div>
-  </div>
-  ${purl?`<div class="p2-foot"><div class="p2-url">${purl}</div></div>`:''}`;
+// ── Room ID → filename slug ────────────────────────────────────────────────
+// Handles three naming patterns:
+//   Simple:  "15-85"                → "15-85"   (unchanged, file is 15-85.png)
+//   Plain C: "15-85 - C"            → "15-85"   (strip suffix, reuses base image)
+//   Complex: "15-85 - C (90,93,95)" → "1585_-_C_90_93_95" (Cloudinary slug)
+// Convert a data.json `file` value to a URL-safe path.
+// "15-85.png"                → "15-85.png"            (unchanged)
+// "1585 - C (90,93,95).png" → "1585_-_C_90_93_95.png" (sanitized)
+function _fpSanitizeFile(file){
+  if(!file) return file;
+  const dot=file.lastIndexOf('.');
+  if(dot<0) return typeof _fpRoomSlug==='function'?_fpRoomSlug(file):file;
+  return (typeof _fpRoomSlug==='function'?_fpRoomSlug(file.slice(0,dot)):file.slice(0,dot))+file.slice(dot);
 }
 
+function _fpRoomSlug(oid){
+  const s=String(oid||'').trim();
+  if(!s) return s;
+  // Complex combined room: " - C (...)" pattern → full underscore slug
+  if(/\s*-\s*C\s*\(/i.test(s)){
+    return s
+      .replace(/[()]/g,'')            // strip parentheses
+      .replace(/,/g,'_')              // commas → underscores
+      .replace(/\s+/g,'_')            // spaces → underscores
+      .replace(/(\d)-(\d)/g,'$1$2')   // digit-hyphen-digit: 15-85→1585
+      .replace(/_+/g,'_')             // collapse doubles
+      .replace(/^_|_$/g,'');          // trim
+  }
+  // Simple / plain "- C" room: strip optional "- C" suffix (existing behaviour)
+  return s.replace(/\s*-\s*C$/i,'').trim();
+}
+
+// Compass Offices One-Pager Builder
+// https://github.com/compassoffices/compassoffices.github.io
+
+const S={photos:[null,null,null,null,null,null],floorplan:null,partnerLogo:null,rows:[]};
+// floorplans: array of {url, label} — index 0 is master (same as S.floorplan for compat)
+// fp_page2_same: true = page 2 shows same as page 1 (default)
+// fp_base_url: the common prefix URL for room# pattern
+let FP_PLANS = [];
+let EXTRA_MASTERS = [];    // [{url,label}] — other floors' master plans → extra PDF pages (multi-floor proposals)         // [{url:'...master.jpg', label:'Master'}, {url:'...2412.jpg', label:'2412'}]
+let FP_PAGE2_SAME = true;  // true = page2 shows same plans as page1
+let FP_PAGE1_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
+let FP_PAGE2_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
+let FP_BASE_URL = '';       // e.g. https://compassoffices.com/uploads/2026/03/floorplan_lg1-24-
+let FP_DATA_URL = '';       // Full URL to the polygon JSON, e.g. https://…/data.json (may live at a different path than the images)
+
+// ══════════════════════════════════════════════════════════
+//  HIGHLIGHT MODE (NEW)
+//  When a polygon JSON ({base}data.json) exists on Cloudinary, the floor
+//  plan switches from "image collage of separate room PNGs" to "single
+//  master PNG with selected rooms highlighted via colored polygons".
+//
+//  Data flow:
+//    setFpBaseUrl(v) -> tryFetchFpData() -> fetches {base}data.json
+//      success -> FP_MASTER_DATA = parsed JSON; gen() triggers ensureHighlightRender
+//      failure -> FP_MASTER_DATA = null; legacy image-collage mode stays
+//
+//  Active highlights = (pricing row "office" #s) ∪ FP_HIGHLIGHTS_MANUAL
+//  intersected with rooms that actually exist in FP_MASTER_DATA.rooms.
+//
+//  Rendering is done on an offscreen canvas at the master's native
+//  resolution, then output as a PNG data URL that replaces the floor plan
+//  <img> src. Result: highlights are baked into a single image, so PDF,
+//  print, queue snapshots — every export path — captures them correctly.
+// ══════════════════════════════════════════════════════════
+let FP_MASTER_DATA = null;          // parsed data.json { version, level, master, rooms[] } or null
+let FP_USE_LOCAL   = false;         // use S.floorplan for BOTH pages even if FP_MASTER_DATA exists
+let FP_P2_CUSTOM_URL = null;        // dedicated page 2 floor plan image (independent of S.floorplan)
+let FP_HIGHLIGHTS_MANUAL = new Set(); // displayLabels added via the Room # input (NOT in pricing)
+let FP_HIGHLIGHT_RENDER_URL = null; // current rendered data URL (used as the <img> src on slide)
+let FP_HIGHLIGHT_LAST_KEY = null;   // cache key currently in FP_HIGHLIGHT_RENDER_URL
+let FP_HIGHLIGHT_PENDING_KEY = null;// next render to do
+let FP_HIGHLIGHT_RENDERING = false; // mutex while a render is in flight
+
+// ── 3D floor plan variant ───────────────────────────────
+// User uploads a same-dimension 3D-styled master image (e.g. `master-3d.png`)
+// alongside `master.png` on Cloudinary. When detected, a [2D | 3D] toggle
+// appears under Floor Plan Room # and the highlight overlay renders on top
+// of whichever variant is selected. Polygon coords are absolute pixels, so
+// the 2D and 3D images MUST be the same width × height — the probe verifies
+// this and disables the toggle if they don't match.
+let FP_HAS_3D = false;  // probe result: 3D variant exists AND matches dimensions
+let FP_USE_3D = false;  // user choice: render the 3D variant on slide
+
+// ── Compass overlay ────────────────────────────────────────────────────────
+// A small compass-rose icon shown in the bottom-left corner of the page 2
+// floor plan. User can toggle it on/off and drag-rotate it to point true
+// north for the building's orientation. Angle 0° = N pointing up (top of
+// the image), clockwise positive.
+const COMPASS_IMG_URL = 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1776536457/CompassOffices/compass-symbol-icon.png';
+let COMPASS_ON    = false; // whether the compass is shown on page 2
+let COMPASS_ANGLE = 0;     // rotation in degrees (0 = N up, clockwise)
+const FP_HIGHLIGHT_CACHE = {};      // key -> data URL (per-session cache)
+let FP_DATA_STATUS = 'idle';        // 'idle' | 'fetching' | 'ok' | 'error'
+let FP_DATA_LAST_FETCHED_BASE = ''; // de-dupe fetches when same base URL
+let FP_HIGHLIGHT_LAST_ERROR = '';   // last bake error message (shown in status UI)
+
+// Default highlight colour when room has no fillColor (Compass orange).
+const FP_DEFAULT_HIGHLIGHT_COLOR = '#FF6600';
+let LOGO_SEP='x';
+let HIDDEN_SPECS=new Set();
+let SHOW_SPECS=true;
+let BENEFITS_POS='auto';
+let CUSTOM_POS='below';
+
+// ── AUS OFFICE DATA ─────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+//  FLOOR PLAN ROOM LAYOUT EDITOR
+//  MS-Paint-style canvas tool for annotating individual room floor plans.
+//  Boxes (labeled zones) + walls (partition lines) drawn on the room image.
+//  Annotated image saved per-room in FP_ANNOTATIONS and shown on Page 1.
+//  Page 2 master floor plan is completely untouched.
+// ══════════════════════════════════════════════════════════════════════════
+let FP_ANNOTATIONS = {};          // { [roomId]: { shapes:[], imageDataUrl:'' } }
+const FPE_W = 1000, FPE_H = 707; // canvas logical size (A4-ish landscape ratio)
+let _fpe = null;                  // editor runtime state (null when closed)
+
+
+// ── Furniture stamp constants ─────────────────────────────────────────────
+// Bounding boxes for hit detection (width, height in canvas px)
+const FPE_STAMP_BOUNDS  = { wall_seg:[160,16], door:[72,72], table_chair:[80,100] };
+const FPE_STAMP_LABELS  = { wall_seg:'Wall', door:'Door', table_chair:'Table + Chair' };
+
+// Draw a wall segment centered at origin (FPE canvas: 1000×707)
+function _fpeDrWall(ctx,sel){
+  const w=160,h=16;
+  if(sel){ctx.shadowColor='#FF6600';ctx.shadowBlur=14;}
+  ctx.fillStyle='#1e1e1e'; ctx.fillRect(-w/2,-h/2,w,h);
+  ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=0.8;
+  ctx.strokeRect(-w/2,-h/2,w,h); ctx.shadowBlur=0;
+}
+// Draw an architectural door symbol centered at origin
+function _fpeDrDoor(ctx,sel){
+  const s=72,jam=10;
+  if(sel){ctx.shadowColor='#FF6600';ctx.shadowBlur=14;}
+  ctx.strokeStyle='#1e1e1e'; ctx.lineWidth=2.5; ctx.lineCap='square';
+  // Hinge jamb
+  ctx.beginPath(); ctx.moveTo(-s/2,-jam); ctx.lineTo(-s/2,0); ctx.stroke();
+  // Far jamb
+  ctx.beginPath(); ctx.moveTo(s/2,-jam);  ctx.lineTo(s/2,0);  ctx.stroke();
+  // Door panel (hinge→open position)
+  ctx.beginPath(); ctx.moveTo(-s/2,0); ctx.lineTo(-s/2,-s); ctx.stroke();
+  // Swing arc (dashed)
+  ctx.beginPath(); ctx.arc(-s/2,0,s,-Math.PI/2,0);
+  ctx.setLineDash([6,4]); ctx.lineWidth=1.8; ctx.strokeStyle='#666'; ctx.stroke();
+  ctx.setLineDash([]); ctx.shadowBlur=0;
+}
+// Draw a table + chair symbol centered at origin
+function _fpeDrTable(ctx,sel){
+  const tw=80,th=55,chw=65,chh=18,gap=5;
+  if(sel){ctx.shadowColor='#FF6600';ctx.shadowBlur=14;}
+  ctx.strokeStyle='#1e1e1e'; ctx.lineWidth=2;
+  // Chair seat
+  ctx.fillStyle='#e8e4db';
+  ctx.fillRect(-chw/2,-th/2-gap-chh,chw,chh); ctx.strokeRect(-chw/2,-th/2-gap-chh,chw,chh);
+  // Chair back arc
+  ctx.beginPath(); ctx.arc(0,-th/2-gap-chh,chw/2,Math.PI,0); ctx.stroke();
+  // Table (rounded rect)
+  ctx.fillStyle='#f2ede3'; const r=5;
+  ctx.beginPath();
+  ctx.moveTo(-tw/2+r,-th/2); ctx.arcTo(tw/2,-th/2,tw/2,th/2,r);
+  ctx.arcTo(tw/2,th/2,-tw/2,th/2,r); ctx.arcTo(-tw/2,th/2,-tw/2,-th/2,r);
+  ctx.arcTo(-tw/2,-th/2,tw/2,-th/2,r); ctx.closePath();
+  ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+}
+
+function openFpEditor(oid){
+  _fpe = {
+    roomId: oid, mode: 'box', color: '#FF6600', fontSize: 13,
+    shapes: JSON.parse(JSON.stringify(FP_ANNOTATIONS[oid]?.shapes || [])),
+    stampMode: null, history: [], selected: -1,
+    dragging: false, startX: 0, startY: 0,
+    draft: null, pendingLabel: false,
+    canvas: null, ctx: null, bgImg: null, bgTainted: false,
+  };
+  const modal = document.getElementById('fp-editor-modal');
+  if(!modal) return;
+  modal.style.display = 'flex';
+  const title = document.getElementById('fpe-title');
+  if(title) title.textContent = `${typeof ui==='function'?ui('fp_edit_room_title'):'Edit Room Layout'} — ${oid}`;
+  _fpeSetMode('box', true);
+  document.querySelectorAll('.fpe-swatch').forEach((s,i)=>s.classList.toggle('on',i===0));
+  _fpe.color = '#FF6600';
+  const li = document.getElementById('fpe-label-inp');
+  if(li){ li.value=''; li.placeholder='Box label (type after drawing)…'; }
+  document.getElementById('fpe-delete-btn').disabled = true;
+  _fpeStatus(`Room ${oid} · drag to draw boxes · Apply saves to Page 1`);
+  document.addEventListener('keydown', _fpeGlobalKey);
+  _fpeInitCanvas();
+}
+
+function closeFpEditor(){
+  document.removeEventListener('keydown', _fpeGlobalKey);
+  const modal = document.getElementById('fp-editor-modal');
+  if(modal) modal.style.display = 'none';
+  _fpe = null;
+}
+
+async function _fpeInitCanvas(){
+  const canvas = document.getElementById('fpe-canvas');
+  if(!canvas || !_fpe) return;
+  _fpe.canvas = canvas; _fpe.ctx = canvas.getContext('2d');
+  canvas.width = FPE_W; canvas.height = FPE_H;
+  canvas.onmousedown = _fpeMouseDown;
+  canvas.onmousemove = e => { _fpeUpdateCursor(e); _fpeMouseMove(e); };
+  canvas.onmouseup   = _fpeMouseUp;
+  canvas.ondblclick  = _fpeDblClick;
+  const url = _fpeGetRoomUrl(_fpe.roomId);
+  if(url) await _fpeLoadBg(url);
+  else _fpeStatus(`No image found for room ${_fpe.roomId} — annotating on blank canvas`);
+  _fpeRender();
+}
+
+function _fpeGetRoomUrl(oid){
+  const plan = FP_PLANS.find(p=>p.label===oid && !/(master)/i.test(p.label));
+  if(plan?.url) return plan.url;
+  if(FP_BASE_URL){ return FP_BASE_URL+_fpRoomSlug(oid)+'.png'; }
+  if(typeof getActiveHighlightRooms==='function' && FP_BASE_URL){
+    const h=getActiveHighlightRooms().find(r=>r.displayLabel===oid);
+    if(h) return FP_BASE_URL+(h.file||h.displayLabel+'.png');
+  }
+  return null;
+}
+
+function _fpeLoadBg(url){
+  return new Promise(resolve=>{
+    if(!_fpe) return resolve();
+    const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>{ if(_fpe) _fpe.bgImg=img; resolve(); };
+    img.onerror=()=>{
+      const img2=new Image();
+      img2.onload=()=>{ if(_fpe){ _fpe.bgImg=img2; _fpe.bgTainted=true; } resolve(); };
+      img2.onerror=()=>resolve();
+      img2.src=url;
+    };
+    img.src=url;
+  });
+}
+
+function _fpeRender(){
+  if(!_fpe?.ctx) return;
+  const {ctx}=_fpe, W=FPE_W, H=FPE_H;
+  ctx.clearRect(0,0,W,H);
+  if(_fpe.bgImg){
+    // Draw with object-fit:contain inside an inset area (28px margin each side)
+    const PAD=28;
+    const iw=_fpe.bgImg.width, ih=_fpe.bgImg.height;
+    const scale=Math.min((W-PAD*2)/iw, (H-PAD*2)/ih);
+    const dw=iw*scale, dh=ih*scale;
+    const dx=(W-dw)/2, dy=(H-dh)/2;
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);   // white background + margin
+    ctx.drawImage(_fpe.bgImg, dx, dy, dw, dh);         // centred, no stretch
+  } else {
+    ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#999'; ctx.font='bold 15px sans-serif';
+    ctx.textAlign='center'; ctx.fillText('Room image loading…',W/2,H/2);
+  }
+  _fpe.shapes.forEach((s,i)=>_fpeDrawShape(ctx,s,i===_fpe.selected));
+  if(_fpe.draft) _fpeDrawShape(ctx,_fpe.draft,false,true);
+}
+
+function _fpeDrawShape(ctx,s,selected,isDraft){
+  ctx.save();
+  if(s.type==='box'){
+    const {x,y,w,h}=s;
+    ctx.globalAlpha=isDraft?0.1:(selected?0.22:0.18);
+    ctx.fillStyle=s.color; ctx.fillRect(x,y,w,h);
+    ctx.globalAlpha=1;
+    ctx.strokeStyle=s.color; ctx.lineWidth=selected?2.5:1.8;
+    ctx.setLineDash(isDraft?[8,4]:[]); ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
+    if(s.label&&!isDraft){
+      const fs=s.fontSize||_fpe?.fontSize||13;
+      ctx.font=`bold ${fs}px Arial,sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      const tw=ctx.measureText(s.label).width, pad=6;
+      const lx=x+w/2, ly=y+h/2;
+      ctx.globalAlpha=0.88; ctx.fillStyle=s.color;
+      _fpeRRect(ctx,lx-tw/2-pad,ly-fs/2-3,tw+pad*2,fs+6,4); ctx.fill();
+      ctx.globalAlpha=1; ctx.fillStyle='#fff'; ctx.fillText(s.label,lx,ly);
+    }
+    if(selected){
+      ctx.fillStyle=s.color;
+      [[0,0],[1,0],[0,1],[1,1]].forEach(([xi,yi])=>{
+        ctx.beginPath(); ctx.arc(x+xi*w,y+yi*h,5,0,Math.PI*2); ctx.fill();
+      });
+    }
+  } else if(s.type==='wall'){
+    ctx.strokeStyle=s.color; ctx.lineWidth=selected?5:3.5; ctx.lineCap='round';
+    ctx.setLineDash(isDraft?[8,4]:[]);
+    ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+    ctx.setLineDash([]);
+    if(selected){
+      ctx.fillStyle=s.color;
+      [[s.x1,s.y1],[s.x2,s.y2]].forEach(([px,py])=>{
+        ctx.beginPath(); ctx.arc(px,py,6,0,Math.PI*2); ctx.fill();
+      });
+    }
+  } else if(s.type==='stamp'){
+    ctx.translate(s.cx,s.cy); ctx.rotate(s.r||0);
+    if(s.stamp==='wall_seg')    _fpeDrWall(ctx,selected);
+    else if(s.stamp==='door')   _fpeDrDoor(ctx,selected);
+    else if(s.stamp==='table_chair') _fpeDrTable(ctx,selected);
+    if(selected){
+      const [bw,bh]=FPE_STAMP_BOUNDS[s.stamp]||[80,80];
+      ctx.shadowBlur=0; ctx.fillStyle='#FF6600';
+      [[-bw/2,-bh/2],[bw/2,-bh/2],[-bw/2,bh/2],[bw/2,bh/2]].forEach(([px,py])=>{
+        ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill();
+      });
+    }
+  }
+  ctx.restore();
+}
+
+function _fpeRRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+
+function _fpeXY(e){
+  const r=_fpe.canvas.getBoundingClientRect();
+  return{x:((e.clientX-r.left)/r.width)*FPE_W, y:((e.clientY-r.top)/r.height)*FPE_H};
+}
+function _fpeUpdateCursor(e){
+  if(!_fpe?.canvas) return;
+  const {x,y}=_fpeXY(e);
+  const hit=_fpeFindShape(x,y);
+  _fpe.canvas.style.cursor = hit>=0 ? 'move' : 'crosshair';
+}
+function _fpeMouseDown(e){
+  if(!_fpe) return;
+  const {x,y}=_fpeXY(e), hit=_fpeFindShape(x,y);
+  // ── Stamp mode: click places a furniture stamp ─────────────────────────
+  if(_fpe.stampMode && hit<0){
+    _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));
+    _fpe.shapes.push({type:'stamp',stamp:_fpe.stampMode,cx:x,cy:y,r:0,color:_fpe.color});
+    _fpe.selected=_fpe.shapes.length-1;
+    document.getElementById('fpe-delete-btn').disabled=false;
+    _fpeUpdateRotateBtn(); _fpeRender();
+    _fpeStatus(`${FPE_STAMP_LABELS[_fpe.stampMode]} placed — drag to move · R to rotate`);
+    return;
+  }
+  if(hit>=0){
+    // Select existing shape AND prepare for potential drag-to-move
+    _fpe.selected=hit; _fpe.dragging=false; _fpe.moving=false;
+    _fpe.moveReady=true;           // will become a move if mouse moves enough
+    _fpe.moveAnchorX=x; _fpe.moveAnchorY=y;
+    _fpe.moveShapeStart=JSON.parse(JSON.stringify(_fpe.shapes[hit]));
+    document.getElementById('fpe-delete-btn').disabled=false;
+    const inp=document.getElementById('fpe-label-inp');
+    if(inp) inp.value=_fpe.shapes[hit].type==='box'?(_fpe.shapes[hit].label||''):'';
+    // Sync font size control to selected box
+    if(_fpe.shapes[hit].type==='box'){
+      const fs=_fpe.shapes[hit].fontSize||_fpe.fontSize||13;
+      _fpe.fontSize=fs;
+      const fi=document.getElementById('fpe-font-size'); if(fi) fi.value=fs;
+    }
+    _fpeUpdateRotateBtn(); _fpeRender(); return;
+  }
+  // No shape hit — start drawing a new shape
+  _fpe.selected=-1; _fpe.moveReady=false; _fpe.moving=false;
+  document.getElementById('fpe-delete-btn').disabled=true;
+  _fpe.dragging=true; _fpe.startX=x; _fpe.startY=y; _fpe.draft=null;
+}
+function _fpeMouseMove(e){
+  if(!_fpe) return;
+  const {x,y}=_fpeXY(e);
+  // ── Move mode: drag selected shape ──────────────────────────────
+  if(_fpe.moveReady||_fpe.moving){
+    const dx=x-_fpe.moveAnchorX, dy=y-_fpe.moveAnchorY;
+    if(!_fpe.moving && Math.hypot(dx,dy)<5) return; // threshold — ignore tiny jitter
+    if(!_fpe.moving){
+      // First significant movement — commit to move mode
+      _fpe.moving=true;
+      _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes))); // undo snapshot
+    }
+    const orig=_fpe.moveShapeStart, s=_fpe.shapes[_fpe.selected];
+    if(!s) return;
+    if(s.type==='box'){ s.x=orig.x+dx; s.y=orig.y+dy; }
+    else if(s.type==='stamp'){ s.cx=orig.cx+dx; s.cy=orig.cy+dy; }
+    else { s.x1=orig.x1+dx; s.y1=orig.y1+dy; s.x2=orig.x2+dx; s.y2=orig.y2+dy; }
+    _fpeRender(); return;
+  }
+  // ── Draw mode: show draft shape ──────────────────────────────────
+  if(!_fpe.dragging) return;
+  _fpe.draft=_fpe.mode==='box'
+    ?{type:'box',x:_fpe.startX,y:_fpe.startY,w:x-_fpe.startX,h:y-_fpe.startY,color:_fpe.color,label:''}
+    :{type:'wall',x1:_fpe.startX,y1:_fpe.startY,x2:x,y2:y,color:_fpe.color};
+  _fpeRender();
+}
+function _fpeMouseUp(e){
+  if(!_fpe) return;
+  // ── End move ────────────────────────────────────────────────────
+  if(_fpe.moveReady||_fpe.moving){
+    _fpe.moveReady=false; _fpe.moving=false;
+    _fpeStatus(`Room ${_fpe.roomId} · drag shapes to move · Apply saves to Page 1`);
+    _fpeRender(); return;
+  }
+  // ── End draw ────────────────────────────────────────────────────
+  if(!_fpe.dragging) return;
+  _fpe.dragging=false;
+  const s=_fpe.draft; _fpe.draft=null; if(!s) return;
+  const sz=s.type==='box'?Math.abs(s.w)+Math.abs(s.h):Math.hypot(s.x2-s.x1,s.y2-s.y1);
+  if(sz<12){ _fpeRender(); return; }
+  if(s.type==='box'){ s.x=Math.min(s.x,s.x+s.w); s.y=Math.min(s.y,s.y+s.h); s.w=Math.abs(s.w); s.h=Math.abs(s.h); s.fontSize=_fpe.fontSize||13; }
+  _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));
+  _fpe.shapes.push(s); _fpe.selected=_fpe.shapes.length-1;
+  document.getElementById('fpe-delete-btn').disabled=false;
+  if(s.type==='box'){
+    _fpe.pendingLabel=true;
+    const inp=document.getElementById('fpe-label-inp');
+    if(inp){ inp.value=''; inp.focus(); inp.placeholder='Type label, press Enter…'; }
+    _fpeStatus('Name this zone — type a label then press Enter');
+  }
+  _fpeRender();
+}
+function _fpeDblClick(e){
+  if(!_fpe) return;
+  const {x,y}=_fpeXY(e), hit=_fpeFindShape(x,y);
+  if(hit>=0&&_fpe.shapes[hit].type==='box'){
+    _fpe.selected=hit; document.getElementById('fpe-delete-btn').disabled=false;
+    const inp=document.getElementById('fpe-label-inp');
+    if(inp){ inp.value=_fpe.shapes[hit].label||''; inp.focus(); inp.select(); }
+    _fpeStatus('Edit the label — press Enter to confirm'); _fpeRender();
+  }
+}
+function _fpeFindShape(x,y){
+  for(let i=_fpe.shapes.length-1;i>=0;i--){
+    const s=_fpe.shapes[i];
+    if(s.type==='box'&&x>=s.x&&x<=s.x+s.w&&y>=s.y&&y<=s.y+s.h) return i;
+    if(s.type==='wall'){
+      const {x1,y1,x2,y2}=s, dx=x2-x1, dy=y2-y1, l2=dx*dx+dy*dy;
+      const t=l2?Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/l2)):0;
+      if(Math.hypot(x-(x1+t*dx),y-(y1+t*dy))<8) return i;
+    }
+    if(s.type==='stamp'){
+      const [bw,bh]=FPE_STAMP_BOUNDS[s.stamp]||[80,80];
+      const a=s.r||0, cos=Math.cos(-a), sin=Math.sin(-a);
+      const dx=x-s.cx, dy=y-s.cy;
+      const lx=cos*dx-sin*dy, ly=sin*dx+cos*dy;
+      if(Math.abs(lx)<=bw/2+10 && Math.abs(ly)<=bh/2+10) return i;
+    }
+  }
+  return -1;
+}
+function _fpeOnLabelInput(val){ if(_fpe&&_fpe.selected>=0&&_fpe.shapes[_fpe.selected]?.type==='box'){_fpe.shapes[_fpe.selected].label=val; _fpeRender();} }
+function _fpeLabelKey(e){ if(e.key==='Enter'){e.preventDefault(); _fpe.pendingLabel=false; document.getElementById('fpe-label-inp').placeholder='Box label (type after drawing)…'; _fpeStatus(`Room ${_fpe.roomId} · drag to draw · Apply saves to Page 1`);} }
+function _fpeGlobalKey(e){
+  if(!_fpe) return;
+  if(document.activeElement?.id==='fpe-label-inp') return;
+  if(e.key==='Delete'||e.key==='Backspace') _fpeDeleteSelected();
+  if(e.key==='r'||e.key==='R') _fpeRotateSelected();
+  if(e.key==='Escape'){
+    _fpe.selected=-1; _fpe.stampMode=null;
+    document.getElementById('fpe-delete-btn').disabled=true;
+    _fpeUpdateRotateBtn();
+    ['wall_seg','door','table_chair'].forEach(k=>{document.getElementById(`fpe-stamp-${k}`)?.classList.remove('on');});
+    _fpeRender();
+  }
+}
+function _fpeSetFontSize(val){
+  if(!_fpe) return;
+  const fs = Math.max(8, Math.min(36, parseInt(val)||13));
+  _fpe.fontSize = fs;
+  const inp = document.getElementById('fpe-font-size');
+  if(inp) inp.value = fs;
+  // Apply to selected box immediately
+  if(_fpe.selected>=0 && _fpe.shapes[_fpe.selected]?.type==='box'){
+    _fpe.shapes[_fpe.selected].fontSize = fs;
+    _fpeRender();
+  }
+}
+function _fpeFontStep(delta){
+  if(!_fpe) return;
+  _fpeSetFontSize((_fpe.fontSize||13)+delta);
+}
+function _fpeSetMode(mode,init){
+  if(_fpe){ _fpe.mode=mode; if(!init) _fpe.stampMode=null; }
+  document.getElementById('fpe-btn-box')?.classList.toggle('on',mode==='box');
+  document.getElementById('fpe-btn-wall')?.classList.toggle('on',mode==='wall');
+  ['wall_seg','door','table_chair'].forEach(k=>{document.getElementById(`fpe-stamp-${k}`)?.classList.remove('on');});
+  const inp=document.getElementById('fpe-label-inp'); if(inp)inp.style.opacity=mode==='box'?'1':'0.35';
+}
+function _fpeSetColor(color,el){ if(!_fpe)return; _fpe.color=color; document.querySelectorAll('.fpe-swatch').forEach(s=>s.classList.remove('on')); if(el)el.classList.add('on'); if(_fpe.selected>=0){_fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));_fpe.shapes[_fpe.selected].color=color;_fpeRender();} }
+function _fpeDeleteSelected(){ if(!_fpe||_fpe.selected<0)return; _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes))); _fpe.shapes.splice(_fpe.selected,1); _fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true; document.getElementById('fpe-label-inp').value=''; _fpeUpdateRotateBtn(); _fpeRender();_fpeStatus('Shape deleted'); }
+function _fpeUndo(){ if(!_fpe||!_fpe.history.length)return; _fpe.shapes=_fpe.history.pop(); _fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true; _fpeRender();_fpeStatus('Undo'); }
+function _fpeReset(){ if(!_fpe)return; if(_fpe.shapes.length&&!confirm(`Clear all annotations for room ${_fpe.roomId}?`))return; _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes))); _fpe.shapes=[];_fpe.selected=-1; document.getElementById('fpe-delete-btn').disabled=true; document.getElementById('fpe-label-inp').value=''; delete FP_ANNOTATIONS[_fpe.roomId]; _fpeRender();_fpeStatus('Annotations cleared — room restored to original image'); }
+function _fpeStatus(msg){const el=document.getElementById('fpe-status');if(el)el.textContent=msg;}
+
+function _fpeSetStamp(key){
+  if(!_fpe) return;
+  const same=_fpe.stampMode===key;
+  _fpe.stampMode=same?null:key;
+  if(!same){
+    _fpe.mode='box'; // keep box as fallback draw mode
+    document.getElementById('fpe-btn-box')?.classList.remove('on');
+    document.getElementById('fpe-btn-wall')?.classList.remove('on');
+    if(_fpe.canvas) _fpe.canvas.style.cursor='crosshair';
+  } else {
+    _fpeSetMode('box');
+  }
+  ['wall_seg','door','table_chair'].forEach(k=>{
+    document.getElementById(`fpe-stamp-${k}`)?.classList.toggle('on',_fpe.stampMode===k);
+  });
+  _fpeStatus(_fpe.stampMode
+    ?`Click to place a ${FPE_STAMP_LABELS[key]} — drag to move · R to rotate · click tool again to cancel`
+    :`Room ${_fpe.roomId} · drag to draw boxes · Apply saves to Page 1`);
+}
+function _fpeRotateSelected(){
+  if(!_fpe||_fpe.selected<0) return;
+  const s=_fpe.shapes[_fpe.selected]; if(s?.type!=='stamp') return;
+  _fpe.history.push(JSON.parse(JSON.stringify(_fpe.shapes)));
+  s.r=(s.r||0)+Math.PI/4; _fpeRender();
+}
+function _fpeUpdateRotateBtn(){
+  const btn=document.getElementById('fpe-rotate-btn'); if(!btn) return;
+  btn.disabled=!(_fpe&&_fpe.selected>=0&&_fpe.shapes[_fpe.selected]?.type==='stamp');
+}
+function _fpeApply(){
+  if(!_fpe)return;
+  const oid=_fpe.roomId;
+  if(!FP_ANNOTATIONS[oid])FP_ANNOTATIONS[oid]={};
+  FP_ANNOTATIONS[oid].shapes=JSON.parse(JSON.stringify(_fpe.shapes));
+  try{
+    FP_ANNOTATIONS[oid].imageDataUrl=_fpe.canvas.toDataURL('image/jpeg',0.92);
+    closeFpEditor(); gen(); renderAusLookup();
+    showStatus(`Room ${oid} layout applied to Page 1`,'s-ok');
+  }catch(err){
+    FP_ANNOTATIONS[oid].imageDataUrl=null; closeFpEditor();
+    showStatus('Annotation shapes saved, but the floor plan image couldn\'t be captured (browser security restriction). To export the annotated image, upload the room image via the Media tab first.','s-warn');
+  }
+}
+
+
+// ── MULTI-FLOOR EXTRA MASTER PAGES ────────────────────────────────────────────
+// Chips shown under the floor-plan list; each = one extra master page in PDF/print.
+function renderExtraMasters(){
+  const el=document.getElementById('extra-masters');if(!el)return;
+  if(!EXTRA_MASTERS.length){el.innerHTML='';el.style.display='none';return;}
+  el.style.display='block';
+  el.innerHTML='<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--o);margin:10px 0 6px;">⧉ Multi-Floor — extra PDF pages</div>'
+    +EXTRA_MASTERS.map((m,i)=>`<span style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:4px 9px;border:1.5px solid var(--o);border-radius:14px;background:var(--olt);font-size:11px;font-weight:700;color:var(--o);">${m.label}<button onclick="removeExtraMaster(${i})" style="border:none;background:transparent;color:var(--o);cursor:pointer;font-size:12px;line-height:1;padding:0;">✕</button></span>`).join('')
+    +'<div class="note-txt">Each chip = one extra master floor-plan page appended after page 2 in Print / PDF.</div>';
+}
+function removeExtraMaster(i){EXTRA_MASTERS.splice(i,1);renderExtraMasters();showStatus('Extra floor page removed.','s-info');}
+
+// Render page-2 with each extra master temporarily and capture its outerHTML.
+// Used by printSlide (sync-ish) and printQueue. Returns array of HTML strings.
+function captureExtraMasterHtml(){
+  if(!EXTRA_MASTERS.length) return [];
+  const out=[];
+  const _same=FP_PAGE2_SAME,_p2=FP_PAGE2_IDX,_len=FP_PLANS.length;
+  try{
+    for(const m of EXTRA_MASTERS){
+      FP_PLANS.push({url:m.url,label:m.label});
+      FP_PAGE2_SAME=false;FP_PAGE2_IDX=FP_PLANS.length-1;
+      gen._captureMode=true;gen();gen._captureMode=false;
+      const el=document.getElementById('slide2');
+      if(el) out.push(el.outerHTML);
+      FP_PLANS.pop();
+    }
+  }finally{
+    FP_PLANS.length=_len;FP_PAGE2_SAME=_same;FP_PAGE2_IDX=_p2;
+    gen._captureMode=true;gen();gen._captureMode=false;
+  }
+  return out;
+}

@@ -1,10 +1,14 @@
-// ══════════════════════════════════════════════════════════
-//  JSON LOCATION LIBRARY
-// ══════════════════════════════════════════════════════════
-const LIB_KEY='co_location_library';
-let _libGroupCollapsed={server:false,local:false}; // track collapsed groups
-function getLib(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||'[]');}catch{return[];}}
-function saveLib(lib){localStorage.setItem(LIB_KEY,JSON.stringify(lib));}
+// Compass Offices One-Pager Builder
+// https://github.com/compassoffices/compassoffices.github.io
+
+function _validateImportedJson(p){
+  if(!p || typeof p !== 'object') throw new Error('File is not a valid JSON object');
+  // Must have at least one recognisable field
+  const knownKeys = ['langs','name','address','rows','photos','floor','pricing_cols','fp_plans','office_lookup_region'];
+  const hasKnown = knownKeys.some(k => k in p);
+  if(!hasKnown) throw new Error('File does not appear to be a Compass Offices proposal');
+  return true;
+}
 function loadJsonFiles(e){
   const files=Array.from(e.target.files).filter(f=>f.name.endsWith('.json'));
   if(!files.length)return;
@@ -16,7 +20,18 @@ function _ingestFiles(files){
     const reader=new FileReader();
     reader.onload=ev=>{
       try{
-        const data=JSON.parse(ev.target.result);if(!data.name)throw new Error('Missing name');
+        const data=JSON.parse(ev.target.result);
+        // Derive the effective name: prefer explicit name field, fall back to
+        // queue item names. This handles "queue-session" saves where the form
+        // was empty (cleared after + Queue) but the queue contains real work.
+        const explicitName = typeof data.name==='object' ? data.name.en : (data.name||'');
+        const queueNames = Array.isArray(data.queue)
+          ? data.queue.map(i => i.state?.langs?.en?.name || i.name || '').filter(Boolean)
+          : [];
+        const effectiveName = explicitName || queueNames.join(' + ');
+        if(!effectiveName) throw new Error('Missing name');
+        // Normalise the name field so library dedup and display work correctly
+        if(!explicitName && queueNames.length) data.name = effectiveName;
         data._source='local';  // mark as locally inserted
         data._filename=file.name;
         const n=typeof data.name==='object'?data.name.en:data.name;
@@ -163,22 +178,24 @@ function renderJsonDropdown(lib,q=''){
     +'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Close'
     +'</button></div>';
 
-  if(serverItems.length){
-    const icon=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
-    html+=buildGroupHeader('Server Library',icon,serverItems.length,'server','var(--mid)');
-    if(!_libGroupCollapsed.server) html+=serverItems.map(({l,i})=>buildCard(l,i)).join('');
-  }
-
+  // ── Saved Proposals (locally-inserted) first — most immediately relevant ──
   if(localItems.length){
     const icon=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--o)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
-    html+=buildGroupHeader('Inserted Cards',icon,localItems.length,'local','var(--o)');
+    html+=buildGroupHeader('Saved Proposals',icon,localItems.length,'local','var(--o)');
     if(!_libGroupCollapsed.local) html+=localItems.map(({l,i})=>buildCard(l,i)).join('');
     html+=`<div style="padding:5px 10px 7px;border-top:1px solid var(--bd);background:var(--bg);">
       <button onmousedown="event.preventDefault();removeLocalGroup()" style="width:100%;padding:4px;border:1px solid var(--bd);border-radius:5px;background:transparent;color:var(--xlt);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        Remove inserted cards
+        Remove saved proposals
       </button>
     </div>`;
+  }
+
+  // ── Server Library second ──
+  if(serverItems.length){
+    const icon=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+    html+=buildGroupHeader('Server Library',icon,serverItems.length,'server','var(--mid)');
+    if(!_libGroupCollapsed.server) html+=serverItems.map(({l,i})=>buildCard(l,i)).join('');
   }
 
   dd.innerHTML=html;
@@ -234,25 +251,32 @@ function _hideDropdownOutside(e){
 let LAST_LOCATION=null;
 function loadFromLib(idx){
   const lib=getLib();const p=lib[idx];if(!p)return;
+  try{ _validateImportedJson(p); }catch(ve){
+    showStatus(`Import failed: ${ve.message}`,'s-warn'); return;
+  }
   LAST_LOCATION=p;applyLocationData(p);
   const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
   document.getElementById('json-search').value=displayName;
-  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();setTimeout(renderPhotoSlots,60);
-  // Try to auto-load floorplan crop data from sheet
+  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
-    const matchedCentre = ausCentreForCardName(displayName);
+    const matchedCentre = ausCentreForCardName(displayName, p);
     if(matchedCentre){
       AUS_CENTRE_FILTER = matchedCentre;
       // Clear any previous floor filter when switching centres via library
       const si=document.getElementById('aus-search');
       if(si) si.value='';
-      document.querySelectorAll('[id^="aus-c-"]').forEach(b=>b.classList.remove('on'));
-      const cMap={'':'aus-c-all','141 Walker Street':'aus-c-141','207 Kent Street':'aus-c-207','360 Collins Street':'aus-c-360','459 Collins Street':'aus-c-459','570 Bourke Street':'aus-c-570','9 Castlereagh':'aus-c-9c'};
-      document.getElementById(cMap[matchedCentre]||'aus-c-all')?.classList.add('on');
+      renderCentreChips(); // re-renders chips with the new "on" state
       // Use setTimeout to defer renderAusLookup so loadFromLib completes first
       setTimeout(()=>renderAusLookup(), 0);
     }
+  }
+  // ── Queue file loaded → auto Start a New Proposal ────────────────────────
+  // The user's work is now in the queue panel. Reset the form to a blank slate
+  // so they're ready to build the next proposal.
+  // Single-proposal files: leave the form filled so the user can view/edit.
+  if(Array.isArray(p.queue) && p.queue.length && !_ausLoadingCard){
+    if(typeof _resetCardForNewProposal === 'function') _resetCardForNewProposal();
   }
 }
 function applyLocationData(p){
@@ -290,7 +314,21 @@ function applyLocationData(p){
         },
         customBody: ld.custom_body || '',
         transport: (ld.transport||[]).map((t,i)=>({id:_trId(),iconId:t.iconId||'tr_metro',text:t.text||''})),
-        rows: (ld.pricing||[]).map(row=>({id:Date.now()+Math.random(),seats:row.seats||'',type:row.type||'',rent:row.rent||'',mgmt:row.mgmt||'',init:row.init||'',avail:row.avail||''})),
+        rows: (ld.pricing||[]).map(row=>{
+          // Preserve all keys (including custom_X) — strip any stale id from
+          // saved data and assign a fresh runtime id.
+          const {id, ...rest} = row;
+          return {
+            id: Date.now()+Math.random(),
+            seats: rest.seats || '',
+            type:  rest.type  || '',
+            rent:  rest.rent  || '',
+            mgmt:  rest.mgmt  || '',
+            init:  rest.init  || '',
+            avail: rest.avail || '',
+            ...rest,
+          };
+        }),
         benefits: (ld.benefits||[]).map(b=>({...b})),
         // benefits_title handled globally below
         amenities: AMENITY_ICONS.map(a=> p.amenities ? p.amenities.includes(a.id) : a.on),
@@ -307,6 +345,7 @@ function applyLocationData(p){
     LANG_KEYS.forEach(lc=>{
       const ld2=p.langs[lc];
       if(ld2&&ld2.benefits_title!==undefined) BENEFITS_TITLE[lc]=ld2.benefits_title||'';
+      if(ld2&&ld2.deposit_note!==undefined)   DEPOSIT_NOTE[lc]  =ld2.deposit_note||'';
     });
     const bTitleInp=document.getElementById('benefits-title-input');
     if(bTitleInp) bTitleInp.value=BENEFITS_TITLE[LANG]||'';
@@ -331,44 +370,143 @@ function applyLocationData(p){
     sv('custom-title',p.custom_title);
     const customBodyVal=r(p.custom_body);
     if(customBodyVal){const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML=customBodyVal;const cbh=document.getElementById('custom-body');if(cbh)cbh.value=customBodyVal;}
-    if(p.pricing?.length){S.rows=[];p.pricing.filter(row=>row.seats||row.rent).forEach(row=>addRow(r(row.seats)||'',r(row.type)||'',r(row.rent)||'',r(row.mgmt)||'',r(row.init)||'',r(row.avail||row.available)||''));}
+    if(p.pricing?.length){
+      S.rows=[];
+      p.pricing.filter(row=>row.seats||row.rent).forEach(row=>{
+        addRow(r(row.seats)||'',r(row.type)||'',r(row.rent)||'',r(row.mgmt)||'',r(row.init)||'',r(row.avail||row.available)||'');
+        // Copy any custom column values into the newly-added row (last entry)
+        const last = S.rows[S.rows.length-1];
+        Object.entries(row).forEach(([k,v])=>{
+          if(['id','seats','type','rent','mgmt','init','avail','available'].includes(k)) return;
+          last[k] = r(v) || '';
+        });
+      });
+    }
   }
   if(p.partner_logo_url){S.partnerLogo=p.partner_logo_url;renderLogoCard();}
   if(p.logo_separator&&['x','bar','none'].includes(p.logo_separator)){setSep(p.logo_separator);}
   if(p.amenities){AMENITY_ICONS.forEach(a=>{a.on=p.amenities.includes(a.id);});renderAmenities();}
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
-  (function(){
-  // Try multiple photo sources for compatibility with different JSON formats
-  const _ph = p.photos || p.photo_urls || (p.langs && (p.langs['en']||p.langs[Object.keys(p.langs)[0]])?.photos) || null;
-  if(!_ph) return;
-  const _arr = Array.isArray(_ph) ? _ph : Object.values(_ph);
-  if(!_arr.length) return;
-  S.photos=[null,null,null,null,null,null];
-  _arr.slice(0,6).forEach((url,i)=>{
-    S.photos[i]=(url&&typeof url==='string'&&!url.startsWith('data:')&&url.length>5)?url:null;
-  });
-  renderPhotoSlots();
-})();
-  EXTRA_MASTERS=(p.extra_masters||[]).filter(m=>m&&m.url).map(m=>({url:m.url,label:m.label||''}));renderExtraMasters();
+  if(p.photos?.length){S.photos=[null,null,null,null,null,null];p.photos.slice(0,6).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
+  EXTRA_MASTERS=(p.extra_masters||[]).filter(m=>m&&m.url).map(m=>({url:m.url,label:m.label||''}));
+  if(typeof renderExtraMasters==='function')renderExtraMasters();
   if(p.fp_plans&&Array.isArray(p.fp_plans)&&p.fp_plans.length){
     FP_PLANS=p.fp_plans.filter(p=>p.url).map(p=>({url:p.url,label:p.label||''}));
     FP_PAGE2_SAME=p.fp_page2_same!==false;
     FP_PAGE1_IDX=p.fp_page1_idx!==undefined?p.fp_page1_idx:-2;
     FP_PAGE2_IDX=p.fp_page2_idx!==undefined?p.fp_page2_idx:0;
     FP_BASE_URL=p.fp_base_url||'';
+    FP_DATA_URL=p.fp_data_url||'';
     S.floorplan=FP_PLANS[0]?.url||null;
     const bInp=document.getElementById('fp-base-url');if(bInp)bInp.value=FP_BASE_URL;
+    const dInp=document.getElementById('fp-data-url');if(dInp)dInp.value=FP_DATA_URL;
     setFpPage2Same(FP_PAGE2_SAME);
     renderFpList();
+    // Restore manual highlight additions
+    FP_HIGHLIGHTS_MANUAL = new Set(Array.isArray(p.fp_highlights_manual) ? p.fp_highlights_manual : []);
+    // ── Restore Office Lookup region + centre filter ──
+    // If the region differs from what's currently loaded, fetch the region's
+    // CSV (assuming the master sheet has already been loaded). Otherwise
+    // just re-apply the centre filter to the current data.
+    // _savedSel mirrors restoreStateSnapshot — captured up front, applied
+    // in whichever branch fires so the office checkboxes always reflect
+    // the card's selection regardless of fetch timing.
+    const _savedSel = Array.isArray(p.aus_selected) ? p.aus_selected : [];
+    if(p.office_lookup_region){
+      if(AX_REGIONS_LOADED && AX_REGIONS[p.office_lookup_region] && p.office_lookup_region !== AX_REGION){
+        setAxRegion(p.office_lookup_region, /*skipReset=*/true, /*skipPreset=*/true).then(()=>{
+          AUS_CENTRE_FILTER = p.office_lookup_centre || '';
+          AUS_SELECTED = new Set(_savedSel);
+          renderCentreChips();
+          renderAusLookup();
+        });
+      } else {
+        AX_REGION = p.office_lookup_region;
+        AUS_CENTRE_FILTER = p.office_lookup_centre || '';
+        AUS_SELECTED = new Set(_savedSel);
+        renderRegionChips();
+        renderCentreChips();
+        renderAusLookup();
+      }
+    } else {
+      AUS_SELECTED.clear();
+      renderAusLookup();
+    }
+    // Reset highlight state and re-fetch polygon data for the new base
+    FP_MASTER_DATA = null;
+    FP_HAS_3D = false;
+    if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
+    FP_HIGHLIGHT_RENDER_URL = null;
+    FP_HIGHLIGHT_LAST_KEY = null;
+    FP_DATA_LAST_FETCHED_BASE = '';
+    if(fpEffectiveDataUrl()) tryFetchFpData(true, true);
+    else updateFpDataStatusUI();
   } else if(p.floorplan_url){
     S.floorplan=p.floorplan_url;
     FP_PLANS=[{url:p.floorplan_url,label:'master'}];
-    FP_BASE_URL=p.floorplan_url.replace(/[^/]+\.jpg$/i,'');
+    FP_BASE_URL=p.floorplan_url.replace(/[^/]+\.(jpg|jpeg|png)$/i,'');
     renderFpList();
   }
   // ── Restore all layout settings ──
   if(p.benefits_pos)setBenPos(p.benefits_pos);
   if(p.benefits_title&&typeof p.benefits_title==='object'){Object.assign(BENEFITS_TITLE,p.benefits_title);const bi=document.getElementById('benefits-title-input');if(bi)bi.value=BENEFITS_TITLE[LANG]||'';}
+  if(p.deposit_note&&typeof p.deposit_note==='object'){Object.assign(DEPOSIT_NOTE,p.deposit_note);}
+  syncDepositNoteInput();
+  // Restore the two on/off toggles + the discount value
+  if(typeof p.deposit_note_on === 'boolean'){
+    DEPOSIT_NOTE_ON = p.deposit_note_on;
+    const btn = document.getElementById('deposit-note-toggle');
+    if(btn) btn.classList.toggle('on', DEPOSIT_NOTE_ON);
+    const inp = document.getElementById('deposit-note-input');
+    if(inp){ inp.style.opacity = DEPOSIT_NOTE_ON ? '1' : '.4'; inp.disabled = !DEPOSIT_NOTE_ON; }
+  }
+  if(typeof p.house_rules_on === 'boolean'){
+    HOUSE_RULES_ON = p.house_rules_on;
+    const btn = document.getElementById('house-rules-toggle');
+    if(btn) btn.classList.toggle('on', HOUSE_RULES_ON);
+  }
+  if(typeof p.page_url_on === 'boolean'){
+    PAGE_URL_ON = p.page_url_on;
+    const btn = document.getElementById('page-url-toggle');
+    if(btn) btn.classList.toggle('on', PAGE_URL_ON);
+  }
+  if(typeof p.base_discount_on === 'boolean'){
+    BASE_DISCOUNT_ON = p.base_discount_on;
+    const btn = document.getElementById('base-discount-toggle');
+    if(btn) btn.classList.toggle('on', BASE_DISCOUNT_ON);
+    const inp = document.getElementById('aus-discount');
+    if(inp){ inp.style.opacity = BASE_DISCOUNT_ON ? '1' : '.4'; inp.disabled = !BASE_DISCOUNT_ON; }
+  }
+  if(typeof p.base_discount === 'number'){
+    AUS_DISCOUNT = p.base_discount;
+    const inp = document.getElementById('aus-discount');
+    if(inp) inp.value = AUS_DISCOUNT;
+  }
+  // Restore the 2D/3D floor-plan preference. The probe fires later when
+  // FP_MASTER_DATA loads — if the 3D file is missing, _renderFp3DToggle
+  // auto-flips this back to false. If present, the slide renders with
+  // the user's saved choice.
+  if(typeof p.fp_use_3d === 'boolean') FP_USE_3D = p.fp_use_3d;
+  if(typeof p.fp_use_local === 'boolean') FP_USE_LOCAL = p.fp_use_local;
+  if(p.fp_p2_custom_url !== undefined){ FP_P2_CUSTOM_URL = p.fp_p2_custom_url||null; if(typeof renderFpP2Slot==='function') renderFpP2Slot(); }
+  if(p.fp_annotations) FP_ANNOTATIONS = p.fp_annotations; else FP_ANNOTATIONS = {};
+  if(typeof p.compass_on === 'boolean'){ COMPASS_ON = p.compass_on; }
+  if(typeof p.compass_angle === 'number'){ COMPASS_ANGLE = Math.round(((p.compass_angle%360)+360)%360); }
+  if(typeof _renderCompassControl === 'function') _renderCompassControl();
+  // Only override the remembered names when the loaded card actually carries
+  // a non-empty value. Selecting a plain location (or an office-lookup centre)
+  // whose card has no client/company name must NOT wipe the remembered client.
+  if(p.client_name){
+    CLIENT_NAME = p.client_name;
+    const el = document.getElementById('client-name'); if(el) el.value = CLIENT_NAME;
+  }
+  if(p.company_name){
+    COMPANY_NAME = p.company_name;
+    const el = document.getElementById('company-name'); if(el) el.value = COMPANY_NAME;
+  }
+  // Keep localStorage in sync with whatever the names are now (card-supplied
+  // or the preserved remembered ones).
+  if(typeof _saveRememberedNames === 'function') _saveRememberedNames();
   if(p.custom_pos)setCustomPos(p.custom_pos);
   if(p.show_specs===false&&SHOW_SPECS)toggleShowSpecs();
   else if(p.show_specs===true&&!SHOW_SPECS)toggleShowSpecs();
@@ -385,8 +523,69 @@ function applyLocationData(p){
       });
     });
   }
-  if(p.pricing_cols&&Array.isArray(p.pricing_cols)){p.pricing_cols.forEach(pc=>{const col=PRICING_COLS.find(c=>c.key===pc.key);if(col){col.on=pc.on!==false;if(pc.labels&&typeof pc.labels==='object')Object.assign(col.labels,pc.labels);else if(pc.label)col.labels[LANG]=pc.label;}});renderPricingColSettings();}
+  if(p.pricing_cols&&Array.isArray(p.pricing_cols)){
+    // Strip any existing custom columns first so loads are deterministic.
+    PRICING_COLS = PRICING_COLS.filter(c => !c.custom);
+    p.pricing_cols.forEach(pc=>{
+      const col = PRICING_COLS.find(c=>c.key===pc.key);
+      if(col){
+        // Existing built-in column → update on/labels
+        col.on = pc.on!==false;
+        if(pc.labels && typeof pc.labels==='object') Object.assign(col.labels, pc.labels);
+        else if(pc.label) col.labels[LANG] = pc.label;
+      } else if(pc.custom || !PRICING_COLS_BUILTIN.includes(pc.key)){
+        // Custom column from saved JSON → re-create it
+        PRICING_COLS.push({
+          key: pc.key,
+          on: pc.on!==false,
+          custom: true,
+          labels: pc.labels && typeof pc.labels==='object'
+            ? {'en':'','zh-hant':'','zh-hans':'','ja':'', ...pc.labels}
+            : {'en': pc.label||'Column','zh-hant':'','zh-hans':'','ja':''},
+        });
+      }
+    });
+    renderPricingColSettings();
+  }
   if(p.icon_overrides&&typeof p.icon_overrides==='object'){window.ICON_OVERRIDES={...p.icon_overrides};}
+  // ── Restore PDF queue from saved card ─────────────────────────────────────
+  // Saved queues carry only {name, thumb, state} per item; cv1/cv2 are
+  // regenerated lazily at export time by the text-PDF re-render path.
+  //
+  // TWO GUARDS:
+  // 1. Skip if the saved queue is empty — an empty array here would WIPE the
+  //    user's current in-memory queue (the original bug: a library card saved
+  //    with no queue items had `queue: []` baked in, and picking an office in
+  //    Office Lookup auto-loaded that card and erased everything queued).
+  // 2. Skip if this load is an Office Lookup auto-load (the `_ausLoadingCard`
+  //    flag). When a user picks an office mid-workflow they want the office's
+  //    template data, not whoever's stale queue was saved with that card.
+  // Explicit clicks (Save Card → re-import; library panel click) without the
+  // auto-load flag still restore a populated queue, so the round-trip works.
+  const _isAutoLoad = (typeof _ausLoadingCard !== 'undefined') && _ausLoadingCard;
+  if(Array.isArray(p.queue) && p.queue.length && !_isAutoLoad){
+    PDF_QUEUE = p.queue.map(item => ({
+      name: item.name || '',
+      thumb: item.thumb || '',
+      cv1DataUrl: '',   // re-rendered at PDF export
+      cv2DataUrl: '',
+      state: item.state || {},
+    }));
+    updateQueueBadge();
+    renderQueueList();
+    // Queue-session save: form is empty but queue has the real work.
+    // Auto-open the queue panel so the user immediately sees their proposals,
+    // and show a clear status so they know what was restored.
+    if(p._queue_session || !p.name){
+      const panel = document.getElementById('queue-panel');
+      if(panel) panel.style.display = 'flex';
+      const n = PDF_QUEUE.length;
+      showStatus(
+        `Loaded ${n} queued proposal${n!==1?'s':''} — click any thumbnail to re-edit, or ${typeof ui==='function'?ui('queue_export_all'):'Export All PDF'} to print.`,
+        's-ok'
+      );
+    }
+  }
   // Save the loaded data into current lang slot so it persists on lang switch
   saveLangData(LANG);
   // Auto-switch layout: if loaded card has specs, switch to Classic; if none, stay/go Auto
@@ -430,3 +629,6 @@ function checkAutoLayout(){
   }
 }
 
+// ══════════════════════════════════════════════════════════
+//  GENERATE SLIDES
+// ══════════════════════════════════════════════════════════
