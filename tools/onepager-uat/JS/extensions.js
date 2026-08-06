@@ -1639,6 +1639,7 @@ async function syncMultiFloorFromRows(){
     }
     if(typeof renderExtraMasters==='function') renderExtraMasters();
     gen();
+    if(typeof autoRefreshFloorplanImages==='function') autoRefreshFloorplanImages();
   }catch(e){ console.warn('[multi-floor sync]', e); }
   finally{ _XF_SYNCING = false; }
 }

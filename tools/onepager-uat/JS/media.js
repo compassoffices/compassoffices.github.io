@@ -784,6 +784,7 @@ async function tryFetchFpData(force, fromLoad){
     if(!data || !Array.isArray(data.rooms)) throw new Error('Malformed JSON (missing rooms[])');
     FP_MASTER_DATA = data;
     FP_DATA_STATUS = 'ok';
+    if(typeof autoRefreshFloorplanImages==='function') autoRefreshFloorplanImages();
     FP_HIGHLIGHT_LAST_KEY = null;
     FP_HIGHLIGHT_LAST_ERROR = '';
     Object.keys(FP_HIGHLIGHT_CACHE).forEach(k => delete FP_HIGHLIGHT_CACHE[k]);
@@ -1191,4 +1192,75 @@ async function refreshImageCache(){
   if(typeof renderExtraMasters==='function')renderExtraMasters();
   gen();
   showStatus('✓ Image cache cleared — photos, floor plans and highlight renders re-fetched fresh.','s-ok');
+}
+
+
+// ── AUTO IMAGE FRESHNESS (no button needed) ───────────────────────────────────
+// Cloudinary serves updated images at the SAME URL, and browsers cache them
+// long-term — so an updated room plan keeps showing stale until Incognito.
+// This runs automatically after floor-plan data loads: for every active
+// floor-plan image (master + selected rooms), it sends a conditional request
+// (cache:'no-cache' → 304 ≈ 0 bytes when unchanged) and reads the ETag.
+// If any ETag differs from the last seen value, the image changed on
+// Cloudinary → clear the highlight bake cache, bump the render token and
+// re-render. Users simply see the new plan within a second of loading.
+const _IMG_ETAG_KEY='co_img_etags_v1';
+function _imgEtagsLoad(){ try{return JSON.parse(localStorage.getItem(_IMG_ETAG_KEY)||'{}')}catch(e){return {}} }
+function _imgEtagsSave(m){ try{
+  const keys=Object.keys(m); // keep the store bounded
+  if(keys.length>400) keys.slice(0,keys.length-400).forEach(k=>delete m[k]);
+  localStorage.setItem(_IMG_ETAG_KEY,JSON.stringify(m));
+}catch(e){} }
+
+function autoRefreshFloorplanImages(){
+  clearTimeout(autoRefreshFloorplanImages._t);
+  autoRefreshFloorplanImages._t=setTimeout(async()=>{
+    try{
+      // Collect the active floor-plan image URLs
+      const urls=new Set();
+      if(typeof getMasterImageUrl==='function'){
+        const mu=getMasterImageUrl();
+        if(mu&&/^https?:/i.test(mu)){ urls.add(mu); if(typeof _master3dUrl==='function'){const m3=_master3dUrl(mu); if(m3)urls.add(m3);} }
+      }
+      if(typeof FP_MASTER_DATA!=='undefined'&&FP_MASTER_DATA&&Array.isArray(FP_MASTER_DATA.rooms)){
+        const active=new Set([
+          ...((S.rows||[]).map(r=>String(r.seats||'').trim())),
+          ...(typeof FP_HIGHLIGHTS_MANUAL!=='undefined'?[...FP_HIGHLIGHTS_MANUAL]:[]),
+        ]);
+        FP_MASTER_DATA.rooms.forEach(r=>{
+          if(!r||!r.file) return;
+          if(!(active.has(r.displayLabel)||active.has(r.label)||r._crossFloor)) return;
+          const u=/^https?:/i.test(r.file)?r.file:(FP_BASE_URL?FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file):r.file):'');
+          if(u) urls.add(u);
+        });
+      }
+      FP_PLANS.forEach(p=>{ if(p&&p.url&&/^https?:/i.test(p.url)&&!p.url.startsWith('data:')) urls.add(_stripCb?_stripCb(p.url):p.url); });
+      if(!urls.size) return;
+
+      const etags=_imgEtagsLoad();
+      let changed=0;
+      await Promise.all([...urls].map(async u=>{
+        try{
+          const r=await fetch(u,{mode:'cors',credentials:'omit',cache:'no-cache'});
+          if(!r.ok) return;
+          const tag=r.headers.get('etag')||r.headers.get('last-modified')||'';
+          if(!tag) return;                    // opaque/no header → cannot compare
+          if(etags[u]&&etags[u]!==tag) changed++;
+          etags[u]=tag;
+        }catch(e){}
+      }));
+      _imgEtagsSave(etags);
+
+      if(changed){
+        try{
+          if(typeof FP_HIGHLIGHT_CACHE!=='undefined') Object.keys(FP_HIGHLIGHT_CACHE).forEach(k=>delete FP_HIGHLIGHT_CACHE[k]);
+          if(typeof FP_HIGHLIGHT_RENDER_URL!=='undefined')FP_HIGHLIGHT_RENDER_URL=null;
+          if(typeof FP_HIGHLIGHT_LAST_KEY!=='undefined')FP_HIGHLIGHT_LAST_KEY=null;
+        }catch(e){}
+        if(typeof _IMG_CB!=='undefined') _IMG_CB=Date.now();
+        gen();
+        showStatus(`✓ ${changed} floor-plan image${changed>1?'s':''} updated to the latest version from Cloudinary.`,'s-ok');
+      }
+    }catch(e){ console.warn('[auto image freshness]', e); }
+  }, 900);
 }
