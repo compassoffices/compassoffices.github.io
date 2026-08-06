@@ -9,15 +9,9 @@ function gen(){
   if(typeof ensureHighlightRender === 'function') ensureHighlightRender();
   const name=g('n-main')||'Location Name';
   const addr=g('addr');const city=g('city')||'Hong Kong';const purl=g('purl');
-  // Multi-floor: header shows all floors, e.g. "17F + 24F"
+  // Multi-floor: header shows all floors, e.g. "17F + 24F" (shared helper)
   let floor=g('floor');
-  if(typeof EXTRA_MASTERS!=='undefined'&&EXTRA_MASTERS.length){
-    const _sfx=(String(floor).match(/[Ff]|樓|楼|階/)||['F'])[0];
-    const _flNums=new Set();
-    const _cur=(String(floor).match(/\d+/)||[])[0];if(_cur)_flNums.add(_cur);
-    EXTRA_MASTERS.forEach(m=>{const d=(String(m.label||'').match(/\d+/)||[])[0];if(d)_flNums.add(d);});
-    if(_flNums.size>1) floor=[..._flNums].sort((a,b)=>+a-+b).map(d=>d+_sfx).join(' + ');
-  }
+  if(typeof combineFloorLabel==='function') floor=combineFloorLabel(floor);
   const trLines=TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
   const mkPair=(k1,v1,k2,v2)=>{if(!v1&&!v2)return null;if(v1&&!v2)return{k:k1,v:v1,pair:false};if(!v1&&v2)return{k:k2,v:v2,pair:false};return{k:k1,v:v1,k2,v2,pair:true};};
   const specRows=!SHOW_SPECS?[]:[

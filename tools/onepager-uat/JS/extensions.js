@@ -2412,10 +2412,13 @@ function _emailGetLocations(){
       // fall back to the live global if not saved.
       const noteOn = (typeof st.deposit_note_on === 'boolean') ? st.deposit_note_on : DEPOSIT_NOTE_ON;
       if(!noteOn) depositNote = '';
+      const _fl = (typeof combineFloorLabel==='function')
+        ? combineFloorLabel(fields['floor']||'', st.extra_masters||[])
+        : (fields['floor']||'');
       return {
-        name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
+        name:    [fields['n-main']||'', _fl].filter(Boolean).join(' '),
         locName: fields['n-main'] || item.name || 'Compass Offices',
-        floor:   fields['floor'] || '',
+        floor:   _fl,
         city:    fields['city'] || '',
         addr:    fields['addr'] || '',
         pageUrl: fields['purl'] || '',
@@ -2440,10 +2443,11 @@ function _emailGetLocations(){
     if(typeof DEPOSIT_NOTE === 'object') depositNote = DEPOSIT_NOTE[emailLang] || '';
     if(!depositNote) depositNote = _depositNoteDefaultFor(emailLang);
     if(!DEPOSIT_NOTE_ON) depositNote = '';
+    const _fl2 = (typeof combineFloorLabel==='function') ? combineFloorLabel(fields['floor']||'') : (fields['floor']||'');
     return [{
-      name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
+      name:    [fields['n-main']||'', _fl2].filter(Boolean).join(' '),
       locName: fields['n-main'] || 'Compass Offices',
-      floor:   fields['floor'] || '',
+      floor:   _fl2,
       city:    fields['city'] || '',
       addr:    fields['addr'] || '',
       pageUrl: fields['purl'] || '',
@@ -2455,10 +2459,12 @@ function _emailGetLocations(){
   }
   // Same language as UI → read live from DOM
   const mRaw = document.getElementById('matterport')?.value.trim() || '';
+  const _flRaw = document.getElementById('floor')?.value.trim() || '';
+  const _fl3 = (typeof combineFloorLabel==='function') ? combineFloorLabel(_flRaw) : _flRaw;
   return [{
-    name:    [document.getElementById('n-main')?.value.trim()||'', document.getElementById('floor')?.value.trim()||''].filter(Boolean).join(' '),
+    name:    [document.getElementById('n-main')?.value.trim()||'', _fl3].filter(Boolean).join(' '),
     locName: document.getElementById('n-main')?.value.trim() || 'Compass Offices',
-    floor:   document.getElementById('floor')?.value.trim() || '',
+    floor:   _fl3,
     city:    document.getElementById('city')?.value.trim() || '',
     addr:    document.getElementById('addr')?.value.trim() || '',
     pageUrl: document.getElementById('purl')?.value.trim() || '',

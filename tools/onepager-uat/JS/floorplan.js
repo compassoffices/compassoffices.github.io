@@ -40,6 +40,19 @@ const S={photos:[null,null,null,null,null,null],floorplan:null,partnerLogo:null,
 let FP_PLANS = [];
 let EXTRA_MASTERS = [];
 let _IMG_CB = 0;           // render-time cache-bust token for room images (set by refreshImageCache)
+// Combined floor label for multi-floor proposals: "17F + 24F".
+// Pass a snapshot's extra_masters to compute for a queue item; defaults to live.
+function combineFloorLabel(floor, extraMasters){
+  const list = (extraMasters!==undefined&&extraMasters!==null) ? extraMasters
+             : (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]);
+  if(!list||!list.length) return floor;
+  const sfx=(String(floor).match(/[Ff]|樓|楼|階/)||['F'])[0];
+  const nums=new Set();
+  const cur=(String(floor).match(/\d+/)||[])[0]; if(cur)nums.add(cur);
+  list.forEach(m=>{const d=(String((m&&m.label)||'').match(/\d+/)||[])[0]; if(d)nums.add(d);});
+  if(nums.size<2) return floor;
+  return [...nums].sort((a,b)=>+a-+b).map(d=>d+sfx).join(' + ');
+}
 function _fpCb(u){ return (_IMG_CB&&u&&typeof u==='string'&&!u.startsWith('data:')) ? u+(u.includes('?')?'&':'?')+'cb='+_IMG_CB : u; }    // [{url,label}] — other floors' master plans → extra PDF pages (multi-floor proposals)         // [{url:'...master.jpg', label:'Master'}, {url:'...2412.jpg', label:'2412'}]
 let FP_PAGE2_SAME = true;  // true = page2 shows same plans as page1
 let FP_PAGE1_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
