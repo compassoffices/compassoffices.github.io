@@ -151,7 +151,7 @@ function gen(){
           const items = highlights.map(r => ({
             // Use per-room annotation if available (Page 1 only — Page 2 untouched)
             url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)
-                 || (/^https?:\/\//i.test(r.file||'') ? r.file : FP_BASE_URL + (typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||'')) || FP_BASE_URL+(r.displayLabel+'.png'),
+                 || _fpCb((/^https?:\/\//i.test(r.file||'') ? r.file : FP_BASE_URL + (typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||'')) || FP_BASE_URL+(r.displayLabel+'.png')),
             label: r.displayLabel,
           }));
           if(items.length === 1){
@@ -177,7 +177,7 @@ function gen(){
           const _items=[];
           if(_allHL.some(r=>!r._synthetic)) _items.push({url:masterImg,label:'master'});
           _synHL.forEach(r=>_items.push({
-            url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)||(/^https?:\/\//i.test(r.file||'') ? r.file : (FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||''))),
+            url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)||_fpCb(/^https?:\/\//i.test(r.file||'') ? r.file : (FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||''))),
             label: r.displayLabel,
           }));
           if(!_items.length) _items.push({url:masterImg,label:'master'});
@@ -1095,7 +1095,7 @@ function downloadCurrentJSON(){
     photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?(typeof _stripCb==='function'?_stripCb(p):p):'').filter(Boolean),
     floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?(typeof _stripCb==='function'?_stripCb(S.floorplan):S.floorplan):'',
     fp_plans: FP_PLANS.map(p=>({url:p.url&&!p.url.startsWith('data:')?(typeof _stripCb==='function'?_stripCb(p.url):p.url):'',label:p.label||''})),
-    extra_masters: (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).map(m=>({url:(typeof _stripCb==='function'?_stripCb(m.url):m.url)||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''})),
+    extra_masters: (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).filter(m=>!m._auto).map(m=>({url:(typeof _stripCb==='function'?_stripCb(m.url):m.url)||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''})),
     fp_page2_same: FP_PAGE2_SAME,
     fp_page1_idx: FP_PAGE1_IDX,
     fp_page2_idx: FP_PAGE2_IDX,

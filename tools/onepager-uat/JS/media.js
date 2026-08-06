@@ -1154,6 +1154,28 @@ async function refreshImageCache(){
       await tryFetchFpData(true);
     }
   }catch(e){}
+  // ── Room floor-plan images (page-1 collage / room cutouts) ────────────────
+  // Rooms render from FP_BASE_URL + file (or absolute file); force-replace
+  // their HTTP cache entries, and set a render-time cb token so the freshly
+  // generated <img> tags bypass the in-memory image cache too.
+  try{
+    if(typeof FP_MASTER_DATA!=='undefined' && FP_MASTER_DATA && Array.isArray(FP_MASTER_DATA.rooms)){
+      const active=new Set([
+        ...((S.rows||[]).map(r=>String(r.seats||'').trim())),
+        ...(typeof FP_HIGHLIGHTS_MANUAL!=='undefined'?[...FP_HIGHLIGHTS_MANUAL]:[]),
+      ]);
+      const roomUrls=[];
+      FP_MASTER_DATA.rooms.forEach(r=>{
+        if(!r||!r.file) return;
+        const isActive = active.has(r.displayLabel) || active.has(r.label) || r._crossFloor;
+        if(!isActive) return;
+        const u=/^https?:\/\//i.test(r.file)?r.file:(FP_BASE_URL?FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file):r.file):'');
+        if(u) roomUrls.push(u);
+      });
+      await Promise.all(roomUrls.map(reload));
+    }
+    if(typeof _IMG_CB!=='undefined') _IMG_CB=Date.now();
+  }catch(e){}
   // ── State-held URLs: cache-bust so every <img> refetches ─────────────────
   S.photos=S.photos.map(_cbust);
   if(S.partnerLogo)S.partnerLogo=_cbust(S.partnerLogo);
