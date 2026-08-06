@@ -234,6 +234,7 @@ function restoreStateSnapshot(state){
   // ── 8. Restore floorplan ───────────────────────────────────────────────────
   EXTRA_MASTERS=(state.extra_masters||[]).map(m=>({...m}));
   if(typeof renderExtraMasters==='function') renderExtraMasters();
+  if(typeof syncMultiFloorDebounced==='function') syncMultiFloorDebounced();
   if(state.fp_plans&&state.fp_plans.length){
     FP_PLANS=state.fp_plans.map(p=>({url:p.url,label:p.label}));
     FP_PAGE2_SAME=state.fp_page2_same!==false;
@@ -1474,7 +1475,7 @@ function ausToggle(key){
     _ausRemoveOfficeFromFp(oid);
     const before = S.rows.length;
     S.rows = S.rows.filter(r => String(r.seats) !== String(oid));
-    if(S.rows.length < before){ renderRows(); gen(); }
+    if(S.rows.length < before){ renderRows(); gen(); if(typeof syncMultiFloorDebounced==='function')syncMultiFloorDebounced(); }
   } else {
     AUS_SELECTED.add(key);
     _ausAddOfficeToFp(oid);
@@ -1570,6 +1571,83 @@ function _syncRowPrices(){
   });
   if(changed){ renderRows(); gen(); }
 }
+// ── MULTI-FLOOR SYNC (rows-driven) ────────────────────────────────────────────
+// The durable source of truth is the PRICING ROWS (they survive autosave
+// restore, card loads and queue restores). Whenever rows contain offices from
+// floors other than the current card's floor, ensure: a "Level N" chip (extra
+// PDF page) + that floor's room images injected on page 1. Also PRUNES chips
+// and injected rooms whose offices were removed from the rows. Idempotent —
+// safe to call from anywhere, any number of times.
+let _XF_DATA_CACHE = {};   // data.json url -> rooms[] | null (per-session)
+let _XF_SYNCING = false;
+async function syncMultiFloorFromRows(){
+  if(_XF_SYNCING) return; _XF_SYNCING = true;
+  try{
+    const curFloor = ((document.getElementById('floor')?.value||'').match(/\d+/)||[])[0]||'';
+    // Which other floors appear in the rows? (AUS-style ids only: "17-001 - C")
+    const rowFloors = new Map();
+    (S.rows||[]).forEach(r=>{
+      const oid = String(r.seats||'').trim();
+      const m = oid.match(/^(\d+)-/);
+      if(!m) return;
+      const fl = m[1];
+      if(fl === curFloor) return;
+      if(!rowFloors.has(fl)) rowFloors.set(fl, []);
+      rowFloors.get(fl).push(oid);
+    });
+    const centre = AUS_CENTRE_FILTER
+      || (typeof LAST_LOCATION!=='undefined' && LAST_LOCATION && LAST_LOCATION.office_lookup_centre) || '';
+
+    // ── Prune: auto chips for floors no longer in the rows ──
+    for(let i=EXTRA_MASTERS.length-1;i>=0;i--){
+      const m=EXTRA_MASTERS[i];
+      const fl=(String(m.label||'').match(/\d+/)||[])[0];
+      if(m._auto && fl && !rowFloors.has(fl)) EXTRA_MASTERS.splice(i,1);
+    }
+    // ── Prune: injected cross-floor rooms whose office left the rows ──
+    if(typeof FP_MASTER_DATA!=='undefined' && FP_MASTER_DATA && FP_MASTER_DATA.rooms){
+      const rowSet=new Set((S.rows||[]).map(r=>String(r.seats||'').trim()));
+      for(let i=FP_MASTER_DATA.rooms.length-1;i>=0;i--){
+        const r=FP_MASTER_DATA.rooms[i];
+        if(r._crossFloor && !rowSet.has(r.displayLabel)){
+          if(typeof FP_HIGHLIGHTS_MANUAL!=='undefined') FP_HIGHLIGHTS_MANUAL.delete(r.displayLabel);
+          FP_MASTER_DATA.rooms.splice(i,1);
+        }
+      }
+    }
+    // ── Ensure: chip + room injection for each other floor ──
+    if(rowFloors.size && centre && typeof ausLibCardsForCentre==='function'){
+      const cards = ausLibCardsForCentre(centre);
+      for(const [fl, oids] of rowFloors){
+        const hit = cards.find(({l})=>{
+          const fv = typeof l.floor==='object' ? (l.floor.en||Object.values(l.floor)[0]||'') : (l.floor||'');
+          return (String(fv).match(/\d+/)||[])[0]===fl;
+        });
+        const murl=hit?.l?.fp_plans?.[0]?.url||'';
+        const mbase=hit?.l?.fp_base_url||'';
+        const mdata=hit?.l?.fp_data_url||'';
+        if(!(murl||mbase||mdata)) continue; // no card for this floor — skip quietly
+        if(!EXTRA_MASTERS.some(m=>((String(m.label||'').match(/\d+/)||[])[0])===fl)){
+          EXTRA_MASTERS.push({url:murl,label:'Level '+fl,fp_base_url:mbase,fp_data_url:mdata,_auto:true});
+        }
+        const missing = oids.filter(o=>{
+          if(typeof FP_MASTER_DATA!=='undefined' && FP_MASTER_DATA && typeof fpFindRoom==='function') return !fpFindRoom(o);
+          return !FP_PLANS.some(p=>p.label===o);
+        });
+        if(missing.length && (mbase||mdata)) await _injectCrossFloorRooms(missing, mbase, mdata);
+      }
+    }
+    if(typeof renderExtraMasters==='function') renderExtraMasters();
+    gen();
+  }catch(e){ console.warn('[multi-floor sync]', e); }
+  finally{ _XF_SYNCING = false; }
+}
+// Debounced wrapper for high-frequency call sites (row delete, toggles)
+function syncMultiFloorDebounced(){
+  clearTimeout(syncMultiFloorDebounced._t);
+  syncMultiFloorDebounced._t = setTimeout(()=>{ syncMultiFloorFromRows(); }, 350);
+}
+
 // ── Cross-floor room injection (multi-floor proposals) ────────────────────────
 // Fetches the OTHER floor's floorplan data.json to get each office's real room
 // `file`, then injects synthetic room entries (absolute URLs) into the current
@@ -1579,10 +1657,14 @@ async function _injectCrossFloorRooms(oids, otherBase, otherDataUrl){
   const dataUrl = otherDataUrl || (otherBase ? otherBase + 'data.json' : '');
   let rooms = null;
   if(dataUrl){
-    try{
-      const resp = await fetch(dataUrl, {mode:'cors', credentials:'omit', cache:'no-cache'});
-      if(resp.ok){ const j = await resp.json(); rooms = Array.isArray(j?.rooms) ? j.rooms : null; }
-    }catch(e){ console.warn('[multi-floor] other-floor data.json fetch failed:', e.message); }
+    if(dataUrl in _XF_DATA_CACHE){ rooms = _XF_DATA_CACHE[dataUrl]; }
+    else{
+      try{
+        const resp = await fetch(dataUrl, {mode:'cors', credentials:'omit', cache:'no-cache'});
+        if(resp.ok){ const j = await resp.json(); rooms = Array.isArray(j?.rooms) ? j.rooms : null; }
+      }catch(e){ console.warn('[multi-floor] other-floor data.json fetch failed:', e.message); }
+      _XF_DATA_CACHE[dataUrl] = rooms;
+    }
   }
   // Image directory for that floor: prefer fp_base_url; else the data.json's dir
   const imgBase = otherBase || (dataUrl ? dataUrl.substring(0, dataUrl.lastIndexOf('/')+1) : '');
@@ -1719,44 +1801,15 @@ function ausAddToRows(){
     added++;
     _ausAddOfficeToFp(oid);
   });
-  // ── Multi-floor: pull other floors' master plans as extra PDF pages ──
+  // ── Multi-floor: rows are the source of truth — run the sync engine ──
   let _newMasters=0;
-  try{
-    const curFloor=((document.getElementById('floor')?.value||'').match(/\d+/)||[])[0]||'';
-    const selFloors=[...new Set([...AUS_SELECTED].map(k=>{
-      const o=AUS_OFFICES[k];const oid=o?o.oid:String(k);
-      return (String(oid).match(/^(\d+)/)||[])[1];
-    }).filter(Boolean))];
-    const others=selFloors.filter(f=>f!==curFloor);
-    if(others.length&&AUS_CENTRE_FILTER&&typeof ausLibCardsForCentre==='function'){
-      const cards=ausLibCardsForCentre(AUS_CENTRE_FILTER);
-      others.forEach(fl=>{
-        const hit=cards.find(({l})=>{
-          const fv=typeof l.floor==='object'?(l.floor.en||Object.values(l.floor)[0]||''):(l.floor||'');
-          return (String(fv).match(/\d+/)||[])[0]===fl;
-        });
-        const murl=hit?.l?.fp_plans?.[0]?.url||'';
-        const mbase=hit?.l?.fp_base_url||'';
-        const mdata=hit?.l?.fp_data_url||'';
-        if((murl||mbase||mdata)&&!EXTRA_MASTERS.some(m=>(m.url&&m.url===murl)||(mbase&&m.fp_base_url===mbase))){
-          EXTRA_MASTERS.push({url:murl,label:'Level '+fl,fp_base_url:mbase,fp_data_url:mdata});_newMasters++;
-        }
-        // ── Cross-floor room images on page 1 ──
-        // _ausAddOfficeToFp() couldn't add these offices — their rooms aren't
-        // in the CURRENT floor's data.json. Fetch the OTHER floor's data.json,
-        // find each office's REAL room entry (same variant matching as
-        // fpFindRoom), and inject it with an ABSOLUTE file URL so the room-URL
-        // builders use it verbatim. Falls back to slug-guess if fetch fails.
-        if(mbase||mdata){
-          const flOffices=[...AUS_SELECTED].map(k=>{
-            const o=AUS_OFFICES[k];return o?o.oid:String(k).split('||').pop();
-          }).filter(oid=>((String(oid).match(/^(\d+)/)||[])[1])===fl);
-          if(flOffices.length) _injectCrossFloorRooms(flOffices, mbase, mdata);
-        }
-      });
-      if(_newMasters&&typeof renderExtraMasters==='function') renderExtraMasters();
-    }
-  }catch(e){console.warn('multi-floor masters:',e);}
+  {
+    const _prevXF = EXTRA_MASTERS.length;
+    syncMultiFloorFromRows().then(()=>{
+      const d = EXTRA_MASTERS.length - _prevXF;
+      if(d>0) showStatus(`⧉ Multi-floor: ${d} extra floor master page${d>1?'s':''} will be added to the PDF.`,'s-ok');
+    });
+  }
   renderRows();
   gen();
   if(added){
@@ -3372,6 +3425,8 @@ function _autosaveRestore(){
     // Show localised restore message with queue count + save reminder
     const msgFn = _AS_RESTORE_MSG[LANG] || _AS_RESTORE_MSG['en'];
     showStatus(msgFn(queueCount), 's-ok');
+    // Rows restored — re-derive multi-floor chips + cross-floor room images
+    setTimeout(()=>{ if(typeof syncMultiFloorFromRows==='function') syncMultiFloorFromRows(); }, 600);
   }catch(e){
     showStatus('Could not restore — autosave data may be corrupted','s-warn');
   }

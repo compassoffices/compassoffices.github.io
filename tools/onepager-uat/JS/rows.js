@@ -21,6 +21,7 @@ function delRow(id){
   const row = (S.rows||[]).find(r => r.id === id);
   if(row && row.seats) _ausRemoveOfficeFromFp(row.seats);
   S.rows=S.rows.filter(r=>r.id!==id);renderRows();
+  if(typeof syncMultiFloorDebounced==='function')syncMultiFloorDebounced();
 }
 function upd(id,f,v){const r=S.rows.find(r=>r.id===id);if(r)r[f]=v;}
 function updHtml(id,f,el){const r=S.rows.find(r=>r.id===id);if(r)r[f]=el.innerHTML;}

@@ -257,7 +257,7 @@ function loadFromLib(idx){
   LAST_LOCATION=p;applyLocationData(p);
   const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
   document.getElementById('json-search').value=displayName;
-  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
+  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();setTimeout(()=>{if(typeof syncMultiFloorFromRows==='function')syncMultiFloorFromRows();},500);
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
     const matchedCentre = ausCentreForCardName(displayName, p);
