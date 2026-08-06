@@ -1584,19 +1584,36 @@ async function syncMultiFloorFromRows(){
   if(_XF_SYNCING) return; _XF_SYNCING = true;
   try{
     const curFloor = ((document.getElementById('floor')?.value||'').match(/\d+/)||[])[0]||'';
-    // Which other floors appear in the rows? (AUS-style ids only: "17-001 - C")
+    const centre = AUS_CENTRE_FILTER
+      || (typeof LAST_LOCATION!=='undefined' && LAST_LOCATION && LAST_LOCATION.office_lookup_centre) || '';
+    // Floor detection is FORMAT-AGNOSTIC: an office belongs to floor N when its
+    // number starts with the digits of an existing library-card floor at this
+    // centre — mirrors how the floor chips already filter the office list.
+    //   AUS  "24-001" startsWith "24"  ✓ (hyphenated)
+    //   HK   "3501"   startsWith "35"  ✓ (no hyphen)
+    // Longest floor first so "20" wins over "2" for "2001".
+    const _cards0 = (centre && typeof ausLibCardsForCentre==='function') ? ausLibCardsForCentre(centre) : [];
+    const _floorsAvail = [...new Set(_cards0.map(({l})=>{
+      const fv = typeof l.floor==='object' ? (l.floor.en||Object.values(l.floor)[0]||'') : (l.floor||'');
+      return (String(fv).match(/\d+/)||[])[0]||'';
+    }).filter(Boolean))].sort((a,b)=>b.length-a.length || (+b)-(+a));
+    const _floorOf = oid => {
+      const s = String(oid).trim();
+      for(const fl of _floorsAvail){
+        if(s.startsWith(fl) && s.length>fl.length) return fl;
+      }
+      const m = s.match(/^(\d+)-/);           // hyphen fallback (card may be missing)
+      return m ? m[1] : '';
+    };
     const rowFloors = new Map();
     (S.rows||[]).forEach(r=>{
       const oid = String(r.seats||'').trim();
-      const m = oid.match(/^(\d+)-/);
-      if(!m) return;
-      const fl = m[1];
-      if(fl === curFloor) return;
+      if(!oid) return;
+      const fl = _floorOf(oid);
+      if(!fl || fl === curFloor) return;
       if(!rowFloors.has(fl)) rowFloors.set(fl, []);
       rowFloors.get(fl).push(oid);
     });
-    const centre = AUS_CENTRE_FILTER
-      || (typeof LAST_LOCATION!=='undefined' && LAST_LOCATION && LAST_LOCATION.office_lookup_centre) || '';
 
     // ── Prune: auto chips for floors no longer in the rows ──
     for(let i=EXTRA_MASTERS.length-1;i>=0;i--){
@@ -1617,7 +1634,7 @@ async function syncMultiFloorFromRows(){
     }
     // ── Ensure: chip + room injection for each other floor ──
     if(rowFloors.size && centre && typeof ausLibCardsForCentre==='function'){
-      const cards = ausLibCardsForCentre(centre);
+      const cards = _cards0.length ? _cards0 : ausLibCardsForCentre(centre);
       for(const [fl, oids] of rowFloors){
         const hit = cards.find(({l})=>{
           const fv = typeof l.floor==='object' ? (l.floor.en||Object.values(l.floor)[0]||'') : (l.floor||'');
