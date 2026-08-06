@@ -1,62 +1,6 @@
-// Compass Offices One-Pager Builder
-// https://github.com/compassoffices/compassoffices.github.io
-
-// ── Get Latest Version (clear cache & reload) ──────────────────────────────
-// Force-refreshes the tool's CODE so users always see the newest deploy.
-// GitHub Pages caches HTML/JS in the browser; this clears any PWA/service-
-// worker caches, re-validates the HTML + every local JS file against the
-// server (bypassing the disk cache), then reloads. localStorage — saved
-// proposals, the location library and the staff profile — is left untouched.
-async function forceUpdate(){
-  if(!confirm('Reload the latest version of the tool?\n\nYour saved proposals, library and profile will be kept.')) return;
-  const btn = document.getElementById('refresh-btn');
-  if(btn) btn.style.opacity = '.5';
-  try{
-    // 1. Clear Cache Storage (service-worker / PWA caches), if any
-    if('caches' in window){
-      const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
-    }
-    // 2. Unregister any service workers
-    if('serviceWorker' in navigator){
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister()));
-    }
-    // 3. Force-revalidate the HTML + each local JS file, bypassing the disk
-    //    cache, so the next load pulls the freshest copies from the server.
-    const urls = [window.location.pathname];
-    document.querySelectorAll('script[src]').forEach(s=>{
-      const src = s.getAttribute('src') || '';
-      if(src && !/^https?:/i.test(src)) urls.push(src); // local files only
-    });
-    await Promise.all(urls.map(u => fetch(u, {cache:'reload'}).catch(()=>{})));
-  }catch(e){
-    console.warn('Force-update cache clear issue:', e);
-  }
-  // 4. Reload from the freshly-revalidated cache
-  window.location.reload();
-}
-
-// Boot sequence — loads LAST after all other JS files
-
-// ── URL language parameter ─────────────────────────────────────────────────
-// Store the URL lang without changing LANG yet — let the boot sequence
-// initialise with English defaults first, then call setLang() afterwards
-// so the full proper switch runs (transport lines, benefits, labels, etc.)
-// ?lang=ja  →  Japanese     ?lang=zh-hant  →  Traditional Chinese
-// ?lang=zh-hans  →  Simplified Chinese     ?lang=en  →  English (default)
-(function _detectUrlLang(){
-  try {
-    const p   = new URLSearchParams(window.location.search);
-    const raw = (p.get('lang') || '').toLowerCase().trim();
-    const map = { 'ja':'ja', 'zh-hant':'zh-hant', 'zh-hans':'zh-hans', 'en':'en',
-                  'tc':'zh-hant', 'sc':'zh-hans', 'tw':'zh-hant', 'hk':'zh-hant' };
-    const resolved = map[raw];
-    // Only store — do NOT set LANG yet; init runs in English first
-    if(resolved && resolved !== 'en') window._urlLang = resolved;
-  } catch(e){}
-})();
-
+// ══════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════
 (async function(){
   await loadCoIcons();
   initBenefits(LANG);
@@ -64,7 +8,6 @@ async function forceUpdate(){
   renderAmenities();
   renderRows();
   renderPricingColSettings();
-  syncDepositNoteInput();
   renderPhotoSlots();
   renderFpList();
   renderLogoCard();
@@ -74,16 +17,8 @@ async function forceUpdate(){
   updateLibStatus();
   initLibDragDrop();
   renderAusLookup();
-  renderContactPage(); // update "Let's talk" heading for new language
-  // Auto-fetch the region index (master sheet) → populates region chips →
-  // loads the first region (or the saved region if one was restored).
-  fetchAxRegions();
-
-  // Load staff profile from localStorage — sets up Page 3 "Let's talk"
-  loadStaffProfile();
-  // Restore the remembered "Proposal For" & "Client name" (localStorage)
-  if(typeof _restoreRememberedNames==="function") _restoreRememberedNames();
-  _autosaveCheck(); if(typeof _mobUpdateLang==="function") _mobUpdateLang(); if(typeof _stripInit==="function") _stripInit(); if(typeof _stripUpdatePreview==="function") _stripUpdatePreview();
+  // Auto-fetch AUS sheet if URL is saved
+  if(AUS_SHEET_URL) ausFetchSheet(AUS_SHEET_URL);
 
   // On every page load: clear server library cards and reload fresh from server.
   // This ensures the latest JSON cards are always shown.
@@ -106,14 +41,9 @@ async function forceUpdate(){
   // Add default transport lines with text
   addTransport('MTR Central Station — direct access','tr_metro');
   addTransport('Central Ferry Piers — 3 min walk','tr_ferry');
-  // Save the English state — needed so switching back to EN restores it.
-  // If a URL lang was requested, call setLang() AFTER saving EN so the
-  // full proper switch runs: transport lines, benefits, labels all in the
-  // correct language. setLang() handles everything cleanly from here.
-  setTimeout(()=>{
-    saveLangData('en');
-    if(window._urlLang) setLang(window._urlLang);
-  }, 150);
+  // Save initial EN state so switching back to EN restores it
+  // (done after a short delay so all DOM is ready)
+  setTimeout(()=>saveLangData('en'), 100);
 
   // Click-to-edit specs
   document.querySelectorAll('.spec-rich-editor').forEach(el=>{
@@ -135,5 +65,61 @@ async function forceUpdate(){
   }
 
   gen();
+  // Ensure photo slots reflect current S.photos state after full render
+  setTimeout(renderPhotoSlots, 50);
 })();
+
+
+// ── LOADED CARD PANEL ─────────────────────────────────────
+function updateLoadedCardPanel(p){
+  const panel = document.getElementById('loaded-card-panel');
+  if(!panel) return;
+  const r = v => (v && typeof v==='object' && !Array.isArray(v)) ? (v[LANG]||v.en||Object.values(v)[0]||'') : (v||'');
+  const name = r(p.name);
+  const city = r(p.city);
+  const floor = r(p.floor);
+  const addr = r(p.address);
+
+  document.getElementById('loaded-card-name').textContent = name;
+
+  const meta = document.getElementById('loaded-card-meta');
+  const parts = [city, floor].filter(Boolean);
+  meta.innerHTML = parts.map(t=>`<span style="background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;color:var(--mid)">${t}</span>`).join('') +
+    (addr ? `<span style="color:var(--xlt);font-size:10px">${addr}</span>` : '');
+
+  // Mini spec pills
+  const sp = p.specs||{};
+  const specList = [
+    sp.structure||p.structure, sp.completion||p.completion,
+    sp.floor_area||p.floor_area, sp.ceiling||p.ceiling,
+  ].map(v=>r(v)).filter(Boolean).slice(0,4);
+  document.getElementById('loaded-card-specs').innerHTML = specList.map(s=>
+    `<span style="background:#F7F7F7;border:1px solid #ECECEC;border-radius:4px;padding:2px 7px;font-size:10px;color:var(--mid)">${s}</span>`
+  ).join('');
+
+  // Update label per language
+  const labels = {en:'Loaded',  'zh-hant':'已載入', 'zh-hans':'已加载', ja:'読込済'};
+  const lbl = panel.querySelector('[data-i18n-loaded-label]');
+  if(lbl) lbl.textContent = labels[LANG]||'Loaded';
+
+  panel.style.display = 'block';
+}
+
+function clearLoadedCard(){
+  LAST_LOCATION = null;
+  const panel = document.getElementById('loaded-card-panel');
+  if(panel) panel.style.display = 'none';
+  document.getElementById('json-search').value = '';
+  // Reset all fields
+  ['n-main','addr','floor','city','purl','custom-title','matterport'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  [...document.querySelectorAll('.spec-rich-editor')].forEach(el=>el.innerHTML='');
+  const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML='';
+  S.rows=[];S.photos=[null,null,null,null,null,null];S.floorplan=null;S.partnerLogo=null;EXTRA_MASTERS=[];renderExtraMasters();
+  TRANSPORT=[];
+  renderRows();renderPhotoSlots();renderFloorplanCard();renderLogoCard();renderTransport();
+  showStatus('Card cleared.','s-info');
+  gen();
+}
 
