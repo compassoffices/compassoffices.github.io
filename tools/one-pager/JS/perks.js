@@ -69,12 +69,26 @@ const PERKS_I18N = {
   },
 };
 
-const _PERKS_IMGS = {
+// Primary = Cloudinary (stable, CORS-friendly, updatable by re-uploading the
+// same public ID). Fallback = the original WordPress URLs, tried automatically
+// if a Cloudinary asset hasn't been uploaded yet.
+// Hosted in Cloudinary folder _CompassOffices/perks-and-event/ (uploaded 2026-08-07).
+// To update an image later: re-upload in Cloudinary with the same name, then
+// update the version number in _PERKS_CDN below (or ask for a code update).
+const _PERKS_CDN = 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1786082092/_CompassOffices/perks-and-event/';
+const _PERKS_FALLBACK = {
   fitness:    'https://www.compassoffices.com/wp-content/uploads/2026/01/image-1080x450-87KB-2026-01-12T05-59-01-248Z.jpg',
   food:       'https://www.compassoffices.com/wp-content/uploads/2025/07/image-1080x450-126KB-2025-07-30T06-33-26-434Z.jpg',
   lifestyle:  'https://www.compassoffices.com/wp-content/uploads/2025/07/image-1080x450-80KB-2025-07-22T16-41-30-242Z.jpg',
   storage:    'https://www.compassoffices.com/wp-content/uploads/2026/03/redbox.jpg',
   events:     'https://www.compassoffices.com/wp-content/uploads/2025/08/image-1080x450-144KB-2025-08-12T05-47-39-785Z.jpg',
+};
+const _PERKS_IMGS = {
+  fitness:    _PERKS_CDN + 'FITNESS.jpg',
+  food:       _PERKS_CDN + 'FOOD_BEVERAGE.jpg',
+  lifestyle:  _PERKS_CDN + 'LIFESTYLE.jpg',
+  storage:    _PERKS_CDN + 'STORAGE.jpg',
+  events:     _PERKS_CDN + 'Events.jpg',
   logo_white: 'https://res.cloudinary.com/dutvfdhdp/image/upload/v1779196609/_CompassOffices/compass-logo-white.svg',
 };
 
@@ -96,13 +110,18 @@ function buildPerksPageHtml(lang) {
   const fmtTitle = s => s.replace(/\n/g, '<br>');
 
   // Image cell with category label overlay
-  const imgCell = (src, label) =>
-    `<div style="position:relative;overflow:hidden;background:#222;">
-       <img src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;" crossorigin="anonymous">
+  const imgCell = (src, label, fbKey) => {
+    const fb = fbKey && _PERKS_FALLBACK[fbKey] ? _PERKS_FALLBACK[fbKey] : '';
+    const onerr = fb
+      ? `if(!this.dataset.fb){this.dataset.fb=1;this.src='${fb}';}else{this.style.display='none';}`
+      : `this.style.display='none';`;
+    return `<div style="position:relative;overflow:hidden;background:#222;">
+       <img src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="${onerr}">
        <div style="position:absolute;bottom:0;left:0;right:0;padding:9px 14px;background:rgba(0,0,0,.52);">
          <span style="${ff}color:#fff;font-size:12px;font-weight:700;letter-spacing:.08em;">${label}</span>
        </div>
      </div>`;
+  };
 
   // Orange line + small caps eyebrow
   const eyebrow = txt =>
@@ -130,12 +149,12 @@ function buildPerksPageHtml(lang) {
   <!-- BLACK HEADER ${_PH}px -->
   <div style="background:#111;height:${_PH}px;display:flex;align-items:center;
        padding:0 34px;justify-content:space-between;flex-shrink:0;">
-    <img src="${im.logo_white}" style="height:28px;object-fit:contain;" crossorigin="anonymous">
+    <img src="${im.logo_white}" style="height:28px;object-fit:contain;">
     <div style="border:1.5px solid rgba(255,102,0,.7);color:#FF6600;
          font-size:13px;font-weight:700;letter-spacing:.1em;padding:5px 14px;border-radius:2px;">
       ${t.tagline}
     </div>
-    <img src="${_PERKS_GPTW}" style="height:20px;object-fit:contain;" crossorigin="anonymous">
+    <img src="${_PERKS_GPTW}" style="height:20px;object-fit:contain;">
   </div>
 
   <!-- BODY ${_PB}px -->
@@ -179,16 +198,17 @@ function buildPerksPageHtml(lang) {
       <div style="height:${_PT}px;display:grid;
            grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
            gap:2px;flex-shrink:0;">
-        ${imgCell(im.fitness,   cats[0])}
-        ${imgCell(im.food,      cats[1])}
-        ${imgCell(im.lifestyle, cats[2])}
-        ${imgCell(im.storage,   cats[3])}
+        ${imgCell(im.fitness,   cats[0], 'fitness')}
+        ${imgCell(im.food,      cats[1], 'food')}
+        ${imgCell(im.lifestyle, cats[2], 'lifestyle')}
+        ${imgCell(im.storage,   cats[3], 'storage')}
       </div>
 
       <!-- Events banner — ${_PBT}px matches left bottom -->
       <div style="height:${_PBT}px;position:relative;overflow:hidden;background:#222;flex-shrink:0;">
         <img src="${im.events}" style="width:100%;height:100%;object-fit:cover;
-             object-position:center 30%;display:block;" crossorigin="anonymous">
+             object-position:center 30%;display:block;"
+             onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='${_PERKS_FALLBACK.events}';}else{this.style.display='none';}">
         <div style="position:absolute;inset:0;background:rgba(0,0,0,.22);"></div>
         <div style="position:absolute;bottom:14px;left:16px;display:flex;align-items:center;gap:10px;">
           <div style="width:22px;height:2.5px;background:#FF6600;"></div>

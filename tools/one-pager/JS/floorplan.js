@@ -53,6 +53,18 @@ function combineFloorLabel(floor, extraMasters){
   if(nums.size<2) return floor;
   return [...nums].sort((a,b)=>+a-+b).map(d=>d+sfx).join(' + ');
 }
+// Floor badge for floor-plan pages: highlights the floor whose master is shown.
+// "17F + 24F" + active "24" → '17F + <b style=…>24F</b>'
+function buildFloorBadgeHtml(label, activeDigits){
+  const s=String(label||'');
+  if(!s||!activeDigits||!s.includes('+')) return s;
+  return s.split(' + ').map(part=>{
+    const d=(part.match(/\d+/)||[])[0];
+    return d===String(activeDigits)
+      ? `<b style="color:#FF6600;font-weight:800;">${part}</b>`
+      : part;
+  }).join(' + ');
+}
 function _fpCb(u){ return (_IMG_CB&&u&&typeof u==='string'&&!u.startsWith('data:')) ? u+(u.includes('?')?'&':'?')+'cb='+_IMG_CB : u; }    // [{url,label}] — other floors' master plans → extra PDF pages (multi-floor proposals)         // [{url:'...master.jpg', label:'Master'}, {url:'...2412.jpg', label:'2412'}]
 let FP_PAGE2_SAME = true;  // true = page2 shows same plans as page1
 let FP_PAGE1_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
@@ -598,6 +610,7 @@ async function captureExtraMasterPagesAsync(){
   try{
     for(const m of EXTRA_MASTERS){
       const hasData=!!(m.fp_data_url||m.fp_base_url);
+      gen._activeFloorHint=(String(m.label||'').match(/\d+/)||[])[0]||'';
       if(hasData&&typeof tryFetchFpData==='function'){
         // ── Highlighted bake path ──
         FP_DATA_URL=m.fp_data_url||'';
@@ -631,6 +644,7 @@ async function captureExtraMasterPagesAsync(){
     FP_USE_LOCAL=stash.FP_USE_LOCAL;FP_P2_CUSTOM_URL=stash.FP_P2_CUSTOM_URL;
     FP_HAS_3D=stash.FP_HAS_3D;FP_USE_3D=stash.FP_USE_3D;
     S.floorplan=stash.floorplan;
+    delete gen._activeFloorHint;
     gen._captureMode=true;gen();gen._captureMode=false;
     captureExtraMasterPagesAsync._busy=false;
   }
