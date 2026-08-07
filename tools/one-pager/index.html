@@ -736,6 +736,7 @@ img.co-icon-img{display:block;}
 .sl-ptbl td.init-cell b{font-weight:700;color:var(--drk);}
 .sl-ptbl td.init-cell [style*="color"]{color:#FF6600 !important;}
 .sl-url{margin-top:calc(var(--fs)*0.28);text-align:right;font-size:calc(var(--fs)*0.58);color:var(--xlt);}
+.sl-hr-link{color:var(--o);text-decoration:none;font-weight:700;}
 .sl-deposit-note{font-size:calc(var(--fs)*0.6);color:var(--lt);font-style:italic;line-height:1.4;margin-top:calc(var(--fs)*0.28);padding-top:calc(var(--fs)*0.18);border-top:1px dashed var(--bd);}
 .slide2{--fs:16px;width:100%;aspect-ratio:297/210;background:var(--wh);border-radius:8px;overflow:hidden;box-shadow:0 4px 8px rgba(0,0,0,.08),0 12px 40px rgba(0,0,0,.14);border:1px solid var(--bd);display:grid;grid-template-rows:auto 1fr auto;font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;font-size:var(--fs);line-height:1;padding:3px;}
 
@@ -1146,6 +1147,13 @@ img.co-icon-img{display:block;}
     <button id="profile-btn" onclick="openProfileModal()" title="Set up your contact page (Page 3 — Let's talk)" type="button">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--xlt)"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     </button>
+    <!-- Get Latest Version — clears cached code and reloads fresh so users see the newest updates (saved work is kept) -->
+    <button id="refresh-btn" onclick="forceUpdate()" title="Get the latest version — reloads the tool with the newest updates. Your saved proposals, library & profile are kept." type="button"
+      style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:transparent;border:1.5px solid var(--bd);color:var(--xlt);cursor:pointer;transition:all .15s;flex-shrink:0;margin-left:2px;padding:0;"
+      onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)';this.style.background='var(--olt)'"
+      onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)';this.style.background='transparent'">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
   </div>
   <div class="lang-sw">
     <button class="lbtn on" onclick="setLang('en')">EN</button>
@@ -1166,6 +1174,9 @@ img.co-icon-img{display:block;}
     <button class="hbtn" onclick="newCard()" style="background:transparent;color:var(--xlt);border:1.5px solid var(--bd);" data-i18n-title="tt_new_card">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
       <span data-i18n="btn_new_card">New Card</span>
+    </button>
+    <button class="hbtn" onclick="refreshImageCache()" title="Re-fetch all images fresh (fixes stale Cloudinary images)" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd);padding:8px 10px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </button>
     <button class="hbtn" style="background:transparent;color:var(--mid);border:1.5px solid var(--bd)" onclick="downloadCurrentJSON()" data-i18n-title="tt_save_card">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1220,13 +1231,13 @@ img.co-icon-img{display:block;}
     <div id="strip-fields">
       <div class="proposal-strip-field">
         <input type="text" id="company-name" placeholder="Proposal For"
-          oninput="COMPANY_NAME=this.value;_stripUpdatePreview()"
+          oninput="COMPANY_NAME=this.value;_saveRememberedNames();_stripUpdatePreview()"
           autocomplete="organization">
       </div>
       <div class="proposal-strip-div"></div>
       <div class="proposal-strip-field">
         <input type="text" id="client-name" placeholder="Client Name"
-          oninput="CLIENT_NAME=this.value;_stripUpdatePreview()"
+          oninput="CLIENT_NAME=this.value;_saveRememberedNames();_stripUpdatePreview()"
           autocomplete="name">
       </div>
     </div>
@@ -1357,7 +1368,10 @@ img.co-icon-img{display:block;}
         <input type="hidden" id="custom-body">
       </div>
       <div class="field" style="margin-top:14px">
-        <label class="fl" data-i18n="lbl_purl">Page URL (footer)</label>
+        <label class="fl" style="display:flex;align-items:center;gap:6px;"><span data-i18n="lbl_purl">Page URL (footer)</span>
+          <button type="button" id="page-url-toggle" class="ben-toggle on" onclick="togglePageUrl()" title="Show/hide the location page link on the proposal footer &amp; email" style="margin-left:2px;"></button>
+          <span style="font-weight:400;color:var(--xlt);text-transform:none;letter-spacing:0;font-size:9.5px;">— footer &amp; email</span>
+        </label>
         <input type="text" oninput="gen()" id="purl" placeholder="https://www.compassoffices.com/locations/…">
       </div>
       <div class="field" style="margin-top:10px">
@@ -1637,6 +1651,7 @@ img.co-icon-img{display:block;}
             <span data-i18n="aus_add_to_rows">Add Selected to Rows</span>
           </button>
         </div>
+          <div id="extra-masters-pr" style="display:none;padding:4px 2px 0;"></div>
 
         <!-- Library card suggestions (shown when centre selected and matching cards exist) -->
         <div id="aus-lib-suggest" style="display:none;padding:6px 10px;border-bottom:1px solid var(--bd);background:var(--bg);display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
@@ -1756,6 +1771,16 @@ img.co-icon-img{display:block;}
         </div>
       </div>
 
+      <!-- House Rules link: clickable link to the public House Rules page, shown in the slide footer -->
+      <div style="margin-top:8px;padding:9px 11px;background:var(--olt);border-radius:8px;border:1px solid #FFD9B8;">
+        <div style="font-size:10px;font-weight:800;color:var(--o);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:5px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          House Rules link
+          <button type="button" id="house-rules-toggle" class="ben-toggle on" onclick="toggleHouseRules()" title="Show/hide the House Rules link in the slide footer" style="margin-left:4px;"></button>
+          <span style="font-weight:500;color:var(--xlt);text-transform:none;letter-spacing:0;font-size:9.5px;">— clickable link in slide footer (auto-matches language)</span>
+        </div>
+      </div>
+
       <div class="slabel" style="margin-top:20px"><span data-i18n="sec_amenities">Amenities</span> <span style="font-size:9px;font-weight:500;color:var(--xlt);text-transform:none;letter-spacing:0">— icon grid on slide centre</span></div>
       <p class="note-txt" data-i18n="note_amenities" style="margin-bottom:8px">Toggle which icons appear in the amenity grid.</p>
       <div class="amen-grid" id="amen-grid"></div>
@@ -1786,6 +1811,7 @@ img.co-icon-img{display:block;}
 
     <!-- MEDIA PANEL -->
     <div class="panel" id="p-media">
+      <button onclick="refreshImageCache()" style="width:100%;margin-bottom:14px;padding:9px;border:1.5px solid var(--bd);border-radius:8px;background:var(--wh);color:var(--mid);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;" onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--mid)'">↻ Clear Image Cache <span style="font-weight:400;font-size:11px;color:var(--xlt)">re-fetch all images</span></button>
       <div class="slabel" data-i18n="sec_logos">Header Logos</div>
       <div class="media-card">
         <div class="media-card-preview logo-preview" style="cursor:default;min-height:60px;">
@@ -2030,6 +2056,7 @@ img.co-icon-img{display:block;}
 
       <!-- Floorplan list -->
       <div id="fp-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+      <div id="extra-masters" style="display:none;"></div>
       <button onclick="addFpPlan()" style="width:100%;padding:8px;border:1.5px dashed var(--bd);border-radius:8px;background:transparent;color:var(--xlt);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;"
         onmouseover="this.style.borderColor='var(--o)';this.style.color='var(--o)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--xlt)'">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2091,6 +2118,8 @@ img.co-icon-img{display:block;}
       </div>
     </div>
   </div>
+  <!-- Multi-floor: live preview of extra master pages -->
+  <div id="extra-preview"></div>
   <!-- Page 3 — Contact / Let's talk (shown when staff profile is set) -->
   <div id="page3-meta" class="pmeta" style="margin-top:24px;display:none">
     <span class="pmeta-lbl">Page 3 — Let's talk</span>
@@ -2323,17 +2352,17 @@ img.co-icon-img{display:block;}
   <div class="ico-pack-panel" id="ico-pack-co" style="display:none;grid-template-columns:repeat(5,1fr);gap:3px;padding:8px;max-height:220px;overflow-y:auto;"></div>
 </div>
 
-<script src="JS/i18n.js"></script>
-<script src="JS/components.js"></script>
-<script src="JS/floorplan.js"></script>
-<script src="JS/lookup.js"></script>
-<script src="JS/rows.js"></script>
-<script src="JS/media.js"></script>
-<script src="JS/library.js"></script>
-<script src="JS/core.js"></script>
-<script src="JS/extensions.js"></script>
-<script src="JS/perks.js"></script>
-<script src="JS/init.js"></script>
+<script src="JS/i18n.js?v=20260806g"></script>
+<script src="JS/components.js?v=20260806g"></script>
+<script src="JS/floorplan.js?v=20260806g"></script>
+<script src="JS/lookup.js?v=20260806g"></script>
+<script src="JS/rows.js?v=20260806g"></script>
+<script src="JS/media.js?v=20260806g"></script>
+<script src="JS/library.js?v=20260806g"></script>
+<script src="JS/core.js?v=20260806g"></script>
+<script src="JS/extensions.js?v=20260806g"></script>
+<script src="JS/perks.js?v=20260806g"></script>
+<script src="JS/init.js?v=20260806g"></script>
 
 <!-- ── Mobile More Drawer ──────────────────────────────────────────────── -->
 <div id="mob-more-overlay" onclick="closeMobMore()"></div>

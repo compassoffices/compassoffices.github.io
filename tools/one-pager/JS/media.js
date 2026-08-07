@@ -784,6 +784,7 @@ async function tryFetchFpData(force, fromLoad){
     if(!data || !Array.isArray(data.rooms)) throw new Error('Malformed JSON (missing rooms[])');
     FP_MASTER_DATA = data;
     FP_DATA_STATUS = 'ok';
+    if(typeof autoRefreshFloorplanImages==='function') autoRefreshFloorplanImages();
     FP_HIGHLIGHT_LAST_KEY = null;
     FP_HIGHLIGHT_LAST_ERROR = '';
     Object.keys(FP_HIGHLIGHT_CACHE).forEach(k => delete FP_HIGHLIGHT_CACHE[k]);
@@ -1107,3 +1108,159 @@ const LIB_KEY='co_location_library';
 let _libGroupCollapsed={server:false,local:false}; // track collapsed groups
 function getLib(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||'[]');}catch{return[];}}
 function saveLib(lib){localStorage.setItem(LIB_KEY,JSON.stringify(lib));}
+
+
+// ── IMAGE CACHE REFRESH ───────────────────────────────────────────────────────
+// Cloudinary images updated at the same URL are served stale from browser cache.
+// This appends a ?cb=<timestamp> to every image URL and re-renders, forcing a
+// fresh fetch. Save Card strips the cb param so stored JSON stays clean.
+function _cbust(u){
+  if(!u||typeof u!=='string'||u.startsWith('data:')||u.startsWith('blob:'))return u;
+  const clean=u.replace(/[?&]cb=\d+/g,'').replace(/\?&/,'?');
+  return clean+(clean.includes('?')?'&':'?')+'cb='+Date.now();
+}
+function _stripCb(u){
+  if(!u||typeof u!=='string')return u;
+  return u.replace(/[?&]cb=\d+/g,'').replace(/\?&/,'?');
+}
+async function refreshImageCache(){
+  showStatus('Refreshing images…','s-info');
+  // ── Layer 1: baked highlight renders ─────────────────────────────────────
+  // FP_HIGHLIGHT_CACHE holds finished PNG data-URLs keyed by masterUrl+rooms.
+  // When the Cloudinary image changes but the URL doesn't, the key is
+  // unchanged, so the OLD bake is served without ever re-fetching. Clear it.
+  try{
+    if(typeof FP_HIGHLIGHT_CACHE!=='undefined'){
+      Object.keys(FP_HIGHLIGHT_CACHE).forEach(k=>delete FP_HIGHLIGHT_CACHE[k]);
+    }
+    if(typeof FP_HIGHLIGHT_RENDER_URL!=='undefined')FP_HIGHLIGHT_RENDER_URL=null;
+    if(typeof FP_HIGHLIGHT_LAST_KEY!=='undefined')FP_HIGHLIGHT_LAST_KEY=null;
+  }catch(e){}
+  // ── Layer 2: browser HTTP cache for master images ────────────────────────
+  // fpLoadImage revalidates (cache:'no-cache'), but plain <img> fallbacks and
+  // any same-URL references elsewhere read the HTTP cache. fetch(cache:'reload')
+  // forces the cache entry itself to be replaced with fresh bytes.
+  const reload=async u=>{if(!u||u.startsWith('data:'))return;try{await fetch(u,{mode:'no-cors',cache:'reload'});}catch(e){}};
+  try{
+    if(typeof getMasterImageUrl==='function'){
+      const mu=getMasterImageUrl();
+      if(mu){await reload(mu);
+        if(typeof _master3dUrl==='function')await reload(_master3dUrl(mu));}
+    }
+    if(typeof FP_P2_CUSTOM_URL!=='undefined'&&FP_P2_CUSTOM_URL)await reload(FP_P2_CUSTOM_URL);
+  }catch(e){}
+  // ── Layer 3: re-pull data.json (master filename/version may have changed) ─
+  try{
+    if(typeof tryFetchFpData==='function'&&typeof fpEffectiveDataUrl==='function'&&fpEffectiveDataUrl()){
+      await tryFetchFpData(true);
+    }
+  }catch(e){}
+  // ── Room floor-plan images (page-1 collage / room cutouts) ────────────────
+  // Rooms render from FP_BASE_URL + file (or absolute file); force-replace
+  // their HTTP cache entries, and set a render-time cb token so the freshly
+  // generated <img> tags bypass the in-memory image cache too.
+  try{
+    if(typeof FP_MASTER_DATA!=='undefined' && FP_MASTER_DATA && Array.isArray(FP_MASTER_DATA.rooms)){
+      const active=new Set([
+        ...((S.rows||[]).map(r=>String(r.seats||'').trim())),
+        ...(typeof FP_HIGHLIGHTS_MANUAL!=='undefined'?[...FP_HIGHLIGHTS_MANUAL]:[]),
+      ]);
+      const roomUrls=[];
+      FP_MASTER_DATA.rooms.forEach(r=>{
+        if(!r||!r.file) return;
+        const isActive = active.has(r.displayLabel) || active.has(r.label) || r._crossFloor;
+        if(!isActive) return;
+        const u=/^https?:\/\//i.test(r.file)?r.file:(FP_BASE_URL?FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file):r.file):'');
+        if(u) roomUrls.push(u);
+      });
+      await Promise.all(roomUrls.map(reload));
+    }
+    if(typeof _IMG_CB!=='undefined') _IMG_CB=Date.now();
+  }catch(e){}
+  // ── State-held URLs: cache-bust so every <img> refetches ─────────────────
+  S.photos=S.photos.map(_cbust);
+  if(S.partnerLogo)S.partnerLogo=_cbust(S.partnerLogo);
+  if(S.floorplan)S.floorplan=_cbust(S.floorplan);
+  FP_PLANS=FP_PLANS.map(p=>({...p,url:_cbust(p.url)}));
+  if(typeof FP_P2_CUSTOM_URL!=='undefined'&&FP_P2_CUSTOM_URL)FP_P2_CUSTOM_URL=_cbust(FP_P2_CUSTOM_URL);
+  if(typeof EXTRA_MASTERS!=='undefined')EXTRA_MASTERS=EXTRA_MASTERS.map(m=>({...m,url:_cbust(m.url)}));
+  // ── Re-render everything ──────────────────────────────────────────────────
+  renderPhotoSlots();
+  if(typeof renderLogoCard==='function')renderLogoCard();
+  if(typeof renderFloorplanCard==='function')renderFloorplanCard();
+  if(typeof renderFpList==='function')renderFpList();
+  if(typeof renderExtraMasters==='function')renderExtraMasters();
+  gen();
+  showStatus('✓ Image cache cleared — photos, floor plans and highlight renders re-fetched fresh.','s-ok');
+}
+
+
+// ── AUTO IMAGE FRESHNESS (no button needed) ───────────────────────────────────
+// Cloudinary serves updated images at the SAME URL, and browsers cache them
+// long-term — so an updated room plan keeps showing stale until Incognito.
+// This runs automatically after floor-plan data loads: for every active
+// floor-plan image (master + selected rooms), it sends a conditional request
+// (cache:'no-cache' → 304 ≈ 0 bytes when unchanged) and reads the ETag.
+// If any ETag differs from the last seen value, the image changed on
+// Cloudinary → clear the highlight bake cache, bump the render token and
+// re-render. Users simply see the new plan within a second of loading.
+const _IMG_ETAG_KEY='co_img_etags_v1';
+function _imgEtagsLoad(){ try{return JSON.parse(localStorage.getItem(_IMG_ETAG_KEY)||'{}')}catch(e){return {}} }
+function _imgEtagsSave(m){ try{
+  const keys=Object.keys(m); // keep the store bounded
+  if(keys.length>400) keys.slice(0,keys.length-400).forEach(k=>delete m[k]);
+  localStorage.setItem(_IMG_ETAG_KEY,JSON.stringify(m));
+}catch(e){} }
+
+function autoRefreshFloorplanImages(){
+  clearTimeout(autoRefreshFloorplanImages._t);
+  autoRefreshFloorplanImages._t=setTimeout(async()=>{
+    try{
+      // Collect the active floor-plan image URLs
+      const urls=new Set();
+      if(typeof getMasterImageUrl==='function'){
+        const mu=getMasterImageUrl();
+        if(mu&&/^https?:/i.test(mu)){ urls.add(mu); if(typeof _master3dUrl==='function'){const m3=_master3dUrl(mu); if(m3)urls.add(m3);} }
+      }
+      if(typeof FP_MASTER_DATA!=='undefined'&&FP_MASTER_DATA&&Array.isArray(FP_MASTER_DATA.rooms)){
+        const active=new Set([
+          ...((S.rows||[]).map(r=>String(r.seats||'').trim())),
+          ...(typeof FP_HIGHLIGHTS_MANUAL!=='undefined'?[...FP_HIGHLIGHTS_MANUAL]:[]),
+        ]);
+        FP_MASTER_DATA.rooms.forEach(r=>{
+          if(!r||!r.file) return;
+          if(!(active.has(r.displayLabel)||active.has(r.label)||r._crossFloor)) return;
+          const u=/^https?:/i.test(r.file)?r.file:(FP_BASE_URL?FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file):r.file):'');
+          if(u) urls.add(u);
+        });
+      }
+      FP_PLANS.forEach(p=>{ if(p&&p.url&&/^https?:/i.test(p.url)&&!p.url.startsWith('data:')) urls.add(_stripCb?_stripCb(p.url):p.url); });
+      if(!urls.size) return;
+
+      const etags=_imgEtagsLoad();
+      let changed=0;
+      await Promise.all([...urls].map(async u=>{
+        try{
+          const r=await fetch(u,{mode:'cors',credentials:'omit',cache:'no-cache'});
+          if(!r.ok) return;
+          const tag=r.headers.get('etag')||r.headers.get('last-modified')||'';
+          if(!tag) return;                    // opaque/no header → cannot compare
+          if(etags[u]&&etags[u]!==tag) changed++;
+          etags[u]=tag;
+        }catch(e){}
+      }));
+      _imgEtagsSave(etags);
+
+      if(changed){
+        try{
+          if(typeof FP_HIGHLIGHT_CACHE!=='undefined') Object.keys(FP_HIGHLIGHT_CACHE).forEach(k=>delete FP_HIGHLIGHT_CACHE[k]);
+          if(typeof FP_HIGHLIGHT_RENDER_URL!=='undefined')FP_HIGHLIGHT_RENDER_URL=null;
+          if(typeof FP_HIGHLIGHT_LAST_KEY!=='undefined')FP_HIGHLIGHT_LAST_KEY=null;
+        }catch(e){}
+        if(typeof _IMG_CB!=='undefined') _IMG_CB=Date.now();
+        gen();
+        showStatus(`✓ ${changed} floor-plan image${changed>1?'s':''} updated to the latest version from Cloudinary.`,'s-ok');
+      }
+    }catch(e){ console.warn('[auto image freshness]', e); }
+  }, 900);
+}

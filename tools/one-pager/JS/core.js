@@ -8,7 +8,10 @@ function gen(){
   // Triggers async re-render when state has changed; calls gen() again on completion.
   if(typeof ensureHighlightRender === 'function') ensureHighlightRender();
   const name=g('n-main')||'Location Name';
-  const addr=g('addr');const city=g('city')||'Hong Kong';const floor=g('floor');const purl=g('purl');
+  const addr=g('addr');const city=g('city')||'Hong Kong';const purl=g('purl');
+  // Multi-floor: header shows all floors, e.g. "17F + 24F" (shared helper)
+  let floor=g('floor');
+  if(typeof combineFloorLabel==='function') floor=combineFloorLabel(floor);
   const trLines=TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
   const mkPair=(k1,v1,k2,v2)=>{if(!v1&&!v2)return null;if(v1&&!v2)return{k:k1,v:v1,pair:false};if(!v1&&v2)return{k:k2,v:v2,pair:false};return{k:k1,v:v1,k2,v2,pair:true};};
   const specRows=!SHOW_SPECS?[]:[
@@ -142,7 +145,7 @@ function gen(){
           const items = highlights.map(r => ({
             // Use per-room annotation if available (Page 1 only — Page 2 untouched)
             url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)
-                 || FP_BASE_URL + (typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||'') || FP_BASE_URL+(r.displayLabel+'.png'),
+                 || _fpCb((/^https?:\/\//i.test(r.file||'') ? r.file : FP_BASE_URL + (typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||'')) || FP_BASE_URL+(r.displayLabel+'.png')),
             label: r.displayLabel,
           }));
           if(items.length === 1){
@@ -163,12 +166,12 @@ function gen(){
       const masterImg = baked || masterUrl;
       if(masterImg && typeof getActiveHighlightRooms==='function' && !forPage2){
         const _allHL = getActiveHighlightRooms();
-        const _synHL = _allHL.filter(r => r._synthetic && r.file && FP_BASE_URL);
+        const _synHL = _allHL.filter(r => r._synthetic && r.file && (FP_BASE_URL || /^https?:\/\//i.test(r.file)));
         if(_synHL.length){
           const _items=[];
           if(_allHL.some(r=>!r._synthetic)) _items.push({url:masterImg,label:'master'});
           _synHL.forEach(r=>_items.push({
-            url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)||(FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||'')),
+            url: (FP_ANNOTATIONS[r.displayLabel]?.imageDataUrl)||_fpCb(/^https?:\/\//i.test(r.file||'') ? r.file : (FP_BASE_URL+(typeof _fpSanitizeFile==='function'?_fpSanitizeFile(r.file||''):r.file||''))),
             label: r.displayLabel,
           }));
           if(!_items.length) _items.push({url:masterImg,label:'master'});
@@ -219,9 +222,9 @@ function gen(){
   <div class="sl-body" style="grid-template-columns:${bodyGrid}">
     <div class="sl-photos">
       <div class="sl-ph-stack" style="flex:${photoAreaFlex}">
-        <div class="sl-ph-cell">${S.photos[0]?`<img src="${S.photos[0]}">`:`${noph()}`}</div>
-        <div class="sl-ph-cell">${S.photos[1]?`<img src="${S.photos[1]}">`:`${noph('#E0E0E0')}`}</div>
-        <div class="sl-ph-cell">${S.photos[2]?`<img src="${S.photos[2]}">`:`${noph('#E8E8E8')}`}</div>
+        <div class="sl-ph-cell">${S.photos[0]?`<img src="${S.photos[0]}" onerror="this.parentNode.innerHTML='<div class=noph></div>'">`:`${noph()}`}</div>
+        <div class="sl-ph-cell">${S.photos[1]?`<img src="${S.photos[1]}" onerror="this.parentNode.innerHTML='<div class=noph></div>'">`:`${noph('#E0E0E0')}`}</div>
+        <div class="sl-ph-cell">${S.photos[2]?`<img src="${S.photos[2]}" onerror="this.parentNode.innerHTML='<div class=noph></div>'">`:`${noph('#E8E8E8')}`}</div>
       </div>
       ${amenChecked.length?`<div class="sl-amen-below"><div class="sl-amen-below-grid">${amenChecked.map(a=>`<div class="sl-amen-cell">${renderIcHtml(a.id)||renderIcHtml("norestore")}<span>${amenLabel(a)}</span></div>`).join('')}</div></div>`:''}
     </div>
@@ -257,7 +260,7 @@ function gen(){
   <div class="sl-foot">
     ${S.rows.length?`<table class="sl-ptbl"><thead><tr>${activeCols.map(k=>`<th>${pHdr[k]}</th>`).join('')}</tr></thead><tbody>${S.rows.map(r=>`<tr>${activeCols.map(k=>{const v=r[k]||'';const isPrice=k==='rent'||k==='mgmt'||k==='avail'||k==='market';return isPrice?`<td class="acc">${v}</td>`:k==='init'?`<td class="init-cell">${v}</td>`:`<td>${v}</td>`;}).join('')}</tr>`).join('')}</tbody></table>`:`<p style="font-size:.65em;color:#CCC">Add pricing rows in the Pricing tab</p>`}
     ${S.rows.length && DEPOSIT_NOTE_ON && getDepositNote()?`<div class="sl-deposit-note">${getDepositNote()}</div>`:''}
-    ${purl?`<div class="sl-url">${purl}</div>`:''}
+    ${(HOUSE_RULES_ON||(PAGE_URL_ON&&purl))?`<div class="sl-url">${HOUSE_RULES_ON?`<a class="sl-hr-link" href="${houseRulesUrl()}" target="_blank" rel="noopener">${ui('house_rules')} →</a>`:''}${(HOUSE_RULES_ON&&PAGE_URL_ON&&purl)?' &nbsp;·&nbsp; ':''}${(PAGE_URL_ON&&purl)?purl:''}</div>`:''}
   </div>`;
 
   const page2El=document.getElementById('slide2');
@@ -277,7 +280,7 @@ function gen(){
       ${amenChecked.length?`<div class="p2-amen"><div class="p2-amen-grid">${amenChecked.map(a=>`<div class="p2-amen-cell">${renderIcHtml(a.id)||renderIcHtml("norestore")}<span>${amenLabel(a)}</span></div>`).join('')}</div></div>`:''}
     </div>
   </div>
-  ${purl?`<div class="p2-foot"><div class="p2-url">${purl}</div></div>`:''}`;
+  ${(HOUSE_RULES_ON||(PAGE_URL_ON&&purl))?`<div class="p2-foot"><div class="p2-url">${HOUSE_RULES_ON?`<a class="sl-hr-link" href="${houseRulesUrl()}" target="_blank" rel="noopener">${ui('house_rules')} →</a>`:''}${(HOUSE_RULES_ON&&PAGE_URL_ON&&purl)?' &nbsp;·&nbsp; ':''}${(PAGE_URL_ON&&purl)?purl:''}</div></div>`:''}`;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -356,10 +359,19 @@ async function printQueue(){
       const page1El = document.getElementById('slide');
       const page2El = document.getElementById('slide2');
       if(page1El){
+        // Multi-floor: capture extra master pages for this card (state was
+        // just restored, so EXTRA_MASTERS reflects item.state.extra_masters)
+        let _extras=[];
+        try{
+          if(typeof captureExtraMasterPagesAsync==='function' && EXTRA_MASTERS.length){
+            _extras=await captureExtraMasterPagesAsync();
+          }
+        }catch(e){console.warn('extra masters capture:',e);}
         captured.push({
           name: item.name || '',
           slide1: page1El.outerHTML,
           slide2: page2El ? page2El.outerHTML : '',
+          extras: _extras,
         });
       }
     }
@@ -462,6 +474,7 @@ function _openQueueTextPrintWindow(captured, existingWindow){
   const pagesHtml = captured.flatMap(c => {
     const arr = [`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`];
     if(c.slide2) arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide2}</div></div>`);
+    (c.extras||[]).forEach(x=>arr.push(`<div class="page-wrap"><div class="page-clip">${x}</div></div>`));
     return arr;
   }).join('\n')
   + `\n<div class="page-wrap"><div class="page-clip">${perksHtml}</div></div>`
@@ -624,7 +637,7 @@ function dismissIosTip(){
   if(box) box.classList.add('hidden');
 }`;
 
-function printSlide(){
+async function printSlide(){
   // If queue has items, open a print preview that contains every queued
   // location's two pages — same behavior as Download PDF when the queue is in use.
   if(PDF_QUEUE.length) return printQueue();
@@ -668,6 +681,21 @@ function printSlide(){
 
   const page1Html = page1El.outerHTML;
   const page2Html = page2El ? page2El.outerHTML : '';
+
+  // ── Multi-floor: capture one extra page-2 per extra master ──
+  // Async (fetches the other floor's data.json + bakes highlights). The print
+  // window was ALREADY opened synchronously above, so awaiting here is
+  // popup-safe on iOS. Show a brief loading shell while baking.
+  let extraPages = [];
+  if(typeof EXTRA_MASTERS!=='undefined' && EXTRA_MASTERS.length && typeof captureExtraMasterPagesAsync==='function'){
+    try{
+      w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preparing…</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#888;">Preparing multi-floor pages…</body></html>');
+      w.document.close();
+    }catch(e){}
+    try{ extraPages = await captureExtraMasterPagesAsync(); }
+    catch(e){ console.warn('extra pages failed:',e); extraPages=[]; }
+  }
+  const extraPagesHtml = extraPages.map(hd=>`<div class="page-wrap"><div class="page-clip">${hd}</div></div>`).join('\n');
 
   if(preview) preview.style.display = prevDisplay;
 
@@ -886,6 +914,9 @@ body {
 <!-- Page 2 -->
 ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div></div>` : ''}
 
+<!-- Multi-floor extra master pages -->
+${extraPagesHtml}
+
 <!-- Perks page — always before Let's Talk (skipped if perks.js not loaded) -->
 ${typeof buildPerksPageHtml==='function' ? `<div class="page-wrap"><div class="page-clip">${buildPerksPageHtml(LANG)}</div></div>` : ''}
 
@@ -896,7 +927,7 @@ ${buildContactPageHtml() ? `<div class="page-wrap"><div class="page-clip">${buil
 <div class="print-controls">
   ${_buildIosTipHtml()}
   <div class="print-hint-box">
-    <b>1 location</b> · 2 pages ready.<br>
+    <b>1 location</b> · ${2+extraPages.length} pages ready.<br>
     In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
     <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
   </div>
@@ -1055,9 +1086,10 @@ function downloadCurrentJSON(){
     pricing_cols:  PRICING_COLS.map(col=>({key:col.key,on:col.on,custom:!!col.custom,labels:{...col.labels}})),
     // ── Media (global) ──
     partner_logo_url: (S.partnerLogo&&!S.partnerLogo.startsWith('data:'))?S.partnerLogo:'',
-    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?p:'').filter(Boolean),
-    floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?S.floorplan:'',
-    fp_plans: FP_PLANS.map(p=>({url:p.url&&!p.url.startsWith('data:')?p.url:'',label:p.label||''})),
+    photos: S.photos.map(p=>(p&&!p.startsWith('data:'))?(typeof _stripCb==='function'?_stripCb(p):p):'').filter(Boolean),
+    floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?(typeof _stripCb==='function'?_stripCb(S.floorplan):S.floorplan):'',
+    fp_plans: FP_PLANS.map(p=>({url:p.url&&!p.url.startsWith('data:')?(typeof _stripCb==='function'?_stripCb(p.url):p.url):'',label:p.label||''})),
+    extra_masters: (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).filter(m=>!m._auto).map(m=>({url:(typeof _stripCb==='function'?_stripCb(m.url):m.url)||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''})),
     fp_page2_same: FP_PAGE2_SAME,
     fp_page1_idx: FP_PAGE1_IDX,
     fp_page2_idx: FP_PAGE2_IDX,
@@ -1068,6 +1100,8 @@ function downloadCurrentJSON(){
     office_lookup_centre: AUS_CENTRE_FILTER,
     aus_selected: Array.from(AUS_SELECTED),
     deposit_note_on: DEPOSIT_NOTE_ON,
+    house_rules_on: HOUSE_RULES_ON,
+    page_url_on: PAGE_URL_ON,
     base_discount_on: BASE_DISCOUNT_ON,
     base_discount: AUS_DISCOUNT,
     fp_use_3d: FP_USE_3D,

@@ -1,6 +1,42 @@
 // Compass Offices One-Pager Builder
 // https://github.com/compassoffices/compassoffices.github.io
 
+// ── Get Latest Version (clear cache & reload) ──────────────────────────────
+// Force-refreshes the tool's CODE so users always see the newest deploy.
+// GitHub Pages caches HTML/JS in the browser; this clears any PWA/service-
+// worker caches, re-validates the HTML + every local JS file against the
+// server (bypassing the disk cache), then reloads. localStorage — saved
+// proposals, the location library and the staff profile — is left untouched.
+async function forceUpdate(){
+  if(!confirm('Reload the latest version of the tool?\n\nYour saved proposals, library and profile will be kept.')) return;
+  const btn = document.getElementById('refresh-btn');
+  if(btn) btn.style.opacity = '.5';
+  try{
+    // 1. Clear Cache Storage (service-worker / PWA caches), if any
+    if('caches' in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    // 2. Unregister any service workers
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    // 3. Force-revalidate the HTML + each local JS file, bypassing the disk
+    //    cache, so the next load pulls the freshest copies from the server.
+    const urls = [window.location.pathname];
+    document.querySelectorAll('script[src]').forEach(s=>{
+      const src = s.getAttribute('src') || '';
+      if(src && !/^https?:/i.test(src)) urls.push(src); // local files only
+    });
+    await Promise.all(urls.map(u => fetch(u, {cache:'reload'}).catch(()=>{})));
+  }catch(e){
+    console.warn('Force-update cache clear issue:', e);
+  }
+  // 4. Reload from the freshly-revalidated cache
+  window.location.reload();
+}
+
 // Boot sequence — loads LAST after all other JS files
 
 // ── URL language parameter ─────────────────────────────────────────────────
@@ -45,6 +81,8 @@
 
   // Load staff profile from localStorage — sets up Page 3 "Let's talk"
   loadStaffProfile();
+  // Restore the remembered "Proposal For" & "Client name" (localStorage)
+  if(typeof _restoreRememberedNames==="function") _restoreRememberedNames();
   _autosaveCheck(); if(typeof _mobUpdateLang==="function") _mobUpdateLang(); if(typeof _stripInit==="function") _stripInit(); if(typeof _stripUpdatePreview==="function") _stripUpdatePreview();
 
   // On every page load: clear server library cards and reload fresh from server.
@@ -97,5 +135,8 @@
   }
 
   gen();
+  // Multi-floor: rows may have been restored — derive chips + cross-floor rooms
+  setTimeout(()=>{ if(typeof syncMultiFloorFromRows==='function') syncMultiFloorFromRows(); }, 1200);
+  console.log('[One-Pager Builder] build 20260806g');
 })();
 

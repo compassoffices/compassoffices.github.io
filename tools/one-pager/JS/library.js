@@ -257,7 +257,7 @@ function loadFromLib(idx){
   LAST_LOCATION=p;applyLocationData(p);
   const displayName=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]):p.name;
   document.getElementById('json-search').value=displayName;
-  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();
+  hideJsonDropdown();showStatus(`"${displayName}" loaded from library.`,'s-ok');updateLoadedCardPanel(p);gen();setTimeout(()=>{if(typeof syncMultiFloorFromRows==='function')syncMultiFloorFromRows();},500);
   // Auto-sync AUS Office Lookup if it's an AUS centre (skip if called from _ausLoadCard to prevent loops)
   if(!_ausLoadingCard){
     const matchedCentre = ausCentreForCardName(displayName, p);
@@ -388,6 +388,8 @@ function applyLocationData(p){
   if(p.amenities){AMENITY_ICONS.forEach(a=>{a.on=p.amenities.includes(a.id);});renderAmenities();}
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
   if(p.photos?.length){S.photos=[null,null,null,null,null,null];p.photos.slice(0,6).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
+  EXTRA_MASTERS=(p.extra_masters||[]).filter(m=>m&&(m.url||m.fp_base_url||m.fp_data_url)).map(m=>({url:m.url||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''}));
+  if(typeof renderExtraMasters==='function')renderExtraMasters();
   if(p.fp_plans&&Array.isArray(p.fp_plans)&&p.fp_plans.length){
     FP_PLANS=p.fp_plans.filter(p=>p.url).map(p=>({url:p.url,label:p.label||''}));
     FP_PAGE2_SAME=p.fp_page2_same!==false;
@@ -458,6 +460,16 @@ function applyLocationData(p){
     const inp = document.getElementById('deposit-note-input');
     if(inp){ inp.style.opacity = DEPOSIT_NOTE_ON ? '1' : '.4'; inp.disabled = !DEPOSIT_NOTE_ON; }
   }
+  if(typeof p.house_rules_on === 'boolean'){
+    HOUSE_RULES_ON = p.house_rules_on;
+    const btn = document.getElementById('house-rules-toggle');
+    if(btn) btn.classList.toggle('on', HOUSE_RULES_ON);
+  }
+  if(typeof p.page_url_on === 'boolean'){
+    PAGE_URL_ON = p.page_url_on;
+    const btn = document.getElementById('page-url-toggle');
+    if(btn) btn.classList.toggle('on', PAGE_URL_ON);
+  }
   if(typeof p.base_discount_on === 'boolean'){
     BASE_DISCOUNT_ON = p.base_discount_on;
     const btn = document.getElementById('base-discount-toggle');
@@ -481,14 +493,20 @@ function applyLocationData(p){
   if(typeof p.compass_on === 'boolean'){ COMPASS_ON = p.compass_on; }
   if(typeof p.compass_angle === 'number'){ COMPASS_ANGLE = Math.round(((p.compass_angle%360)+360)%360); }
   if(typeof _renderCompassControl === 'function') _renderCompassControl();
-  if(typeof p.client_name === 'string'){
+  // Only override the remembered names when the loaded card actually carries
+  // a non-empty value. Selecting a plain location (or an office-lookup centre)
+  // whose card has no client/company name must NOT wipe the remembered client.
+  if(p.client_name){
     CLIENT_NAME = p.client_name;
     const el = document.getElementById('client-name'); if(el) el.value = CLIENT_NAME;
   }
-  if(typeof p.company_name === 'string'){
+  if(p.company_name){
     COMPANY_NAME = p.company_name;
     const el = document.getElementById('company-name'); if(el) el.value = COMPANY_NAME;
   }
+  // Keep localStorage in sync with whatever the names are now (card-supplied
+  // or the preserved remembered ones).
+  if(typeof _saveRememberedNames === 'function') _saveRememberedNames();
   if(p.custom_pos)setCustomPos(p.custom_pos);
   if(p.show_specs===false&&SHOW_SPECS)toggleShowSpecs();
   else if(p.show_specs===true&&!SHOW_SPECS)toggleShowSpecs();

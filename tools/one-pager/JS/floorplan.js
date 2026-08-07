@@ -37,7 +37,23 @@ const S={photos:[null,null,null,null,null,null],floorplan:null,partnerLogo:null,
 // floorplans: array of {url, label} — index 0 is master (same as S.floorplan for compat)
 // fp_page2_same: true = page 2 shows same as page 1 (default)
 // fp_base_url: the common prefix URL for room# pattern
-let FP_PLANS = [];         // [{url:'...master.jpg', label:'Master'}, {url:'...2412.jpg', label:'2412'}]
+let FP_PLANS = [];
+let EXTRA_MASTERS = [];
+let _IMG_CB = 0;           // render-time cache-bust token for room images (set by refreshImageCache)
+// Combined floor label for multi-floor proposals: "17F + 24F".
+// Pass a snapshot's extra_masters to compute for a queue item; defaults to live.
+function combineFloorLabel(floor, extraMasters){
+  const list = (extraMasters!==undefined&&extraMasters!==null) ? extraMasters
+             : (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]);
+  if(!list||!list.length) return floor;
+  const sfx=(String(floor).match(/[Ff]|樓|楼|階/)||['F'])[0];
+  const nums=new Set();
+  const cur=(String(floor).match(/\d+/)||[])[0]; if(cur)nums.add(cur);
+  list.forEach(m=>{const d=(String((m&&m.label)||'').match(/\d+/)||[])[0]; if(d)nums.add(d);});
+  if(nums.size<2) return floor;
+  return [...nums].sort((a,b)=>+a-+b).map(d=>d+sfx).join(' + ');
+}
+function _fpCb(u){ return (_IMG_CB&&u&&typeof u==='string'&&!u.startsWith('data:')) ? u+(u.includes('?')?'&':'?')+'cb='+_IMG_CB : u; }    // [{url,label}] — other floors' master plans → extra PDF pages (multi-floor proposals)         // [{url:'...master.jpg', label:'Master'}, {url:'...2412.jpg', label:'2412'}]
 let FP_PAGE2_SAME = true;  // true = page2 shows same plans as page1
 let FP_PAGE1_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
 let FP_PAGE2_IDX = -1;     // -1 = collage (all plans), 0+ = specific plan index
@@ -531,4 +547,115 @@ function _fpeApply(){
     FP_ANNOTATIONS[oid].imageDataUrl=null; closeFpEditor();
     showStatus('Annotation shapes saved, but the floor plan image couldn\'t be captured (browser security restriction). To export the annotated image, upload the room image via the Media tab first.','s-warn');
   }
+}
+
+
+// ── MULTI-FLOOR EXTRA MASTER PAGES ────────────────────────────────────────────
+// Chips shown under the floor-plan list; each = one extra master page in PDF/print.
+function renderExtraMasters(){
+  // Renders into BOTH containers: Media tab (#extra-masters) + Pricing tab (#extra-masters-pr)
+  const html = !EXTRA_MASTERS.length ? '' :
+    '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--o);margin:10px 0 6px;">⧉ Multi-Floor — extra PDF pages</div>'
+    +EXTRA_MASTERS.map((m,i)=>`<span style="display:inline-flex;align-items:center;gap:5px;margin:0 6px 6px 0;padding:4px 9px;border:1.5px solid var(--o);border-radius:14px;background:var(--olt);font-size:11px;font-weight:700;color:var(--o);">${m.label}${m.fp_data_url||m.fp_base_url?' <span style="font-weight:400;font-size:9px;">●highlights</span>':''}<button onclick="removeExtraMaster(${i})" style="border:none;background:transparent;color:var(--o);cursor:pointer;font-size:12px;line-height:1;padding:0;">✕</button></span>`).join('')
+    +'<div class="note-txt">Each chip = one extra floor-plan page appended after page 2 in Print / PDF. ●highlights = selected rooms will be highlighted on that floor too.</div>';
+  ['extra-masters','extra-masters-pr'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.innerHTML=html;
+    el.style.display=html?'block':'none';
+  });
+  if(typeof renderExtraMasterPreviews==='function') renderExtraMasterPreviews();
+}
+function removeExtraMaster(i){EXTRA_MASTERS.splice(i,1);renderExtraMasters();showStatus('Extra floor page removed.','s-info');}
+
+// Capture one page-2 HTML per extra master. Two modes per entry:
+//  • Entry has fp_data_url / fp_base_url (source card uses the highlight system)
+//    → temporarily swap the floor-plan data source to THAT floor, fetch its
+//      data.json, let ensureHighlightRender bake highlights for the selected
+//      rooms of that floor (pricing rows already contain e.g. 17-023), then
+//      capture. Result: extra page shows the other floor's master WITH its
+//      own rooms highlighted.
+//  • Plain URL only → temporary FP_PLANS entry pointed at page 2 (no bake).
+// Full state stash/restore in finally — original FP_MASTER_DATA is restored
+// directly (no refetch; the original highlight bake is still in FP_HIGHLIGHT_CACHE).
+async function captureExtraMasterPagesAsync(){
+  if(!EXTRA_MASTERS.length) return [];
+  // Serialize: print capture and the live preview must never overlap —
+  // both temporarily mutate the floor-plan state.
+  while(captureExtraMasterPagesAsync._busy){ await new Promise(r=>setTimeout(r,120)); }
+  captureExtraMasterPagesAsync._busy=true;
+  const out=[];
+  const stash={
+    FP_PLANS:FP_PLANS.map(p=>({...p})),
+    FP_PAGE2_SAME,FP_PAGE1_IDX,FP_PAGE2_IDX,
+    FP_BASE_URL,FP_DATA_URL,
+    FP_MASTER_DATA,FP_DATA_STATUS,
+    FP_DATA_LAST_FETCHED_BASE:(typeof FP_DATA_LAST_FETCHED_BASE!=='undefined'?FP_DATA_LAST_FETCHED_BASE:''),
+    FP_HIGHLIGHT_RENDER_URL,FP_HIGHLIGHT_LAST_KEY,
+    FP_USE_LOCAL,FP_P2_CUSTOM_URL,
+    FP_HAS_3D,FP_USE_3D,
+    floorplan:S.floorplan,
+  };
+  try{
+    for(const m of EXTRA_MASTERS){
+      const hasData=!!(m.fp_data_url||m.fp_base_url);
+      if(hasData&&typeof tryFetchFpData==='function'){
+        // ── Highlighted bake path ──
+        FP_DATA_URL=m.fp_data_url||'';
+        FP_BASE_URL=m.fp_base_url||'';
+        FP_USE_LOCAL=false;FP_P2_CUSTOM_URL=null;FP_USE_3D=false;
+        FP_HIGHLIGHT_RENDER_URL=null;FP_HIGHLIGHT_LAST_KEY=null;
+        try{ await tryFetchFpData(true); }catch(e){ console.warn('extra floor data.json:',e); }
+        gen._captureMode=true;gen();gen._captureMode=false;
+        if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
+        gen._captureMode=true;gen();gen._captureMode=false;
+        const el=document.getElementById('slide2');
+        if(el) out.push(el.outerHTML);
+      } else {
+        // ── Plain image path ──
+        const _len=FP_PLANS.length;
+        FP_PLANS.push({url:m.url,label:m.label});
+        FP_PAGE2_SAME=false;FP_PAGE2_IDX=FP_PLANS.length-1;
+        gen._captureMode=true;gen();gen._captureMode=false;
+        const el=document.getElementById('slide2');
+        if(el) out.push(el.outerHTML);
+        FP_PLANS.length=_len;
+      }
+    }
+  }finally{
+    FP_PLANS=stash.FP_PLANS;
+    FP_PAGE2_SAME=stash.FP_PAGE2_SAME;FP_PAGE1_IDX=stash.FP_PAGE1_IDX;FP_PAGE2_IDX=stash.FP_PAGE2_IDX;
+    FP_BASE_URL=stash.FP_BASE_URL;FP_DATA_URL=stash.FP_DATA_URL;
+    FP_MASTER_DATA=stash.FP_MASTER_DATA;FP_DATA_STATUS=stash.FP_DATA_STATUS;
+    if(typeof FP_DATA_LAST_FETCHED_BASE!=='undefined')FP_DATA_LAST_FETCHED_BASE=stash.FP_DATA_LAST_FETCHED_BASE;
+    FP_HIGHLIGHT_RENDER_URL=stash.FP_HIGHLIGHT_RENDER_URL;FP_HIGHLIGHT_LAST_KEY=stash.FP_HIGHLIGHT_LAST_KEY;
+    FP_USE_LOCAL=stash.FP_USE_LOCAL;FP_P2_CUSTOM_URL=stash.FP_P2_CUSTOM_URL;
+    FP_HAS_3D=stash.FP_HAS_3D;FP_USE_3D=stash.FP_USE_3D;
+    S.floorplan=stash.floorplan;
+    gen._captureMode=true;gen();gen._captureMode=false;
+    captureExtraMasterPagesAsync._busy=false;
+  }
+  return out;
+}
+
+
+// ── LIVE PREVIEW OF EXTRA MASTER PAGES ────────────────────────────────────────
+// Print already outputs the extra floor pages; this mirrors them in the
+// on-screen preview under Page 2 so what you see = what prints. Re-renders
+// (debounced) whenever the chips change. Ids are stripped from the clones so
+// they never clash with the real #slide2.
+function renderExtraMasterPreviews(){
+  clearTimeout(renderExtraMasterPreviews._t);
+  renderExtraMasterPreviews._t=setTimeout(async()=>{
+    const box=document.getElementById('extra-preview');
+    if(!box) return;
+    if(!EXTRA_MASTERS.length){ box.innerHTML=''; return; }
+    let pages=[];
+    try{ pages=await captureExtraMasterPagesAsync(); }   // self-serializing
+    catch(e){ console.warn('extra preview:',e); }
+    box.innerHTML=pages.map((html,i)=>{
+      const safe=html.replace(/\sid="/g,' data-xid="');       // strip duplicate ids
+      const lbl=(EXTRA_MASTERS[i]&&EXTRA_MASTERS[i].label)||('Extra '+(i+1));
+      return `<div class="pmeta" style="margin-top:24px"><span class="pmeta-lbl">Page ${2+i+1} — ${lbl} Floor Plan</span><span style="font-size:11px;color:var(--xlt)">A4 Landscape · 297 × 210 mm</span></div><div class="slide-wrap">${safe}</div>`;
+    }).join('');
+  }, 700);
 }

@@ -48,6 +48,7 @@ function clearLoadedCard(){
   [...document.querySelectorAll('.spec-rich-editor')].forEach(el=>el.innerHTML='');
   const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML='';
   S.rows=[];S.photos=[null,null,null];S.floorplan=null;S.partnerLogo=null;
+  EXTRA_MASTERS=[];if(typeof renderExtraMasters==='function')renderExtraMasters();
   TRANSPORT=[];
   renderRows();renderPhotoSlots();renderFloorplanCard();renderLogoCard();renderTransport();
   showStatus('Card cleared.','s-info');
@@ -148,8 +149,9 @@ function buildStateSnapshot(){
     icon_overrides:window.ICON_OVERRIDES?{...window.ICON_OVERRIDES}:{},
     fp_plans:FP_PLANS.map(p=>({url:p.url,label:p.label})),
     fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_data_url:FP_DATA_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
+    extra_masters:(typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).map(m=>({...m})),
     office_lookup_region:AX_REGION,office_lookup_centre:AUS_CENTRE_FILTER,aus_selected:Array.from(AUS_SELECTED),aus_fp_auto_added:Array.from(_AUS_FP_AUTO_ADDED),
-    deposit_note_on:DEPOSIT_NOTE_ON,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
+    deposit_note_on:DEPOSIT_NOTE_ON,house_rules_on:HOUSE_RULES_ON,page_url_on:PAGE_URL_ON,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
@@ -230,6 +232,9 @@ function restoreStateSnapshot(state){
   S.partnerLogo=state.partner_logo_url||null;
 
   // ── 8. Restore floorplan ───────────────────────────────────────────────────
+  EXTRA_MASTERS=(state.extra_masters||[]).map(m=>({...m}));
+  if(typeof renderExtraMasters==='function') renderExtraMasters();
+  if(typeof syncMultiFloorDebounced==='function') syncMultiFloorDebounced();
   if(state.fp_plans&&state.fp_plans.length){
     FP_PLANS=state.fp_plans.map(p=>({url:p.url,label:p.label}));
     FP_PAGE2_SAME=state.fp_page2_same!==false;
@@ -261,6 +266,16 @@ function restoreStateSnapshot(state){
     if(btn) btn.classList.toggle('on', DEPOSIT_NOTE_ON);
     const inp = document.getElementById('deposit-note-input');
     if(inp){ inp.style.opacity = DEPOSIT_NOTE_ON ? '1' : '.4'; inp.disabled = !DEPOSIT_NOTE_ON; }
+  }
+  if(typeof state.house_rules_on === 'boolean'){
+    HOUSE_RULES_ON = state.house_rules_on;
+    const btn = document.getElementById('house-rules-toggle');
+    if(btn) btn.classList.toggle('on', HOUSE_RULES_ON);
+  }
+  if(typeof state.page_url_on === 'boolean'){
+    PAGE_URL_ON = state.page_url_on;
+    const btn = document.getElementById('page-url-toggle');
+    if(btn) btn.classList.toggle('on', PAGE_URL_ON);
   }
   if(typeof state.base_discount_on === 'boolean'){
     BASE_DISCOUNT_ON = state.base_discount_on;
@@ -507,7 +522,8 @@ function queueCancelEdit(){
   if(panel) panel.style.display='flex';
   // Clear the form — edits are discarded, user gets a clean slate
   // rather than being left holding the item they were just editing.
-  _resetCardForNewProposal();
+  // Proposal For & Client name are kept (single-client workflow).
+  _resetCardForNewProposal(true);
   gen();
   showStatus('Edit cancelled — form cleared for new proposal.','s-ok');
 }
@@ -561,10 +577,41 @@ async function queueUpdateItem(i){
 // Separate from _resetCardForNewProposal (which auto-fires after + Queue)
 // because here we need explicit confirmation before throwing away work.
 function newCard(){
-  if(!confirm('Start a new card?\n\nThe current form will be cleared. Queued items are kept.')) return;
-  _resetCardForNewProposal();
-  showStatus('Form cleared — ready for a new card.','s-ok');
+  if(!confirm('Start a new proposal?\n\nThe form will be cleared, but the Proposal For & Client name are kept. Queued items are kept too.')) return;
+  _resetCardForNewProposal(true);
+  showStatus('Form cleared — Proposal For & Client name kept.','s-ok');
 }
+
+// ── Remembered client names ────────────────────────────────────────────────
+// "Proposal For" (company) and "Client name" are remembered in localStorage,
+// like the staff profile — the BDM works with one client, so the names persist
+// across new proposals, queue actions, and loading locations. They only change
+// when the user edits the fields, or when a saved proposal supplies its own.
+const PROPOSAL_NAMES_KEY = 'co_proposal_names';
+function _saveRememberedNames(){
+  try { localStorage.setItem(PROPOSAL_NAMES_KEY,
+    JSON.stringify({ company: COMPANY_NAME||'', client: CLIENT_NAME||'' })); } catch(e){}
+}
+function _restoreRememberedNames(){
+  try {
+    const r = JSON.parse(localStorage.getItem(PROPOSAL_NAMES_KEY) || 'null');
+    if(!r) return;
+    COMPANY_NAME = r.company || '';
+    CLIENT_NAME  = r.client  || '';
+    const co = document.getElementById('company-name'); if(co) co.value = COMPANY_NAME;
+    const cl = document.getElementById('client-name');  if(cl) cl.value = CLIENT_NAME;
+  } catch(e){}
+}
+// Belt-and-suspenders: restore remembered names once the DOM is ready, even if
+// init.js is an older cached copy that doesn't call _restoreRememberedNames().
+// Only fills when both fields are still empty, so it never clobbers live input.
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    const co = document.getElementById('company-name');
+    const cl = document.getElementById('client-name');
+    if(co && cl && !co.value && !cl.value) _restoreRememberedNames();
+  } catch(e){}
+});
 
 function _resetCardForNewProposal(keepNames){
   // Per-card model
@@ -592,15 +639,10 @@ function _resetCardForNewProposal(keepNames){
   if(typeof _renderFp3DToggle === 'function') _renderFp3DToggle();
   COMPASS_ON = false; COMPASS_ANGLE = 0;
   if(typeof _renderCompassControl === 'function') _renderCompassControl();
-  // Company & client names persist across + Queue so multiple locations for
-  // the same client keep their names (queue flow passes keepNames=true).
-  // newCard() and library-card loads pass no arg → names still clear.
-  if(!keepNames){
-    CLIENT_NAME = '';
-    const _cnEl = document.getElementById('client-name'); if(_cnEl) _cnEl.value = '';
-    COMPANY_NAME = '';
-    const _coEl = document.getElementById('company-name'); if(_coEl) _coEl.value = '';
-  }
+  // Company & client names are remembered in localStorage (single-client
+  // workflow), so after wiping the card we restore them rather than clear.
+  // Loading a saved proposal may still override them with its own names.
+  _restoreRememberedNames();
   FP_HIGHLIGHTS_MANUAL.clear();
   FP_HIGHLIGHT_RENDER_URL = null;
   FP_HIGHLIGHT_LAST_KEY = null;
@@ -1433,7 +1475,7 @@ function ausToggle(key){
     _ausRemoveOfficeFromFp(oid);
     const before = S.rows.length;
     S.rows = S.rows.filter(r => String(r.seats) !== String(oid));
-    if(S.rows.length < before){ renderRows(); gen(); }
+    if(S.rows.length < before){ renderRows(); gen(); if(typeof syncMultiFloorDebounced==='function')syncMultiFloorDebounced(); }
   } else {
     AUS_SELECTED.add(key);
     _ausAddOfficeToFp(oid);
@@ -1510,6 +1552,9 @@ function _ausUpdateAddBtnPulse(){
 // mgmt (monthly) + avail (avg/status) + init for every row that carries a
 // stored raw market price (_mp), then re-renders so the inline inputs and
 // expanded fields show the new values immediately.
+// 12-Month Commitment auto-fill text (AUS rows). Price-free by design so it
+// never goes stale — 2 months free on a 12-month term is always 16.66%.
+const COMMITMENT_TEXT = '2 Months Free on 12 – Save 16.66%';
 function _syncRowPrices(){
   let changed = false;
   S.rows.forEach(r => {
@@ -1520,12 +1565,183 @@ function _syncRowPrices(){
     if(r._isAus){
       // AUS format: avail = avg price, init = commitment string
       r.avail = `${cur}${avg.toLocaleString()}`;
-      r.init  = `16.6% Saving - 2 Months Free on 12! | Avg ${cur}${avg.toLocaleString()}`;
+      r.init  = COMMITMENT_TEXT;
     }
     changed = true;
   });
   if(changed){ renderRows(); gen(); }
 }
+// ── MULTI-FLOOR SYNC (rows-driven) ────────────────────────────────────────────
+// The durable source of truth is the PRICING ROWS (they survive autosave
+// restore, card loads and queue restores). Whenever rows contain offices from
+// floors other than the current card's floor, ensure: a "Level N" chip (extra
+// PDF page) + that floor's room images injected on page 1. Also PRUNES chips
+// and injected rooms whose offices were removed from the rows. Idempotent —
+// safe to call from anywhere, any number of times.
+let _XF_DATA_CACHE = {};   // data.json url -> rooms[] | null (per-session)
+let _XF_SYNCING = false;
+async function syncMultiFloorFromRows(){
+  if(_XF_SYNCING) return; _XF_SYNCING = true;
+  try{
+    const curFloor = ((document.getElementById('floor')?.value||'').match(/\d+/)||[])[0]||'';
+    const centre = AUS_CENTRE_FILTER
+      || (typeof LAST_LOCATION!=='undefined' && LAST_LOCATION && LAST_LOCATION.office_lookup_centre) || '';
+    // Floor detection is FORMAT-AGNOSTIC: an office belongs to floor N when its
+    // number starts with the digits of an existing library-card floor at this
+    // centre — mirrors how the floor chips already filter the office list.
+    //   AUS  "24-001" startsWith "24"  ✓ (hyphenated)
+    //   HK   "3501"   startsWith "35"  ✓ (no hyphen)
+    // Longest floor first so "20" wins over "2" for "2001".
+    const _cards0 = (centre && typeof ausLibCardsForCentre==='function') ? ausLibCardsForCentre(centre) : [];
+    const _floorsAvail = [...new Set(_cards0.map(({l})=>{
+      const fv = typeof l.floor==='object' ? (l.floor.en||Object.values(l.floor)[0]||'') : (l.floor||'');
+      return (String(fv).match(/\d+/)||[])[0]||'';
+    }).filter(Boolean))].sort((a,b)=>b.length-a.length || (+b)-(+a));
+    const _floorOf = oid => {
+      const s = String(oid).trim();
+      for(const fl of _floorsAvail){
+        if(s.startsWith(fl) && s.length>fl.length) return fl;
+      }
+      const m = s.match(/^(\d+)-/);           // hyphen fallback (card may be missing)
+      return m ? m[1] : '';
+    };
+    const rowFloors = new Map();
+    (S.rows||[]).forEach(r=>{
+      const oid = String(r.seats||'').trim();
+      if(!oid) return;
+      const fl = _floorOf(oid);
+      if(!fl || fl === curFloor) return;
+      if(!rowFloors.has(fl)) rowFloors.set(fl, []);
+      rowFloors.get(fl).push(oid);
+    });
+
+    // ── Prune: auto chips for floors no longer in the rows ──
+    for(let i=EXTRA_MASTERS.length-1;i>=0;i--){
+      const m=EXTRA_MASTERS[i];
+      const fl=(String(m.label||'').match(/\d+/)||[])[0];
+      if(m._auto && fl && !rowFloors.has(fl)) EXTRA_MASTERS.splice(i,1);
+    }
+    // ── Prune: injected cross-floor rooms whose office left the rows ──
+    if(typeof FP_MASTER_DATA!=='undefined' && FP_MASTER_DATA && FP_MASTER_DATA.rooms){
+      const rowSet=new Set((S.rows||[]).map(r=>String(r.seats||'').trim()));
+      for(let i=FP_MASTER_DATA.rooms.length-1;i>=0;i--){
+        const r=FP_MASTER_DATA.rooms[i];
+        if(r._crossFloor && !rowSet.has(r.displayLabel)){
+          if(typeof FP_HIGHLIGHTS_MANUAL!=='undefined') FP_HIGHLIGHTS_MANUAL.delete(r.displayLabel);
+          FP_MASTER_DATA.rooms.splice(i,1);
+        }
+      }
+    }
+    // ── Ensure: chip + room injection for each other floor ──
+    if(rowFloors.size && centre && typeof ausLibCardsForCentre==='function'){
+      const cards = _cards0.length ? _cards0 : ausLibCardsForCentre(centre);
+      for(const [fl, oids] of rowFloors){
+        const hit = cards.find(({l})=>{
+          const fv = typeof l.floor==='object' ? (l.floor.en||Object.values(l.floor)[0]||'') : (l.floor||'');
+          return (String(fv).match(/\d+/)||[])[0]===fl;
+        });
+        const murl=hit?.l?.fp_plans?.[0]?.url||'';
+        const mbase=hit?.l?.fp_base_url||'';
+        const mdata=hit?.l?.fp_data_url||'';
+        if(!(murl||mbase||mdata)) continue; // no card for this floor — skip quietly
+        if(!EXTRA_MASTERS.some(m=>((String(m.label||'').match(/\d+/)||[])[0])===fl)){
+          EXTRA_MASTERS.push({url:murl,label:'Level '+fl,fp_base_url:mbase,fp_data_url:mdata,_auto:true});
+        }
+        const missing = oids.filter(o=>{
+          if(typeof FP_MASTER_DATA!=='undefined' && FP_MASTER_DATA && typeof fpFindRoom==='function') return !fpFindRoom(o);
+          return !FP_PLANS.some(p=>p.label===o);
+        });
+        if(missing.length && (mbase||mdata)) await _injectCrossFloorRooms(missing, mbase, mdata);
+      }
+    }
+    if(typeof renderExtraMasters==='function') renderExtraMasters();
+    gen();
+    if(typeof autoRefreshFloorplanImages==='function') autoRefreshFloorplanImages();
+  }catch(e){ console.warn('[multi-floor sync]', e); }
+  finally{ _XF_SYNCING = false; }
+}
+// Debounced wrapper for high-frequency call sites (row delete, toggles)
+function syncMultiFloorDebounced(){
+  clearTimeout(syncMultiFloorDebounced._t);
+  syncMultiFloorDebounced._t = setTimeout(()=>{ syncMultiFloorFromRows(); }, 350);
+}
+
+// ── Cross-floor room injection (multi-floor proposals) ────────────────────────
+// Fetches the OTHER floor's floorplan data.json to get each office's real room
+// `file`, then injects synthetic room entries (absolute URLs) into the current
+// FP_MASTER_DATA so page 1 shows those rooms too. No filename guessing.
+async function _injectCrossFloorRooms(oids, otherBase, otherDataUrl){
+  // Resolve the data.json URL: explicit fp_data_url, else base + data.json
+  const dataUrl = otherDataUrl || (otherBase ? otherBase + 'data.json' : '');
+  let rooms = null;
+  if(dataUrl){
+    if(dataUrl in _XF_DATA_CACHE){ rooms = _XF_DATA_CACHE[dataUrl]; }
+    else{
+      try{
+        const resp = await fetch(dataUrl, {mode:'cors', credentials:'omit', cache:'no-cache'});
+        if(resp.ok){ const j = await resp.json(); rooms = Array.isArray(j?.rooms) ? j.rooms : null; }
+      }catch(e){ console.warn('[multi-floor] other-floor data.json fetch failed:', e.message); }
+      _XF_DATA_CACHE[dataUrl] = rooms;
+    }
+  }
+  // Image directory for that floor: prefer fp_base_url; else the data.json's dir
+  const imgBase = otherBase || (dataUrl ? dataUrl.substring(0, dataUrl.lastIndexOf('/')+1) : '');
+  if(!imgBase) return;
+
+  // Variant matcher — mirrors fpFindRoom's logic
+  const _match = raw => {
+    if(!rooms) return null;
+    const noHyphen = raw.replace(/(\d)-(\d)/g,'$1$2');
+    const stripC   = raw.replace(/\s*-\s*C\b.*/i,'').trim();
+    const stripCnh = noHyphen.replace(/\s*-\s*C\b.*/i,'').trim();
+    const slug     = typeof _fpRoomSlug==='function' ? _fpRoomSlug(raw) : raw;
+    const variants = [raw,noHyphen,slug,stripC,stripCnh].filter((v,i,a)=>v&&a.indexOf(v)===i);
+    for(const n of variants){
+      const f = rooms.find(r=>r.displayLabel===n) || rooms.find(r=>r.label===n);
+      if(f) return f;
+    }
+    return null;
+  };
+
+  let injected = 0;
+  oids.forEach(oid=>{
+    const rawOid = String(oid).trim();
+    const slug   = typeof _fpRoomSlug==='function' ? _fpRoomSlug(rawOid) : rawOid.replace(/\s*-\s*C$/i,'').trim();
+    if(!slug) return;
+    const real   = _match(rawOid);
+    const file   = real?.file ? String(real.file) : (slug + '.png');
+    const absUrl = /^https?:\/\//i.test(file) ? file : imgBase + file;
+    if(FP_MASTER_DATA){
+      if(!fpFindRoom(rawOid)){
+        if(!FP_MASTER_DATA.rooms) FP_MASTER_DATA.rooms = [];
+        FP_MASTER_DATA.rooms.push({
+          displayLabel: rawOid,
+          label: real?.label || slug,
+          file: absUrl,
+          polygon: [],                 // no polygon — image-only, never painted on the wrong master
+          fillColor: real?.fillColor || '#FF6600',
+          _synthetic: true, _crossFloor: true,
+        });
+      }
+      if(typeof fpHighlightAdd==='function') fpHighlightAdd(rawOid);
+      _AUS_FP_AUTO_ADDED.add(slug);
+      injected++;
+    } else if(FP_BASE_URL || FP_PLANS.length){
+      if(!FP_PLANS.some(p=>p.url===absUrl||p.label===rawOid)){
+        FP_PLANS.push({url:absUrl,label:rawOid});
+        _AUS_FP_AUTO_ADDED.add(slug);
+        if(typeof applyFpSmartDefaults==='function') applyFpSmartDefaults();
+        injected++;
+      }
+    }
+  });
+  if(injected){
+    if(typeof renderFpList==='function') renderFpList();
+    if(typeof renderPrFpChips==='function') renderPrFpChips();
+    gen();
+  }
+}
+
 function ausAddToRows(){
   if(!AUS_SELECTED.size){showStatus('Select at least one office first.','s-info');return;}
   const disc=AUS_DISCOUNT;
@@ -1566,7 +1782,7 @@ function ausAddToRows(){
     //   seats   ← Office #             type    ← View (column D)
     //   sqm     ← Net Office Size      rent    ← Workstation count
     //   market  ← Market Price (raw)   mgmt    ← Monthly Rent (discounted)
-    //   init    ← AUS commitment text  avail   ← Avg Price (AUS) / Status (simple)
+    //   init    ← (left blank — no auto saving text)   avail   ← Avg Price (AUS) / Status (simple)
     const marketStr  = (typeof o.mp === 'number' && o.mp > 0) ? `${currency}${o.mp.toLocaleString()}` : '';
     const monthlyStr = `${currency}${monthly.toLocaleString()}`;
     const avgStr     = `${currency}${avg.toLocaleString()}`;
@@ -1575,9 +1791,10 @@ function ausAddToRows(){
     const sqmStr  = (o.sq != null && o.sq !== '')
       ? (String(o.sq) + (_sqUnit ? ' '+_sqUnit : ''))
       : '';
-    const initStr    = isAus
-      ? `16.6% Saving - 2 Months Free on 12! | Avg ${currency}${avg.toLocaleString()}`
-      : '';
+    // 12-Month Commitment auto-fill. Uses a PRICE-FREE constant so it never
+    // goes stale when the discount/price is adjusted (the earlier version
+    // embedded the average price, which froze on manual edits).
+    const initStr    = COMMITMENT_TEXT;
     const availStr = isAus
       ? avgStr  // AUS view: 'avail' column = Average Price
       : ((o.av === 'Y') ? 'NOW'
@@ -1602,10 +1819,19 @@ function ausAddToRows(){
     added++;
     _ausAddOfficeToFp(oid);
   });
+  // ── Multi-floor: rows are the source of truth — run the sync engine ──
+  let _newMasters=0;
+  {
+    const _prevXF = EXTRA_MASTERS.length;
+    syncMultiFloorFromRows().then(()=>{
+      const d = EXTRA_MASTERS.length - _prevXF;
+      if(d>0) showStatus(`⧉ Multi-floor: ${d} extra floor master page${d>1?'s':''} will be added to the PDF.`,'s-ok');
+    });
+  }
   renderRows();
   gen();
   if(added){
-    showStatus(`Added ${added} office${added!==1?'s':''} to pricing rows${(FP_MASTER_DATA||FP_BASE_URL)?' and floor plan':''}. Selections stay ticked — uncheck or click × on a row to remove.`,'s-ok');
+    showStatus(`Added ${added} office${added!==1?'s':''} to pricing rows${(FP_MASTER_DATA||FP_BASE_URL)?' and floor plan':''}.${_newMasters?` ⧉ ${_newMasters} extra floor master page${_newMasters>1?'s':''} added to PDF.`:''} Selections stay ticked — uncheck or click × on a row to remove.`,'s-ok');
 
     // Flash the newly added rows so user sees where they landed
     requestAnimationFrame(()=>{
@@ -1989,6 +2215,7 @@ const EMAIL_I18N = {
     tour_n:           i => `Tour ${i} →`,
     view_tour:        'View Virtual Tour →',
     view_location:    'View Location Page →',
+    house_rules:      'House Rules',
     questions:        'If you have any questions or would like to discuss further, please do not hesitate to reach out directly. I am available by mobile or email and would be happy to speak with you.',
     look_forward:     'I look forward to the opportunity to assist you further.',
     best_regards:     'Best regards,',
@@ -2024,6 +2251,7 @@ const EMAIL_I18N = {
     tour_n:           i => `參觀路線 ${i} →`,
     view_tour:        '查看虛擬參觀 →',
     view_location:    '查看地點頁面 →',
+    house_rules:      '服務守則',
     questions:        '如有任何疑問或希望進一步討論，歡迎隨時透過電話或電郵直接與我聯絡，我將樂意為您解答。',
     look_forward:     '期待有機會為您提供更多協助。',
     best_regards:     '此致',
@@ -2059,6 +2287,7 @@ const EMAIL_I18N = {
     tour_n:           i => `参观线路 ${i} →`,
     view_tour:        '查看虚拟参观 →',
     view_location:    '查看地点页面 →',
+    house_rules:      '服务守则',
     questions:        '如有任何疑问或希望进一步沟通，欢迎随时通过电话或邮件直接与我联系，我将很乐意为您解答。',
     look_forward:     '期待有机会为您提供更多协助。',
     best_regards:     '此致',
@@ -2094,6 +2323,7 @@ const EMAIL_I18N = {
     tour_n:           i => `内見 ${i} →`,
     view_tour:        'バーチャル内見を見る →',
     view_location:    '拠点ページを見る →',
+    house_rules:      'ハウスルール',
     questions:        'ご不明な点などございましたら、お気軽にご連絡ください。',
     look_forward:     '引き続きよろしくお願いいたします。',
     best_regards:     '',
@@ -2182,10 +2412,13 @@ function _emailGetLocations(){
       // fall back to the live global if not saved.
       const noteOn = (typeof st.deposit_note_on === 'boolean') ? st.deposit_note_on : DEPOSIT_NOTE_ON;
       if(!noteOn) depositNote = '';
+      const _fl = (typeof combineFloorLabel==='function')
+        ? combineFloorLabel(fields['floor']||'', st.extra_masters||[])
+        : (fields['floor']||'');
       return {
-        name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
+        name:    [fields['n-main']||'', _fl].filter(Boolean).join(' '),
         locName: fields['n-main'] || item.name || 'Compass Offices',
-        floor:   fields['floor'] || '',
+        floor:   _fl,
         city:    fields['city'] || '',
         addr:    fields['addr'] || '',
         pageUrl: fields['purl'] || '',
@@ -2210,10 +2443,11 @@ function _emailGetLocations(){
     if(typeof DEPOSIT_NOTE === 'object') depositNote = DEPOSIT_NOTE[emailLang] || '';
     if(!depositNote) depositNote = _depositNoteDefaultFor(emailLang);
     if(!DEPOSIT_NOTE_ON) depositNote = '';
+    const _fl2 = (typeof combineFloorLabel==='function') ? combineFloorLabel(fields['floor']||'') : (fields['floor']||'');
     return [{
-      name:    [fields['n-main']||'', fields['floor']||''].filter(Boolean).join(' '),
+      name:    [fields['n-main']||'', _fl2].filter(Boolean).join(' '),
       locName: fields['n-main'] || 'Compass Offices',
-      floor:   fields['floor'] || '',
+      floor:   _fl2,
       city:    fields['city'] || '',
       addr:    fields['addr'] || '',
       pageUrl: fields['purl'] || '',
@@ -2225,10 +2459,12 @@ function _emailGetLocations(){
   }
   // Same language as UI → read live from DOM
   const mRaw = document.getElementById('matterport')?.value.trim() || '';
+  const _flRaw = document.getElementById('floor')?.value.trim() || '';
+  const _fl3 = (typeof combineFloorLabel==='function') ? combineFloorLabel(_flRaw) : _flRaw;
   return [{
-    name:    [document.getElementById('n-main')?.value.trim()||'', document.getElementById('floor')?.value.trim()||''].filter(Boolean).join(' '),
+    name:    [document.getElementById('n-main')?.value.trim()||'', _fl3].filter(Boolean).join(' '),
     locName: document.getElementById('n-main')?.value.trim() || 'Compass Offices',
-    floor:   document.getElementById('floor')?.value.trim() || '',
+    floor:   _fl3,
     city:    document.getElementById('city')?.value.trim() || '',
     addr:    document.getElementById('addr')?.value.trim() || '',
     pageUrl: document.getElementById('purl')?.value.trim() || '',
@@ -2351,9 +2587,8 @@ function buildEmailHTML(toName, fromName, company){
   </tbody>
 </table>` : '';
 
-    // Deposit note line: appears just under the pricing table when pricing exists.
-    const depositHTML = (hasPricing && loc.depositNote) ? `
-<p style="margin:6px 0 0;font-family:${FF};font-size:11.5px;color:#888;font-style:italic;line-height:1.5;">${loc.depositNote}</p>` : '';
+    // Deposit note intentionally NOT shown in the email — the same info is
+    // already on the proposal PDF attachment, so we avoid duplicating it here.
 
     const toursHTML = loc.tours&&loc.tours.length ? `
 <table class="em-tours" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 8px;">
@@ -2363,9 +2598,13 @@ function buildEmailHTML(toName, fromName, company){
   </td></tr>
 </table>` : '';
 
-    const pageBtn = loc.pageUrl ? `
+    // View Location Page + House Rules — grouped together as the location links.
+    // House Rules moved here from the sign-off so it sits beside the page link.
+    const _pageLink = (PAGE_URL_ON && loc.pageUrl) ? `<a href="${loc.pageUrl}" target="_blank" class="em-btn-page" style="display:inline-block;margin:0 8px 8px 0;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:${FF};font-size:13px;font-weight:700;text-decoration:none;">${T.view_location}</a>` : '';
+    const _hrLink   = HOUSE_RULES_ON ? `<a href="${houseRulesUrl(lc)}" target="_blank" class="em-btn-page" style="display:inline-block;margin:0 8px 8px 0;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:${FF};font-size:13px;font-weight:700;text-decoration:none;">${T.house_rules} →</a>` : '';
+    const pageBtn = (_pageLink || _hrLink) ? `
 <table class="em-pagebtn" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:12px 0;">
-  <tr><td><a href="${loc.pageUrl}" target="_blank" class="em-btn-page" style="display:inline-block;padding:10px 24px;border:2px solid #FF6600;color:#FF6600;font-family:${FF};font-size:13px;font-weight:700;text-decoration:none;">${T.view_location}</a></td></tr>
+  <tr><td>${_pageLink}${_hrLink}</td></tr>
 </table>` : '';
 
     // Location divider header (multi-location only)
@@ -2384,13 +2623,15 @@ function buildEmailHTML(toName, fromName, company){
 
     return `${locHeader}
 <tr><td class="em-loc-body" style="padding:${li>0?'0 36px 28px':'0 36px 28px'};${li===0&&!isMulti?'padding-top:0;':'padding-top:20px;'}">
-  ${hasPricing?`<p style="margin:0 0 6px;font-family:${FF};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#FF6600;">${T.pricing_label}</p>${pricingHTML}${depositHTML}`:''}
+  ${hasPricing?`<p style="margin:0 0 6px;font-family:${FF};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#FF6600;">${T.pricing_label}</p>${pricingHTML}`:''}
   ${toursHTML}${pageBtn}
 </td></tr>`;
   }).join('');
 
-  // Benefits (from first location, shown once)
-  const bens = firstLoc.benefits||[];
+  // Benefits (from first location, shown once). The "…deposit, fully
+  // refundable…" benefit (id:'deposit') is omitted from the email — that
+  // detail lives in the proposal attachment. It still shows on the proposal.
+  const bens = (firstLoc.benefits||[]).filter(b=>b.id!=='deposit' && !/deposit|refundable|保證金|押金|保証金/i.test(b.text||''));
   const bensHTML = bens.length
     ? bens.map(b=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${b.text}</li>`).join('')
     : T.default_benefits.map(t=>`<li style="margin:5px 0;font-family:${FF};font-size:13.5px;color:#444;line-height:1.6;">${t}</li>`).join('');
@@ -2446,8 +2687,8 @@ function buildEmailHTML(toName, fromName, company){
   }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#fef8f4;font-family:${FF};-webkit-text-size-adjust:100%;">
-<table class="em-outer" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fef8f4;padding:32px 0;">
+<body style="margin:0;padding:0;background:#ffffff;font-family:${FF};-webkit-text-size-adjust:100%;">
+<table class="em-outer" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;padding:32px 0;">
 <tr><td align="center">
 <table class="em-shell" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;max-width:600px;width:100%;">
 
@@ -2554,7 +2795,9 @@ function buildEmailPlainText(toName, fromName, company){
       body += `\n${T.pt_tour(loc.tours.length)}\n`;
       loc.tours.forEach((u,i)=>{ body += (loc.tours.length>1 ? T.pt_tour_n(i+1) : '') + u + '\n'; });
     }
-    if(loc.pageUrl) body += `\n${T.pt_loc_page}${loc.pageUrl}\n`;
+    if(PAGE_URL_ON && loc.pageUrl) body += `\n${T.pt_loc_page}${loc.pageUrl}\n`;
+    // House Rules link sits with the location page link (matches email language)
+    if(HOUSE_RULES_ON) body += `${T.house_rules}: ${houseRulesUrl(getEmailLang())}\n`;
   });
 
   body += `\n${'─'.repeat(40)}\n`;
@@ -3206,6 +3449,8 @@ function _autosaveRestore(){
     // Show localised restore message with queue count + save reminder
     const msgFn = _AS_RESTORE_MSG[LANG] || _AS_RESTORE_MSG['en'];
     showStatus(msgFn(queueCount), 's-ok');
+    // Rows restored — re-derive multi-floor chips + cross-floor room images
+    setTimeout(()=>{ if(typeof syncMultiFloorFromRows==='function') syncMultiFloorFromRows(); }, 600);
   }catch(e){
     showStatus('Could not restore — autosave data may be corrupted','s-warn');
   }
@@ -3289,6 +3534,7 @@ function _mobPropSync(field, val){
     if(el) el.value = val;
   }
   if(typeof _stripUpdatePreview==='function') _stripUpdatePreview();
+  if(typeof _saveRememberedNames==='function') _saveRememberedNames();
   if(typeof gen==='function') clearTimeout(window._genTimer), window._genTimer=setTimeout(gen,800);
 }
 function closeMobMore(){
