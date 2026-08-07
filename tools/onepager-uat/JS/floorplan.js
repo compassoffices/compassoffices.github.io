@@ -589,7 +589,9 @@ function removeExtraMaster(i){EXTRA_MASTERS.splice(i,1);renderExtraMasters();sho
 //  • Plain URL only → temporary FP_PLANS entry pointed at page 2 (no bake).
 // Full state stash/restore in finally — original FP_MASTER_DATA is restored
 // directly (no refetch; the original highlight bake is still in FP_HIGHLIGHT_CACHE).
-async function captureExtraMasterPagesAsync(){
+async function captureExtraMasterPagesAsync(mode){
+  // mode: 'html' (default — outerHTML strings for the print windows)
+  //       'canvas' — canvases via slideToCanvas, for the mobile PDF generator
   if(!EXTRA_MASTERS.length) return [];
   // Serialize: print capture and the live preview must never overlap —
   // both temporarily mutate the floor-plan state.
@@ -621,16 +623,24 @@ async function captureExtraMasterPagesAsync(){
         gen._captureMode=true;gen();gen._captureMode=false;
         if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
         gen._captureMode=true;gen();gen._captureMode=false;
-        const el=document.getElementById('slide2');
-        if(el) out.push(el.outerHTML);
+        if(mode==='canvas'&&typeof slideToCanvas==='function'){
+          const cv=await slideToCanvas('slide2'); if(cv) out.push(cv);
+        } else {
+          const el=document.getElementById('slide2');
+          if(el) out.push(el.outerHTML);
+        }
       } else {
         // ── Plain image path ──
         const _len=FP_PLANS.length;
         FP_PLANS.push({url:m.url,label:m.label});
         FP_PAGE2_SAME=false;FP_PAGE2_IDX=FP_PLANS.length-1;
         gen._captureMode=true;gen();gen._captureMode=false;
-        const el=document.getElementById('slide2');
-        if(el) out.push(el.outerHTML);
+        if(mode==='canvas'&&typeof slideToCanvas==='function'){
+          const cv=await slideToCanvas('slide2'); if(cv) out.push(cv);
+        } else {
+          const el=document.getElementById('slide2');
+          if(el) out.push(el.outerHTML);
+        }
         FP_PLANS.length=_len;
       }
     }

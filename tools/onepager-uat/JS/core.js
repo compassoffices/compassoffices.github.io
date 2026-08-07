@@ -303,6 +303,9 @@ function gen(){
 //  A4 landscape page with zero margin.
 // ══════════════════════════════════════════════════════════
 async function printQueue(){
+  if(typeof _isIOS==='function' && _isIOS() && typeof downloadPDFMobile==='function'){
+    return downloadPDFMobile();   // handles the queue internally
+  }
   if(!PDF_QUEUE.length){alert('Queue is empty.');return;}
 
   // ── Open the print window NOW — synchronously while still inside the
@@ -510,6 +513,12 @@ body { background:#fff; overflow:visible; }
 .sl-body, .p2-body { overflow:hidden !important; max-height:100% !important; }
 .sl-ph-stack, .p2-photos, .sl-specs, .sl-right, .p2-fp-area, .p2-right { overflow:hidden !important; min-height:0 !important; }
 @page { size: 297mm 210mm landscape; margin:0 !important; padding:0 !important; -webkit-margin-before:0 !important; -webkit-margin-after:0 !important; -webkit-margin-start:0 !important; -webkit-margin-end:0 !important; marks:none; }
+/* iOS fallback: if the browser print dialog is used anyway, scale pages to fit
+   WebKit's reduced page box so nothing spills onto sliver pages. */
+@supports (-webkit-touch-callout: none){
+  .page-wrap{ width:1054px !important; height:746px !important; }
+  .page-clip{ transform:scale(0.94); transform-origin:top left; }
+}
 @page :first { size: 297mm 210mm landscape; margin:0 !important; }
 @page :left  { size: 297mm 210mm landscape; margin:0 !important; }
 @page :right { size: 297mm 210mm landscape; margin:0 !important; }
@@ -644,6 +653,11 @@ function dismissIosTip(){
 }`;
 
 async function printSlide(){
+  // iPhone/iPad: browser print can't do margin-free A4 (WebKit reserves
+  // header/footer bands) → build the PDF ourselves instead.
+  if(typeof _isIOS==='function' && _isIOS() && typeof downloadPDFMobile==='function'){
+    return downloadPDFMobile();
+  }
   // If queue has items, open a print preview that contains every queued
   // location's two pages — same behavior as Download PDF when the queue is in use.
   if(PDF_QUEUE.length) return printQueue();
@@ -812,6 +826,12 @@ body {
   -webkit-margin-end: 0 !important;
   /* Suppress headers/footers where browser supports it */
   marks: none;
+}
+/* iOS fallback: if the browser print dialog is used anyway, scale pages to fit
+   WebKit's reduced page box so nothing spills onto sliver pages. */
+@supports (-webkit-touch-callout: none){
+  .page-wrap{ width:1054px !important; height:746px !important; }
+  .page-clip{ transform:scale(0.94); transform-origin:top left; }
 }
 @page :first { size: 297mm 210mm landscape; margin: 0 !important; }
 @page :left  { size: 297mm 210mm landscape; margin: 0 !important; }

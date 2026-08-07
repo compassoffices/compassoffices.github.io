@@ -2830,6 +2830,122 @@ function getExportName(){
 }
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  MOBILE PDF GENERATOR — iPhone/iPad
+//  iOS Safari (and every iOS browser — all WebKit) force-reserves print
+//  header/footer bands and ignores @page margin:0, so fixed A4 pages overflow
+//  and spill sliver pages. Instead of the print dialog, on iOS we BUILD the
+//  PDF ourselves: render every page at exactly 1122×794 → html2canvas →
+//  jsPDF A4 landscape → iOS share sheet. Pixel-identical to desktop output.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Render an HTML page string (perks / contact) offscreen and capture to canvas.
+async function _htmlPageToCanvas(html){
+  if(!html) return null;
+  const host=document.createElement('div');
+  host.style.cssText='position:fixed;left:-99999px;top:0;width:1122px;height:794px;overflow:hidden;background:#fff;z-index:-1;';
+  host.innerHTML=html;
+  document.body.appendChild(host);
+  try{
+    // wait for images (bounded)
+    const imgs=[...host.querySelectorAll('img')];
+    await Promise.race([
+      Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise(r=>{im.onload=r;im.onerror=r;}))),
+      new Promise(r=>setTimeout(r,6000)),
+    ]);
+    await new Promise(r=>setTimeout(r,120));
+    const cv=await html2canvas(host,{scale:2,useCORS:true,allowTaint:false,backgroundColor:'#fff',width:1122,height:794,windowWidth:1122,windowHeight:794});
+    return cv;
+  }catch(e){ console.warn('[mobile pdf] html page capture:',e); return null; }
+  finally{ host.remove(); }
+}
+
+function _mobilePdfSetBtn(txt){
+  const lbl=document.getElementById('pdf-btn-label');
+  if(lbl){ if(txt){lbl.dataset._orig=lbl.dataset._orig||lbl.textContent;lbl.textContent=txt;} else if(lbl.dataset._orig){lbl.textContent=lbl.dataset._orig;delete lbl.dataset._orig;} }
+}
+
+// Collect the current proposal's pages as canvases (same order as print).
+async function _collectProposalCanvases(){
+  const out=[];
+  const cv1=await slideToCanvas('slide');  if(cv1) out.push(cv1);
+  const p2=document.getElementById('slide2');
+  if(p2){ const cv2=await slideToCanvas('slide2'); if(cv2) out.push(cv2); }
+  if(typeof EXTRA_MASTERS!=='undefined' && EXTRA_MASTERS.length && typeof captureExtraMasterPagesAsync==='function'){
+    try{ (await captureExtraMasterPagesAsync('canvas')).forEach(c=>c&&out.push(c)); }
+    catch(e){ console.warn('[mobile pdf] extras:',e); }
+  }
+  return out;
+}
+
+async function downloadPDFMobile(){
+  if(downloadPDFMobile._busy) return; downloadPDFMobile._busy=true;
+  _mobilePdfSetBtn('Building…');
+  try{
+    showStatus('Building PDF — please wait a few seconds…','s-info');
+    const pages=[];
+    if(PDF_QUEUE.length){
+      // ── Queue: every queued location, restoring each snapshot ──
+      const stash=buildStateSnapshot();
+      try{
+        for(let qi=0; qi<PDF_QUEUE.length; qi++){
+          _mobilePdfSetBtn(`Page ${pages.length+1}…`);
+          const item=PDF_QUEUE[qi];
+          try{
+            restoreStateSnapshot(item.state);
+            if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
+            (await _collectProposalCanvases()).forEach(c=>pages.push(c));
+          }catch(e){ console.warn('[mobile pdf] queue item',qi,e); }
+        }
+      }finally{
+        try{ restoreStateSnapshot(stash); }catch(e){}
+        if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
+      }
+    }else{
+      (await _collectProposalCanvases()).forEach(c=>pages.push(c));
+    }
+    // ── Perks + Let's Talk (once, at the end — same as print) ──
+    _mobilePdfSetBtn('Perks…');
+    if(typeof buildPerksPageHtml==='function'){
+      const cv=await _htmlPageToCanvas(buildPerksPageHtml()); if(cv) pages.push(cv);
+    }
+    if(typeof buildContactPageHtml==='function'){
+      const ch=buildContactPageHtml();
+      if(ch){ const cv=await _htmlPageToCanvas(ch); if(cv) pages.push(cv); }
+    }
+    if(!pages.length) throw new Error('No pages captured');
+
+    // ── Assemble true A4-landscape PDF ──
+    _mobilePdfSetBtn('Saving…');
+    const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+    const pdf=new jsPDFCtor({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+    pages.forEach((cv,i)=>{
+      if(i>0) pdf.addPage();
+      pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);
+    });
+    const name=(typeof getExportName==='function'?getExportName():'compass-proposal')+'.pdf';
+
+    // ── iOS share sheet (Save to Files / Mail / AirDrop), fallback download ──
+    let shared=false;
+    try{
+      const blob=pdf.output('blob');
+      const file=new File([blob], name, {type:'application/pdf'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title:name});
+        shared=true;
+      }
+    }catch(e){ if(e&&e.name==='AbortError') shared=true; /* user closed sheet */ }
+    if(!shared) pdf.save(name);
+    showStatus(`✓ PDF ready — ${pages.length} page${pages.length>1?'s':''}.`,'s-ok');
+  }catch(e){
+    console.error('[mobile pdf]',e);
+    showStatus('PDF build failed — please try again, or use a desktop browser.','s-err');
+  }finally{
+    _mobilePdfSetBtn(null);
+    downloadPDFMobile._busy=false;
+  }
+}
+
 async function slideToCanvas(elId){
   const el=document.getElementById(elId);if(!el)return document.createElement('canvas');
 
