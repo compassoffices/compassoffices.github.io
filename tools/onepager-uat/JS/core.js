@@ -9,9 +9,15 @@ function gen(){
   if(typeof ensureHighlightRender === 'function') ensureHighlightRender();
   const name=g('n-main')||'Location Name';
   const addr=g('addr');const city=g('city')||'Hong Kong';const purl=g('purl');
-  // Multi-floor: header shows all floors, e.g. "17F + 24F" (shared helper)
+  // Multi-floor: header shows all floors, e.g. "17F + 24F" (shared helper).
+  // On floor-plan pages (page 2 + extra masters) the floor whose master is
+  // displayed gets highlighted: page 2 → current card's floor; extra pages →
+  // that page's floor (gen._activeFloorHint, set during capture).
+  const _rawFloorDigits=((String(g('floor')).match(/\d+/)||[])[0])||'';
   let floor=g('floor');
   if(typeof combineFloorLabel==='function') floor=combineFloorLabel(floor);
+  const _hlFloorDigits=gen._activeFloorHint||_rawFloorDigits;
+  const floorPage2=(typeof buildFloorBadgeHtml==='function')?buildFloorBadgeHtml(floor,_hlFloorDigits):floor;
   const trLines=TRANSPORT.filter(t=>(t.text||"").replace(/<[^>]*>/g,"").trim());
   const mkPair=(k1,v1,k2,v2)=>{if(!v1&&!v2)return null;if(v1&&!v2)return{k:k1,v:v1,pair:false};if(!v1&&v2)return{k:k2,v:v2,pair:false};return{k:k1,v:v1,k2,v2,pair:true};};
   const specRows=!SHOW_SPECS?[]:[
@@ -81,7 +87,7 @@ function gen(){
       ${S.partnerLogo?`${sepHtml}<div class="sl-partner"><img src="${S.partnerLogo}"></div>`:''}
     </div>
     <div class="sl-title-block">
-      <div class="sl-title">${name}${floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${floor}</span>`:''}</div>
+      <div class="sl-title">${name}${floor?` <span class="sl-floor-inline" style="font-size:calc(var(--fs)*0.82);vertical-align:middle;position:relative;top:-.05em">${pg===2?floorPage2:floor}</span>`:''}</div>
       ${addr?`<div class="sl-addr-row"><div class="sl-addr">${addr}</div></div>`:''}
     </div>
     <div class="sl-meta"><div class="sl-city">${city}</div></div>
