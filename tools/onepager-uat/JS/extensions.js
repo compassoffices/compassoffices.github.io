@@ -2839,6 +2839,103 @@ function getExportName(){
 //  jsPDF A4 landscape → iOS share sheet. Pixel-identical to desktop output.
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ── object-fit math (pure, unit-tested) ──────────────────────────────────────
+// Returns source-crop + destination rects for drawing an iw×ih image into a
+// dw×dh box with the given fit ('cover' | 'contain' | anything-else = fill).
+// posX/posY are 0..1 fractions (object-position), default centred.
+function _fitRect(fit, iw, ih, dw, dh, posX, posY){
+  posX=(posX==null?0.5:posX); posY=(posY==null?0.5:posY);
+  if(fit==='cover'){
+    const s=Math.max(dw/iw, dh/ih);
+    const sw=dw/s, sh=dh/s;
+    return {sx:(iw-sw)*posX, sy:(ih-sh)*posY, sw, sh, dx:0, dy:0, dw2:dw, dh2:dh};
+  }
+  if(fit==='contain'||fit==='scale-down'){
+    const s=Math.min(dw/iw, dh/ih);
+    const rw=iw*s, rh=ih*s;
+    return {sx:0, sy:0, sw:iw, sh:ih, dx:(dw-rw)*posX, dy:(dh-rh)*posY, dw2:rw, dh2:rh};
+  }
+  return {sx:0, sy:0, sw:iw, sh:ih, dx:0, dy:0, dw2:dw, dh2:dh}; // fill
+}
+function _parseObjPos(str){
+  const out=[0.5,0.5];
+  if(!str) return out;
+  String(str).trim().split(/\s+/).slice(0,2).forEach((tok,i)=>{
+    if(tok==='left'||tok==='top') out[i]=0;
+    else if(tok==='right'||tok==='bottom') out[i]=1;
+    else if(tok==='center') out[i]=0.5;
+    else if(/%$/.test(tok)) out[i]=Math.max(0,Math.min(1,parseFloat(tok)/100));
+  });
+  return out;
+}
+
+// Load an image CORS-safely (fallback to plain), bounded.
+function _loadImgSafe(src, timeoutMs){
+  return new Promise(res=>{
+    let done=false; const fin=v=>{ if(!done){done=true;res(v);} };
+    const t=setTimeout(()=>fin(null), timeoutMs||4000);
+    const tryLoad=(useCors)=>{
+      const im=new Image();
+      if(useCors) im.crossOrigin='anonymous';
+      im.onload=()=>{ clearTimeout(t); fin(im); };
+      im.onerror=()=>{ if(useCors) tryLoad(false); else { clearTimeout(t); fin(null); } };
+      im.src=src;
+    };
+    tryLoad(true);
+  });
+}
+
+// Pre-rasterize every image (and inline SVG) inside the host at its exact
+// rendered size with correct object-fit cropping — the same technique
+// slideToCanvas uses for the slide pages. Fixes html2canvas's two blind spots:
+// stretched object-fit:cover photos and broken external SVG logos/icons.
+async function _rasterizeImagesIn(host){
+  // Inline <svg> → rasterized <img>
+  for(const svg of [...host.querySelectorAll('svg')]){
+    try{
+      const r=svg.getBoundingClientRect();
+      const w=Math.round(r.width), h=Math.round(r.height);
+      if(!w||!h) continue;
+      const clone=svg.cloneNode(true);
+      clone.setAttribute('width',w); clone.setAttribute('height',h);
+      clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+      const col=getComputedStyle(svg).color; if(col) clone.style.color=col;
+      const data='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(clone));
+      const im=await _loadImgSafe(data, 3000);
+      if(!im) continue;
+      const cv=document.createElement('canvas'); cv.width=w*2; cv.height=h*2;
+      cv.getContext('2d').drawImage(im,0,0,w*2,h*2);
+      const rep=document.createElement('img');
+      rep.src=cv.toDataURL('image/png');
+      rep.style.cssText=`width:${w}px;height:${h}px;display:${getComputedStyle(svg).display||'inline-block'};`;
+      svg.parentNode.replaceChild(rep,svg);
+    }catch(e){}
+  }
+  // <img> → same-size canvas PNG with correct fit (transparency preserved)
+  for(const img of [...host.querySelectorAll('img')]){
+    try{
+      const src=img.currentSrc||img.src;
+      if(!src||src.startsWith('data:')) continue;
+      const r=img.getBoundingClientRect();
+      const w=Math.round(r.width), h=Math.round(r.height);
+      if(!w||!h) continue;
+      const im=await _loadImgSafe(src, 4500);
+      if(!im||!im.naturalWidth) continue;
+      const cs=getComputedStyle(img);
+      const fit=cs.objectFit||'fill';
+      const [px,py]=_parseObjPos(cs.objectPosition);
+      const f=_fitRect(fit, im.naturalWidth, im.naturalHeight, w, h, px, py);
+      const cv=document.createElement('canvas'); cv.width=w*2; cv.height=h*2;
+      const ctx=cv.getContext('2d');            // transparent background
+      ctx.drawImage(im, f.sx, f.sy, f.sw, f.sh, f.dx*2, f.dy*2, f.dw2*2, f.dh2*2);
+      img.src=cv.toDataURL('image/png');
+      img.style.objectFit='fill';
+      img.style.width=w+'px'; img.style.height=h+'px';
+      img.removeAttribute('onerror');
+    }catch(e){}
+  }
+}
+
 // Render an HTML page string (perks / contact) offscreen and capture to canvas.
 async function _htmlPageToCanvas(html){
   if(!html) return null;
@@ -2853,6 +2950,8 @@ async function _htmlPageToCanvas(html){
       Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise(r=>{im.onload=r;im.onerror=r;}))),
       new Promise(r=>setTimeout(r,6000)),
     ]);
+    // Pre-rasterize (object-fit crop + SVG logos/icons) — html2canvas can't.
+    await _rasterizeImagesIn(host);
     await new Promise(r=>setTimeout(r,120));
     const cv=await html2canvas(host,{scale:2,useCORS:true,allowTaint:false,backgroundColor:'#fff',width:1122,height:794,windowWidth:1122,windowHeight:794});
     return cv;
