@@ -376,6 +376,11 @@ function toggleQueuePanel(){
 }
 
 function updateQueueBadge(){
+  // Mobile drawer badge mirror
+  try{
+    const db=document.getElementById('drawer-queue-badge');
+    if(db){ const n=PDF_QUEUE.length; db.textContent=n; db.style.display=n?'inline-block':'none'; }
+  }catch(e){}
   const badge=document.getElementById('queue-count');
   const split=document.getElementById('queue-split');
   if(!badge||!split) return;
@@ -2830,6 +2835,329 @@ function getExportName(){
 }
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  MOBILE PDF GENERATOR — iPhone/iPad
+//  iOS Safari (and every iOS browser — all WebKit) force-reserves print
+//  header/footer bands and ignores @page margin:0, so fixed A4 pages overflow
+//  and spill sliver pages. Instead of the print dialog, on iOS we BUILD the
+//  PDF ourselves: render every page at exactly 1122×794 → html2canvas →
+//  jsPDF A4 landscape → iOS share sheet. Pixel-identical to desktop output.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── object-fit math (pure, unit-tested) ──────────────────────────────────────
+// Returns source-crop + destination rects for drawing an iw×ih image into a
+// dw×dh box with the given fit ('cover' | 'contain' | anything-else = fill).
+// posX/posY are 0..1 fractions (object-position), default centred.
+function _fitRect(fit, iw, ih, dw, dh, posX, posY){
+  posX=(posX==null?0.5:posX); posY=(posY==null?0.5:posY);
+  if(fit==='cover'){
+    const s=Math.max(dw/iw, dh/ih);
+    const sw=dw/s, sh=dh/s;
+    return {sx:(iw-sw)*posX, sy:(ih-sh)*posY, sw, sh, dx:0, dy:0, dw2:dw, dh2:dh};
+  }
+  if(fit==='contain'||fit==='scale-down'){
+    const s=Math.min(dw/iw, dh/ih);
+    const rw=iw*s, rh=ih*s;
+    return {sx:0, sy:0, sw:iw, sh:ih, dx:(dw-rw)*posX, dy:(dh-rh)*posY, dw2:rw, dh2:rh};
+  }
+  return {sx:0, sy:0, sw:iw, sh:ih, dx:0, dy:0, dw2:dw, dh2:dh}; // fill
+}
+function _parseObjPos(str){
+  const out=[0.5,0.5];
+  if(!str) return out;
+  String(str).trim().split(/\s+/).slice(0,2).forEach((tok,i)=>{
+    if(tok==='left'||tok==='top') out[i]=0;
+    else if(tok==='right'||tok==='bottom') out[i]=1;
+    else if(tok==='center') out[i]=0.5;
+    else if(/%$/.test(tok)) out[i]=Math.max(0,Math.min(1,parseFloat(tok)/100));
+  });
+  return out;
+}
+
+// Load an image CORS-safely (fallback to plain), bounded.
+function _loadImgSafe(src, timeoutMs){
+  return new Promise(res=>{
+    let done=false; const fin=v=>{ if(!done){done=true;res(v);} };
+    const t=setTimeout(()=>fin(null), timeoutMs||4000);
+    const tryLoad=(useCors)=>{
+      const im=new Image();
+      if(useCors) im.crossOrigin='anonymous';
+      im.onload=()=>{ clearTimeout(t); fin(im); };
+      im.onerror=()=>{ if(useCors) tryLoad(false); else { clearTimeout(t); fin(null); } };
+      im.src=src;
+    };
+    tryLoad(true);
+  });
+}
+
+// Pre-rasterize every image (and inline SVG) inside the host at its exact
+// rendered size with correct object-fit cropping — the same technique
+// slideToCanvas uses for the slide pages. Fixes html2canvas's two blind spots:
+// stretched object-fit:cover photos and broken external SVG logos/icons.
+async function _rasterizeImagesIn(host){
+  // Inline <svg> → rasterized <img>
+  for(const svg of [...host.querySelectorAll('svg')]){
+    try{
+      const r=svg.getBoundingClientRect();
+      const w=Math.round(r.width), h=Math.round(r.height);
+      if(!w||!h) continue;
+      const clone=svg.cloneNode(true);
+      clone.setAttribute('width',w); clone.setAttribute('height',h);
+      clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+      const col=getComputedStyle(svg).color; if(col) clone.style.color=col;
+      const data='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(clone));
+      const im=await _loadImgSafe(data, 3000);
+      if(!im) continue;
+      const cv=document.createElement('canvas'); cv.width=w*2; cv.height=h*2;
+      cv.getContext('2d').drawImage(im,0,0,w*2,h*2);
+      const rep=document.createElement('img');
+      rep.src=cv.toDataURL('image/png');
+      rep.style.cssText=`width:${w}px;height:${h}px;display:${getComputedStyle(svg).display||'inline-block'};`;
+      svg.parentNode.replaceChild(rep,svg);
+    }catch(e){}
+  }
+  // <img> → same-size canvas PNG with correct fit (transparency preserved)
+  for(const img of [...host.querySelectorAll('img')]){
+    try{
+      const src=img.currentSrc||img.src;
+      if(!src||src.startsWith('data:')) continue;
+      const r=img.getBoundingClientRect();
+      const w=Math.round(r.width), h=Math.round(r.height);
+      if(!w||!h) continue;
+      const im=await _loadImgSafe(src, 4500);
+      if(!im||!im.naturalWidth) continue;
+      const cs=getComputedStyle(img);
+      const fit=cs.objectFit||'fill';
+      const [px,py]=_parseObjPos(cs.objectPosition);
+      const f=_fitRect(fit, im.naturalWidth, im.naturalHeight, w, h, px, py);
+      const cv=document.createElement('canvas'); cv.width=w*2; cv.height=h*2;
+      const ctx=cv.getContext('2d');            // transparent background
+      ctx.drawImage(im, f.sx, f.sy, f.sw, f.sh, f.dx*2, f.dy*2, f.dw2*2, f.dh2*2);
+      img.src=cv.toDataURL('image/png');
+      img.style.objectFit='fill';
+      img.style.width=w+'px'; img.style.height=h+'px';
+      img.removeAttribute('onerror');
+    }catch(e){}
+  }
+}
+
+// Render an HTML page string (perks / contact) offscreen and capture to canvas.
+async function _htmlPageToCanvas(html, scale){
+  if(!html) return null;
+  scale = scale || 2;
+  const host=document.createElement('div');
+  host.style.cssText='position:fixed;left:-99999px;top:0;width:1122px;height:794px;overflow:hidden;background:#fff;z-index:-1;';
+  host.innerHTML=html;
+  document.body.appendChild(host);
+  try{
+    // wait for images (bounded)
+    const imgs=[...host.querySelectorAll('img')];
+    await Promise.race([
+      Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise(r=>{im.onload=r;im.onerror=r;}))),
+      new Promise(r=>setTimeout(r,6000)),
+    ]);
+    // Pre-rasterize (object-fit crop + SVG logos/icons) — html2canvas can't.
+    await _rasterizeImagesIn(host);
+    await new Promise(r=>setTimeout(r,120));
+    const cv=await html2canvas(host,{scale:scale,useCORS:true,allowTaint:false,backgroundColor:'#fff',width:1122,height:794,windowWidth:1122,windowHeight:794});
+    return cv;
+  }catch(e){ console.warn('[mobile pdf] html page capture:',e); return null; }
+  finally{ host.remove(); }
+}
+
+// ── Mobile PDF i18n ───────────────────────────────────────────────────────────
+const _PDF_I18N={
+  'en':      {building:'Building your PDF…', keep:'Please keep this page open', prep:'Preparing pages…', asm:'Assembling PDF…', perks:'Perks & events page…', lets:"Let's Talk page…", loc:'Location {a} of {b}…', page:'Page {a} of ~{b}', ready:'PDF ready', copied:'Summary copied — paste it in WhatsApp / email.'},
+  'zh-hant': {building:'正在產生 PDF…', keep:'請保持此頁面開啟', prep:'正在準備頁面…', asm:'正在合併 PDF…', perks:'福利與活動頁…', lets:'聯絡我們頁…', loc:'第 {a} / {b} 個地點…', page:'第 {a} 頁（約 {b} 頁）', ready:'PDF 已完成', copied:'摘要已複製 — 可貼到 WhatsApp / 電郵。'},
+  'zh-hans': {building:'正在生成 PDF…', keep:'请保持此页面开启', prep:'正在准备页面…', asm:'正在合并 PDF…', perks:'福利与活动页…', lets:'联系我们页…', loc:'第 {a} / {b} 个地点…', page:'第 {a} 页（约 {b} 页）', ready:'PDF 已完成', copied:'摘要已复制 — 可粘贴到 WhatsApp / 邮件。'},
+  'ja':      {building:'PDF を作成中…', keep:'この画面を閉じないでください', prep:'ページを準備中…', asm:'PDF を結合中…', perks:'特典・イベントページ…', lets:'お問い合わせページ…', loc:'拠点 {a} / {b}…', page:'ページ {a} / 約{b}', ready:'PDF 完成', copied:'概要をコピーしました — WhatsApp やメールに貼り付けできます。'},
+};
+function _pt(key,a,b){
+  const L=(typeof LANG!=='undefined'&&_PDF_I18N[LANG])?LANG:'en';
+  let s=(_PDF_I18N[L]&&_PDF_I18N[L][key])||_PDF_I18N['en'][key]||key;
+  if(a!==undefined)s=s.replace('{a}',a);
+  if(b!==undefined)s=s.replace('{b}',b);
+  return s;
+}
+
+// ── Mobile PDF progress overlay ───────────────────────────────────────────────
+// Full-screen progress bar so phone users can see the PDF is being built.
+function _pdfOverlayShow(){
+  if(document.getElementById('pdf-progress-overlay')) return;
+  const d=document.createElement('div');
+  d.id='pdf-progress-overlay';
+  d.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);';
+  d.innerHTML=
+    '<div style="font-family:\'Hanken Grotesk\',\'Noto Sans TC\',\'Noto Sans JP\',sans-serif;font-size:16px;font-weight:800;color:#1A1A1A;">'+_pt('building')+'</div>'
+   +'<div id="ppo-label" style="font-family:\'Hanken Grotesk\',\'Noto Sans TC\',\'Noto Sans JP\',sans-serif;margin-top:6px;font-size:12.5px;color:#888;">'+_pt('prep')+'</div>'
+   +'<div style="margin-top:16px;width:min(320px,72vw);height:8px;border-radius:6px;background:#EEE;overflow:hidden;">'
+   +  '<div id="ppo-bar" style="height:100%;width:4%;background:#FF6600;border-radius:6px;transition:width .35s ease;"></div>'
+   +'</div>'
+   +'<div style="font-family:\'Hanken Grotesk\',\'Noto Sans TC\',\'Noto Sans JP\',sans-serif;margin-top:12px;font-size:11px;color:#BBB;">'+_pt('keep')+'</div>';
+  document.body.appendChild(d);
+}
+function _pdfOverlayUpdate(done,total,label){
+  const bar=document.getElementById('ppo-bar');
+  const lbl=document.getElementById('ppo-label');
+  if(bar){
+    const pct=(total>0)?Math.min(96, 4+Math.round((done/total)*92)):50;
+    bar.style.width=pct+'%';
+  }
+  if(lbl&&label) lbl.textContent=label;
+}
+function _pdfOverlayDone(){
+  const bar=document.getElementById('ppo-bar');
+  if(bar) bar.style.width='100%';
+}
+function _pdfOverlayHide(){
+  const d=document.getElementById('pdf-progress-overlay');
+  if(d) setTimeout(()=>d.remove(), 350);
+}
+// Rough page-count estimate for the progress bar ("~N pages")
+function _estimatePdfPages(){
+  const per=st=>{
+    const ex=(st&&st.extra_masters)?st.extra_masters.length
+            :((typeof EXTRA_MASTERS!=='undefined')?EXTRA_MASTERS.length:0);
+    return 2+ex;
+  };
+  let n=PDF_QUEUE.length ? PDF_QUEUE.reduce((a,it)=>a+per(it.state),0) : per(null);
+  n+=1;                                                     // perks
+  try{ if(typeof _profileReady==='function'&&_profileReady()) n+=1; }catch(e){}
+  return Math.max(1,n);
+}
+
+function _mobilePdfSetBtn(txt){
+  const btn=document.getElementById('hbtn-print');
+  const lbl=btn?btn.querySelector('span'):null;
+  if(lbl){ if(txt){lbl.dataset._orig=lbl.dataset._orig||lbl.textContent;lbl.textContent=txt;} else if(lbl.dataset._orig){lbl.textContent=lbl.dataset._orig;delete lbl.dataset._orig;} }
+}
+
+// Collect the current proposal's pages as canvases (same order as print).
+async function _collectProposalCanvases(onPage){
+  const out=[];
+  const _tick=()=>{ try{ if(onPage) onPage(out.length); }catch(e){} };
+  const cv1=await slideToCanvas('slide');  if(cv1){ out.push(cv1); _tick(); }
+  const p2=document.getElementById('slide2');
+  if(p2){ const cv2=await slideToCanvas('slide2'); if(cv2){ out.push(cv2); _tick(); } }
+  if(typeof EXTRA_MASTERS!=='undefined' && EXTRA_MASTERS.length && typeof captureExtraMasterPagesAsync==='function'){
+    try{ (await captureExtraMasterPagesAsync('canvas')).forEach(c=>{ if(c){ out.push(c); _tick(); } }); }
+    catch(e){ console.warn('[mobile pdf] extras:',e); }
+  }
+  return out;
+}
+
+// Short text summary of the proposal — attached to the iOS share (WhatsApp,
+// Mail…) and copied to the clipboard so BDMs can paste it with the PDF.
+function _buildShareSummary(){
+  try{
+    const locs=(typeof _emailGetLocations==='function')?_emailGetLocations():[];
+    const lines=[];
+    locs.forEach(L=>{
+      lines.push(`${L.locName||''}${L.floor?' '+L.floor:''}`.trim());
+      if(L.addr) lines.push(L.addr);
+      (L.rows||[]).slice(0,8).forEach(r=>{
+        const seat=r.seats||r.office||'';
+        const price=r.monthly||r.price||'';
+        if(seat) lines.push(`• ${seat}${price?' — '+price:''}`);
+      });
+      if(L.purl) lines.push(L.purl);
+      lines.push('');
+    });
+    return lines.join('\n').trim();
+  }catch(e){ return ''; }
+}
+
+async function downloadPDFMobile(){
+  if(downloadPDFMobile._busy) return; downloadPDFMobile._busy=true;
+  _mobilePdfSetBtn('Building…');
+  const _est=_estimatePdfPages();
+  // Adaptive quality: big multi-location builds drop to 1.5× render scale +
+  // slightly stronger JPEG compression so older iPhones never run out of memory.
+  const _capScale=_est>8?1.5:2;
+  const _jpgQ=_est>8?0.88:0.92;
+  let _done=0;
+  const _prog=lbl=>{_pdfOverlayUpdate(_done,_est,lbl||_pt('page',_done,_est));};
+  _pdfOverlayShow();
+  _prog(_pt('prep'));
+  try{
+    showStatus('Building PDF — please wait a few seconds…','s-info');
+    const pages=[];
+    const _onPage=()=>{ _done++; _prog(); };
+    if(PDF_QUEUE.length){
+      // ── Queue: every queued location, restoring each snapshot ──
+      const stash=buildStateSnapshot();
+      try{
+        for(let qi=0; qi<PDF_QUEUE.length; qi++){
+          _mobilePdfSetBtn(`Page ${pages.length+1}…`);
+          const item=PDF_QUEUE[qi];
+          try{
+            _prog(_pt('loc',qi+1,PDF_QUEUE.length));
+            restoreStateSnapshot(item.state);
+            if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
+            (await _collectProposalCanvases(_onPage)).forEach(c=>pages.push(c));
+          }catch(e){ console.warn('[mobile pdf] queue item',qi,e); }
+        }
+      }finally{
+        try{ restoreStateSnapshot(stash); }catch(e){}
+        if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
+      }
+    }else{
+      (await _collectProposalCanvases(_onPage)).forEach(c=>pages.push(c));
+    }
+    // ── Perks + Let's Talk (once, at the end — same as print) ──
+    _mobilePdfSetBtn('Perks…');
+    _prog(_pt('perks'));
+    if(typeof buildPerksPageHtml==='function'){
+      const cv=await _htmlPageToCanvas(buildPerksPageHtml(),_capScale); if(cv){ pages.push(cv); _done++; _prog(); }
+    }
+    if(typeof buildContactPageHtml==='function'){
+      const ch=buildContactPageHtml();
+      if(ch){ _prog(_pt('lets')); const cv=await _htmlPageToCanvas(ch,_capScale); if(cv){ pages.push(cv); _done++; _prog(); } }
+    }
+    if(!pages.length) throw new Error('No pages captured');
+
+    // ── Assemble true A4-landscape PDF ──
+    _mobilePdfSetBtn('Saving…');
+    _pdfOverlayUpdate(_est,_est,_pt('asm'));
+    const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+    const pdf=new jsPDFCtor({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+    pages.forEach((cv,i)=>{
+      if(i>0) pdf.addPage();
+      pdf.addImage(cv.toDataURL('image/jpeg',_jpgQ),'JPEG',0,0,297,210);
+    });
+    const name=(typeof getExportName==='function'?getExportName():'compass-proposal')+'.pdf';
+
+    // ── iOS share sheet (Save to Files / Mail / AirDrop), fallback download ──
+    let shared=false;
+    const _summary=_buildShareSummary();
+    try{
+      const blob=pdf.output('blob');
+      const file=new File([blob], name, {type:'application/pdf'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        const payload={files:[file], title:name};
+        if(_summary) payload.text=_summary;      // WhatsApp / Mail can carry it
+        await navigator.share(payload);
+        shared=true;
+      }
+    }catch(e){ if(e&&e.name==='AbortError') shared=true; /* user closed sheet */ }
+    _pdfOverlayDone();
+    if(!shared) pdf.save(name);
+    // Clipboard copy of the summary (best-effort — some browsers block after await)
+    let _copied=false;
+    if(_summary && navigator.clipboard && navigator.clipboard.writeText){
+      try{ await navigator.clipboard.writeText(_summary); _copied=true; }catch(e){}
+    }
+    showStatus(`✓ ${_pt('ready')} — ${pages.length} p.${_copied?' '+_pt('copied'):''}`,'s-ok');
+  }catch(e){
+    console.error('[mobile pdf]',e);
+    showStatus('PDF build failed — please try again, or use a desktop browser.','s-err');
+  }finally{
+    _pdfOverlayHide();
+    _mobilePdfSetBtn(null);
+    downloadPDFMobile._busy=false;
+  }
+}
+
 async function slideToCanvas(elId){
   const el=document.getElementById(elId);if(!el)return document.createElement('canvas');
 
@@ -3642,4 +3970,107 @@ function _stripUpdatePreview(){
   const dcl = document.getElementById('mob-cl-input');
   if(dco) dco.value = co;
   if(dcl) dcl.value = cl;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MOBILE PREVIEW PINCH-ZOOM
+//  A4 pages are unreadable at phone width. Adds pinch-to-zoom, one-finger pan
+//  (while zoomed) and double-tap zoom to the preview — form zoom-lock stays.
+// ══════════════════════════════════════════════════════════════════════════════
+function _zClamp(v,min,max){ return v<min?min:(v>max?max:v); }
+function initPreviewZoom(){
+  if(initPreviewZoom._done) return; 
+  const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  if(!isTouch) return;
+  const prev=document.querySelector('.preview');
+  if(!prev) return;
+  initPreviewZoom._done=true;
+  // Wrap existing preview children so we can transform them as one
+  const z=document.createElement('div');
+  z.id='preview-zoom';
+  z.style.cssText='transform-origin:0 0;will-change:transform;';
+  while(prev.firstChild) z.appendChild(prev.firstChild);
+  prev.appendChild(z);
+
+  let S=1, TX=0, TY=0;
+  const apply=(anim)=>{
+    z.style.transition=anim?'transform .18s ease':'none';
+    z.style.transform=`translate(${TX}px,${TY}px) scale(${S})`;
+    prev.style.overflow = S>1.01 ? 'hidden' : '';
+    prev.style.touchAction = S>1.01 ? 'none' : '';
+  };
+  const reset=()=>{ S=1;TX=0;TY=0;apply(true); };
+  const boundPan=()=>{
+    const r=prev.getBoundingClientRect();
+    TX=_zClamp(TX, r.width -z.scrollWidth*S, 0);
+    TY=_zClamp(TY, r.height-z.scrollHeight*S, 0);
+    if(z.scrollWidth*S<=r.width)  TX=_zClamp(TX, 0, r.width -z.scrollWidth*S);
+    if(z.scrollHeight*S<=r.height)TY=0;
+  };
+
+  let g=null;           // active 2-finger gesture
+  let pan=null;         // active 1-finger pan
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+  const mid =t=>({x:(t[0].clientX+t[1].clientX)/2, y:(t[0].clientY+t[1].clientY)/2});
+
+  prev.addEventListener('touchstart',e=>{
+    if(e.touches.length===2){
+      const r=prev.getBoundingClientRect();
+      g={d0:dist(e.touches), m0:mid(e.touches), S0:S, TX0:TX, TY0:TY, rx:r.left, ry:r.top};
+      pan=null;
+      e.preventDefault();
+    }else if(e.touches.length===1 && S>1.01){
+      pan={x:e.touches[0].clientX, y:e.touches[0].clientY};
+    }
+  },{passive:false});
+
+  prev.addEventListener('touchmove',e=>{
+    if(g && e.touches.length===2){
+      e.preventDefault();
+      const k=_zClamp(dist(e.touches)/g.d0, 0.35, 8);
+      const ns=_zClamp(g.S0*k, 1, 4);
+      const m=mid(e.touches);
+      const cx=g.m0.x-g.rx, cy=g.m0.y-g.ry;              // pinch centre in preview coords
+      TX = (m.x-g.rx) - (cx - g.TX0) * (ns/g.S0);
+      TY = (m.y-g.ry) - (cy - g.TY0) * (ns/g.S0);
+      S=ns; boundPan(); apply(false);
+    }else if(pan && e.touches.length===1 && S>1.01){
+      e.preventDefault();
+      TX += e.touches[0].clientX - pan.x;
+      TY += e.touches[0].clientY - pan.y;
+      pan={x:e.touches[0].clientX, y:e.touches[0].clientY};
+      boundPan(); apply(false);
+    }
+  },{passive:false});
+
+  prev.addEventListener('touchend',e=>{
+    if(g && e.touches.length<2){
+      g=null;
+      if(S<1.06) reset();
+    }
+    if(e.touches.length===0) pan=null;
+  });
+
+  // Double-tap: zoom to 2.2× at the tap point, or reset
+  let lastTap=0;
+  prev.addEventListener('touchend',e=>{
+    if(e.touches.length===0 && e.changedTouches.length===1 && !g){
+      const now=Date.now();
+      if(now-lastTap<300){
+        const t=e.changedTouches[0];
+        const r=prev.getBoundingClientRect();
+        if(S>1.01){ reset(); }
+        else{
+          const ns=2.2;
+          const cx=t.clientX-r.left, cy=t.clientY-r.top;
+          TX = cx - (cx - TX) * (ns/S);
+          TY = cy - (cy - TY) * (ns/S);
+          S=ns; boundPan(); apply(true);
+        }
+        e.preventDefault();
+      }
+      lastTap=now;
+    }
+  },{passive:false});
 }
