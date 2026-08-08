@@ -376,6 +376,11 @@ function toggleQueuePanel(){
 }
 
 function updateQueueBadge(){
+  // Mobile drawer badge mirror
+  try{
+    const db=document.getElementById('drawer-queue-badge');
+    if(db){ const n=PDF_QUEUE.length; db.textContent=n; db.style.display=n?'inline-block':'none'; }
+  }catch(e){}
   const badge=document.getElementById('queue-count');
   const split=document.getElementById('queue-split');
   if(!badge||!split) return;
@@ -2937,8 +2942,9 @@ async function _rasterizeImagesIn(host){
 }
 
 // Render an HTML page string (perks / contact) offscreen and capture to canvas.
-async function _htmlPageToCanvas(html){
+async function _htmlPageToCanvas(html, scale){
   if(!html) return null;
+  scale = scale || 2;
   const host=document.createElement('div');
   host.style.cssText='position:fixed;left:-99999px;top:0;width:1122px;height:794px;overflow:hidden;background:#fff;z-index:-1;';
   host.innerHTML=html;
@@ -2953,10 +2959,25 @@ async function _htmlPageToCanvas(html){
     // Pre-rasterize (object-fit crop + SVG logos/icons) — html2canvas can't.
     await _rasterizeImagesIn(host);
     await new Promise(r=>setTimeout(r,120));
-    const cv=await html2canvas(host,{scale:2,useCORS:true,allowTaint:false,backgroundColor:'#fff',width:1122,height:794,windowWidth:1122,windowHeight:794});
+    const cv=await html2canvas(host,{scale:scale,useCORS:true,allowTaint:false,backgroundColor:'#fff',width:1122,height:794,windowWidth:1122,windowHeight:794});
     return cv;
   }catch(e){ console.warn('[mobile pdf] html page capture:',e); return null; }
   finally{ host.remove(); }
+}
+
+// ── Mobile PDF i18n ───────────────────────────────────────────────────────────
+const _PDF_I18N={
+  'en':      {building:'Building your PDF…', keep:'Please keep this page open', prep:'Preparing pages…', asm:'Assembling PDF…', perks:'Perks & events page…', lets:"Let's Talk page…", loc:'Location {a} of {b}…', page:'Page {a} of ~{b}', ready:'PDF ready', copied:'Summary copied — paste it in WhatsApp / email.'},
+  'zh-hant': {building:'正在產生 PDF…', keep:'請保持此頁面開啟', prep:'正在準備頁面…', asm:'正在合併 PDF…', perks:'福利與活動頁…', lets:'聯絡我們頁…', loc:'第 {a} / {b} 個地點…', page:'第 {a} 頁（約 {b} 頁）', ready:'PDF 已完成', copied:'摘要已複製 — 可貼到 WhatsApp / 電郵。'},
+  'zh-hans': {building:'正在生成 PDF…', keep:'请保持此页面开启', prep:'正在准备页面…', asm:'正在合并 PDF…', perks:'福利与活动页…', lets:'联系我们页…', loc:'第 {a} / {b} 个地点…', page:'第 {a} 页（约 {b} 页）', ready:'PDF 已完成', copied:'摘要已复制 — 可粘贴到 WhatsApp / 邮件。'},
+  'ja':      {building:'PDF を作成中…', keep:'この画面を閉じないでください', prep:'ページを準備中…', asm:'PDF を結合中…', perks:'特典・イベントページ…', lets:'お問い合わせページ…', loc:'拠点 {a} / {b}…', page:'ページ {a} / 約{b}', ready:'PDF 完成', copied:'概要をコピーしました — WhatsApp やメールに貼り付けできます。'},
+};
+function _pt(key,a,b){
+  const L=(typeof LANG!=='undefined'&&_PDF_I18N[LANG])?LANG:'en';
+  let s=(_PDF_I18N[L]&&_PDF_I18N[L][key])||_PDF_I18N['en'][key]||key;
+  if(a!==undefined)s=s.replace('{a}',a);
+  if(b!==undefined)s=s.replace('{b}',b);
+  return s;
 }
 
 // ── Mobile PDF progress overlay ───────────────────────────────────────────────
@@ -2965,14 +2986,14 @@ function _pdfOverlayShow(){
   if(document.getElementById('pdf-progress-overlay')) return;
   const d=document.createElement('div');
   d.id='pdf-progress-overlay';
-  d.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);';
+  d.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);';
   d.innerHTML=
-    '<div style="font-family:\'Hanken Grotesk\',sans-serif;font-size:16px;font-weight:800;color:#1A1A1A;">Building your PDF…</div>'
-   +'<div id="ppo-label" style="font-family:\'Hanken Grotesk\',sans-serif;margin-top:6px;font-size:12.5px;color:#888;">Preparing pages</div>'
+    '<div style="font-family:\'Hanken Grotesk\',\'Noto Sans TC\',\'Noto Sans JP\',sans-serif;font-size:16px;font-weight:800;color:#1A1A1A;">'+_pt('building')+'</div>'
+   +'<div id="ppo-label" style="font-family:\'Hanken Grotesk\',\'Noto Sans TC\',\'Noto Sans JP\',sans-serif;margin-top:6px;font-size:12.5px;color:#888;">'+_pt('prep')+'</div>'
    +'<div style="margin-top:16px;width:min(320px,72vw);height:8px;border-radius:6px;background:#EEE;overflow:hidden;">'
    +  '<div id="ppo-bar" style="height:100%;width:4%;background:#FF6600;border-radius:6px;transition:width .35s ease;"></div>'
    +'</div>'
-   +'<div style="font-family:\'Hanken Grotesk\',sans-serif;margin-top:12px;font-size:11px;color:#BBB;">Please keep this page open</div>';
+   +'<div style="font-family:\'Hanken Grotesk\',\'Noto Sans TC\',\'Noto Sans JP\',sans-serif;margin-top:12px;font-size:11px;color:#BBB;">'+_pt('keep')+'</div>';
   document.body.appendChild(d);
 }
 function _pdfOverlayUpdate(done,total,label){
@@ -3006,7 +3027,8 @@ function _estimatePdfPages(){
 }
 
 function _mobilePdfSetBtn(txt){
-  const lbl=document.getElementById('pdf-btn-label');
+  const btn=document.getElementById('hbtn-print');
+  const lbl=btn?btn.querySelector('span'):null;
   if(lbl){ if(txt){lbl.dataset._orig=lbl.dataset._orig||lbl.textContent;lbl.textContent=txt;} else if(lbl.dataset._orig){lbl.textContent=lbl.dataset._orig;delete lbl.dataset._orig;} }
 }
 
@@ -3024,14 +3046,39 @@ async function _collectProposalCanvases(onPage){
   return out;
 }
 
+// Short text summary of the proposal — attached to the iOS share (WhatsApp,
+// Mail…) and copied to the clipboard so BDMs can paste it with the PDF.
+function _buildShareSummary(){
+  try{
+    const locs=(typeof _emailGetLocations==='function')?_emailGetLocations():[];
+    const lines=[];
+    locs.forEach(L=>{
+      lines.push(`${L.locName||''}${L.floor?' '+L.floor:''}`.trim());
+      if(L.addr) lines.push(L.addr);
+      (L.rows||[]).slice(0,8).forEach(r=>{
+        const seat=r.seats||r.office||'';
+        const price=r.monthly||r.price||'';
+        if(seat) lines.push(`• ${seat}${price?' — '+price:''}`);
+      });
+      if(L.purl) lines.push(L.purl);
+      lines.push('');
+    });
+    return lines.join('\n').trim();
+  }catch(e){ return ''; }
+}
+
 async function downloadPDFMobile(){
   if(downloadPDFMobile._busy) return; downloadPDFMobile._busy=true;
   _mobilePdfSetBtn('Building…');
   const _est=_estimatePdfPages();
+  // Adaptive quality: big multi-location builds drop to 1.5× render scale +
+  // slightly stronger JPEG compression so older iPhones never run out of memory.
+  const _capScale=_est>8?1.5:2;
+  const _jpgQ=_est>8?0.88:0.92;
   let _done=0;
-  const _prog=lbl=>{_pdfOverlayUpdate(_done,_est,lbl||`Page ${_done} of ~${_est}`);};
+  const _prog=lbl=>{_pdfOverlayUpdate(_done,_est,lbl||_pt('page',_done,_est));};
   _pdfOverlayShow();
-  _prog('Preparing pages…');
+  _prog(_pt('prep'));
   try{
     showStatus('Building PDF — please wait a few seconds…','s-info');
     const pages=[];
@@ -3044,7 +3091,7 @@ async function downloadPDFMobile(){
           _mobilePdfSetBtn(`Page ${pages.length+1}…`);
           const item=PDF_QUEUE[qi];
           try{
-            _prog(`Location ${qi+1} of ${PDF_QUEUE.length}…`);
+            _prog(_pt('loc',qi+1,PDF_QUEUE.length));
             restoreStateSnapshot(item.state);
             if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
             (await _collectProposalCanvases(_onPage)).forEach(c=>pages.push(c));
@@ -3059,40 +3106,48 @@ async function downloadPDFMobile(){
     }
     // ── Perks + Let's Talk (once, at the end — same as print) ──
     _mobilePdfSetBtn('Perks…');
-    _prog('Perks & events page…');
+    _prog(_pt('perks'));
     if(typeof buildPerksPageHtml==='function'){
-      const cv=await _htmlPageToCanvas(buildPerksPageHtml()); if(cv){ pages.push(cv); _done++; _prog(); }
+      const cv=await _htmlPageToCanvas(buildPerksPageHtml(),_capScale); if(cv){ pages.push(cv); _done++; _prog(); }
     }
     if(typeof buildContactPageHtml==='function'){
       const ch=buildContactPageHtml();
-      if(ch){ _prog("Let's Talk page…"); const cv=await _htmlPageToCanvas(ch); if(cv){ pages.push(cv); _done++; _prog(); } }
+      if(ch){ _prog(_pt('lets')); const cv=await _htmlPageToCanvas(ch,_capScale); if(cv){ pages.push(cv); _done++; _prog(); } }
     }
     if(!pages.length) throw new Error('No pages captured');
 
     // ── Assemble true A4-landscape PDF ──
     _mobilePdfSetBtn('Saving…');
-    _pdfOverlayUpdate(_est,_est,'Assembling PDF…');
+    _pdfOverlayUpdate(_est,_est,_pt('asm'));
     const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
     const pdf=new jsPDFCtor({orientation:'landscape',unit:'mm',format:'a4',compress:true});
     pages.forEach((cv,i)=>{
       if(i>0) pdf.addPage();
-      pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,297,210);
+      pdf.addImage(cv.toDataURL('image/jpeg',_jpgQ),'JPEG',0,0,297,210);
     });
     const name=(typeof getExportName==='function'?getExportName():'compass-proposal')+'.pdf';
 
     // ── iOS share sheet (Save to Files / Mail / AirDrop), fallback download ──
     let shared=false;
+    const _summary=_buildShareSummary();
     try{
       const blob=pdf.output('blob');
       const file=new File([blob], name, {type:'application/pdf'});
       if(navigator.canShare && navigator.canShare({files:[file]})){
-        await navigator.share({files:[file], title:name});
+        const payload={files:[file], title:name};
+        if(_summary) payload.text=_summary;      // WhatsApp / Mail can carry it
+        await navigator.share(payload);
         shared=true;
       }
     }catch(e){ if(e&&e.name==='AbortError') shared=true; /* user closed sheet */ }
     _pdfOverlayDone();
     if(!shared) pdf.save(name);
-    showStatus(`✓ PDF ready — ${pages.length} page${pages.length>1?'s':''}.`,'s-ok');
+    // Clipboard copy of the summary (best-effort — some browsers block after await)
+    let _copied=false;
+    if(_summary && navigator.clipboard && navigator.clipboard.writeText){
+      try{ await navigator.clipboard.writeText(_summary); _copied=true; }catch(e){}
+    }
+    showStatus(`✓ ${_pt('ready')} — ${pages.length} p.${_copied?' '+_pt('copied'):''}`,'s-ok');
   }catch(e){
     console.error('[mobile pdf]',e);
     showStatus('PDF build failed — please try again, or use a desktop browser.','s-err');
@@ -3915,4 +3970,107 @@ function _stripUpdatePreview(){
   const dcl = document.getElementById('mob-cl-input');
   if(dco) dco.value = co;
   if(dcl) dcl.value = cl;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MOBILE PREVIEW PINCH-ZOOM
+//  A4 pages are unreadable at phone width. Adds pinch-to-zoom, one-finger pan
+//  (while zoomed) and double-tap zoom to the preview — form zoom-lock stays.
+// ══════════════════════════════════════════════════════════════════════════════
+function _zClamp(v,min,max){ return v<min?min:(v>max?max:v); }
+function initPreviewZoom(){
+  if(initPreviewZoom._done) return; 
+  const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  if(!isTouch) return;
+  const prev=document.querySelector('.preview');
+  if(!prev) return;
+  initPreviewZoom._done=true;
+  // Wrap existing preview children so we can transform them as one
+  const z=document.createElement('div');
+  z.id='preview-zoom';
+  z.style.cssText='transform-origin:0 0;will-change:transform;';
+  while(prev.firstChild) z.appendChild(prev.firstChild);
+  prev.appendChild(z);
+
+  let S=1, TX=0, TY=0;
+  const apply=(anim)=>{
+    z.style.transition=anim?'transform .18s ease':'none';
+    z.style.transform=`translate(${TX}px,${TY}px) scale(${S})`;
+    prev.style.overflow = S>1.01 ? 'hidden' : '';
+    prev.style.touchAction = S>1.01 ? 'none' : '';
+  };
+  const reset=()=>{ S=1;TX=0;TY=0;apply(true); };
+  const boundPan=()=>{
+    const r=prev.getBoundingClientRect();
+    TX=_zClamp(TX, r.width -z.scrollWidth*S, 0);
+    TY=_zClamp(TY, r.height-z.scrollHeight*S, 0);
+    if(z.scrollWidth*S<=r.width)  TX=_zClamp(TX, 0, r.width -z.scrollWidth*S);
+    if(z.scrollHeight*S<=r.height)TY=0;
+  };
+
+  let g=null;           // active 2-finger gesture
+  let pan=null;         // active 1-finger pan
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+  const mid =t=>({x:(t[0].clientX+t[1].clientX)/2, y:(t[0].clientY+t[1].clientY)/2});
+
+  prev.addEventListener('touchstart',e=>{
+    if(e.touches.length===2){
+      const r=prev.getBoundingClientRect();
+      g={d0:dist(e.touches), m0:mid(e.touches), S0:S, TX0:TX, TY0:TY, rx:r.left, ry:r.top};
+      pan=null;
+      e.preventDefault();
+    }else if(e.touches.length===1 && S>1.01){
+      pan={x:e.touches[0].clientX, y:e.touches[0].clientY};
+    }
+  },{passive:false});
+
+  prev.addEventListener('touchmove',e=>{
+    if(g && e.touches.length===2){
+      e.preventDefault();
+      const k=_zClamp(dist(e.touches)/g.d0, 0.35, 8);
+      const ns=_zClamp(g.S0*k, 1, 4);
+      const m=mid(e.touches);
+      const cx=g.m0.x-g.rx, cy=g.m0.y-g.ry;              // pinch centre in preview coords
+      TX = (m.x-g.rx) - (cx - g.TX0) * (ns/g.S0);
+      TY = (m.y-g.ry) - (cy - g.TY0) * (ns/g.S0);
+      S=ns; boundPan(); apply(false);
+    }else if(pan && e.touches.length===1 && S>1.01){
+      e.preventDefault();
+      TX += e.touches[0].clientX - pan.x;
+      TY += e.touches[0].clientY - pan.y;
+      pan={x:e.touches[0].clientX, y:e.touches[0].clientY};
+      boundPan(); apply(false);
+    }
+  },{passive:false});
+
+  prev.addEventListener('touchend',e=>{
+    if(g && e.touches.length<2){
+      g=null;
+      if(S<1.06) reset();
+    }
+    if(e.touches.length===0) pan=null;
+  });
+
+  // Double-tap: zoom to 2.2× at the tap point, or reset
+  let lastTap=0;
+  prev.addEventListener('touchend',e=>{
+    if(e.touches.length===0 && e.changedTouches.length===1 && !g){
+      const now=Date.now();
+      if(now-lastTap<300){
+        const t=e.changedTouches[0];
+        const r=prev.getBoundingClientRect();
+        if(S>1.01){ reset(); }
+        else{
+          const ns=2.2;
+          const cx=t.clientX-r.left, cy=t.clientY-r.top;
+          TX = cx - (cx - TX) * (ns/S);
+          TY = cy - (cy - TY) * (ns/S);
+          S=ns; boundPan(); apply(true);
+        }
+        e.preventDefault();
+      }
+      lastTap=now;
+    }
+  },{passive:false});
 }
