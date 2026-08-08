@@ -2959,19 +2959,66 @@ async function _htmlPageToCanvas(html){
   finally{ host.remove(); }
 }
 
+// ── Mobile PDF progress overlay ───────────────────────────────────────────────
+// Full-screen progress bar so phone users can see the PDF is being built.
+function _pdfOverlayShow(){
+  if(document.getElementById('pdf-progress-overlay')) return;
+  const d=document.createElement('div');
+  d.id='pdf-progress-overlay';
+  d.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);';
+  d.innerHTML=
+    '<div style="font-family:\'Hanken Grotesk\',sans-serif;font-size:16px;font-weight:800;color:#1A1A1A;">Building your PDF…</div>'
+   +'<div id="ppo-label" style="font-family:\'Hanken Grotesk\',sans-serif;margin-top:6px;font-size:12.5px;color:#888;">Preparing pages</div>'
+   +'<div style="margin-top:16px;width:min(320px,72vw);height:8px;border-radius:6px;background:#EEE;overflow:hidden;">'
+   +  '<div id="ppo-bar" style="height:100%;width:4%;background:#FF6600;border-radius:6px;transition:width .35s ease;"></div>'
+   +'</div>'
+   +'<div style="font-family:\'Hanken Grotesk\',sans-serif;margin-top:12px;font-size:11px;color:#BBB;">Please keep this page open</div>';
+  document.body.appendChild(d);
+}
+function _pdfOverlayUpdate(done,total,label){
+  const bar=document.getElementById('ppo-bar');
+  const lbl=document.getElementById('ppo-label');
+  if(bar){
+    const pct=(total>0)?Math.min(96, 4+Math.round((done/total)*92)):50;
+    bar.style.width=pct+'%';
+  }
+  if(lbl&&label) lbl.textContent=label;
+}
+function _pdfOverlayDone(){
+  const bar=document.getElementById('ppo-bar');
+  if(bar) bar.style.width='100%';
+}
+function _pdfOverlayHide(){
+  const d=document.getElementById('pdf-progress-overlay');
+  if(d) setTimeout(()=>d.remove(), 350);
+}
+// Rough page-count estimate for the progress bar ("~N pages")
+function _estimatePdfPages(){
+  const per=st=>{
+    const ex=(st&&st.extra_masters)?st.extra_masters.length
+            :((typeof EXTRA_MASTERS!=='undefined')?EXTRA_MASTERS.length:0);
+    return 2+ex;
+  };
+  let n=PDF_QUEUE.length ? PDF_QUEUE.reduce((a,it)=>a+per(it.state),0) : per(null);
+  n+=1;                                                     // perks
+  try{ if(typeof _profileReady==='function'&&_profileReady()) n+=1; }catch(e){}
+  return Math.max(1,n);
+}
+
 function _mobilePdfSetBtn(txt){
   const lbl=document.getElementById('pdf-btn-label');
   if(lbl){ if(txt){lbl.dataset._orig=lbl.dataset._orig||lbl.textContent;lbl.textContent=txt;} else if(lbl.dataset._orig){lbl.textContent=lbl.dataset._orig;delete lbl.dataset._orig;} }
 }
 
 // Collect the current proposal's pages as canvases (same order as print).
-async function _collectProposalCanvases(){
+async function _collectProposalCanvases(onPage){
   const out=[];
-  const cv1=await slideToCanvas('slide');  if(cv1) out.push(cv1);
+  const _tick=()=>{ try{ if(onPage) onPage(out.length); }catch(e){} };
+  const cv1=await slideToCanvas('slide');  if(cv1){ out.push(cv1); _tick(); }
   const p2=document.getElementById('slide2');
-  if(p2){ const cv2=await slideToCanvas('slide2'); if(cv2) out.push(cv2); }
+  if(p2){ const cv2=await slideToCanvas('slide2'); if(cv2){ out.push(cv2); _tick(); } }
   if(typeof EXTRA_MASTERS!=='undefined' && EXTRA_MASTERS.length && typeof captureExtraMasterPagesAsync==='function'){
-    try{ (await captureExtraMasterPagesAsync('canvas')).forEach(c=>c&&out.push(c)); }
+    try{ (await captureExtraMasterPagesAsync('canvas')).forEach(c=>{ if(c){ out.push(c); _tick(); } }); }
     catch(e){ console.warn('[mobile pdf] extras:',e); }
   }
   return out;
@@ -2980,9 +3027,15 @@ async function _collectProposalCanvases(){
 async function downloadPDFMobile(){
   if(downloadPDFMobile._busy) return; downloadPDFMobile._busy=true;
   _mobilePdfSetBtn('Building…');
+  const _est=_estimatePdfPages();
+  let _done=0;
+  const _prog=lbl=>{_pdfOverlayUpdate(_done,_est,lbl||`Page ${_done} of ~${_est}`);};
+  _pdfOverlayShow();
+  _prog('Preparing pages…');
   try{
     showStatus('Building PDF — please wait a few seconds…','s-info');
     const pages=[];
+    const _onPage=()=>{ _done++; _prog(); };
     if(PDF_QUEUE.length){
       // ── Queue: every queued location, restoring each snapshot ──
       const stash=buildStateSnapshot();
@@ -2991,9 +3044,10 @@ async function downloadPDFMobile(){
           _mobilePdfSetBtn(`Page ${pages.length+1}…`);
           const item=PDF_QUEUE[qi];
           try{
+            _prog(`Location ${qi+1} of ${PDF_QUEUE.length}…`);
             restoreStateSnapshot(item.state);
             if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
-            (await _collectProposalCanvases()).forEach(c=>pages.push(c));
+            (await _collectProposalCanvases(_onPage)).forEach(c=>pages.push(c));
           }catch(e){ console.warn('[mobile pdf] queue item',qi,e); }
         }
       }finally{
@@ -3001,21 +3055,23 @@ async function downloadPDFMobile(){
         if(typeof _waitForCardReady==='function'){ try{ await _waitForCardReady(); }catch(e){} }
       }
     }else{
-      (await _collectProposalCanvases()).forEach(c=>pages.push(c));
+      (await _collectProposalCanvases(_onPage)).forEach(c=>pages.push(c));
     }
     // ── Perks + Let's Talk (once, at the end — same as print) ──
     _mobilePdfSetBtn('Perks…');
+    _prog('Perks & events page…');
     if(typeof buildPerksPageHtml==='function'){
-      const cv=await _htmlPageToCanvas(buildPerksPageHtml()); if(cv) pages.push(cv);
+      const cv=await _htmlPageToCanvas(buildPerksPageHtml()); if(cv){ pages.push(cv); _done++; _prog(); }
     }
     if(typeof buildContactPageHtml==='function'){
       const ch=buildContactPageHtml();
-      if(ch){ const cv=await _htmlPageToCanvas(ch); if(cv) pages.push(cv); }
+      if(ch){ _prog("Let's Talk page…"); const cv=await _htmlPageToCanvas(ch); if(cv){ pages.push(cv); _done++; _prog(); } }
     }
     if(!pages.length) throw new Error('No pages captured');
 
     // ── Assemble true A4-landscape PDF ──
     _mobilePdfSetBtn('Saving…');
+    _pdfOverlayUpdate(_est,_est,'Assembling PDF…');
     const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
     const pdf=new jsPDFCtor({orientation:'landscape',unit:'mm',format:'a4',compress:true});
     pages.forEach((cv,i)=>{
@@ -3034,12 +3090,14 @@ async function downloadPDFMobile(){
         shared=true;
       }
     }catch(e){ if(e&&e.name==='AbortError') shared=true; /* user closed sheet */ }
+    _pdfOverlayDone();
     if(!shared) pdf.save(name);
     showStatus(`✓ PDF ready — ${pages.length} page${pages.length>1?'s':''}.`,'s-ok');
   }catch(e){
     console.error('[mobile pdf]',e);
     showStatus('PDF build failed — please try again, or use a desktop browser.','s-err');
   }finally{
+    _pdfOverlayHide();
     _mobilePdfSetBtn(null);
     downloadPDFMobile._busy=false;
   }
