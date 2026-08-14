@@ -318,6 +318,7 @@ html,body{margin:0;padding:0;height:100%}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.5.24/build/index.umd.cjs"></script>
 <script>
 /* ================= CONFIG — fill these in ================= */
 const CONFIG = {
@@ -524,6 +525,13 @@ let yaw = 0, pitch = 0, walkY = 1.6, bounds = null;
 const keys = {};
 const giftMeshes = {}; // giftId -> THREE.Group
 const moveVec = { x:0, y:0 };  // joystick
+const collisionMeshes = [];
+let bvhReady = false;
+if (window.MeshBVHLib){
+  THREE.BufferGeometry.prototype.computeBoundsTree = MeshBVHLib.computeBoundsTree;
+  THREE.BufferGeometry.prototype.disposeBoundsTree = MeshBVHLib.disposeBoundsTree;
+  THREE.Mesh.prototype.raycast = MeshBVHLib.acceleratedRaycast;
+}
 
 function makeGiftMesh(){
   const g = new THREE.Group();
@@ -590,10 +598,15 @@ function initEngine(){
     officeModel = gltf.scene;
     officeModel.rotation.x = -Math.PI/2;           // Matterport is Z-up
     officeModel.updateMatrixWorld(true);
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
     officeModel.traverse(o => {
       if (o.isMesh){
         const map = o.material && o.material.map;
+        if (map){ map.anisotropy = maxAniso; map.needsUpdate = true; }
         o.material = new THREE.MeshBasicMaterial({ map: map || null, color: map ? 0xffffff : 0x888888 });
+        if (window.MeshBVHLib){
+          try { o.geometry.computeBoundsTree(); collisionMeshes.push(o); bvhReady = true; } catch(e){}
+        }
       }
     });
     scene.add(officeModel);
@@ -697,6 +710,23 @@ function tapClaim(cx, cy){
   attemptClaim(node.userData.giftId);
 }
 
+const _collRay = new THREE.Raycaster();
+_collRay.firstHitOnly = true;
+const _collOrigin = new THREE.Vector3(), _collDir = new THREE.Vector3();
+function wallBlocked(dx, dz){
+  if (!bvhReady || (!dx && !dz)) return false;
+  _collDir.set(dx, 0, dz).normalize();
+  const RADIUS = 0.4; // how close you can get to a wall
+  for (const h of [walkY - 0.25, walkY - 1.0]){ // head-ish and knee height
+    _collOrigin.set(camera.position.x, h, camera.position.z);
+    _collRay.set(_collOrigin, _collDir);
+    _collRay.far = RADIUS;
+    const hits = _collRay.intersectObjects(collisionMeshes, false);
+    if (hits.length) return true;
+  }
+  return false;
+}
+
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
@@ -711,8 +741,11 @@ function animate(){
   if (fwd || str){
     const len = Math.hypot(fwd, str) || 1;
     const sin = Math.sin(yaw), cos = Math.cos(yaw);
-    camera.position.x += (( -sin*fwd ) + ( cos*str )) / len * speed * dt;
-    camera.position.z += (( -cos*fwd ) + ( -sin*str )) / len * speed * dt;
+    const dx = (( -sin*fwd ) + ( cos*str )) / len * speed * dt;
+    const dz = (( -cos*fwd ) + ( -sin*str )) / len * speed * dt;
+    // axis-separated collision: blocked on one axis still slides along the other
+    if (!wallBlocked(dx, 0)) camera.position.x += dx;
+    if (!wallBlocked(0, dz)) camera.position.z += dz;
   }
   if (bounds){
     camera.position.x = Math.max(bounds.min.x+0.3, Math.min(bounds.max.x-0.3, camera.position.x));
