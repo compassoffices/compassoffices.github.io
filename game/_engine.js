@@ -65,11 +65,86 @@ function covBuildWorld(scene){
   const M_CEIL = new THREE.MeshLambertMaterial({ color: 0xF2EDE3, emissive: 0x35302a });
   const M_GLASS = new THREE.MeshLambertMaterial({ color: 0xA9CFEC, transparent: true, opacity: 0.25, depthWrite: false });
 
+  // ---- procedural materials, styled after the real space photos ----
+  function canvasTex(size, draw){
+    const cv = document.createElement("canvas"); cv.width = cv.height = size;
+    draw(cv.getContext("2d"), size);
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  }
+  const oakTones = ["#DDBE93","#D0AE82","#E4C79E","#D6B58A","#CCA97B"];
+  const texHerring = canvasTex(256, (ctx, S) => {
+    ctx.fillStyle = "#D5B58B"; ctx.fillRect(0, 0, S, S);
+    const u = S/8;
+    for (let i = -10; i < 20; i++){
+      for (let j = -2; j < 10; j++){
+        ctx.save();
+        ctx.translate(i*u, j*u*2 + (((i%2)+2)%2)*u);
+        ctx.rotate(Math.PI/4);
+        ctx.fillStyle = oakTones[((i*7 + j*13) % 5 + 5) % 5];
+        ctx.fillRect(0, 0, u*2.83, u*0.71);
+        ctx.strokeStyle = "rgba(120,90,60,.3)"; ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, u*2.83, u*0.71);
+        ctx.restore();
+      }
+    }
+  });
+  const texCarpet = canvasTex(128, (ctx, S) => {
+    const t2 = S/2;
+    for (const q of [[0,0,"#72767B"],[t2,0,"#797D82"],[0,t2,"#7C8085"],[t2,t2,"#6F7378"]]){
+      ctx.fillStyle = q[2]; ctx.fillRect(q[0], q[1], t2, t2);
+    }
+    for (let i = 0; i < 450; i++){
+      ctx.fillStyle = (i % 2) ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.07)";
+      ctx.fillRect(Math.random()*S, Math.random()*S, 1.5, 1.5);
+    }
+  });
+  const texCheck = canvasTex(128, (ctx, S) => {
+    const q = S/4;
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++){
+      ctx.fillStyle = (i+j) % 2 ? "#161616" : "#F2EEE6";
+      ctx.fillRect(i*q, j*q, q, q);
+    }
+  });
+
+  function zoneFloor(rects, tex, worldPerTile, y){
+    const n = rects.length;
+    const pos = new Float32Array(n*18), nor = new Float32Array(n*18), uvA = new Float32Array(n*12);
+    for (let i = 0; i < n; i++){
+      const r = rects[i];
+      const x0 = r[0], z0 = r[1], x1 = r[0]+r[2], z1 = r[1]+r[3];
+      const P = [x0,z0, x0,z1, x1,z1, x0,z0, x1,z1, x1,z0];
+      for (let k = 0; k < 6; k++){
+        pos[i*18+k*3] = P[k*2]; pos[i*18+k*3+1] = y; pos[i*18+k*3+2] = P[k*2+1];
+        nor[i*18+k*3+1] = 1;
+        uvA[i*12+k*2] = P[k*2]/worldPerTile; uvA[i*12+k*2+1] = P[k*2+1]/worldPerTile;
+      }
+    }
+    const G = new THREE.BufferGeometry();
+    G.setAttribute("position", new THREE.BufferAttribute(pos,3));
+    G.setAttribute("normal", new THREE.BufferAttribute(nor,3));
+    G.setAttribute("uv", new THREE.BufferAttribute(uvA,2));
+    const mesh = new THREE.Mesh(G, new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+    scene.add(mesh); covPickables.push(mesh);
+  }
+
   // ---- architecture ----
   const M_TINT = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  _covInstanced(scene, L.wood,   M_WOOD, -0.05, 0.05, true);
+  _covInstanced(scene, L.wood,   M_WOOD, -0.05, 0.05, true);   // underlay slabs
   _covInstanced(scene, L.carpet, M_CARP, -0.05, 0.05, true);
-  _covInstanced(scene, L.walls,  L.wallC ? M_TINT : M_WALL, 0, L.wallH, false, L.wallC, 0.30); // real sampled wall colors
+  zoneFloor(L.wood, texHerring, 1.9, 0.012);                   // herringbone oak
+  zoneFloor(L.carpet, texCarpet, 1.0, 0.012);                  // carpet tiles
+  // walls: white where the scan reads light; walnut/marble tones keep their sampled color
+  let wallCols = null;
+  if (L.wallC){
+    wallCols = L.wallC.map(hx => {
+      const c = new THREE.Color("#" + (hx || "F4F1EA"));
+      const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
+      return lum > 0.42 ? "F4F1EA" : hx;
+    });
+  }
+  _covInstanced(scene, L.walls,  wallCols ? M_TINT : M_WALL, 0, L.wallH, false, wallCols, 0.12);
   _covInstanced(scene, L.cores,  M_CORE, 0, L.wallH, false);
   _covInstanced(scene, L.windows, M_WALL, 0, 0.8, true);        // sill
   _covInstanced(scene, L.windows, M_GLASS, 0.8, 1.65, false);   // glass band
@@ -77,26 +152,42 @@ function covBuildWorld(scene){
   const ceilRects = L.wood.concat(L.carpet, L.cores, L.windows);
   _covInstanced(scene, ceilRects, M_CEIL, L.wallH, 0.08, false);
 
-  // ---- real floor + ceiling imagery from the scan ----
-  const worldW = L.gw*L.cell, worldH = L.gh*L.cell;
-  const wcx = L.origin[0] + worldW/2, wcz = L.origin[1] + worldH/2;
-  if (L.floorTex){
-    const tex = new THREE.TextureLoader().load(L.floorTex);
-    tex.anisotropy = 8;
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(worldW, worldH),
-      new THREE.MeshLambertMaterial({ map: tex, transparent: true }));
-    p.rotation.x = -Math.PI/2;
-    p.position.set(wcx, 0.02, wcz);
-    scene.add(p);
-    covPickables.push(p);
+  // recessed LED panels over office (carpet) areas — like the real ceiling grid
+  {
+    const panels = [];
+    for (const r of L.carpet){
+      if (r[2] < 1.2 || r[3] < 1.2) continue;
+      const nx = Math.max(1, Math.round(r[2]/2.8)), nz = Math.max(1, Math.round(r[3]/2.8));
+      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
+        panels.push([r[0] + r[2]*(i+.5)/nx, r[1] + r[3]*(j+.5)/nz]);
+    }
+    if (panels.length){
+      const m = new THREE.InstancedMesh(new THREE.BoxGeometry(.6,.02,.6),
+        new THREE.MeshBasicMaterial({ color: 0xFFF6E2 }), panels.length);
+      const M = new THREE.Matrix4();
+      panels.forEach((p,i) => { M.makeTranslation(p[0], L.wallH-.05, p[1]); m.setMatrixAt(i,M); });
+      m.instanceMatrix.needsUpdate = true;
+      scene.add(m);
+    }
   }
-  if (L.ceilTex){
-    const tex = new THREE.TextureLoader().load(L.ceilTex);
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(worldW, worldH),
-      new THREE.MeshLambertMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
-    p.rotation.x = Math.PI/2;
-    p.position.set(wcx, L.wallH - 0.02, wcz);
-    scene.add(p);
+
+  // checkered rug under the main lounge sofa (like the real one)
+  {
+    const inWood = (x,z) => L.wood.some(r => x >= r[0] && x <= r[0]+r[2] && z >= r[1] && z <= r[1]+r[3]);
+    let best = null;
+    for (const f of L.furniture)
+      if (f.t === "sofa" && inWood(f.x, f.z) && (!best || f.w*f.d > best.w*best.d)) best = f;
+    if (best){
+      const rw = Math.max(best.w, best.d) + 1.8, rd = Math.min(best.w, best.d) + 2.4;
+      const tex2 = texCheck.clone(); tex2.needsUpdate = true;
+      tex2.wrapS = tex2.wrapT = THREE.RepeatWrapping;
+      tex2.repeat.set(rw/1.5, rd/1.5);
+      const rug = new THREE.Mesh(new THREE.PlaneGeometry(rw, rd),
+        new THREE.MeshLambertMaterial({ map: tex2 }));
+      rug.rotation.set(-Math.PI/2, 0, (best.w >= best.d) ? 0 : Math.PI/2);
+      rug.position.set(best.x, 0.025, best.z + 0.4);
+      scene.add(rug);
+    }
   }
 
   // ---- fairy lights along the window band ----
@@ -160,34 +251,59 @@ function covBuildWorld(scene){
     }
   }
 
+  const RATTAN = new THREE.Color(0xC8A36B), CHAIRBLACK = new THREE.Color(0x232326),
+        OAKTOP = new THREE.Color(0xD8B98E);
   const B = {
     sofa(lp, LW, LD, f){
-      const c = new THREE.Color(f.c ? "#"+f.c : 0xD9CDB8);
-      lp(_boxG, c, 0, .15, LD*.03, LW, .30, LD*.85);                        // base
-      lp(_boxG, shade(c,.92), 0, .55, -LD/2+.09, LW, .40, .17);             // backrest
-      lp(_boxG, shade(c,.90), -(LW/2-.09), .27, 0, .17, .52, LD*.85);       // arms
-      lp(_boxG, shade(c,.90),  (LW/2-.09), .27, 0, .17, .52, LD*.85);
+      // cream sofa on thin black legs (like the lounge sofas)
+      const c = new THREE.Color(f.c ? "#"+f.c : 0xDDD5C4);
+      for (const sx of [-1,1]) for (const sz of [-1,1])
+        lp(_boxG, CHAIRBLACK, sx*(LW/2-.1), .06, sz*(LD*.42-.06), .05, .12, .05);
+      lp(_boxG, c, 0, .27, LD*.03, LW, .30, LD*.85);                        // base
+      lp(_boxG, shade(c,.94), 0, .62, -LD/2+.09, LW, .42, .17);             // backrest
+      lp(_boxG, shade(c,.92), -(LW/2-.09), .38, 0, .17, .52, LD*.85);       // arms
+      lp(_boxG, shade(c,.92),  (LW/2-.09), .38, 0, .17, .52, LD*.85);
       const n = Math.max(1, Math.round(LW/.75));
       const cw = (LW-.4)/n;
       for (let i=0;i<n;i++)
-        lp(_boxG, shade(c,1.08), -(LW-.4)/2 + cw*(i+.5), .375, LD*.05, cw*.92, .13, LD*.8-.14);
+        lp(_boxG, shade(c,1.07), -(LW-.4)/2 + cw*(i+.5), .485, LD*.05, cw*.92, .13, LD*.8-.14);
     },
-    chair(lp, LW, LD, f){ B.sofa(lp, Math.min(LW,.9), Math.min(LD,.85), f); },
-    desk(lp, LW, LD, f){
-      const c = new THREE.Color(f.c ? "#"+f.c : 0x8B6748);
-      const topD = Math.min(LD, .8), tz = -(LD-topD)/2;
-      lp(_boxG, c, 0, .725, tz, LW, .05, topD);                             // top
-      for (const sx of [-1,1]) for (const sz of [-1,1])
-        lp(_boxG, DARK, sx*(LW/2-.07), .35, tz+sz*(topD/2-.07), .05, .70, .05);
-      if (f.h > 1.0){                                                        // monitor
-        lp(_boxG, SCREEN, 0, 1.05, tz-topD*.18, .52, .32, .03);
-        lp(_boxG, DARK, 0, .84, tz-topD*.16, .07, .16, .05);
+    chair(lp, LW, LD, f){
+      const c = new THREE.Color(f.c ? "#"+f.c : 0xD8CFC0);
+      const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
+      const W = Math.min(LW,.8), D = Math.min(LD,.8);
+      if (lum < 0.40){
+        // black-frame rattan armchair (like the Jeanneret-style chairs)
+        for (const sx of [-1,1]) for (const sz of [-1,1])
+          lp(_boxG, CHAIRBLACK, sx*(W/2-.04), .2, sz*(D/2-.04), .05, .4, .05);
+        lp(_boxG, RATTAN, 0, .40, 0, W-.06, .05, D-.06);                    // woven seat
+        lp(_boxG, RATTAN, 0, .68, -D/2+.05, W-.08, .5, .04, 0);             // woven back
+        lp(_boxG, CHAIRBLACK, -(W/2-.03), .55, 0, .04, .04, D-.05);         // arms
+        lp(_boxG, CHAIRBLACK,  (W/2-.03), .55, 0, .04, .04, D-.05);
+      } else {
+        // upholstered tub chair (cafe style)
+        lp(_cylG, c, 0, .25, 0, W*.95, .42, D*.95);
+        lp(_boxG, shade(c,.93), 0, .55, -D*.3, W*.85, .35, .12);
+        lp(_cylG, CHAIRBLACK, 0, .02, 0, W*.5, .04, D*.5);
       }
-      const cz = tz + topD/2 + .3;                                           // task chair
-      lp(_boxG, METAL, 0, .45, cz, .43, .05, .41);
-      lp(_boxG, METAL, 0, .70, cz+.19, .41, .45, .05);
-      lp(_cylG, DARK, 0, .23, cz, .12, .42, .12);
-      lp(_cylG, DARK, 0, .02, cz, .45, .04, .45);
+    },
+    desk(lp, LW, LD, f){
+      // light oak top, slim black legs, black mesh task chair (like the offices)
+      const base = new THREE.Color(f.c ? "#"+f.c : 0xD8B98E);
+      const c = base.clone().lerp(OAKTOP, .55);
+      const topD = Math.min(LD, .8), tz = -(LD-topD)/2;
+      lp(_boxG, c, 0, .725, tz, LW, .05, topD);
+      for (const sx of [-1,1]) for (const sz of [-1,1])
+        lp(_boxG, CHAIRBLACK, sx*(LW/2-.06), .35, tz+sz*(topD/2-.06), .045, .70, .045);
+      if (f.h > 1.0){
+        lp(_boxG, SCREEN, 0, 1.05, tz-topD*.18, .52, .32, .03);
+        lp(_boxG, CHAIRBLACK, 0, .84, tz-topD*.16, .07, .16, .05);
+      }
+      const cz = tz + topD/2 + .3;
+      lp(_boxG, CHAIRBLACK, 0, .46, cz, .45, .06, .43);                      // seat
+      lp(_boxG, new THREE.Color(0x3A3A40), 0, .74, cz+.2, .43, .5, .05);     // mesh back
+      lp(_cylG, CHAIRBLACK, 0, .23, cz, .1, .42, .1);
+      lp(_cylG, CHAIRBLACK, 0, .02, cz, .46, .04, .46);
     },
     table(lp, LW, LD, f){
       const c = new THREE.Color(f.c ? "#"+f.c : 0xB9AB94);
