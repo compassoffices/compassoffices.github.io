@@ -123,7 +123,10 @@ html,body{margin:0;padding:0}
   <h2>Hiding spots — placement</h2>
   <p class="sub">Walk the model below — drag to look, WASD or arrow keys to move, Shift to run. Click any surface (shelf, desk, plant, corner) to drop a hiding spot there. Grey markers are your spots: click one to remove it. Spots are candidates only — each round randomly picks from them, so record plenty.</p>
   <canvas id="c3d"></canvas>
-  <div style="margin-top:12px"><span class="sub" id="mp-status" style="margin:0">Loading the 3D model…</span></div>
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn ghost" id="btn-spawn">Set player start to my position</button>
+    <span class="sub" id="mp-status" style="margin:0">Loading the 3D model…</span>
+  </div>
   <div class="spotlist" id="spotlist" style="margin-top:12px"></div>
 </div>
 
@@ -146,12 +149,10 @@ html,body{margin:0;padding:0}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="layout.js"></script>
 <script>
 /* ====== CONFIG — keep identical to index.html ====== */
 const CONFIG = {
-  MODEL_URL: "office.glb",
   FIREBASE: {
     apiKey: "PASTE_FIREBASE_API_KEY",
     databaseURL: "PASTE_FIREBASE_DATABASE_URL",
@@ -278,11 +279,256 @@ $("btn-csv").onclick = () => {
   a.download = "gift-hunt-players.csv"; a.click();
 };
 
-/* ---- Three.js placement ---- */
-let scene, camera, renderer, officeModel, clock, bounds = null, walkY = 1.6;
-let yaw = 0, pitch = 0;
+/* ---- Festive world placement ---- */
+let scene, camera, renderer, clock;
+let yaw = 0, pitch = 0, walkY = 1.55;
 const keys = {};
 const spotMarkers = {}; // spotKey -> mesh
+
+/* ============ SHARED FESTIVE WORLD BUILDER (inlined into both pages) ============ */
+/* Requires: THREE (r128), LAYOUT (layout.js). Exposes: covBuildWorld(scene),
+   covWallAt(x,z), covPosBlocked(x,z), covPickables (array for raycasting surfaces),
+   covAnimateWorld(t, dt)  — call each frame for snow + twinkle. */
+
+let covPickables = [];
+let _covSnow = null, _covLights = [];
+const _covL = typeof LAYOUT !== "undefined" ? LAYOUT : null;
+let _covBits = null;
+
+function covWallAt(x, z){
+  const L = _covL; if (!L) return false;
+  const xi = Math.floor((x - L.origin[0]) / L.cell), zi = Math.floor((z - L.origin[1]) / L.cell);
+  if (xi < 0 || zi < 0 || xi >= L.gw || zi >= L.gh) return true;
+  const idx = zi * L.gw + xi;
+  return ((_covBits[idx >> 3] >> (7 - (idx & 7))) & 1) === 1;
+}
+function covPosBlocked(x, z){
+  const r = 0.28, q = r * 0.71;
+  return covWallAt(x+r,z) || covWallAt(x-r,z) || covWallAt(x,z+r) || covWallAt(x,z-r) ||
+         covWallAt(x+q,z+q) || covWallAt(x-q,z+q) || covWallAt(x+q,z-q) || covWallAt(x-q,z-q);
+}
+
+function _covInstanced(scene, rects, mat, y0, h, pickable){
+  if (!rects.length) return null;
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), mat, rects.length);
+  const M = new THREE.Matrix4();
+  for (let i = 0; i < rects.length; i++){
+    const r = rects[i];
+    M.makeScale(r[2], h, r[3]);
+    M.setPosition(r[0] + r[2]/2, y0 + h/2, r[1] + r[3]/2);
+    m.setMatrixAt(i, M);
+  }
+  m.instanceMatrix.needsUpdate = true;
+  scene.add(m);
+  if (pickable) covPickables.push(m);
+  return m;
+}
+
+function covBuildWorld(scene){
+  const L = _covL;
+  _covBits = Uint8Array.from(atob(L.collision), c => c.charCodeAt(0));
+  covPickables = [];
+
+  // ---- lighting ----
+  scene.add(new THREE.HemisphereLight(0xfff3e0, 0x574838, 1.05));
+  const dir = new THREE.DirectionalLight(0xffe9c9, 0.55);
+  dir.position.set(30, 60, 15);
+  scene.add(dir);
+
+  // ---- materials ----
+  const M_WALL = new THREE.MeshLambertMaterial({ color: 0xF7F2EA });
+  const M_CORE = new THREE.MeshLambertMaterial({ color: 0xEAE3D7 });
+  const M_WOOD = new THREE.MeshLambertMaterial({ color: 0xC59B66 });
+  const M_CARP = new THREE.MeshLambertMaterial({ color: 0x9FA6B3 });
+  const M_CEIL = new THREE.MeshLambertMaterial({ color: 0xF2EDE3, emissive: 0x35302a });
+  const M_GLASS = new THREE.MeshLambertMaterial({ color: 0xA9CFEC, transparent: true, opacity: 0.25, depthWrite: false });
+
+  // ---- architecture ----
+  _covInstanced(scene, L.wood,   M_WOOD, -0.05, 0.05, true);
+  _covInstanced(scene, L.carpet, M_CARP, -0.05, 0.05, true);
+  _covInstanced(scene, L.walls,  M_WALL, 0, L.wallH, false);
+  _covInstanced(scene, L.cores,  M_CORE, 0, L.wallH, false);
+  _covInstanced(scene, L.windows, M_WALL, 0, 0.8, true);        // sill
+  _covInstanced(scene, L.windows, M_GLASS, 0.8, 1.65, false);   // glass band
+  _covInstanced(scene, L.windows, M_WALL, 2.45, 0.10, false);   // header
+  const ceilRects = L.wood.concat(L.carpet, L.cores, L.windows);
+  _covInstanced(scene, ceilRects, M_CEIL, L.wallH, 0.08, false);
+
+  // ---- fairy lights along the window band ----
+  const lightCols = [0xFF5A4E, 0xFFC94E, 0x59D98C];
+  const pts = [[],[],[]];
+  for (const r of L.windows){
+    const horiz = r[2] >= r[3];
+    const len = horiz ? r[2] : r[3];
+    const n = Math.floor(len / 0.8);
+    for (let i = 0; i < n; i++){
+      const t = (i + 0.5) / n;
+      const x = horiz ? r[0] + r[2]*t : r[0] + r[2]/2;
+      const z = horiz ? r[1] + r[3]/2 : r[1] + r[3]*t;
+      pts[(i + Math.floor(x+z)) % 3].push([x, 2.15 + Math.sin(i*1.3)*0.06, z]);
+    }
+  }
+  _covLights = [];
+  pts.forEach((arr, ci) => {
+    if (!arr.length) return;
+    const m = new THREE.InstancedMesh(new THREE.SphereGeometry(0.045, 6, 5),
+      new THREE.MeshBasicMaterial({ color: lightCols[ci] }), arr.length);
+    const M = new THREE.Matrix4();
+    arr.forEach((p, i) => { M.makeTranslation(p[0], p[1], p[2]); m.setMatrixAt(i, M); });
+    m.instanceMatrix.needsUpdate = true;
+    scene.add(m); _covLights.push(m.material);
+  });
+
+  // ---- furniture (stylized blocks, colored by height) ----
+  const fGroups = { sofa: [], desk: [], plant: [], low: [] };
+  for (const f of L.furniture){
+    const kind = f.h > 1.0 ? "plant" : (f.h > 0.75 ? "desk" : (f.h > 0.45 ? "sofa" : "low"));
+    fGroups[kind].push(f);
+  }
+  const fMats = {
+    sofa: new THREE.MeshLambertMaterial({ color: 0xD9CDB8 }),
+    desk: new THREE.MeshLambertMaterial({ color: 0x8B6748 }),
+    plant: new THREE.MeshLambertMaterial({ color: 0x4E7A4E }),
+    low: new THREE.MeshLambertMaterial({ color: 0xB9AB94 })
+  };
+  for (const kind of Object.keys(fGroups)){
+    const arr = fGroups[kind];
+    if (!arr.length) continue;
+    const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), fMats[kind], arr.length);
+    const M = new THREE.Matrix4();
+    arr.forEach((f, i) => {
+      const w = Math.max(0.25, f.w*0.9), d = Math.max(0.25, f.d*0.9);
+      M.makeScale(w, f.h, d);
+      M.setPosition(f.x, f.h/2, f.z);
+      m.setMatrixAt(i, M);
+    });
+    m.instanceMatrix.needsUpdate = true;
+    scene.add(m);
+    covPickables.push(m);
+  }
+
+  // ---- Christmas tree in the lounge ----
+  if (L.tree){
+    const g = new THREE.Group();
+    const [tx, tz, tr] = L.tree;
+    const s = Math.min(1, tr / 1.4);
+    const green = new THREE.MeshLambertMaterial({ color: 0x1E5C36 });
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09*s, 0.12*s, 0.5, 8),
+      new THREE.MeshLambertMaterial({ color: 0x6B4A2F }));
+    trunk.position.y = 0.25; g.add(trunk);
+    [[1.05, 1.15, 0.95], [0.8, 1.0, 1.6], [0.52, 0.85, 2.2]].forEach(c => {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(c[0]*s, c[1]*s, 10), green);
+      cone.position.y = c[2]*s; g.add(cone);
+    });
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.16*s),
+      new THREE.MeshBasicMaterial({ color: 0xFFD75E }));
+    star.position.y = 2.75*s; g.add(star);
+    const baubleCols = [0xFF5A4E, 0xFFC94E, 0x6EC1FF, 0xFF8FB0];
+    for (let i = 0; i < 34; i++){
+      const lvl = Math.random();
+      const rad = (1.0 - lvl*0.55) * s * (0.55 + Math.random()*0.35);
+      const ang = Math.random()*Math.PI*2;
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.05*s, 6, 5),
+        new THREE.MeshBasicMaterial({ color: baubleCols[i % 4] }));
+      b.position.set(Math.cos(ang)*rad, (0.6 + lvl*1.7)*s, Math.sin(ang)*rad);
+      g.add(b);
+    }
+    for (let i = 0; i < 6; i++){
+      const ang = i / 6 * Math.PI * 2;
+      const bx = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.28),
+        new THREE.MeshLambertMaterial({ color: baubleCols[i % 4] }));
+      bx.position.set(Math.cos(ang)*0.75*s, 0.1, Math.sin(ang)*0.75*s);
+      bx.rotation.y = ang;
+      g.add(bx);
+    }
+    g.position.set(tx, 0, tz);
+    scene.add(g);
+  }
+
+  // ---- outside: sky, ground, skyline, moon, snow ----
+  const cx = L.origin[0] + L.gw*L.cell/2, cz = L.origin[1] + L.gh*L.cell/2;
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(140, 20, 12), (() => {
+    const geo = null;
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false });
+    return mat;
+  })());
+  {
+    const pos = sky.geometry.attributes.position;
+    const cols = new Float32Array(pos.count * 3);
+    const top = new THREE.Color(0x0C1526), hor = new THREE.Color(0x3E5378);
+    for (let i = 0; i < pos.count; i++){
+      const t = Math.max(0, Math.min(1, pos.getY(i)/140 * 0.5 + 0.5));
+      const c = hor.clone().lerp(top, t);
+      cols[i*3] = c.r; cols[i*3+1] = c.g; cols[i*3+2] = c.b;
+    }
+    sky.geometry.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+    sky.position.set(cx, 0, cz);
+    scene.add(sky);
+  }
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(140, 24),
+    new THREE.MeshBasicMaterial({ color: 0x1B2740 }));
+  ground.rotation.x = -Math.PI/2; ground.position.set(cx, -0.4, cz);
+  scene.add(ground);
+
+  const skyMat = new THREE.MeshLambertMaterial({ color: 0x223252, emissive: 0x101a30 });
+  const towers = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), skyMat, 42);
+  {
+    const M = new THREE.Matrix4();
+    for (let i = 0; i < 42; i++){
+      const ang = i/42 * Math.PI*2 + (i%3)*0.05;
+      const rad = 55 + (i*37 % 30);
+      const w = 5 + (i*13 % 8), h = 14 + (i*29 % 34);
+      M.makeScale(w, h, w);
+      M.setPosition(cx + Math.cos(ang)*rad, h/2 - 0.4, cz + Math.sin(ang)*rad);
+      towers.setMatrixAt(i, M);
+    }
+    towers.instanceMatrix.needsUpdate = true;
+    scene.add(towers);
+  }
+  const moonCv = document.createElement("canvas"); moonCv.width = moonCv.height = 128;
+  const mctx = moonCv.getContext("2d");
+  const mg = mctx.createRadialGradient(64,64,18,64,64,64);
+  mg.addColorStop(0, "rgba(255,248,225,1)"); mg.addColorStop(0.35, "rgba(255,244,210,.75)"); mg.addColorStop(1, "rgba(255,244,210,0)");
+  mctx.fillStyle = mg; mctx.fillRect(0,0,128,128);
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(moonCv), transparent: true, fog: false }));
+  moon.scale.set(26,26,1);
+  moon.position.set(cx + 60, 55, cz - 70);
+  scene.add(moon);
+
+  // snow (outside the footprint)
+  {
+    const N = 1500;
+    const posArr = new Float32Array(N*3);
+    const halfW = L.gw*L.cell/2, halfH = L.gh*L.cell/2;
+    const rMin = Math.hypot(halfW, halfH) * 0.55;
+    for (let i = 0; i < N; i++){
+      const ang = Math.random()*Math.PI*2;
+      const rad = rMin + Math.random()*45;
+      posArr[i*3]   = cx + Math.cos(ang)*rad;
+      posArr[i*3+1] = Math.random()*22;
+      posArr[i*3+2] = cz + Math.sin(ang)*rad;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(posArr, 3));
+    _covSnow = new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0xFFFFFF, size: 0.14, transparent: true, opacity: 0.85, fog: false }));
+    scene.add(_covSnow);
+  }
+}
+
+function covAnimateWorld(t, dt){
+  if (_covSnow){
+    const p = _covSnow.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++){
+      let y = p.getY(i) - dt * (1.1 + (i % 5) * 0.18);
+      if (y < -0.4) y = 22;
+      p.setY(i, y);
+      p.setX(i, p.getX(i) + Math.sin(t*0.8 + i)*dt*0.15);
+    }
+    p.needsUpdate = true;
+  }
+}
+
 
 function init3D(){
   const canvas = $("c3d");
@@ -291,41 +537,18 @@ function init3D(){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xBFD4E2);
-  scene.fog = new THREE.Fog(0xBFD4E2, 22, 60);
-  camera = new THREE.PerspectiveCamera(72, 1, 0.05, 300);
+  scene.background = new THREE.Color(0x0C1526);
+  scene.fog = new THREE.Fog(0x27334F, 28, 90);
+  camera = new THREE.PerspectiveCamera(72, 1, 0.05, 320);
   camera.rotation.order = "YXZ";
   clock = new THREE.Clock();
+  covBuildWorld(scene);
+  const L = LAYOUT;
+  camera.position.set(L.tree ? L.tree[0]+2.2 : L.origin[0]+L.gw*L.cell/2, walkY,
+                      L.tree ? L.tree[1]+2.2 : L.origin[1]+L.gh*L.cell/2);
+  $("mp-status").textContent = "Ready — drag to look, WASD to walk (walls don't block you here), click surfaces to place spots.";
+  syncSpotMarkers();
 
-  const loader = new THREE.GLTFLoader();
-  const draco = new THREE.DRACOLoader();
-  draco.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
-  loader.setDRACOLoader(draco);
-  loader.load(CONFIG.MODEL_URL, gltf => {
-    officeModel = gltf.scene;
-    officeModel.rotation.x = -Math.PI/2;
-    officeModel.updateMatrixWorld(true);
-    const maxAniso = renderer.capabilities.getMaxAnisotropy();
-    officeModel.traverse(o => {
-      if (o.isMesh){
-        const map = o.material && o.material.map;
-        if (map){ map.anisotropy = maxAniso; map.needsUpdate = true; }
-        o.material = new THREE.MeshBasicMaterial({ map: map || null, color: map ? 0xffffff : 0x888888, side: THREE.DoubleSide });
-      }
-    });
-    scene.add(officeModel);
-    const bb = new THREE.Box3().setFromObject(officeModel);
-    bounds = bb; walkY = bb.min.y + 1.6;
-    camera.position.set((bb.min.x+bb.max.x)/2, walkY, (bb.min.z+bb.max.z)/2);
-    $("mp-status").textContent = "Ready — walk and click surfaces to place spots.";
-    syncSpotMarkers();
-    animate();
-  },
-  xhr => { if (xhr.total) $("mp-status").textContent = "Loading the 3D model… " + Math.round(xhr.loaded/xhr.total*100) + "%"; },
-  err => { console.error(err); $("mp-status").textContent = "Model failed to load — is office.glb next to this file?"; });
-
-  window.addEventListener("keydown", e => { if (document.activeElement === document.body) keys[e.code] = true; });
-  window.addEventListener("keyup",   e => keys[e.code] = false);
   const sizeCanvas = () => {
     const w = canvas.clientWidth || canvas.parentElement.clientWidth, h = 480;
     renderer.setSize(w, h, false);
@@ -333,7 +556,7 @@ function init3D(){
   };
   window.addEventListener("resize", sizeCanvas); sizeCanvas();
 
-  let lookId = null, lx=0, ly=0, moved=0;
+  let lookId = null, lx = 0, ly = 0, moved = 0;
   canvas.addEventListener("pointerdown", e => { lookId = e.pointerId; lx = e.clientX; ly = e.clientY; moved = 0; });
   canvas.addEventListener("pointermove", e => {
     if (e.pointerId !== lookId) return;
@@ -343,30 +566,25 @@ function init3D(){
     pitch = Math.max(-1.35, Math.min(1.35, pitch));
     lx = e.clientX; ly = e.clientY;
   });
-  const up = e => {
-    if (e.pointerId !== lookId) return;
-    if (moved < 8) clickPlace(e, canvas);
-    lookId = null;
-  };
+  const up = e => { if (e.pointerId !== lookId) return; if (moved < 8) clickPlace(e, canvas); lookId = null; };
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
+  window.addEventListener("keydown", e => { if (document.activeElement === document.body) keys[e.code] = true; });
+  window.addEventListener("keyup",   e => keys[e.code] = false);
+  animate();
 }
 
 function clickPlace(e, canvas){
-  if (!officeModel) return;
   const r = canvas.getBoundingClientRect();
   const ndc = new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   const rc = new THREE.Raycaster();
   rc.setFromCamera(ndc, camera);
-  // click a marker = delete it
   const markerHits = rc.intersectObjects(Object.values(spotMarkers), false);
   if (markerHits.length){ db.ref("game/spots/"+markerHits[0].object.userData.spotKey).remove(); return; }
-  const meshes = [];
-  officeModel.traverse(o => { if (o.isMesh) meshes.push(o); });
-  const hits = rc.intersectObjects(meshes, false);
+  const hits = rc.intersectObjects(covPickables, false);
   if (!hits.length) return;
   const p = hits[0].point;
-  db.ref("game/spots").push({ pos:{ x:p.x, y:p.y, z:p.z }, at: Date.now() });
+  db.ref("game/spots").push({ pos:{ x:p.x, y:Math.max(0, p.y), z:p.z }, at: Date.now() });
   $("mp-status").textContent = "Spot saved.";
 }
 
@@ -389,26 +607,25 @@ function syncSpotMarkers(){
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
+  const t = performance.now()/1000;
   let fwd = 0, str = 0;
   if (keys["KeyW"] || keys["ArrowUp"]) fwd += 1;
   if (keys["KeyS"] || keys["ArrowDown"]) fwd -= 1;
   if (keys["KeyA"] || keys["ArrowLeft"]) str -= 1;
   if (keys["KeyD"] || keys["ArrowRight"]) str += 1;
-  const speed = (keys["ShiftLeft"] || keys["ShiftRight"]) ? 4.2 : 2.4;
+  const speed = (keys["ShiftLeft"] || keys["ShiftRight"]) ? 5 : 2.8;
   if (fwd || str){
     const len = Math.hypot(fwd, str) || 1;
     const sin = Math.sin(yaw), cos = Math.cos(yaw);
     camera.position.x += (( -sin*fwd ) + ( cos*str )) / len * speed * dt;
     camera.position.z += (( -cos*fwd ) + ( -sin*str )) / len * speed * dt;
   }
-  if (bounds){
-    camera.position.x = Math.max(bounds.min.x+0.3, Math.min(bounds.max.x-0.3, camera.position.x));
-    camera.position.z = Math.max(bounds.min.z+0.3, Math.min(bounds.max.z-0.3, camera.position.z));
-    camera.position.y = walkY;
-  }
+  camera.position.y = walkY;
   camera.rotation.set(pitch, yaw, 0);
+  covAnimateWorld(t, dt);
   renderer.render(scene, camera);
 }
+
 </script>
 </body>
 </html>
