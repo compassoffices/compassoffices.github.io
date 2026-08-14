@@ -412,40 +412,156 @@ function covBuildWorld(scene){
     scene.add(m); _covLights.push(m.material);
   });
 
-  // ---- furniture (stylized blocks, colored by height) ----
-  const fGroups = { sofa: [], desk: [], plant: [], low: [] };
-  for (const f of L.furniture){
-    const kind = f.h > 1.0 ? "plant" : (f.h > 0.75 ? "desk" : (f.h > 0.45 ? "sofa" : "low"));
-    fGroups[kind].push(f);
+  // ---- furniture: real parametric shapes, merged into one vertex-colored mesh ----
+  const _parts = [];
+  const _boxG = new THREE.BoxGeometry(1,1,1).toNonIndexed();
+  const _cylG = new THREE.CylinderGeometry(0.5,0.5,1,10).toNonIndexed();
+  const _sphG = new THREE.SphereGeometry(0.5,9,7).toNonIndexed();
+  function shade(base, mult){
+    const c = base.clone();
+    c.r = Math.min(1, c.r*mult); c.g = Math.min(1, c.g*mult); c.b = Math.min(1, c.b*mult);
+    return c;
   }
-  const fMats = {
-    sofa: new THREE.MeshLambertMaterial({ color: 0xD9CDB8 }),
-    desk: new THREE.MeshLambertMaterial({ color: 0x8B6748 }),
-    plant: new THREE.MeshLambertMaterial({ color: 0x4E7A4E }),
-    low: new THREE.MeshLambertMaterial({ color: 0xB9AB94 })
-  };
-  for (const kind of Object.keys(fGroups)){
-    const arr = fGroups[kind];
-    if (!arr.length) continue;
-    const anyReal = arr.some(f => f.c);
-    const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),
-      anyReal ? new THREE.MeshLambertMaterial({ color: 0xffffff }) : fMats[kind], arr.length);
-    const M = new THREE.Matrix4();
-    const c = new THREE.Color();
-    arr.forEach((f, i) => {
-      const w = Math.max(0.25, f.w*0.9), d = Math.max(0.25, f.d*0.9);
-      M.makeScale(w, f.h, d);
-      M.setPosition(f.x, f.h/2, f.z);
-      m.setMatrixAt(i, M);
-      if (anyReal && m.setColorAt){
-        c.set(f.c ? "#"+f.c : fMats[kind].color.getHex());
-        m.setColorAt(i, c);
+  const DARK = new THREE.Color(0x39352F), METAL = new THREE.Color(0x55524C),
+        SCREEN = new THREE.Color(0x1B1B1F), POT = new THREE.Color(0x7A7268),
+        LEAF1 = new THREE.Color(0x3F6B3F), LEAF2 = new THREE.Color(0x548550);
+
+  function addItem(f, builder){
+    const local = [];
+    const lp = (geo,color,px,py,pz,sx,sy,sz,ry) =>
+      local.push({geo,color,px,py,pz,sx,sy,sz,ry:ry||0});
+    const LW = Math.max(f.w, f.d), LD = Math.min(f.w, f.d);
+    builder(lp, LW, LD, f);
+    let a = (f.w >= f.d) ? 0 : Math.PI/2;                 // long axis
+    if (a === 0 && f.o === 2) a = Math.PI;                // flip so back faces the wall
+    if (a === Math.PI/2 && f.o === 0) a = -Math.PI/2;
+    const rot = new THREE.Matrix4().makeRotationY(a);
+    const trans = new THREE.Matrix4().makeTranslation(f.x, 0, f.z);
+    for (const p of local){
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(p.px, p.py, p.pz),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, p.ry, 0)),
+        new THREE.Vector3(p.sx, p.sy, p.sz));
+      m.premultiply(rot).premultiply(trans);
+      _parts.push({ geo: p.geo, matrix: m, color: p.color });
+    }
+  }
+
+  const B = {
+    sofa(lp, LW, LD, f){
+      const c = new THREE.Color(f.c ? "#"+f.c : 0xD9CDB8);
+      lp(_boxG, c, 0, .15, LD*.03, LW, .30, LD*.85);                        // base
+      lp(_boxG, shade(c,.92), 0, .55, -LD/2+.09, LW, .40, .17);             // backrest
+      lp(_boxG, shade(c,.90), -(LW/2-.09), .27, 0, .17, .52, LD*.85);       // arms
+      lp(_boxG, shade(c,.90),  (LW/2-.09), .27, 0, .17, .52, LD*.85);
+      const n = Math.max(1, Math.round(LW/.75));
+      const cw = (LW-.4)/n;
+      for (let i=0;i<n;i++)
+        lp(_boxG, shade(c,1.08), -(LW-.4)/2 + cw*(i+.5), .375, LD*.05, cw*.92, .13, LD*.8-.14);
+    },
+    chair(lp, LW, LD, f){ B.sofa(lp, Math.min(LW,.9), Math.min(LD,.85), f); },
+    desk(lp, LW, LD, f){
+      const c = new THREE.Color(f.c ? "#"+f.c : 0x8B6748);
+      const topD = Math.min(LD, .8), tz = -(LD-topD)/2;
+      lp(_boxG, c, 0, .725, tz, LW, .05, topD);                             // top
+      for (const sx of [-1,1]) for (const sz of [-1,1])
+        lp(_boxG, DARK, sx*(LW/2-.07), .35, tz+sz*(topD/2-.07), .05, .70, .05);
+      if (f.h > 1.0){                                                        // monitor
+        lp(_boxG, SCREEN, 0, 1.05, tz-topD*.18, .52, .32, .03);
+        lp(_boxG, DARK, 0, .84, tz-topD*.16, .07, .16, .05);
       }
-    });
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    scene.add(m);
-    covPickables.push(m);
+      const cz = tz + topD/2 + .3;                                           // task chair
+      lp(_boxG, METAL, 0, .45, cz, .43, .05, .41);
+      lp(_boxG, METAL, 0, .70, cz+.19, .41, .45, .05);
+      lp(_cylG, DARK, 0, .23, cz, .12, .42, .12);
+      lp(_cylG, DARK, 0, .02, cz, .45, .04, .45);
+    },
+    table(lp, LW, LD, f){
+      const c = new THREE.Color(f.c ? "#"+f.c : 0xB9AB94);
+      if (Math.abs(LW-LD) < .3){
+        lp(_cylG, c, 0, .42, 0, LD, .045, LD);
+        lp(_cylG, DARK, 0, .21, 0, .09, .38, .09);
+        lp(_cylG, DARK, 0, .025, 0, .42, .05, .42);
+      } else {
+        lp(_boxG, c, 0, .42, 0, LW, .045, LD);
+        for (const sx of [-1,1]) for (const sz of [-1,1])
+          lp(_boxG, DARK, sx*(LW/2-.06), .2, sz*(LD/2-.06), .05, .4, .05);
+      }
+    },
+    plant(lp, LW, LD, f){
+      const s = Math.max(.3, Math.min(LW, LD));
+      lp(_cylG, POT, 0, .17, 0, s*.55, .34, s*.55);
+      lp(_sphG, LEAF1, 0, .72, 0, s*1.05, s*.95, s*1.05);
+      lp(_sphG, LEAF2, s*.12, 1.02, -s*.08, s*.8, s*.75, s*.8);
+      lp(_sphG, LEAF1, -s*.1, 1.28, s*.05, s*.55, s*.55, s*.55);
+    },
+    cabinet(lp, LW, LD, f){
+      const c = new THREE.Color(f.c ? "#"+f.c : 0xA99C8A);
+      lp(_boxG, c, 0, f.h/2, 0, LW, f.h, LD);
+      lp(_boxG, shade(c,.8), 0, f.h+.015, 0, LW+.04, .03, LD+.04);
+      lp(_boxG, shade(c,.75), 0, f.h*.5, LD/2+.005, LW*.94, f.h*.86, .01);  // door seam face
+    }
+  };
+  for (const f of L.furniture) addItem(f, B[f.t] || B.cabinet);
+
+  // window frames: mullions + transom (dark bronze)
+  {
+    const FRAME = new THREE.Color(0x3E3A36);
+    for (const r of L.windows){
+      const horiz = r[2] >= r[3];
+      const len = horiz ? r[2] : r[3];
+      const cxr = r[0] + r[2]/2, czr = r[1] + r[3]/2;
+      const n = Math.max(1, Math.round(len/1.2));
+      for (let i = 0; i <= n; i++){
+        const t = i/n;
+        const x = horiz ? r[0] + r[2]*t : cxr;
+        const z = horiz ? czr : r[1] + r[3]*t;
+        _parts.push({ geo:_boxG, color: FRAME, matrix: new THREE.Matrix4()
+          .compose(new THREE.Vector3(x, 1.625, z), new THREE.Quaternion(),
+                   new THREE.Vector3(horiz?.06:Math.max(r[2],.08), 1.65, horiz?Math.max(r[3],.08):.06)) });
+      }
+      _parts.push({ geo:_boxG, color: FRAME, matrix: new THREE.Matrix4()
+        .compose(new THREE.Vector3(cxr, 2.0, czr), new THREE.Quaternion(),
+                 new THREE.Vector3(horiz?r[2]:Math.max(r[2],.09), .05, horiz?Math.max(r[3],.09):r[3])) });
+    }
+  }
+  // skirting along interior walls
+  if (L.wallC){
+    for (let i = 0; i < L.walls.length; i++){
+      const r = L.walls[i];
+      const c = shade(new THREE.Color("#"+(L.wallC[i]||"AAA49A")), .55);
+      _parts.push({ geo:_boxG, color: c, matrix: new THREE.Matrix4()
+        .compose(new THREE.Vector3(r[0]+r[2]/2, .05, r[1]+r[3]/2), new THREE.Quaternion(),
+                 new THREE.Vector3(r[2]+.03, .10, r[3]+.03)) });
+    }
+  }
+
+  // merge everything into ONE mesh with vertex colors
+  {
+    let total = 0;
+    const geos = [];
+    for (const p of _parts){
+      const g = p.geo.clone(); g.applyMatrix4(p.matrix);
+      geos.push([g, p.color]); total += g.attributes.position.count;
+    }
+    const pos = new Float32Array(total*3), nor = new Float32Array(total*3), col = new Float32Array(total*3);
+    let o = 0;
+    for (const [g, cc] of geos){
+      const nv = g.attributes.position.count;
+      pos.set(g.attributes.position.array, o*3);
+      nor.set(g.attributes.normal.array, o*3);
+      for (let i = 0; i < nv; i++){
+        col[(o+i)*3] = cc.r; col[(o+i)*3+1] = cc.g; col[(o+i)*3+2] = cc.b;
+      }
+      o += nv;
+    }
+    const G = new THREE.BufferGeometry();
+    G.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    G.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+    G.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    const mesh = new THREE.Mesh(G, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    scene.add(mesh);
+    covPickables.push(mesh);
   }
 
   // ---- Christmas tree in the lounge ----

@@ -153,9 +153,9 @@ def rect_color(sm, ct, x0c, x1c, z0c, z1c, pad=1):
     s = sm[z0c:z1c+1, x0c:x1c+1].sum(axis=(0,1)) / c
     return "%02X%02X%02X" % tuple(int(v) for v in np.clip(s,0,255))
 
-# ---------- furniture blobs with colors ----------
+# ---------- furniture blobs with colors (typed later, after wood zone known) ----------
 lab, n = ndimage.label(furn)
-blobs = []
+raw_blobs = []
 for i in range(1, n+1):
     m = lab == i; cnt = int(m.sum())
     if cnt < 6 or cnt > 2500: continue
@@ -165,12 +165,8 @@ for i in range(1, n+1):
     for hh in (1.1,0.8,0.5,0.25):
         if (occ[hh]&m).sum() > cnt*0.15: h = hh+0.12; break
     col = rect_color(furn_sm, furn_ct, x0,x1,z0,z1, pad=0)
-    b = {"x":round(float(minx+(x0+x1+1)/2*CELL),2), "z":round(float(minz+(z0+z1+1)/2*CELL),2),
-         "w":round(float((x1-x0+1)*CELL),2), "d":round(float((z1-z0+1)*CELL),2),
-         "h":round(float(h),2)}
-    if col: b["c"] = col
-    blobs.append(b)
-print("furniture blobs:", len(blobs))
+    raw_blobs.append((x0,x1,z0,z1,h,col))
+print("furniture blobs:", len(raw_blobs))
 
 # ---------- floor zones (for base slabs) ----------
 plan = np.asarray(Image.open(PLAN).convert("RGB"))
@@ -189,6 +185,40 @@ for z, x in zip(zs, xs):
         if r>140 and (r-b)>25 and g>110: wood[z,x] = True
 wood = ndimage.binary_closing(wood, np.ones((3,3)), iterations=2) & floor
 carpet = floor & ~wood
+
+# ---------- type + orientation classification ----------
+solid = walls | edge | core
+def wall_dist(zc, xc, dz, dx, maxsteps=15):
+    for s in range(1, maxsteps+1):
+        z, x = zc + dz*s, xc + dx*s
+        if z < 0 or x < 0 or z >= GH or x >= GW: return s
+        if solid[z, x]: return s
+    return 99
+
+blobs = []
+for (x0,x1,z0,z1,h,col) in raw_blobs:
+    cxc, czc = (x0+x1)//2, (z0+z1)//2
+    w = (x1-x0+1)*CELL; d = (z1-z0+1)*CELL
+    in_wood = bool(wood[czc, cxc])
+    r,g,b = (int(col[0:2],16), int(col[2:4],16), int(col[4:6],16)) if col else (170,170,170)
+    greenish = (g > r + 8) and (g > b + 8)
+    if greenish and h > 0.5:        t = "plant"
+    elif h > 1.02 and (min(w,d) < 0.72 and w*d < 1.1): t = "cabinet"   # tall AND narrow
+    elif not in_wood and h > 0.6:   t = "desk"    # office: desk (monitors make them tall)
+    elif h > 1.02:                  t = "cabinet"
+    elif h <= 0.45:                 t = "table"
+    elif in_wood:                   t = "chair" if (w*d) < 0.9 else "sofa"
+    else:                           t = "chair"
+    dists = [wall_dist(czc,cxc,0,1), wall_dist(czc,cxc,0,-1),
+             wall_dist(czc,cxc,1,0), wall_dist(czc,cxc,-1,0)]  # +x,-x,+z,-z
+    o = int(np.argmin(dists)) if min(dists) <= 15 else -1
+    bb = {"x":round(float(minx+(x0+x1+1)/2*CELL),2), "z":round(float(minz+(z0+z1+1)/2*CELL),2),
+          "w":round(float(w),2), "d":round(float(d),2), "h":round(float(h),2),
+          "t":t, "o":o}
+    if col: bb["c"] = col
+    blobs.append(bb)
+from collections import Counter
+print("types:", dict(Counter(b["t"] for b in blobs)))
 
 tree = None
 lab, n = ndimage.label(wood)
