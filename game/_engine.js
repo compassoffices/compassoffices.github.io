@@ -78,7 +78,8 @@ function covBuildWorld(scene){
       const t = (i + 0.5) / n;
       const x = horiz ? r[0] + r[2]*t : r[0] + r[2]/2;
       const z = horiz ? r[1] + r[3]/2 : r[1] + r[3]*t;
-      pts[(i + Math.floor(x+z)) % 3].push([x, 2.15 + Math.sin(i*1.3)*0.06, z]);
+      const ci = (((i + Math.floor(x + z)) % 3) + 3) % 3;
+      pts[ci].push([x, 2.15 + Math.sin(i*1.3)*0.06, z]);
     }
   }
   _covLights = [];
