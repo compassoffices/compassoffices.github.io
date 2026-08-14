@@ -338,11 +338,20 @@ function covBuildWorld(scene){
   _covBits = Uint8Array.from(atob(L.collision), c => c.charCodeAt(0));
   covPickables = [];
 
-  // ---- lighting ----
-  scene.add(new THREE.HemisphereLight(0xfff3e0, 0x574838, 1.05));
-  const dir = new THREE.DirectionalLight(0xffe9c9, 0.55);
-  dir.position.set(30, 60, 15);
+  // ---- lighting (warm interior + soft shadows) ----
+  scene.add(new THREE.HemisphereLight(0xfff3e0, 0x5a4b3b, 0.95));
+  const dir = new THREE.DirectionalLight(0xffeacb, 0.75);
+  dir.position.set(28, 45, 18);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048, 2048);
+  const scam = dir.shadow.camera;
+  scam.left = L.origin[0] - 2; scam.right = L.origin[0] + L.gw*L.cell + 2;
+  scam.top = -(L.origin[1] - 2); scam.bottom = -(L.origin[1] + L.gh*L.cell + 2);
+  scam.near = 1; scam.far = 120;
+  dir.shadow.bias = -0.002;
   scene.add(dir);
+  scene.add(dir.target);
+  dir.target.position.set(L.origin[0] + L.gw*L.cell/2, 0, L.origin[1] + L.gh*L.cell/2);
 
   // ---- materials ----
   const M_WALL = new THREE.MeshLambertMaterial({ color: 0xF7F2EA });
@@ -394,6 +403,20 @@ function covBuildWorld(scene){
       ctx.fillRect(i*q, j*q, q, q);
     }
   });
+  const texWalnut = canvasTex(256, (ctx, S) => {
+    ctx.fillStyle = "#4B3728"; ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 46; i++){
+      const x = (i*17 + (i*i)%13) % S;
+      const w = 2 + (i*7) % 6;
+      ctx.fillStyle = (i % 3 === 0) ? "rgba(30,20,12,.4)" :
+                      (i % 3 === 1) ? "rgba(120,84,52,.35)" : "rgba(90,62,38,.4)";
+      ctx.fillRect(x, 0, w, S);
+    }
+    for (let i = 0; i < 200; i++){
+      ctx.fillStyle = "rgba(0,0,0,.1)";
+      ctx.fillRect(Math.random()*S, Math.random()*S, 1, 6 + Math.random()*20);
+    }
+  });
 
   function zoneFloor(rects, tex, worldPerTile, y){
     const n = rects.length;
@@ -422,16 +445,21 @@ function covBuildWorld(scene){
   _covInstanced(scene, L.carpet, M_CARP, -0.05, 0.05, true);
   zoneFloor(L.wood, texHerring, 1.9, 0.012);                   // herringbone oak
   zoneFloor(L.carpet, texCarpet, 1.0, 0.012);                  // carpet tiles
-  // walls: white where the scan reads light; walnut/marble tones keep their sampled color
-  let wallCols = null;
+  // walls: crisp white where the scan reads light; walnut wood grain where it reads dark
   if (L.wallC){
-    wallCols = L.wallC.map(hx => {
-      const c = new THREE.Color("#" + (hx || "F4F1EA"));
+    const lightR = [], darkR = [], darkC = [];
+    for (let i = 0; i < L.walls.length; i++){
+      const c = new THREE.Color("#" + (L.wallC[i] || "F4F1EA"));
       const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
-      return lum > 0.42 ? "F4F1EA" : hx;
-    });
+      if (lum > 0.42) lightR.push(L.walls[i]);
+      else { darkR.push(L.walls[i]); darkC.push(L.wallC[i]); }
+    }
+    _covInstanced(scene, lightR, M_WALL, 0, L.wallH, false);
+    const M_WOODWALL = new THREE.MeshLambertMaterial({ map: texWalnut, color: 0xffffff });
+    _covInstanced(scene, darkR, M_WOODWALL, 0, L.wallH, false, darkC, 0.45);
+  } else {
+    _covInstanced(scene, L.walls, M_WALL, 0, L.wallH, false);
   }
-  _covInstanced(scene, L.walls,  wallCols ? M_TINT : M_WALL, 0, L.wallH, false, wallCols, 0.12);
   _covInstanced(scene, L.cores,  M_CORE, 0, L.wallH, false);
   _covInstanced(scene, L.windows, M_WALL, 0, 0.8, true);        // sill
   _covInstanced(scene, L.windows, M_GLASS, 0.8, 1.65, false);   // glass band
@@ -517,10 +545,15 @@ function covBuildWorld(scene){
         SCREEN = new THREE.Color(0x1B1B1F), POT = new THREE.Color(0x7A7268),
         LEAF1 = new THREE.Color(0x3F6B3F), LEAF2 = new THREE.Color(0x548550);
 
+  const _leafG = (() => {
+    const g = new THREE.PlaneGeometry(0.16, 0.55).toNonIndexed();
+    g.translate(0, 0.27, 0);   // pivot at leaf base
+    return g;
+  })();
   function addItem(f, builder){
     const local = [];
-    const lp = (geo,color,px,py,pz,sx,sy,sz,ry) =>
-      local.push({geo,color,px,py,pz,sx,sy,sz,ry:ry||0});
+    const lp = (geo,color,px,py,pz,sx,sy,sz,ry,rx) =>
+      local.push({geo,color,px,py,pz,sx,sy,sz,ry:ry||0,rx:rx||0});
     const LW = Math.max(f.w, f.d), LD = Math.min(f.w, f.d);
     builder(lp, LW, LD, f);
     let a = (f.w >= f.d) ? 0 : Math.PI/2;                 // long axis
@@ -531,7 +564,7 @@ function covBuildWorld(scene){
     for (const p of local){
       const m = new THREE.Matrix4().compose(
         new THREE.Vector3(p.px, p.py, p.pz),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, p.ry, 0)),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rx, p.ry, 0)),
         new THREE.Vector3(p.sx, p.sy, p.sz));
       m.premultiply(rot).premultiply(trans);
       _parts.push({ geo: p.geo, matrix: m, color: p.color });
@@ -605,11 +638,19 @@ function covBuildWorld(scene){
       }
     },
     plant(lp, LW, LD, f){
+      // tropical planter with fanned leaf fronds (like the real window planters)
       const s = Math.max(.3, Math.min(LW, LD));
-      lp(_cylG, POT, 0, .17, 0, s*.55, .34, s*.55);
-      lp(_sphG, LEAF1, 0, .72, 0, s*1.05, s*.95, s*1.05);
-      lp(_sphG, LEAF2, s*.12, 1.02, -s*.08, s*.8, s*.75, s*.8);
-      lp(_sphG, LEAF1, -s*.1, 1.28, s*.05, s*.55, s*.55, s*.55);
+      lp(_cylG, POT, 0, .17, 0, s*.6, .34, s*.6);
+      lp(_cylG, shade(POT,.7), 0, .345, 0, s*.52, .02, s*.52);   // soil
+      const nleaf = 12;
+      for (let i = 0; i < nleaf; i++){
+        const ang = i/nleaf * Math.PI*2 + (i%3)*.4;
+        const tilt = -(.55 + (i%4)*.14);                          // lean outward
+        const scale = .8 + ((i*13)%5)*.14;
+        lp(_leafG, (i%2) ? LEAF1 : LEAF2,
+           Math.cos(ang)*s*.12, .32, Math.sin(ang)*s*.12,
+           s*scale, s*scale*1.4, 1, ang + Math.PI/2, tilt);
+      }
     },
     cabinet(lp, LW, LD, f){
       const c = new THREE.Color(f.c ? "#"+f.c : 0xA99C8A);
@@ -675,7 +716,7 @@ function covBuildWorld(scene){
     G.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     G.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
     G.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    const mesh = new THREE.Mesh(G, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const mesh = new THREE.Mesh(G, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
     scene.add(mesh);
     covPickables.push(mesh);
   }
@@ -787,6 +828,41 @@ function covBuildWorld(scene){
       color: 0xFFFFFF, size: 0.14, transparent: true, opacity: 0.85, fog: false }));
     scene.add(_covSnow);
   }
+
+  // shadows: solid geometry casts and receives (sky/snow/glass excluded)
+  scene.traverse(o => {
+    if ((o.isMesh || o.isInstancedMesh) && o.material && !o.isPoints){
+      if (o.material.transparent || o.material.fog === false) return;
+      o.castShadow = true; o.receiveShadow = true;
+    }
+  });
+}
+
+/* ---- festive third-person avatar ---- */
+function covBuildAvatar(){
+  const g = new THREE.Group();
+  const M = c => new THREE.MeshLambertMaterial({ color: c });
+  const skin = M(0xE8BE9C), suit = M(0x2E3440), shirt = M(0xF2EFE8),
+        scarf = M(0xFF6600), hatR = M(0xC0392B), hatW = M(0xF5F2EC), shoe = M(0x1C1C1C);
+  const mk = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  const legG = new THREE.BoxGeometry(.13,.5,.16); legG.translate(0,-.25,0);
+  const armG = new THREE.BoxGeometry(.1,.44,.12); armG.translate(0,-.22,0);
+  const legL = mk(legG, suit, -.09, .52, 0);
+  const legR = mk(legG.clone(), suit, .09, .52, 0);
+  mk(new THREE.BoxGeometry(.14,.05,.24), shoe, -.09, .025, .03);
+  mk(new THREE.BoxGeometry(.14,.05,.24), shoe, .09, .025, .03);
+  mk(new THREE.BoxGeometry(.36,.52,.22), suit, 0, .78, 0);
+  mk(new THREE.BoxGeometry(.3,.22,.23), shirt, 0, .9, .002);
+  mk(new THREE.BoxGeometry(.34,.09,.25), scarf, 0, 1.02, 0);
+  const armL = mk(armG, suit, -.24, .99, 0);
+  const armR = mk(armG.clone(), suit, .24, .99, 0);
+  mk(new THREE.SphereGeometry(.15,10,8), skin, 0, 1.22, 0);
+  mk(new THREE.CylinderGeometry(.155,.155,.05,10), hatW, 0, 1.32, 0);
+  const cone = mk(new THREE.ConeGeometry(.14,.24,10), hatR, 0, 1.44, 0);
+  cone.rotation.x = .18;
+  mk(new THREE.SphereGeometry(.05,6,5), hatW, 0, 1.56, .045);
+  g.traverse(o => { if (o.isMesh){ o.castShadow = true; } });
+  return { g, legL, legR, armL, armR };
 }
 
 function covAnimateWorld(t, dt){
@@ -808,6 +884,10 @@ function init3D(){
   catch(e){ $("mp-status").textContent = "WebGL unavailable in this browser."; return; }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.06;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0C1526);
   scene.fog = new THREE.Fog(0x27334F, 28, 90);

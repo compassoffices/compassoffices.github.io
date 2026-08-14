@@ -66,7 +66,9 @@ html,body{margin:0;padding:0;height:100%}
 .cov .demo-box{aspect-ratio:1;border-radius:var(--co-radius);background:rgba(255,255,255,.08);border:1.5px dashed rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s}
 .cov .demo-box:hover{transform:scale(1.05);border-color:var(--co-orange)}
 .cov .demo-box svg{width:40px;height:40px;stroke:var(--co-orange);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.cov .stick{position:absolute;z-index:11;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.25);display:none;pointer-events:none}
+.cov .stick{position:fixed;left:24px;bottom:30px;z-index:11;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.09);border:1.5px solid rgba(255,255,255,.3);display:none;pointer-events:none;opacity:.45;transition:opacity .15s}
+.cov .stick.on{opacity:1}
+@media (hover:none) and (pointer:coarse){.cov .stick{display:block}}
 .cov .stick i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.35)}
 /* modal */
 .cov .veil{position:fixed;inset:0;background:rgba(20,20,20,.6);z-index:50;display:none;align-items:center;justify-content:center;padding:22px}
@@ -262,7 +264,7 @@ html,body{margin:0;padding:0;height:100%}
     <span class="chip"><span class="dot"></span><span id="hud-online">1</span>&nbsp;hunting</span>
     <span class="chip" id="hud-me">Ready</span>
   </div>
-  <div class="help3d" id="help3d">Drag to look around · joystick or WASD to walk · tap a gift to open it</div>
+  <div class="help3d" id="help3d">Drag to look · joystick or WASD to walk · tap a gift to open it</div>
   <div class="stick" id="stick"><i id="stick-knob"></i></div>
 </section>
 
@@ -570,11 +572,20 @@ function covBuildWorld(scene){
   _covBits = Uint8Array.from(atob(L.collision), c => c.charCodeAt(0));
   covPickables = [];
 
-  // ---- lighting ----
-  scene.add(new THREE.HemisphereLight(0xfff3e0, 0x574838, 1.05));
-  const dir = new THREE.DirectionalLight(0xffe9c9, 0.55);
-  dir.position.set(30, 60, 15);
+  // ---- lighting (warm interior + soft shadows) ----
+  scene.add(new THREE.HemisphereLight(0xfff3e0, 0x5a4b3b, 0.95));
+  const dir = new THREE.DirectionalLight(0xffeacb, 0.75);
+  dir.position.set(28, 45, 18);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048, 2048);
+  const scam = dir.shadow.camera;
+  scam.left = L.origin[0] - 2; scam.right = L.origin[0] + L.gw*L.cell + 2;
+  scam.top = -(L.origin[1] - 2); scam.bottom = -(L.origin[1] + L.gh*L.cell + 2);
+  scam.near = 1; scam.far = 120;
+  dir.shadow.bias = -0.002;
   scene.add(dir);
+  scene.add(dir.target);
+  dir.target.position.set(L.origin[0] + L.gw*L.cell/2, 0, L.origin[1] + L.gh*L.cell/2);
 
   // ---- materials ----
   const M_WALL = new THREE.MeshLambertMaterial({ color: 0xF7F2EA });
@@ -626,6 +637,20 @@ function covBuildWorld(scene){
       ctx.fillRect(i*q, j*q, q, q);
     }
   });
+  const texWalnut = canvasTex(256, (ctx, S) => {
+    ctx.fillStyle = "#4B3728"; ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 46; i++){
+      const x = (i*17 + (i*i)%13) % S;
+      const w = 2 + (i*7) % 6;
+      ctx.fillStyle = (i % 3 === 0) ? "rgba(30,20,12,.4)" :
+                      (i % 3 === 1) ? "rgba(120,84,52,.35)" : "rgba(90,62,38,.4)";
+      ctx.fillRect(x, 0, w, S);
+    }
+    for (let i = 0; i < 200; i++){
+      ctx.fillStyle = "rgba(0,0,0,.1)";
+      ctx.fillRect(Math.random()*S, Math.random()*S, 1, 6 + Math.random()*20);
+    }
+  });
 
   function zoneFloor(rects, tex, worldPerTile, y){
     const n = rects.length;
@@ -654,16 +679,21 @@ function covBuildWorld(scene){
   _covInstanced(scene, L.carpet, M_CARP, -0.05, 0.05, true);
   zoneFloor(L.wood, texHerring, 1.9, 0.012);                   // herringbone oak
   zoneFloor(L.carpet, texCarpet, 1.0, 0.012);                  // carpet tiles
-  // walls: white where the scan reads light; walnut/marble tones keep their sampled color
-  let wallCols = null;
+  // walls: crisp white where the scan reads light; walnut wood grain where it reads dark
   if (L.wallC){
-    wallCols = L.wallC.map(hx => {
-      const c = new THREE.Color("#" + (hx || "F4F1EA"));
+    const lightR = [], darkR = [], darkC = [];
+    for (let i = 0; i < L.walls.length; i++){
+      const c = new THREE.Color("#" + (L.wallC[i] || "F4F1EA"));
       const lum = 0.299*c.r + 0.587*c.g + 0.114*c.b;
-      return lum > 0.42 ? "F4F1EA" : hx;
-    });
+      if (lum > 0.42) lightR.push(L.walls[i]);
+      else { darkR.push(L.walls[i]); darkC.push(L.wallC[i]); }
+    }
+    _covInstanced(scene, lightR, M_WALL, 0, L.wallH, false);
+    const M_WOODWALL = new THREE.MeshLambertMaterial({ map: texWalnut, color: 0xffffff });
+    _covInstanced(scene, darkR, M_WOODWALL, 0, L.wallH, false, darkC, 0.45);
+  } else {
+    _covInstanced(scene, L.walls, M_WALL, 0, L.wallH, false);
   }
-  _covInstanced(scene, L.walls,  wallCols ? M_TINT : M_WALL, 0, L.wallH, false, wallCols, 0.12);
   _covInstanced(scene, L.cores,  M_CORE, 0, L.wallH, false);
   _covInstanced(scene, L.windows, M_WALL, 0, 0.8, true);        // sill
   _covInstanced(scene, L.windows, M_GLASS, 0.8, 1.65, false);   // glass band
@@ -749,10 +779,15 @@ function covBuildWorld(scene){
         SCREEN = new THREE.Color(0x1B1B1F), POT = new THREE.Color(0x7A7268),
         LEAF1 = new THREE.Color(0x3F6B3F), LEAF2 = new THREE.Color(0x548550);
 
+  const _leafG = (() => {
+    const g = new THREE.PlaneGeometry(0.16, 0.55).toNonIndexed();
+    g.translate(0, 0.27, 0);   // pivot at leaf base
+    return g;
+  })();
   function addItem(f, builder){
     const local = [];
-    const lp = (geo,color,px,py,pz,sx,sy,sz,ry) =>
-      local.push({geo,color,px,py,pz,sx,sy,sz,ry:ry||0});
+    const lp = (geo,color,px,py,pz,sx,sy,sz,ry,rx) =>
+      local.push({geo,color,px,py,pz,sx,sy,sz,ry:ry||0,rx:rx||0});
     const LW = Math.max(f.w, f.d), LD = Math.min(f.w, f.d);
     builder(lp, LW, LD, f);
     let a = (f.w >= f.d) ? 0 : Math.PI/2;                 // long axis
@@ -763,7 +798,7 @@ function covBuildWorld(scene){
     for (const p of local){
       const m = new THREE.Matrix4().compose(
         new THREE.Vector3(p.px, p.py, p.pz),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, p.ry, 0)),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rx, p.ry, 0)),
         new THREE.Vector3(p.sx, p.sy, p.sz));
       m.premultiply(rot).premultiply(trans);
       _parts.push({ geo: p.geo, matrix: m, color: p.color });
@@ -837,11 +872,19 @@ function covBuildWorld(scene){
       }
     },
     plant(lp, LW, LD, f){
+      // tropical planter with fanned leaf fronds (like the real window planters)
       const s = Math.max(.3, Math.min(LW, LD));
-      lp(_cylG, POT, 0, .17, 0, s*.55, .34, s*.55);
-      lp(_sphG, LEAF1, 0, .72, 0, s*1.05, s*.95, s*1.05);
-      lp(_sphG, LEAF2, s*.12, 1.02, -s*.08, s*.8, s*.75, s*.8);
-      lp(_sphG, LEAF1, -s*.1, 1.28, s*.05, s*.55, s*.55, s*.55);
+      lp(_cylG, POT, 0, .17, 0, s*.6, .34, s*.6);
+      lp(_cylG, shade(POT,.7), 0, .345, 0, s*.52, .02, s*.52);   // soil
+      const nleaf = 12;
+      for (let i = 0; i < nleaf; i++){
+        const ang = i/nleaf * Math.PI*2 + (i%3)*.4;
+        const tilt = -(.55 + (i%4)*.14);                          // lean outward
+        const scale = .8 + ((i*13)%5)*.14;
+        lp(_leafG, (i%2) ? LEAF1 : LEAF2,
+           Math.cos(ang)*s*.12, .32, Math.sin(ang)*s*.12,
+           s*scale, s*scale*1.4, 1, ang + Math.PI/2, tilt);
+      }
     },
     cabinet(lp, LW, LD, f){
       const c = new THREE.Color(f.c ? "#"+f.c : 0xA99C8A);
@@ -907,7 +950,7 @@ function covBuildWorld(scene){
     G.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     G.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
     G.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    const mesh = new THREE.Mesh(G, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const mesh = new THREE.Mesh(G, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
     scene.add(mesh);
     covPickables.push(mesh);
   }
@@ -1019,6 +1062,41 @@ function covBuildWorld(scene){
       color: 0xFFFFFF, size: 0.14, transparent: true, opacity: 0.85, fog: false }));
     scene.add(_covSnow);
   }
+
+  // shadows: solid geometry casts and receives (sky/snow/glass excluded)
+  scene.traverse(o => {
+    if ((o.isMesh || o.isInstancedMesh) && o.material && !o.isPoints){
+      if (o.material.transparent || o.material.fog === false) return;
+      o.castShadow = true; o.receiveShadow = true;
+    }
+  });
+}
+
+/* ---- festive third-person avatar ---- */
+function covBuildAvatar(){
+  const g = new THREE.Group();
+  const M = c => new THREE.MeshLambertMaterial({ color: c });
+  const skin = M(0xE8BE9C), suit = M(0x2E3440), shirt = M(0xF2EFE8),
+        scarf = M(0xFF6600), hatR = M(0xC0392B), hatW = M(0xF5F2EC), shoe = M(0x1C1C1C);
+  const mk = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  const legG = new THREE.BoxGeometry(.13,.5,.16); legG.translate(0,-.25,0);
+  const armG = new THREE.BoxGeometry(.1,.44,.12); armG.translate(0,-.22,0);
+  const legL = mk(legG, suit, -.09, .52, 0);
+  const legR = mk(legG.clone(), suit, .09, .52, 0);
+  mk(new THREE.BoxGeometry(.14,.05,.24), shoe, -.09, .025, .03);
+  mk(new THREE.BoxGeometry(.14,.05,.24), shoe, .09, .025, .03);
+  mk(new THREE.BoxGeometry(.36,.52,.22), suit, 0, .78, 0);
+  mk(new THREE.BoxGeometry(.3,.22,.23), shirt, 0, .9, .002);
+  mk(new THREE.BoxGeometry(.34,.09,.25), scarf, 0, 1.02, 0);
+  const armL = mk(armG, suit, -.24, .99, 0);
+  const armR = mk(armG.clone(), suit, .24, .99, 0);
+  mk(new THREE.SphereGeometry(.15,10,8), skin, 0, 1.22, 0);
+  mk(new THREE.CylinderGeometry(.155,.155,.05,10), hatW, 0, 1.32, 0);
+  const cone = mk(new THREE.ConeGeometry(.14,.24,10), hatR, 0, 1.44, 0);
+  cone.rotation.x = .18;
+  mk(new THREE.SphereGeometry(.05,6,5), hatW, 0, 1.56, .045);
+  g.traverse(o => { if (o.isMesh){ o.castShadow = true; } });
+  return { g, legL, legR, armL, armR };
 }
 
 function covAnimateWorld(t, dt){
@@ -1034,9 +1112,10 @@ function covAnimateWorld(t, dt){
   }
 }
 
-/* ================= GAME ENGINE (controls + gifts on the festive world) ================= */
+/* ================= GAME ENGINE (third-person, MECCHA-style) ================= */
 let scene, camera, renderer, clock;
-let yaw = 0, pitch = 0, walkY = 1.55;
+let camYaw = 0, camPitch = -0.30;
+let avatar = null, avYawCur = 0, walkPhase = 0, moveAmt = 0;
 const keys = {};
 const giftMeshes = {};
 const moveVec = { x:0, y:0 };
@@ -1089,11 +1168,14 @@ function initEngine(){
   catch(e){ engineFail("WebGL unavailable"); return; }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.06;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0C1526);
-  scene.fog = new THREE.Fog(0x27334F, 28, 90);
-  camera = new THREE.PerspectiveCamera(72, 1, 0.05, 320);
-  camera.rotation.order = "YXZ";
+  scene.fog = new THREE.Fog(0x27334F, 30, 95);
+  camera = new THREE.PerspectiveCamera(62, 1, 0.05, 320);
   clock = new THREE.Clock();
 
   try { covBuildWorld(scene); }
@@ -1103,22 +1185,26 @@ function initEngine(){
     return;
   }
 
-  // default spawn: beside the tree in the lounge; admin-set spawn overrides
+  avatar = covBuildAvatar();
+  scene.add(avatar.g);
+
   const L = LAYOUT;
   let sx = L.origin[0] + L.gw*L.cell/2, sz = L.origin[1] + L.gh*L.cell/2;
   if (L.tree){
     for (const off of [[2.2,0],[0,2.2],[-2.2,0],[0,-2.2],[1.6,1.6]]){
       if (!covPosBlocked(L.tree[0]+off[0], L.tree[1]+off[1])){
         sx = L.tree[0]+off[0]; sz = L.tree[1]+off[1];
-        yaw = Math.atan2(sx - L.tree[0], sz - L.tree[1]) + Math.PI;
+        camYaw = Math.atan2(sx - L.tree[0], sz - L.tree[1]);
         break;
       }
     }
   }
-  camera.position.set(sx, walkY, sz);
+  avatar.g.position.set(sx, 0, sz);
+  avYawCur = camYaw + Math.PI;
+  avatar.g.rotation.y = avYawCur;
   db.ref("game/config/spawn").once("value").then(s => {
     const sp = s.val();
-    if (sp){ camera.position.set(sp.x, walkY, sp.z); yaw = sp.yaw || 0; }
+    if (sp){ avatar.g.position.set(sp.x, 0, sp.z); camYaw = (sp.yaw || 0) + Math.PI; }
   }).catch(()=>{});
 
   $("load3d").style.display = "none";
@@ -1141,17 +1227,19 @@ function bindControls(canvas){
   window.addEventListener("keydown", e => keys[e.code] = true);
   window.addEventListener("keyup",   e => keys[e.code] = false);
 
-  let lookId = null, moveId = null, lx = 0, ly = 0, moved = 0;
-  let stickCX = 0, stickCY = 0;
   const stick = $("stick"), knob = $("stick-knob");
+  let stickCX = 0, stickCY = 0;
+  const stickCenter = () => {
+    const r = stick.getBoundingClientRect();
+    stickCX = r.left + r.width/2; stickCY = r.top + r.height/2;
+  };
 
+  let lookId = null, moveId = null, lx = 0, ly = 0, moved = 0;
   canvas.addEventListener("pointerdown", e => {
     const isTouch = e.pointerType === "touch";
-    if (isTouch && e.clientX < window.innerWidth*0.42 && moveId === null){
-      moveId = e.pointerId; stickCX = e.clientX; stickCY = e.clientY;
-      stick.style.display = "block";
-      stick.style.left = (stickCX-55)+"px"; stick.style.top = (stickCY-55)+"px";
-      knob.style.transform = "translate(0,0)";
+    if (isTouch && moveId === null && e.clientX < window.innerWidth*0.45 && e.clientY > window.innerHeight*0.45){
+      moveId = e.pointerId;
+      stick.classList.add("on"); stickCenter();
       return;
     }
     if (lookId === null){ lookId = e.pointerId; lx = e.clientX; ly = e.clientY; moved = 0; }
@@ -1168,14 +1256,19 @@ function bindControls(canvas){
     if (e.pointerId === lookId){
       const dx = e.clientX - lx, dy = e.clientY - ly;
       moved += Math.abs(dx)+Math.abs(dy);
-      yaw   -= dx * 0.0038;
-      pitch -= dy * 0.0032;
-      pitch = Math.max(-1.35, Math.min(1.35, pitch));
+      camYaw   -= dx * 0.005;
+      camPitch -= dy * 0.004;
+      camPitch = Math.max(-1.05, Math.min(0.35, camPitch));
       lx = e.clientX; ly = e.clientY;
     }
   });
   const endPointer = e => {
-    if (e.pointerId === moveId){ moveId = null; moveVec.x = moveVec.y = 0; stick.style.display = "none"; return; }
+    if (e.pointerId === moveId){
+      moveId = null; moveVec.x = moveVec.y = 0;
+      knob.style.transform = "translate(0,0)";
+      stick.classList.remove("on");
+      return;
+    }
     if (e.pointerId === lookId){
       if (moved < 8) tapClaim(e.clientX, e.clientY);
       lookId = null;
@@ -1186,7 +1279,7 @@ function bindControls(canvas){
 }
 
 function tapClaim(cx, cy){
-  if (!camera) return;
+  if (!camera || !avatar) return;
   const ndc = new THREE.Vector2((cx/window.innerWidth)*2-1, -(cy/window.innerHeight)*2+1);
   const rc = new THREE.Raycaster();
   rc.setFromCamera(ndc, camera);
@@ -1197,34 +1290,70 @@ function tapClaim(cx, cy){
   let node = hits[0].object;
   while (node && !node.userData.giftId) node = node.parent;
   if (!node) return;
-  if (camera.position.distanceTo(node.position) > 5){
-    toast("Get closer to open that gift."); return;
+  if (avatar.g.position.distanceTo(node.position) > 5){
+    toast("Walk closer to open that gift."); return;
   }
   attemptClaim(node.userData.giftId);
+}
+
+const _camDir = new THREE.Vector3(), _camTarget = new THREE.Vector3();
+function lerpAngle(a, b, t){
+  let d = (b - a) % (Math.PI*2);
+  if (d > Math.PI) d -= Math.PI*2;
+  if (d < -Math.PI) d += Math.PI*2;
+  return a + d * t;
 }
 
 function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.1);
   const t = performance.now()/1000;
+
+  // --- input ---
   let fwd = 0, str = 0;
   if (keys["KeyW"] || keys["ArrowUp"]) fwd += 1;
   if (keys["KeyS"] || keys["ArrowDown"]) fwd -= 1;
   if (keys["KeyA"] || keys["ArrowLeft"]) str -= 1;
   if (keys["KeyD"] || keys["ArrowRight"]) str += 1;
   fwd += -moveVec.y; str += moveVec.x;
-  const speed = (keys["ShiftLeft"] || keys["ShiftRight"]) ? 4.2 : 2.4;
-  if (fwd || str){
+  const mag = Math.min(1, Math.hypot(fwd, str));
+  const speed = ((keys["ShiftLeft"] || keys["ShiftRight"]) ? 4.4 : 2.6) * mag;
+
+  // --- avatar movement (camera-relative) ---
+  if (mag > 0.05){
     const len = Math.hypot(fwd, str) || 1;
-    const sin = Math.sin(yaw), cos = Math.cos(yaw);
-    const dx = (( -sin*fwd ) + ( cos*str )) / len * speed * dt;
-    const dz = (( -cos*fwd ) + ( -sin*str )) / len * speed * dt;
-    const px = camera.position.x, pz = camera.position.z;
-    if (!covPosBlocked(px + dx, pz)) camera.position.x = px + dx;
-    if (!covPosBlocked(camera.position.x, pz + dz)) camera.position.z = pz + dz;
+    const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);   // camera forward on the ground
+    const rx = -fz, rz = fx;                                 // camera right
+    const dx = (fx*fwd + rx*str)/len * speed * dt;
+    const dz = (fz*fwd + rz*str)/len * speed * dt;
+    const p = avatar.g.position;
+    if (!covPosBlocked(p.x + dx, p.z)) p.x += dx;
+    if (!covPosBlocked(p.x, p.z + dz)) p.z += dz;
+    avYawCur = lerpAngle(avYawCur, Math.atan2(dx, dz), 1 - Math.exp(-12*dt));
+    avatar.g.rotation.y = avYawCur;
+    walkPhase += dt * (5 + speed*1.6);
+    moveAmt = Math.min(1, moveAmt + dt*6);
+  } else {
+    moveAmt = Math.max(0, moveAmt - dt*6);
   }
-  camera.position.y = walkY;
-  camera.rotation.set(pitch, yaw, 0);
+  const sw = Math.sin(walkPhase) * 0.55 * moveAmt;
+  avatar.legL.rotation.x = sw;  avatar.legR.rotation.x = -sw;
+  avatar.armL.rotation.x = -sw * 0.8; avatar.armR.rotation.x = sw * 0.8;
+  avatar.g.position.y = Math.abs(Math.sin(walkPhase)) * 0.035 * moveAmt;
+
+  // --- orbit camera with wall avoidance ---
+  _camTarget.copy(avatar.g.position); _camTarget.y += 1.35;
+  _camDir.set(Math.sin(camYaw)*Math.cos(camPitch), -Math.sin(camPitch), Math.cos(camYaw)*Math.cos(camPitch));
+  let dist = 3.4;
+  for (let s = 0.5; s <= 3.4; s += 0.25){
+    const px = _camTarget.x + _camDir.x*s, py = _camTarget.y + _camDir.y*s, pz = _camTarget.z + _camDir.z*s;
+    if (py < LAYOUT.wallH - 0.1 && covWallAt(px, pz)){ dist = Math.max(0.6, s - 0.3); break; }
+  }
+  camera.position.copy(_camTarget).addScaledVector(_camDir, dist);
+  if (camera.position.y > LAYOUT.wallH - 0.15) camera.position.y = LAYOUT.wallH - 0.15;
+  camera.lookAt(_camTarget);
+
+  // --- gifts idle ---
   for (const m of Object.values(giftMeshes)){
     m.rotation.y = t*0.9;
     m.position.y = m.userData.baseY + Math.sin(t*1.7 + m.userData.baseY)*0.05;
@@ -1232,6 +1361,7 @@ function animate(){
   covAnimateWorld(t, dt);
   renderer.render(scene, camera);
 }
+
 </script>
 </body>
 </html>
