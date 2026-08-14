@@ -709,3 +709,113 @@ function openTab(n){
 // ══════════════════════════════════════════════════════════
 //  PRICING ROWS
 // ══════════════════════════════════════════════════════════
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  VIRTUAL OFFICE PRICING — linked to the Compass Price List Generator sheet
+//  (VO-Prices tab, published CSV). Shows each centre's Gold/Platinum/Diamond
+//  packages under the Page-1 pricing table and in the email.
+// ══════════════════════════════════════════════════════════════════════════════
+const VO_SHEET_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vThJcJjj9jNWlhj2XpJ1TnQm6Dcu9BWP2BllX7EwkaBF2X2w5aG9hEt-lMLyjtdETSTzwYLEdkilNsk/pub?gid=1172039364&single=true&output=csv';
+let VO_PRICES=null;        // { 'hk-infinitus-plaza': {gold:'780',platinum:'1,560',diamond:'2,500'} , … }
+let VO_NOTE_ON=true;       // toggle: render VO packages line (page + email)
+
+function _voParseCsvLine(line){
+  const r=[]; let cur='', inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){ inQ=!inQ; }
+    else if(ch===','&&!inQ){ r.push(cur.trim()); cur=''; }
+    else { cur+=ch; }
+  }
+  r.push(cur.trim());
+  return r;
+}
+async function voFetchPrices(force){
+  try{
+    const url=VO_SHEET_URL+(force?'&cb='+Date.now():'');
+    const resp=await fetch(url,{cache:'no-cache'});
+    if(!resp.ok) return false;
+    const rows=(await resp.text()).split(/\r?\n/).map(_voParseCsvLine).filter(r=>r.length>=4);
+    let hi=-1;
+    for(let i=0;i<Math.min(4,rows.length);i++){
+      if(rows[i].some(c=>/centre.?id/i.test(c))){ hi=i; break; }
+    }
+    const map={};
+    rows.forEach((r,i)=>{
+      if(i<=hi) return;
+      const id=(r[0]||'').toLowerCase().trim();
+      if(!id||!/^[a-z]{2}-/.test(id)) return;
+      map[id]={gold:r[1]||'',platinum:r[2]||'',diamond:r[3]||''};
+    });
+    if(Object.keys(map).length){
+      VO_PRICES=map;
+      voFillDatalist();
+      // Auto-fill the field for the loaded card if empty
+      const inp=document.getElementById('vo-centre-id');
+      if(inp&&!inp.value.trim()&&typeof LAST_LOCATION!=='undefined'&&LAST_LOCATION){
+        const nm=typeof LAST_LOCATION.name==='object'?(LAST_LOCATION.name.en||''):(LAST_LOCATION.name||'');
+        const hit=voMatchCentre(nm); if(hit){ inp.value=hit; }
+      }
+      gen();
+      return true;
+    }
+  }catch(e){ console.warn('[VO prices]',e); }
+  return false;
+}
+function _voNorm(s){
+  return String(s||'').toLowerCase()
+    .replace(/^(hk|jp|au|sg|my|ph|vn|cn|kr|tw)-/,'')
+    .replace(/[^a-z0-9]/g,'');
+}
+function voMatchCentre(cardName){
+  if(!VO_PRICES||!cardName) return '';
+  const n=_voNorm(cardName);
+  if(!n) return '';
+  let exact=[], contains=[];
+  for(const id of Object.keys(VO_PRICES)){
+    const v=_voNorm(id);
+    if(!v||v.length<4) continue;
+    if(v===n) exact.push(id);
+    else if(n.includes(v)||v.includes(n)) contains.push(id);
+  }
+  if(exact.length===1) return exact[0];
+  if(!exact.length&&contains.length===1) return contains[0];
+  return '';               // ambiguous or none → leave for manual pick
+}
+function voCurrentId(){
+  return (document.getElementById('vo-centre-id')?.value||'').toLowerCase().trim();
+}
+const _VO_CUR={hk:'HK$',jp:'¥',au:'A$',sg:'S$',my:'RM',ph:'₱',vn:'₫',cn:'¥',kr:'₩',tw:'NT$'};
+const _VO_I18N={
+  'en':{label:'Virtual Office packages',mo:'/month'},
+  'zh-hant':{label:'虛擬辦公室方案',mo:'/月'},
+  'zh-hans':{label:'虚拟办公室方案',mo:'/月'},
+  'ja':{label:'バーチャルオフィスプラン',mo:'/月'},
+};
+function voLineText(lc,id){
+  const vid=(id||voCurrentId());
+  if(!VO_PRICES||!vid||!VO_PRICES[vid]) return '';
+  const p=VO_PRICES[vid];
+  const cur=_VO_CUR[(vid.match(/^([a-z]{2})-/)||[])[1]]||'';
+  const t=_VO_I18N[lc]||_VO_I18N['en'];
+  const seg=[];
+  if(p.gold)     seg.push(`Gold ${cur}${p.gold}`);
+  if(p.platinum) seg.push(`Platinum ${cur}${p.platinum}`);
+  if(p.diamond)  seg.push(`Diamond ${cur}${p.diamond}`);
+  if(!seg.length) return '';
+  return `${t.label}: ${seg.join(' · ')} ${t.mo}`;
+}
+function voFillDatalist(){
+  const dl=document.getElementById('vo-id-list');
+  if(!dl||!VO_PRICES) return;
+  dl.innerHTML=Object.keys(VO_PRICES).sort().map(id=>`<option value="${id}">`).join('');
+}
+function toggleVoNote(){
+  VO_NOTE_ON=!VO_NOTE_ON;
+  const btn=document.getElementById('vo-note-toggle');
+  if(btn) btn.classList.toggle('on',VO_NOTE_ON);
+  const inp=document.getElementById('vo-centre-id');
+  if(inp){ inp.style.opacity=VO_NOTE_ON?'1':'.4'; }
+  gen();
+}

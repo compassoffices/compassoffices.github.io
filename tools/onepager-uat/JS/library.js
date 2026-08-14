@@ -388,6 +388,21 @@ function applyLocationData(p){
   if(p.amenities){AMENITY_ICONS.forEach(a=>{a.on=p.amenities.includes(a.id);});renderAmenities();}
   if(p.benefits_on){BENEFITS.forEach(b=>{b.on=p.benefits_on.includes(b.id);});renderBenefits();}
   if(p.photos?.length){S.photos=[null,null,null,null,null,null];p.photos.slice(0,6).forEach((url,i)=>{S.photos[i]=url;});renderPhotoSlots();}
+  // Virtual Office pricing: restore saved id, else auto-match from centre name
+  { const _voI=document.getElementById('vo-centre-id');
+    if(_voI){
+      _voI.value=(p.vo_centre_id||'').trim();
+      if(!_voI.value&&typeof voMatchCentre==='function'){
+        const _nm=typeof p.name==='object'?(p.name.en||Object.values(p.name)[0]||''):(p.name||'');
+        const _hit=voMatchCentre(_nm); if(_hit)_voI.value=_hit;
+      }
+    }
+    if(typeof p.vo_note_on==='boolean'&&typeof VO_NOTE_ON!=='undefined'){
+      VO_NOTE_ON=p.vo_note_on;
+      const _voB=document.getElementById('vo-note-toggle');
+      if(_voB)_voB.classList.toggle('on',VO_NOTE_ON);
+      if(_voI)_voI.style.opacity=VO_NOTE_ON?'1':'.4';
+    } }
   EXTRA_MASTERS=(p.extra_masters||[]).filter(m=>m&&(m.url||m.fp_base_url||m.fp_data_url)).map(m=>({url:m.url||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''}));
   if(typeof renderExtraMasters==='function')renderExtraMasters();
   if(p.fp_plans&&Array.isArray(p.fp_plans)&&p.fp_plans.length){

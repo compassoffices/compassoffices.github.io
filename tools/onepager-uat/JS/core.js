@@ -266,6 +266,7 @@ function gen(){
   <div class="sl-foot">
     ${S.rows.length?`<table class="sl-ptbl"><thead><tr>${activeCols.map(k=>`<th>${pHdr[k]}</th>`).join('')}</tr></thead><tbody>${S.rows.map(r=>`<tr>${activeCols.map(k=>{const v=r[k]||'';const isPrice=k==='rent'||k==='mgmt'||k==='avail'||k==='market';return isPrice?`<td class="acc">${v}</td>`:k==='init'?`<td class="init-cell">${v}</td>`:`<td>${v}</td>`;}).join('')}</tr>`).join('')}</tbody></table>`:`<p style="font-size:.65em;color:#CCC">Add pricing rows in the Pricing tab</p>`}
     ${S.rows.length && DEPOSIT_NOTE_ON && getDepositNote()?`<div class="sl-deposit-note">${getDepositNote()}</div>`:''}
+    ${(typeof VO_NOTE_ON!=='undefined'&&VO_NOTE_ON&&typeof voLineText==='function'&&voLineText(LANG))?`<div class="sl-deposit-note">${voLineText(LANG)}</div>`:''}
     ${(HOUSE_RULES_ON||(PAGE_URL_ON&&purl))?`<div class="sl-url">${HOUSE_RULES_ON?`<a class="sl-hr-link" href="${houseRulesUrl()}" target="_blank" rel="noopener">${ui('house_rules')} →</a>`:''}${(HOUSE_RULES_ON&&PAGE_URL_ON&&purl)?' &nbsp;·&nbsp; ':''}${(PAGE_URL_ON&&purl)?purl:''}</div>`:''}
   </div>`;
 
@@ -1116,6 +1117,8 @@ function downloadCurrentJSON(){
     floorplan_url: (S.floorplan&&!S.floorplan.startsWith('data:'))?(typeof _stripCb==='function'?_stripCb(S.floorplan):S.floorplan):'',
     fp_plans: FP_PLANS.map(p=>({url:p.url&&!p.url.startsWith('data:')?(typeof _stripCb==='function'?_stripCb(p.url):p.url):'',label:p.label||''})),
     extra_masters: (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).filter(m=>!m._auto).map(m=>({url:(typeof _stripCb==='function'?_stripCb(m.url):m.url)||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''})),
+    vo_centre_id: (document.getElementById('vo-centre-id')?.value||'').trim(),
+    vo_note_on: (typeof VO_NOTE_ON!=='undefined')?VO_NOTE_ON:true,
     fp_page2_same: FP_PAGE2_SAME,
     fp_page1_idx: FP_PAGE1_IDX,
     fp_page2_idx: FP_PAGE2_IDX,

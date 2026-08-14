@@ -138,6 +138,7 @@ async function forceUpdate(){
   // Multi-floor: rows may have been restored — derive chips + cross-floor rooms
   setTimeout(()=>{ if(typeof syncMultiFloorFromRows==='function') syncMultiFloorFromRows(); }, 1200);
   if(typeof initPreviewZoom==='function') initPreviewZoom();
-  console.log('[One-Pager Builder] build 20260807g');
+  if(typeof voFetchPrices==='function') voFetchPrices();
+  console.log('[One-Pager Builder] build 20260807h');
 })();
 

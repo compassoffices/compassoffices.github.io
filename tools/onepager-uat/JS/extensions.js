@@ -49,6 +49,7 @@ function clearLoadedCard(){
   const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML='';
   S.rows=[];S.photos=[null,null,null];S.floorplan=null;S.partnerLogo=null;
   EXTRA_MASTERS=[];if(typeof renderExtraMasters==='function')renderExtraMasters();
+  { const _voI=document.getElementById('vo-centre-id'); if(_voI)_voI.value=''; }
   TRANSPORT=[];
   renderRows();renderPhotoSlots();renderFloorplanCard();renderLogoCard();renderTransport();
   showStatus('Card cleared.','s-info');
@@ -151,7 +152,8 @@ function buildStateSnapshot(){
     fp_page2_same:FP_PAGE2_SAME,fp_page1_idx:FP_PAGE1_IDX,fp_page2_idx:FP_PAGE2_IDX,fp_base_url:FP_BASE_URL,fp_data_url:FP_DATA_URL,fp_highlights_manual:Array.from(FP_HIGHLIGHTS_MANUAL),
     extra_masters:(typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).map(m=>({...m})),
     office_lookup_region:AX_REGION,office_lookup_centre:AUS_CENTRE_FILTER,aus_selected:Array.from(AUS_SELECTED),aus_fp_auto_added:Array.from(_AUS_FP_AUTO_ADDED),
-    deposit_note_on:DEPOSIT_NOTE_ON,house_rules_on:HOUSE_RULES_ON,page_url_on:PAGE_URL_ON,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
+    deposit_note_on:DEPOSIT_NOTE_ON,house_rules_on:HOUSE_RULES_ON,page_url_on:PAGE_URL_ON,
+    vo_centre_id:(document.getElementById('vo-centre-id')?.value||'').trim(),vo_note_on:(typeof VO_NOTE_ON!=='undefined')?VO_NOTE_ON:true,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
@@ -259,6 +261,15 @@ function restoreStateSnapshot(state){
   if(bTitleInp) bTitleInp.value=BENEFITS_TITLE[LANG]||'';
   if(state.deposit_note && typeof state.deposit_note === 'object') Object.assign(DEPOSIT_NOTE,state.deposit_note);
   syncDepositNoteInput();
+  // VO pricing: restore centre id + toggle
+  { const _voI=document.getElementById('vo-centre-id');
+    if(_voI&&typeof state.vo_centre_id==='string') _voI.value=state.vo_centre_id;
+    if(typeof state.vo_note_on==='boolean'&&typeof VO_NOTE_ON!=='undefined'){
+      VO_NOTE_ON=state.vo_note_on;
+      const _voB=document.getElementById('vo-note-toggle');
+      if(_voB)_voB.classList.toggle('on',VO_NOTE_ON);
+      if(_voI)_voI.style.opacity=VO_NOTE_ON?'1':'.4';
+    } }
   // Restore the on/off toggles + discount value
   if(typeof state.deposit_note_on === 'boolean'){
     DEPOSIT_NOTE_ON = state.deposit_note_on;
@@ -2431,6 +2442,7 @@ function _emailGetLocations(){
         rows,
         benefits,
         depositNote,
+        voLine: ((st.vo_note_on!==false)&&st.vo_centre_id&&typeof voLineText==='function')?voLineText(emailLang,st.vo_centre_id):'',
       };
     });
   }
@@ -2460,6 +2472,7 @@ function _emailGetLocations(){
       rows,
       benefits,
       depositNote,
+      voLine: (typeof VO_NOTE_ON!=='undefined'&&VO_NOTE_ON&&typeof voLineText==='function')?voLineText(emailLang,voCurrentId()):'',
     }];
   }
   // Same language as UI → read live from DOM
@@ -2477,6 +2490,7 @@ function _emailGetLocations(){
     rows:    S.rows || [],
     benefits:(LANG_DATA[LANG]?.benefits||BENEFITS||[]).filter(b=>b.on&&b.text),
     depositNote: DEPOSIT_NOTE_ON ? getDepositNote() : '',
+    voLine: (typeof VO_NOTE_ON!=='undefined'&&VO_NOTE_ON&&typeof voLineText==='function')?voLineText(LANG,voCurrentId()):'',
   }];
 }
 
@@ -2592,6 +2606,12 @@ function buildEmailHTML(toName, fromName, company){
   </tbody>
 </table>` : '';
 
+    // Virtual Office packages line (from the Price List sheet) — shown when
+    // the VO toggle is on and the centre has a matched VO Centre ID.
+    const voHTML = loc.voLine
+      ? `<p style="margin:6px 0 2px;font-family:${FF};font-size:12px;color:#666;">${loc.voLine}</p>`
+      : '';
+
     // Deposit note intentionally NOT shown in the email — the same info is
     // already on the proposal PDF attachment, so we avoid duplicating it here.
 
@@ -2628,7 +2648,7 @@ function buildEmailHTML(toName, fromName, company){
 
     return `${locHeader}
 <tr><td class="em-loc-body" style="padding:${li>0?'0 36px 28px':'0 36px 28px'};${li===0&&!isMulti?'padding-top:0;':'padding-top:20px;'}">
-  ${hasPricing?`<p style="margin:0 0 6px;font-family:${FF};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#FF6600;">${T.pricing_label}</p>${pricingHTML}`:''}
+  ${hasPricing?`<p style="margin:0 0 6px;font-family:${FF};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#FF6600;">${T.pricing_label}</p>${pricingHTML}${voHTML}`:''}
   ${toursHTML}${pageBtn}
 </td></tr>`;
   }).join('');
@@ -2795,6 +2815,7 @@ function buildEmailPlainText(toName, fromName, company){
         const parts = activeCols.map(col=>{ const v=(r[col.key]||'').replace(/<[^>]+>/g,''); return v?`${getPricingColLabel(col.key)}: ${v}`:''; }).filter(Boolean);
         body += parts.join(' | ') + '\n';
       });
+      if(loc.voLine) body += `${loc.voLine}\n`;
     }
     if(loc.tours && loc.tours.length){
       body += `\n${T.pt_tour(loc.tours.length)}\n`;
