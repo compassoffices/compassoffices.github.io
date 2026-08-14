@@ -21,7 +21,7 @@ function covPosBlocked(x, z){
          covWallAt(x+q,z+q) || covWallAt(x-q,z+q) || covWallAt(x+q,z-q) || covWallAt(x-q,z-q);
 }
 
-function _covInstanced(scene, rects, mat, y0, h, pickable){
+function _covInstanced(scene, rects, mat, y0, h, pickable, colors, blendWhite){
   if (!rects.length) return null;
   const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), mat, rects.length);
   const M = new THREE.Matrix4();
@@ -32,6 +32,15 @@ function _covInstanced(scene, rects, mat, y0, h, pickable){
     m.setMatrixAt(i, M);
   }
   m.instanceMatrix.needsUpdate = true;
+  if (colors && m.setColorAt){
+    const c = new THREE.Color(), w = new THREE.Color(0xffffff);
+    for (let i = 0; i < rects.length; i++){
+      c.set("#" + (colors[i] || "F5F0E8"));
+      if (blendWhite) c.lerp(w, blendWhite);
+      m.setColorAt(i, c);
+    }
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }
   scene.add(m);
   if (pickable) covPickables.push(m);
   return m;
@@ -57,15 +66,38 @@ function covBuildWorld(scene){
   const M_GLASS = new THREE.MeshLambertMaterial({ color: 0xA9CFEC, transparent: true, opacity: 0.25, depthWrite: false });
 
   // ---- architecture ----
+  const M_TINT = new THREE.MeshLambertMaterial({ color: 0xffffff });
   _covInstanced(scene, L.wood,   M_WOOD, -0.05, 0.05, true);
   _covInstanced(scene, L.carpet, M_CARP, -0.05, 0.05, true);
-  _covInstanced(scene, L.walls,  M_WALL, 0, L.wallH, false);
+  _covInstanced(scene, L.walls,  L.wallC ? M_TINT : M_WALL, 0, L.wallH, false, L.wallC, 0.30); // real sampled wall colors
   _covInstanced(scene, L.cores,  M_CORE, 0, L.wallH, false);
   _covInstanced(scene, L.windows, M_WALL, 0, 0.8, true);        // sill
   _covInstanced(scene, L.windows, M_GLASS, 0.8, 1.65, false);   // glass band
   _covInstanced(scene, L.windows, M_WALL, 2.45, 0.10, false);   // header
   const ceilRects = L.wood.concat(L.carpet, L.cores, L.windows);
   _covInstanced(scene, ceilRects, M_CEIL, L.wallH, 0.08, false);
+
+  // ---- real floor + ceiling imagery from the scan ----
+  const worldW = L.gw*L.cell, worldH = L.gh*L.cell;
+  const wcx = L.origin[0] + worldW/2, wcz = L.origin[1] + worldH/2;
+  if (L.floorTex){
+    const tex = new THREE.TextureLoader().load(L.floorTex);
+    tex.anisotropy = 8;
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(worldW, worldH),
+      new THREE.MeshLambertMaterial({ map: tex, transparent: true }));
+    p.rotation.x = -Math.PI/2;
+    p.position.set(wcx, 0.02, wcz);
+    scene.add(p);
+    covPickables.push(p);
+  }
+  if (L.ceilTex){
+    const tex = new THREE.TextureLoader().load(L.ceilTex);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(worldW, worldH),
+      new THREE.MeshLambertMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
+    p.rotation.x = Math.PI/2;
+    p.position.set(wcx, L.wallH - 0.02, wcz);
+    scene.add(p);
+  }
 
   // ---- fairy lights along the window band ----
   const lightCols = [0xFF5A4E, 0xFFC94E, 0x59D98C];
@@ -108,15 +140,23 @@ function covBuildWorld(scene){
   for (const kind of Object.keys(fGroups)){
     const arr = fGroups[kind];
     if (!arr.length) continue;
-    const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), fMats[kind], arr.length);
+    const anyReal = arr.some(f => f.c);
+    const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),
+      anyReal ? new THREE.MeshLambertMaterial({ color: 0xffffff }) : fMats[kind], arr.length);
     const M = new THREE.Matrix4();
+    const c = new THREE.Color();
     arr.forEach((f, i) => {
       const w = Math.max(0.25, f.w*0.9), d = Math.max(0.25, f.d*0.9);
       M.makeScale(w, f.h, d);
       M.setPosition(f.x, f.h/2, f.z);
       m.setMatrixAt(i, M);
+      if (anyReal && m.setColorAt){
+        c.set(f.c ? "#"+f.c : fMats[kind].color.getHex());
+        m.setColorAt(i, c);
+      }
     });
     m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
     scene.add(m);
     covPickables.push(m);
   }
