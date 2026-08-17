@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Staff Login — Compass Offices Complaints</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23.13 23.13'%3E%3Cpath fill='%23FF6600' d='M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="shared/brand.css">
+<style>
+  body{display:flex; align-items:center; min-height:100vh;}
+  .co-login-wrap{max-width:380px; margin:0 auto; padding:20px; width:100%;}
+  .co-login-head{text-align:center; margin-bottom:22px;}
+  .co-login-head svg{width:34px; height:34px; margin-bottom:10px;}
+  .co-login-head h1{font-size:19px; font-weight:800; margin:0 0 4px;}
+  .co-login-head p{font-size:12.5px; color:var(--co-muted); margin:0;}
+</style>
+</head>
+<body>
+<div class="co" style="width:100%;">
+  <div class="co-login-wrap">
+    <div class="co-login-head">
+      <svg viewBox="0 0 23.13 23.13" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>
+      <h1>Complaints Tracker</h1>
+      <p>Staff sign-in</p>
+    </div>
+
+    <div class="co-card">
+      <div class="co-error" id="errBox"></div>
+      <form id="loginForm">
+        <div class="co-field">
+          <label class="co-label" for="email">Email</label>
+          <input class="co-input" id="email" type="email" required autocomplete="username">
+        </div>
+        <div class="co-field">
+          <label class="co-label" for="password">Password</label>
+          <input class="co-input" id="password" type="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="co-btn co-btn-primary" id="loginBtn" style="width:100%; padding:11px; font-size:14px; margin-top:6px;">Sign in</button>
+      </form>
+      <p class="co-hint" style="text-align:center; margin-top:14px;">No account? Ask your admin to set one up in Firebase.</p>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { auth, db } from "./shared/firebase-client.js";
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+const form = document.getElementById("loginForm");
+const errBox = document.getElementById("errBox");
+const loginBtn = document.getElementById("loginBtn");
+
+async function routeToWorkspace(userId){
+  const snap = await getDoc(doc(db, "staff", userId));
+  const team = snap.exists() ? snap.data().team : null;
+  if (team === "Management") {
+    window.location.href = "management.html";
+  } else if (team) {
+    window.location.href = "workspace.html";
+  } else {
+    errBox.textContent = "Your login isn't linked to a staff record yet. Contact your admin.";
+    errBox.classList.add("co-show");
+    await signOut(auth);
+  }
+}
+
+// If already signed in, skip straight to the right workspace.
+const unsubscribe = onAuthStateChanged(auth, (user) => {
+  unsubscribe();
+  if (user) routeToWorkspace(user.uid);
+});
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  errBox.classList.remove("co-show");
+  loginBtn.disabled = true;
+  loginBtn.textContent = "Signing in…";
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  let userCredential;
+  try {
+    userCredential = await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Sign in";
+    errBox.textContent = "Incorrect email or password.";
+    errBox.classList.add("co-show");
+    return;
+  }
+
+  loginBtn.disabled = false;
+  loginBtn.textContent = "Sign in";
+
+  await routeToWorkspace(userCredential.user.uid);
+});
+</script>
+</body>
+</html>

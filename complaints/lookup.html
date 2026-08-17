@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check Ticket Status — Compass Offices</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23.13 23.13'%3E%3Cpath fill='%23FF6600' d='M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="shared/brand.css">
+<style>
+  .co-lookup-wrap{max-width:480px; margin:0 auto; padding:36px 20px 60px;}
+  .co-lookup-head{text-align:center; margin-bottom:26px;}
+  .co-lookup-head svg{width:36px; height:36px; margin-bottom:10px;}
+  .co-lookup-head h1{font-size:21px; font-weight:800; margin:0 0 6px;}
+  .co-lookup-head p{font-size:13.5px; color:var(--co-text-2); margin:0;}
+  .co-lookup-form{display:flex; gap:10px;}
+  .co-lookup-form .co-input{flex:1; text-transform:uppercase;}
+  .co-result-card{margin-top:22px; text-align:center; display:none;}
+  .co-result-ref{font-size:13px; color:var(--co-muted); margin-bottom:10px;}
+  .co-result-dates{display:flex; justify-content:center; gap:28px; margin-top:18px;}
+  .co-result-date-item .co-detail-label{font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--co-muted); font-weight:700; margin-bottom:4px;}
+  .co-result-date-item .co-detail-value{font-size:14px; font-weight:700; color:var(--co-ink);}
+</style>
+</head>
+<body>
+<div class="co">
+  <div class="co-main co-lookup-wrap">
+
+    <div class="co-lookup-head">
+      <svg viewBox="0 0 23.13 23.13" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>
+      <h1>Check Ticket Status</h1>
+      <p>Enter the ticket number you were given when you reported your concern.</p>
+    </div>
+
+    <div class="co-card">
+      <form id="lookupForm" class="co-lookup-form">
+        <input class="co-input" id="refInput" placeholder="CMP-2026-0001" required>
+        <button type="submit" class="co-btn co-btn-primary" id="lookupBtn">Check</button>
+      </form>
+      <div class="co-error" id="errBox"></div>
+
+      <div class="co-result-card" id="resultCard">
+        <div class="co-result-ref" id="resultRef"></div>
+        <span class="co-status-pill" id="statusPill"></span>
+        <div class="co-result-dates" id="datesRow"></div>
+      </div>
+    </div>
+
+    <p class="co-hint" style="text-align:center; margin-top:16px;">Need to raise a new complaint? <a href="intake.html" style="color:var(--co-orange-dk); font-weight:600;">Start here</a>.</p>
+  </div>
+</div>
+
+<script type="module">
+import { db } from "./shared/firebase-client.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+const form = document.getElementById("lookupForm");
+const input = document.getElementById("refInput");
+const errBox = document.getElementById("errBox");
+const resultCard = document.getElementById("resultCard");
+const lookupBtn = document.getElementById("lookupBtn");
+
+const statusStyle = {
+  "New - Unassigned": "co-badge-status",
+  "Assigned": "co-badge-status-assigned",
+  "In Progress": "co-badge-status-progress",
+  "Resolved": "co-badge-status-resolved",
+};
+
+function fmtDate(d){
+  if(!d) return "—";
+  return new Date(d + "T00:00:00").toLocaleDateString("en-US", {year:"numeric", month:"short", day:"numeric"});
+}
+
+async function runLookup(ref){
+  errBox.classList.remove("co-show");
+  resultCard.style.display = "none";
+  if (!ref) return;
+
+  lookupBtn.disabled = true;
+  lookupBtn.textContent = "Checking…";
+
+  let snap;
+  try {
+    snap = await getDoc(doc(db, "public_status", ref));
+  } catch (err) {
+    lookupBtn.disabled = false;
+    lookupBtn.textContent = "Check";
+    errBox.textContent = "Something went wrong. Please try again.";
+    errBox.classList.add("co-show");
+    console.error(err);
+    return;
+  }
+
+  lookupBtn.disabled = false;
+  lookupBtn.textContent = "Check";
+
+  if (!snap.exists()) {
+    errBox.textContent = `We couldn't find a ticket matching "${ref}". Double-check the number and try again.`;
+    errBox.classList.add("co-show");
+    return;
+  }
+
+  const row = snap.data();
+  document.getElementById("resultRef").textContent = ref;
+
+  const pill = document.getElementById("statusPill");
+  pill.className = "co-status-pill " + (statusStyle[row.status] || "co-badge-status");
+  pill.textContent = row.status;
+
+  const datesRow = document.getElementById("datesRow");
+  datesRow.innerHTML = "";
+  const items = [
+    ["Target Resolution", fmtDate(row.targetResolutionDate)],
+  ];
+  if (row.status === "Resolved") items.push(["Resolved On", fmtDate(row.resolvedDate)]);
+  items.forEach(([label, value]) => {
+    const div = document.createElement("div");
+    div.className = "co-result-date-item";
+    div.innerHTML = `<div class="co-detail-label">${label}</div><div class="co-detail-value">${value}</div>`;
+    datesRow.appendChild(div);
+  });
+
+  resultCard.style.display = "block";
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  runLookup(input.value.trim().toUpperCase());
+});
+
+const params = new URLSearchParams(window.location.search);
+const prefill = params.get("ref");
+if (prefill) {
+  input.value = prefill;
+  runLookup(prefill.toUpperCase());
+}
+</script>
+</body>
+</html>
