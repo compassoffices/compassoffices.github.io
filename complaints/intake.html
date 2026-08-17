@@ -100,7 +100,7 @@
 import { db } from "./shared/firebase-client.js";
 import { CENTRES, COMPLAINT_TYPES } from "./shared/config.js";
 import {
-  doc, collection, runTransaction
+  doc, collection, runTransaction, getDoc, setDoc, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const centreSel = document.getElementById("f_centre");
@@ -170,26 +170,39 @@ form.addEventListener("submit", async (e) => {
   submitBtn.disabled = true;
   submitBtn.textContent = "Submitting…";
 
+  // TEMPORARY DEBUG VERSION — runs each write separately (not atomically)
+  // so we can see exactly which one Firestore rejects. Revert to the
+  // transaction version once the real cause is found.
   let ticketRef;
   try {
-    ticketRef = await runTransaction(db, async (tx) => {
-      const counterRef = doc(db, "counters", "complaints_seq");
-      const counterSnap = await tx.get(counterRef);
-      if (!counterSnap.exists()) {
-        throw new Error("Ticket counter is not set up yet — see SETUP.md.");
-      }
-      const nextCount = counterSnap.data().count + 1;
-      const year = new Date().getFullYear();
-      const ref = `CMP-${year}-${String(nextCount).padStart(4, "0")}`;
+    const counterRef = doc(db, "counters", "complaints_seq");
+    let counterSnap;
+    try {
+      counterSnap = await getDoc(counterRef);
+      console.log("STEP 1 (read counter) OK:", counterSnap.data());
+    } catch (err) {
+      console.error("STEP 1 (read counter) FAILED:", err);
+      throw err;
+    }
+    if (!counterSnap.exists()) throw new Error("Ticket counter is not set up yet.");
 
-      const complaintRef = doc(db, "complaints", ref);
-      const logRef = doc(collection(db, "complaints", ref, "activity_log"));
-      const publicStatusRef = doc(db, "public_status", ref);
-      const now = new Date();
-      const nowIso = now.toISOString();
+    const nextCount = counterSnap.data().count + 1;
+    const year = new Date().getFullYear();
+    const ref = `CMP-${year}-${String(nextCount).padStart(4, "0")}`;
+    const now = new Date();
+    const nowIso = now.toISOString();
 
-      tx.update(counterRef, { count: nextCount });
-      tx.set(complaintRef, {
+    try {
+      await updateDoc(counterRef, { count: nextCount });
+      console.log("STEP 2 (update counter) OK");
+    } catch (err) {
+      console.error("STEP 2 (update counter) FAILED:", err);
+      throw err;
+    }
+
+    const complaintRef = doc(db, "complaints", ref);
+    try {
+      await setDoc(complaintRef, {
         ticketRef: ref,
         ...complaint,
         severity: "Low",
@@ -202,24 +215,43 @@ form.addEventListener("submit", async (e) => {
         createdAt: nowIso,
         updatedAt: nowIso,
       });
-      tx.set(logRef, {
+      console.log("STEP 3 (create complaint) OK");
+    } catch (err) {
+      console.error("STEP 3 (create complaint) FAILED:", err);
+      throw err;
+    }
+
+    const logRef = doc(collection(db, "complaints", ref, "activity_log"));
+    try {
+      await setDoc(logRef, {
         ts: nowIso,
         actor: "System",
         note: "Complaint submitted by client via public intake form.",
       });
-      tx.set(publicStatusRef, {
+      console.log("STEP 4 (create activity_log) OK");
+    } catch (err) {
+      console.error("STEP 4 (create activity_log) FAILED:", err);
+      throw err;
+    }
+
+    const publicStatusRef = doc(db, "public_status", ref);
+    try {
+      await setDoc(publicStatusRef, {
         status: "New - Unassigned",
         targetResolutionDate: null,
         resolvedDate: null,
       });
+      console.log("STEP 5 (create public_status) OK");
+    } catch (err) {
+      console.error("STEP 5 (create public_status) FAILED:", err);
+      throw err;
+    }
 
-      return ref;
-    });
+    ticketRef = ref;
   } catch (err) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Submit complaint";
     showError("Something went wrong submitting your complaint. Please try again, or email us directly.");
-    console.error(err);
     return;
   }
 
