@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Management Dashboard — Compass Offices Complaints</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23.13 23.13'%3E%3Cpath fill='%23FF6600' d='M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="shared/brand.css">
+</head>
+<body>
+<div class="co">
+  <header class="co-header">
+    <div class="co-header-row">
+      <a class="co-brand" href="management.html">
+        <svg viewBox="0 0 23.13 23.13" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>
+        <div class="co-brand-text"><span class="co-name">Compass Offices</span><span class="co-sub">Complaints — Management View</span></div>
+      </a>
+      <div class="co-header-right">
+        <div class="co-whoami"><span class="co-who-name" id="whoName"></span><span class="co-who-team">Management · read-only</span></div>
+        <button class="co-btn co-btn-sm" id="logoutBtn">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="co-main">
+    <h1 class="co-page-title">Complaints Overview</h1>
+    <p class="co-page-sub">Live snapshot across every centre and team.</p>
+
+    <div class="co-kpis">
+      <div class="co-kpi"><div class="co-kpi-label">Open Complaints</div><div class="co-kpi-value" id="kpiOpen">—</div><div class="co-kpi-sub">Not yet resolved</div></div>
+      <div class="co-kpi"><div class="co-kpi-label">Overdue</div><div class="co-kpi-value co-bad" id="kpiOverdue">—</div><div class="co-kpi-sub">Past target date, still open</div></div>
+      <div class="co-kpi"><div class="co-kpi-label">Avg Resolution Time</div><div class="co-kpi-value co-orange" id="kpiAvgTime">—</div><div class="co-kpi-sub">Days, resolved tickets</div></div>
+      <div class="co-kpi"><div class="co-kpi-label">Resolution Rate</div><div class="co-kpi-value" id="kpiRate">—</div><div class="co-kpi-sub">Resolved of all-time total</div></div>
+    </div>
+
+    <div class="co-section">
+      <div class="co-charts">
+        <div class="co-panel">
+          <div class="co-panel-title">Complaints Raised Per Day (last 30 days)</div>
+          <div class="co-chart-wrap"><canvas id="chartPerDay"></canvas></div>
+        </div>
+        <div class="co-panel">
+          <div class="co-panel-title">Open Complaints by Team</div>
+          <div class="co-chart-wrap"><canvas id="chartByTeam"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="co-section">
+      <div class="co-panel">
+        <div class="co-panel-title">Open Complaints by Centre</div>
+        <div class="co-chart-wrap" style="height:220px;"><canvas id="chartByCentre"></canvas></div>
+      </div>
+    </div>
+
+    <div class="co-section">
+      <div class="co-section-head">
+        <div class="co-section-title">All Complaints</div>
+        <div class="co-section-note" id="tableCount"></div>
+      </div>
+      <div class="co-filters">
+        <input class="co-search" id="searchInput" placeholder="Search client, company, ticket ref…" style="min-width:220px;">
+        <select class="co-select" id="filterCentre"><option value="">All centres</option></select>
+        <select class="co-select" id="filterTeam">
+          <option value="">All teams</option>
+          <option value="__unassigned">Unassigned</option>
+          <option value="CS">CS</option>
+          <option value="Project">Project</option>
+          <option value="IT">IT</option>
+        </select>
+        <select class="co-select" id="filterStatus">
+          <option value="">All statuses</option>
+          <option value="New - Unassigned">New - Unassigned</option>
+          <option value="Assigned">Assigned</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Resolved">Resolved</option>
+        </select>
+        <select class="co-select" id="filterSeverity">
+          <option value="">All severities</option>
+          <option value="Low">Low</option>
+          <option value="Med">Med</option>
+          <option value="High">High</option>
+        </select>
+      </div>
+      <div class="co-table-wrap">
+        <table class="co-table">
+          <thead>
+            <tr>
+              <th data-key="ticketRef">Ticket</th>
+              <th data-key="clientName">Client</th>
+              <th data-key="centre">Centre</th>
+              <th data-key="complaintType">Type</th>
+              <th data-key="severity">Severity</th>
+              <th data-key="status">Status</th>
+              <th data-key="ownerTeam">Team</th>
+              <th data-key="owner">Owner</th>
+              <th data-key="dateRaised">Raised</th>
+              <th data-key="targetResolutionDate">Target</th>
+              <th data-key="overdue">Overdue</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="co-modal-backdrop" id="modalBackdrop">
+    <div class="co-modal">
+      <button class="co-modal-close" id="modalCloseBtn"><svg viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div class="co-modal-title" id="modalTitle"></div>
+      <div class="co-modal-sub" id="modalSub"></div>
+      <div class="co-detail-grid" id="modalDetailGrid"></div>
+      <div class="co-detail-item co-span2" style="margin-bottom:18px;">
+        <div class="co-detail-label">Description</div>
+        <div class="co-detail-value" id="modalDescription" style="font-weight:400;"></div>
+      </div>
+      <div class="co-section-title" style="margin-bottom:10px;">Activity Log</div>
+      <div class="co-log" id="modalLog"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { db, requireStaffSession, signOutAndRedirect } from "./shared/firebase-client.js";
+import {
+  collection, doc, getDocs, query, orderBy
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+const staff = await requireStaffSession();
+if (!staff) throw new Error("no session");
+if (staff.team !== "Management") {
+  window.location.href = "workspace.html";
+  throw new Error("not management");
+}
+
+document.getElementById("whoName").textContent = staff.name;
+document.getElementById("logoutBtn").addEventListener("click", signOutAndRedirect);
+
+function escapeHTML(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function fmtDate(d){
+  if(!d) return "—";
+  return new Date(d.length === 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", {year:"numeric", month:"short", day:"numeric"});
+}
+const todayStr = new Date().toISOString().slice(0,10);
+function isOverdue(t){ return t.targetResolutionDate && t.status !== "Resolved" && t.targetResolutionDate < todayStr; }
+
+const severityBadge = { Low: "co-badge-sev-low", Med: "co-badge-sev-med", High: "co-badge-sev-high" };
+const statusBadge = {
+  "New - Unassigned": "co-badge-status",
+  "Assigned": "co-badge-status-assigned",
+  "In Progress": "co-badge-status-progress",
+  "Resolved": "co-badge-status-resolved",
+};
+
+let complaints = [];
+try {
+  const snap = await getDocs(collection(db, "complaints"));
+  complaints = snap.docs.map(d => ({ ...d.data(), ticketRef: d.id }));
+} catch (err) { console.error(err); }
+complaints.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.dateRaised ? 1 : 0);
+
+// ---------------- KPIs ----------------
+const total = complaints.length;
+const open = complaints.filter(c => c.status !== "Resolved");
+const overdue = open.filter(isOverdue);
+const resolved = complaints.filter(c => c.status === "Resolved" && c.resolvedDate);
+const avgDays = resolved.length
+  ? (resolved.reduce((sum, c) => sum + (new Date(c.resolvedDate) - new Date(c.dateRaised.slice(0,10))) / 86400000, 0) / resolved.length)
+  : null;
+
+document.getElementById("kpiOpen").textContent = open.length;
+document.getElementById("kpiOverdue").textContent = overdue.length;
+document.getElementById("kpiAvgTime").textContent = avgDays === null ? "—" : avgDays.toFixed(1);
+document.getElementById("kpiRate").textContent = total ? Math.round((resolved.length / total) * 100) + "%" : "—";
+
+// ---------------- Charts ----------------
+const chartFont = { family: "'Hanken Grotesk','Noto Sans',sans-serif", size: 11 };
+Chart.defaults.font = chartFont;
+Chart.defaults.color = "#555555";
+
+// Complaints per day, last 30 days
+const days = [];
+for (let i = 29; i >= 0; i--) {
+  const d = new Date();
+  d.setDate(d.getDate() - i);
+  days.push(d.toISOString().slice(0,10));
+}
+const perDayCounts = days.map(day => complaints.filter(c => c.dateRaised.slice(0,10) === day).length);
+
+new Chart(document.getElementById("chartPerDay"), {
+  type: "bar",
+  data: {
+    labels: days.map(d => new Date(d + "T00:00:00").toLocaleDateString("en-US", {month:"short", day:"numeric"})),
+    datasets: [{ data: perDayCounts, backgroundColor: "#FF6600", borderRadius: 3, maxBarThickness: 14 }]
+  },
+  options: {
+    plugins: { legend: { display: false } },
+    scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
+  }
+});
+
+// Open by team
+const teamKeys = [["CS","CS"],["Project","Project"],["IT","IT"],[null,"Unassigned"]];
+const teamCounts = teamKeys.map(([key]) => open.filter(c => c.ownerTeam === key).length);
+new Chart(document.getElementById("chartByTeam"), {
+  type: "doughnut",
+  data: {
+    labels: teamKeys.map(([,label]) => label),
+    datasets: [{ data: teamCounts, backgroundColor: ["#FF6600","#2B5FA8","#2E7D46","#BBBBBB"] }]
+  },
+  options: { plugins: { legend: { position: "bottom", labels: { boxWidth: 10, padding: 12 } } } }
+});
+
+// Open by centre
+const centreSet = [...new Set(complaints.map(c => c.centre))].sort();
+const centreCounts = centreSet.map(centre => open.filter(c => c.centre === centre).length);
+new Chart(document.getElementById("chartByCentre"), {
+  type: "bar",
+  data: { labels: centreSet, datasets: [{ data: centreCounts, backgroundColor: "#E55A00", borderRadius: 3, maxBarThickness: 26 }] },
+  options: {
+    indexAxis: "y",
+    plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } }
+  }
+});
+
+// ---------------- Table ----------------
+const filterCentre = document.getElementById("filterCentre");
+centreSet.forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = c; filterCentre.appendChild(o); });
+
+let sortKey = "dateRaised";
+let sortDir = -1;
+
+function applyFiltersAndRender(){
+  const q = document.getElementById("searchInput").value.trim().toLowerCase();
+  const fCentre = document.getElementById("filterCentre").value;
+  const fTeam = document.getElementById("filterTeam").value;
+  const fStatus = document.getElementById("filterStatus").value;
+  const fSeverity = document.getElementById("filterSeverity").value;
+
+  let rows = complaints.filter(c => {
+    if (fCentre && c.centre !== fCentre) return false;
+    if (fTeam === "__unassigned" && c.ownerTeam !== null) return false;
+    if (fTeam && fTeam !== "__unassigned" && c.ownerTeam !== fTeam) return false;
+    if (fStatus && c.status !== fStatus) return false;
+    if (fSeverity && c.severity !== fSeverity) return false;
+    if (q) {
+      const hay = `${c.ticketRef} ${c.clientName} ${c.company||""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    if (sortKey === "overdue") {
+      return (isOverdue(b) - isOverdue(a)) * sortDir * -1;
+    }
+    const av = a[sortKey] ?? "";
+    const bv = b[sortKey] ?? "";
+    if (av < bv) return -1 * sortDir;
+    if (av > bv) return 1 * sortDir;
+    return 0;
+  });
+
+  document.getElementById("tableCount").textContent = `${rows.length} of ${complaints.length}`;
+
+  document.getElementById("tableBody").innerHTML = rows.map(t => `
+    <tr data-ref="${t.ticketRef}">
+      <td><strong>${t.ticketRef}</strong></td>
+      <td>${escapeHTML(t.clientName)}${t.company ? "<br><span style='color:var(--co-muted);font-size:11.5px;'>"+escapeHTML(t.company)+"</span>" : ""}</td>
+      <td>${escapeHTML(t.centre)}</td>
+      <td>${escapeHTML(t.complaintType)}</td>
+      <td><span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span></td>
+      <td><span class="co-badge ${statusBadge[t.status]}">${t.status}</span></td>
+      <td>${t.ownerTeam ? `<span class="co-badge co-badge-team">${t.ownerTeam}</span>` : "—"}</td>
+      <td>${escapeHTML(t.owner || "—")}</td>
+      <td>${fmtDate(t.dateRaised.slice(0,10))}</td>
+      <td>${fmtDate(t.targetResolutionDate)}</td>
+      <td>${isOverdue(t) ? '<span class="co-badge co-badge-overdue">Overdue</span>' : "—"}</td>
+    </tr>`).join("") || `<tr><td colspan="11"><div class="co-empty-state">No complaints match these filters.</div></td></tr>`;
+}
+
+["searchInput","filterCentre","filterTeam","filterStatus","filterSeverity"].forEach(id => {
+  document.getElementById(id).addEventListener("input", applyFiltersAndRender);
+});
+
+document.querySelectorAll("table.co-table th[data-key]").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.key;
+    sortDir = (sortKey === key) ? sortDir * -1 : 1;
+    sortKey = key;
+    applyFiltersAndRender();
+  });
+});
+
+// ---------------- Detail modal (read-only) ----------------
+const modalBackdrop = document.getElementById("modalBackdrop");
+document.getElementById("modalCloseBtn").addEventListener("click", () => modalBackdrop.classList.remove("co-show"));
+modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) modalBackdrop.classList.remove("co-show"); });
+
+document.getElementById("tableBody").addEventListener("click", async (e) => {
+  const row = e.target.closest("tr[data-ref]");
+  if (!row) return;
+  const t = complaints.find(c => c.ticketRef === row.dataset.ref);
+  if (!t) return;
+
+  document.getElementById("modalTitle").textContent = t.ticketRef;
+  document.getElementById("modalSub").textContent = `${t.clientName}${t.company ? " · " + t.company : ""} · ${t.centre}`;
+  document.getElementById("modalDetailGrid").innerHTML = `
+    <div class="co-detail-item"><div class="co-detail-label">Email</div><div class="co-detail-value">${escapeHTML(t.email)}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Type</div><div class="co-detail-value">${escapeHTML(t.complaintType)}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Severity</div><div class="co-detail-value"><span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span></div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Status</div><div class="co-detail-value"><span class="co-badge ${statusBadge[t.status]}">${t.status}</span> ${isOverdue(t) ? '<span class="co-badge co-badge-overdue">Overdue</span>' : ""}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Team / Owner</div><div class="co-detail-value">${t.ownerTeam ? t.ownerTeam + " · " + (t.owner||"—") : "Unassigned"}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Date Raised</div><div class="co-detail-value">${fmtDate(t.dateRaised.slice(0,10))}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Target Resolution</div><div class="co-detail-value">${fmtDate(t.targetResolutionDate)}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Resolved</div><div class="co-detail-value">${fmtDate(t.resolvedDate)}</div></div>
+  `;
+  document.getElementById("modalDescription").textContent = t.description;
+
+  const logSnap = await getDocs(query(
+    collection(db, "complaints", t.ticketRef, "activity_log"),
+    orderBy("ts", "desc")
+  ));
+  const logs = logSnap.docs.map(d => d.data());
+  document.getElementById("modalLog").innerHTML = logs.map(l => `
+    <div class="co-log-item">
+      <div class="co-log-item-top"><span class="co-log-actor">${escapeHTML(l.actor)}</span><span class="co-log-ts">${new Date(l.ts).toLocaleString("en-US", {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"})}</span></div>
+      <div class="co-log-note">${escapeHTML(l.note)}</div>
+    </div>`).join("") || `<div class="co-hint">No activity yet.</div>`;
+
+  modalBackdrop.classList.add("co-show");
+});
+
+applyFiltersAndRender();
+</script>
+</body>
+</html>
