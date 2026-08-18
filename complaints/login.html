@@ -13,6 +13,11 @@
   .co-login-head svg{width:34px; height:34px; margin-bottom:10px;}
   .co-login-head h1{font-size:19px; font-weight:800; margin:0 0 4px;}
   .co-login-head p{font-size:12.5px; color:var(--co-muted); margin:0;}
+  .co-auth-tabs{display:flex; gap:6px; margin-bottom:18px;}
+  .co-auth-tab{flex:1; appearance:none; border:1px solid var(--co-line); background:var(--co-paper); color:var(--co-text-2); font:inherit; font-size:13px; font-weight:700; padding:8px; border-radius:var(--co-radius-pill); cursor:pointer;}
+  .co-auth-tab.co-active{background:var(--co-orange-wash); border-color:var(--co-orange); color:var(--co-orange-dk);}
+  .co-forgot-link{display:block; text-align:right; font-size:12px; color:var(--co-muted); margin:-8px 0 14px; cursor:pointer; background:none; border:none; font:inherit; padding:0;}
+  .co-forgot-link:hover{color:var(--co-orange-dk); text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -25,7 +30,14 @@
     </div>
 
     <div class="co-card">
+      <div class="co-auth-tabs">
+        <button type="button" class="co-auth-tab co-active" id="tabSignIn">Sign in</button>
+        <button type="button" class="co-auth-tab" id="tabRegister">Register</button>
+      </div>
+
       <div class="co-error" id="errBox"></div>
+      <div class="co-success" id="successBox"></div>
+
       <form id="loginForm">
         <div class="co-field">
           <label class="co-label" for="email">Email</label>
@@ -35,21 +47,73 @@
           <label class="co-label" for="password">Password</label>
           <input class="co-input" id="password" type="password" required autocomplete="current-password">
         </div>
-        <button type="submit" class="co-btn co-btn-primary" id="loginBtn" style="width:100%; padding:11px; font-size:14px; margin-top:6px;">Sign in</button>
+        <button type="button" class="co-forgot-link" id="forgotBtn">Forgot password?</button>
+        <button type="submit" class="co-btn co-btn-primary" id="loginBtn" style="width:100%; padding:11px; font-size:14px;">Sign in</button>
       </form>
-      <p class="co-hint" style="text-align:center; margin-top:14px;">No account? Ask your admin to set one up in Firebase.</p>
+
+      <form id="registerForm" style="display:none;">
+        <p class="co-hint" style="margin:0 0 14px;">For Compass Offices staff only — use your @compassoffices.com email. An admin still needs to grant you a team before you can see anything.</p>
+        <div class="co-field">
+          <label class="co-label" for="regEmail">Work email</label>
+          <input class="co-input" id="regEmail" type="email" required autocomplete="username" placeholder="you@compassoffices.com">
+        </div>
+        <div class="co-field">
+          <label class="co-label" for="regPassword">Password</label>
+          <input class="co-input" id="regPassword" type="password" required autocomplete="new-password" minlength="6">
+        </div>
+        <div class="co-field">
+          <label class="co-label" for="regPasswordConfirm">Confirm password</label>
+          <input class="co-input" id="regPasswordConfirm" type="password" required autocomplete="new-password" minlength="6">
+        </div>
+        <button type="submit" class="co-btn co-btn-primary" id="registerBtn" style="width:100%; padding:11px; font-size:14px;">Register</button>
+      </form>
+
+      <p class="co-hint" style="text-align:center; margin-top:14px;" id="bottomHint">Not linked to a team yet? Contact your admin.</p>
     </div>
   </div>
 </div>
 
 <script type="module">
 import { auth, db } from "./shared/firebase-client.js";
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendPasswordResetEmail, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
-const form = document.getElementById("loginForm");
+const ALLOWED_DOMAIN = "compassoffices.com";
+
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+const tabSignIn = document.getElementById("tabSignIn");
+const tabRegister = document.getElementById("tabRegister");
 const errBox = document.getElementById("errBox");
+const successBox = document.getElementById("successBox");
 const loginBtn = document.getElementById("loginBtn");
+const registerBtn = document.getElementById("registerBtn");
+const bottomHint = document.getElementById("bottomHint");
+
+function clearMessages(){
+  errBox.classList.remove("co-show"); errBox.textContent = "";
+  successBox.classList.remove("co-show"); successBox.textContent = "";
+}
+function showError(msg){ errBox.textContent = msg; errBox.classList.add("co-show"); }
+function showSuccess(msg){ successBox.textContent = msg; successBox.classList.add("co-show"); }
+
+function showSignIn(){
+  clearMessages();
+  tabSignIn.classList.add("co-active"); tabRegister.classList.remove("co-active");
+  loginForm.style.display = "block"; registerForm.style.display = "none";
+  bottomHint.textContent = "Not linked to a team yet? Contact your admin.";
+}
+function showRegister(){
+  clearMessages();
+  tabRegister.classList.add("co-active"); tabSignIn.classList.remove("co-active");
+  loginForm.style.display = "none"; registerForm.style.display = "block";
+  bottomHint.textContent = "Already have an account? Switch to Sign in above.";
+}
+tabSignIn.addEventListener("click", showSignIn);
+tabRegister.addEventListener("click", showRegister);
 
 async function routeToWorkspace(userId){
   const snap = await getDoc(doc(db, "staff", userId));
@@ -59,8 +123,7 @@ async function routeToWorkspace(userId){
   } else if (team) {
     window.location.href = "workspace.html";
   } else {
-    errBox.textContent = "Your login isn't linked to a staff record yet. Contact your admin.";
-    errBox.classList.add("co-show");
+    showError("Your login isn't linked to a staff record yet. Contact your admin.");
     await signOut(auth);
   }
 }
@@ -71,9 +134,9 @@ const unsubscribe = onAuthStateChanged(auth, (user) => {
   if (user) routeToWorkspace(user.uid);
 });
 
-form.addEventListener("submit", async (e) => {
+loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  errBox.classList.remove("co-show");
+  clearMessages();
   loginBtn.disabled = true;
   loginBtn.textContent = "Signing in…";
 
@@ -86,8 +149,7 @@ form.addEventListener("submit", async (e) => {
   } catch (err) {
     loginBtn.disabled = false;
     loginBtn.textContent = "Sign in";
-    errBox.textContent = "Incorrect email or password.";
-    errBox.classList.add("co-show");
+    showError("Incorrect email or password.");
     return;
   }
 
@@ -95,6 +157,69 @@ form.addEventListener("submit", async (e) => {
   loginBtn.textContent = "Sign in";
 
   await routeToWorkspace(userCredential.user.uid);
+});
+
+document.getElementById("forgotBtn").addEventListener("click", async () => {
+  clearMessages();
+  const email = document.getElementById("email").value.trim();
+  if (!email) {
+    showError("Enter your email above first, then click “Forgot password?” again.");
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (err) {
+    // Don't reveal whether the address is registered — same message either way.
+  }
+  showSuccess("If an account exists for that email, a reset link is on its way.");
+});
+
+registerForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  clearMessages();
+
+  const email = document.getElementById("regEmail").value.trim();
+  const password = document.getElementById("regPassword").value;
+  const confirm = document.getElementById("regPasswordConfirm").value;
+
+  if (!email.toLowerCase().endsWith("@" + ALLOWED_DOMAIN)) {
+    showError(`Please use your @${ALLOWED_DOMAIN} work email to register.`);
+    return;
+  }
+  if (password !== confirm) {
+    showError("Passwords don't match.");
+    return;
+  }
+  if (password.length < 6) {
+    showError("Password must be at least 6 characters.");
+    return;
+  }
+
+  registerBtn.disabled = true;
+  registerBtn.textContent = "Creating account…";
+
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    registerBtn.disabled = false;
+    registerBtn.textContent = "Register";
+    if (err.code === "auth/email-already-in-use") {
+      showError("An account already exists for that email — try signing in instead.");
+    } else if (err.code === "auth/invalid-email") {
+      showError("That doesn't look like a valid email address.");
+    } else {
+      showError("Something went wrong creating your account. Please try again.");
+    }
+    return;
+  }
+
+  // Signed in immediately after registering, but with no staff record yet —
+  // sign back out so they're not left in limbo, and explain the next step.
+  await signOut(auth);
+  registerBtn.disabled = false;
+  registerBtn.textContent = "Register";
+  registerForm.reset();
+  showSuccess("Account created. Ask your admin to grant you access — once they've linked your account to a team, come back and sign in.");
 });
 </script>
 </body>

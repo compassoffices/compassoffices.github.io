@@ -348,12 +348,13 @@ document.getElementById("triageSubmitBtn").addEventListener("click", async () =>
   const batch = writeBatch(db);
   batch.update(doc(db, "complaints", ref), {
     ownerTeam: team, owner, severity, status: "Assigned", targetResolutionDate: target, updatedAt: now,
+    // Tells the Apps Script notifier to email the newly assigned owner.
+    assignmentNotifyPending: true,
   });
   batch.set(doc(collection(db, "complaints", ref, "activity_log")), {
     ts: now, actor: staff.name,
     note: `Triaged: routed to ${team} (${owner}), severity ${severity}, target resolution ${target}.`,
   });
-  batch.update(doc(db, "public_status", ref), { status: "Assigned", targetResolutionDate: target });
 
   let updErr = null;
   try { await batch.commit(); } catch (err) { updErr = err; }
@@ -391,9 +392,13 @@ document.getElementById("updateSubmitBtn").addEventListener("click", async () =>
   const batch = writeBatch(db);
   const complaintUpdate = { status, updatedAt: now };
   if (status === "Resolved") complaintUpdate.resolvedDate = resolvedDate;
+  // Only on the transition INTO Resolved — so re-saving an already-resolved
+  // ticket doesn't email the client the same "all done" message twice.
+  if (status === "Resolved" && activeTicket.status !== "Resolved") {
+    complaintUpdate.resolvedNotifyPending = true;
+  }
   batch.update(doc(db, "complaints", ref), complaintUpdate);
   batch.set(doc(collection(db, "complaints", ref, "activity_log")), { ts: now, actor: staff.name, note });
-  batch.update(doc(db, "public_status", ref), { status, resolvedDate });
 
   let updErr = null;
   try { await batch.commit(); } catch (err) { updErr = err; }
