@@ -236,6 +236,7 @@ function setLang(lc){
   if(typeof renderContactPage === 'function') renderContactPage();
 
   gen();
+  if(typeof renderDetailPreviews==='function') renderDetailPreviews();
 }
 
 // ══════════════════════════════════════════════════════════
