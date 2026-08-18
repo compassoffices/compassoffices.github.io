@@ -390,3 +390,31 @@ function _detailPagesInner(){
 function _detailPagesHtml(){
   return _detailPagesInner().map(x=>`<div class="page-wrap"><div class="page-clip">${x}</div></div>`).join('\n');
 }
+
+
+// ══════════════ DETAIL PAGES — LIVE PREVIEW ══════════════
+// Renders the enabled detail pages under the proposal preview, exactly like
+// the multi-floor extra pages (same pmeta label + slide-wrap sizing).
+function renderDetailPreviews(){
+  clearTimeout(renderDetailPreviews._t);
+  renderDetailPreviews._t=setTimeout(()=>{
+    const box=document.getElementById('detail-preview');
+    if(!box) return;
+    try{
+      const names=[];
+      if(VO_DETAIL_ON) names.push(_dpT('vo'));
+      if(MR_PAGE_ON) names.push(_dpT('mr'));
+      if(IT_PAGE_ON) names.push(_dpT('it'));
+      const pages=_detailPagesInner();
+      if(!pages.length){ box.innerHTML=''; return; }
+      // label per page (IT contributes 2 pages)
+      const labels=[];
+      if(VO_DETAIL_ON&&buildVoDetailPageHtml()) labels.push(_dpT('vo'));
+      if(MR_PAGE_ON&&buildMrPageHtml()) labels.push(_dpT('mr'));
+      if(IT_PAGE_ON) buildItPagesHtml().forEach((_,i)=>labels.push(_dpT('it')+(i?' (2/2)':'')));
+      box.innerHTML=pages.map((html,i)=>
+        `<div class="pmeta" style="margin-top:24px"><span class="pmeta-lbl">Optional — ${labels[i]||''}</span><span style="font-size:11px;color:var(--xlt)">A4 Landscape · 297 × 210 mm</span></div><div class="slide-wrap">${html}</div>`
+      ).join('');
+    }catch(e){ console.warn('[detail preview]',e); box.innerHTML=''; }
+  }, 500);
+}

@@ -849,6 +849,8 @@ async function dpFetchAll(force){
     }catch(e){}
   });
   await Promise.all(jobs);
+  try{ gen(); }catch(e){}
+  if(typeof renderDetailPreviews==='function') renderDetailPreviews();
 }
 const _DP_MKT={hk:'Hong Kong',jp:'Japan',au:'Australia',sg:'Singapore',my:'Kuala Lumpur',ph:'Manila',vn:'Ho Chi Minh City',cn:'China',kr:'Korea',tw:'Taiwan'};
 function _voMarketOf(id){ return _DP_MKT[(String(id||'').match(/^([a-z]{2})-/)||[])[1]]||''; }
@@ -864,10 +866,12 @@ function _dpToggle(name,btnId){
   const on={vo:VO_DETAIL_ON,mr:MR_PAGE_ON,it:IT_PAGE_ON}[name];
   const b=document.getElementById(btnId); if(b)b.classList.toggle('on',on);
   gen();
+  if(typeof renderDetailPreviews==='function') renderDetailPreviews();
 }
 function _dpSetToggles(vo,mr,it){
   VO_DETAIL_ON=!!vo; MR_PAGE_ON=!!mr; IT_PAGE_ON=!!it;
-  [['dp-vo-toggle',VO_DETAIL_ON],['dp-mr-toggle',MR_PAGE_ON],['dp-it-toggle',IT_PAGE_ON]].forEach(([id,on])=>{
+  [['dp-vo-card',VO_DETAIL_ON],['dp-mr-card',MR_PAGE_ON],['dp-it-card',IT_PAGE_ON]].forEach(([id,on])=>{
     const b=document.getElementById(id); if(b)b.classList.toggle('on',on);
   });
+  if(typeof renderDetailPreviews==='function') renderDetailPreviews();
 }

@@ -140,6 +140,19 @@ async function forceUpdate(){
   if(typeof initPreviewZoom==='function') initPreviewZoom();
   if(typeof voFetchPrices==='function') voFetchPrices();
   if(typeof dpFetchAll==='function') dpFetchAll();
-  console.log('[One-Pager Builder] build 20260808b');
+  // Detail-page previews follow every re-render (language switch, edits) —
+  // safe wrapper: preserves gen's properties (_captureMode / _activeFloorHint)
+  // and skips during page capture.
+  if(typeof gen==='function' && typeof renderDetailPreviews==='function' && !gen._dpHooked){
+    const _gen0=gen;
+    gen=function(){
+      const r=_gen0.apply(this,arguments);
+      try{ if(!gen._captureMode) renderDetailPreviews(); }catch(e){}
+      return r;
+    };
+    Object.keys(_gen0).forEach(k=>{ gen[k]=_gen0[k]; });
+    gen._dpHooked=true;
+  }
+  console.log('[One-Pager Builder] build 20260808c');
 })();
 
