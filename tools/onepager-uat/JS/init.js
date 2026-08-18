@@ -139,6 +139,7 @@ async function forceUpdate(){
   setTimeout(()=>{ if(typeof syncMultiFloorFromRows==='function') syncMultiFloorFromRows(); }, 1200);
   if(typeof initPreviewZoom==='function') initPreviewZoom();
   if(typeof voFetchPrices==='function') voFetchPrices();
-  console.log('[One-Pager Builder] build 20260807h');
+  if(typeof dpFetchAll==='function') dpFetchAll();
+  console.log('[One-Pager Builder] build 20260808b');
 })();
 

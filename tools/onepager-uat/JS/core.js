@@ -382,6 +382,7 @@ async function printQueue(){
           slide1: page1El.outerHTML,
           slide2: page2El ? page2El.outerHTML : '',
           extras: _extras,
+          details: (typeof _detailPagesInner==='function') ? _detailPagesInner() : [],
         });
       }
     }
@@ -485,6 +486,7 @@ function _openQueueTextPrintWindow(captured, existingWindow){
     const arr = [`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`];
     if(c.slide2) arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide2}</div></div>`);
     (c.extras||[]).forEach(x=>arr.push(`<div class="page-wrap"><div class="page-clip">${x}</div></div>`));
+    (c.details||[]).forEach(x=>arr.push(`<div class="page-wrap"><div class="page-clip">${x}</div></div>`));
     return arr;
   }).join('\n')
   + `\n<div class="page-wrap"><div class="page-clip">${perksHtml}</div></div>`
@@ -944,6 +946,9 @@ ${page2Html ? `<div class="page-wrap"><div class="page-clip">${page2Html}</div><
 <!-- Multi-floor extra master pages -->
 ${extraPagesHtml}
 
+<!-- Optional detail pages (VO / Meeting Rooms / IT) -->
+${typeof _detailPagesHtml==='function' ? _detailPagesHtml() : ''}
+
 <!-- Perks page — always before Let's Talk (skipped if perks.js not loaded) -->
 ${typeof buildPerksPageHtml==='function' ? `<div class="page-wrap"><div class="page-clip">${buildPerksPageHtml(LANG)}</div></div>` : ''}
 
@@ -1119,6 +1124,9 @@ function downloadCurrentJSON(){
     extra_masters: (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).filter(m=>!m._auto).map(m=>({url:(typeof _stripCb==='function'?_stripCb(m.url):m.url)||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''})),
     vo_centre_id: (document.getElementById('vo-centre-id')?.value||'').trim(),
     vo_note_on: (typeof VO_NOTE_ON!=='undefined')?VO_NOTE_ON:true,
+    vo_detail_on: (typeof VO_DETAIL_ON!=='undefined')?VO_DETAIL_ON:false,
+    mr_page_on: (typeof MR_PAGE_ON!=='undefined')?MR_PAGE_ON:false,
+    it_page_on: (typeof IT_PAGE_ON!=='undefined')?IT_PAGE_ON:false,
     fp_page2_same: FP_PAGE2_SAME,
     fp_page1_idx: FP_PAGE1_IDX,
     fp_page2_idx: FP_PAGE2_IDX,

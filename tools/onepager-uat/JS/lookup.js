@@ -819,3 +819,55 @@ function toggleVoNote(){
   if(inp){ inp.style.opacity=VO_NOTE_ON?'1':'.4'; }
   gen();
 }
+
+
+// ══════════════ OPTIONAL DETAIL PAGES — data engine ══════════════
+// Published CSVs from the Compass-PriceList-Data sheet.
+const DP_URLS={
+  vo_features:'https://docs.google.com/spreadsheets/d/e/2PACX-1vThJcJjj9jNWlhj2XpJ1TnQm6Dcu9BWP2BllX7EwkaBF2X2w5aG9hEt-lMLyjtdETSTzwYLEdkilNsk/pub?gid=220642029&single=true&output=csv',
+  mr_prices:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vThJcJjj9jNWlhj2XpJ1TnQm6Dcu9BWP2BllX7EwkaBF2X2w5aG9hEt-lMLyjtdETSTzwYLEdkilNsk/pub?gid=189522460&single=true&output=csv',
+  mr_matrix:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vThJcJjj9jNWlhj2XpJ1TnQm6Dcu9BWP2BllX7EwkaBF2X2w5aG9hEt-lMLyjtdETSTzwYLEdkilNsk/pub?gid=2051285953&single=true&output=csv',
+  mr_tiers:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vThJcJjj9jNWlhj2XpJ1TnQm6Dcu9BWP2BllX7EwkaBF2X2w5aG9hEt-lMLyjtdETSTzwYLEdkilNsk/pub?gid=1497917054&single=true&output=csv',
+  it_packages:'https://docs.google.com/spreadsheets/d/e/2PACX-1vThJcJjj9jNWlhj2XpJ1TnQm6Dcu9BWP2BllX7EwkaBF2X2w5aG9hEt-lMLyjtdETSTzwYLEdkilNsk/pub?gid=251169198&single=true&output=csv',
+};
+let DP={vo_features:[],mr_prices:[],mr_matrix:[],mr_tiers:[],it_packages:[]};
+let VO_DETAIL_ON=false, MR_PAGE_ON=false, IT_PAGE_ON=false;
+
+function _dpParse(text){
+  const lines=text.split(/\r?\n/).map(_voParseCsvLine).filter(r=>r.length>1);
+  if(!lines.length) return [];
+  const heads=lines[0].map(h=>String(h||'').trim().toLowerCase());
+  return lines.slice(1).map(r=>{const o={};heads.forEach((h,i)=>{if(h)o[h]=(r[i]||'').trim();});return o;})
+    .filter(o=>Object.values(o).some(v=>v!==''));
+}
+async function dpFetchAll(force){
+  const jobs=Object.keys(DP_URLS).map(async k=>{
+    if(!DP_URLS[k]) return;
+    try{
+      const r=await fetch(DP_URLS[k]+(force?'&cb='+Date.now():''),{cache:'no-cache'});
+      if(r.ok) DP[k]=_dpParse(await r.text());
+    }catch(e){}
+  });
+  await Promise.all(jobs);
+}
+const _DP_MKT={hk:'Hong Kong',jp:'Japan',au:'Australia',sg:'Singapore',my:'Kuala Lumpur',ph:'Manila',vn:'Ho Chi Minh City',cn:'China',kr:'Korea',tw:'Taiwan'};
+function _voMarketOf(id){ return _DP_MKT[(String(id||'').match(/^([a-z]{2})-/)||[])[1]]||''; }
+function _dpLang(){ return ({'en':'en','zh-hant':'tc','zh-hans':'sc','ja':'jp'})[LANG]||'en'; }
+function _dpL(row,base){
+  const v=row[base+'_'+_dpLang()];
+  return (v===undefined||v==='')?(row[base+'_en']||''):v;
+}
+function _dpToggle(name,btnId){
+  if(name==='vo') VO_DETAIL_ON=!VO_DETAIL_ON;
+  if(name==='mr') MR_PAGE_ON=!MR_PAGE_ON;
+  if(name==='it') IT_PAGE_ON=!IT_PAGE_ON;
+  const on={vo:VO_DETAIL_ON,mr:MR_PAGE_ON,it:IT_PAGE_ON}[name];
+  const b=document.getElementById(btnId); if(b)b.classList.toggle('on',on);
+  gen();
+}
+function _dpSetToggles(vo,mr,it){
+  VO_DETAIL_ON=!!vo; MR_PAGE_ON=!!mr; IT_PAGE_ON=!!it;
+  [['dp-vo-toggle',VO_DETAIL_ON],['dp-mr-toggle',MR_PAGE_ON],['dp-it-toggle',IT_PAGE_ON]].forEach(([id,on])=>{
+    const b=document.getElementById(id); if(b)b.classList.toggle('on',on);
+  });
+}

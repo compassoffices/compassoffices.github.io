@@ -49,7 +49,8 @@ function clearLoadedCard(){
   const cbe=document.getElementById('custom-body-editor');if(cbe)cbe.innerHTML='';
   S.rows=[];S.photos=[null,null,null];S.floorplan=null;S.partnerLogo=null;
   EXTRA_MASTERS=[];if(typeof renderExtraMasters==='function')renderExtraMasters();
-  { const _voI=document.getElementById('vo-centre-id'); if(_voI)_voI.value=''; }
+  { const _voI=document.getElementById('vo-centre-id'); if(_voI)_voI.value='';
+    if(typeof _dpSetToggles==='function') _dpSetToggles(false,false,false); }
   TRANSPORT=[];
   renderRows();renderPhotoSlots();renderFloorplanCard();renderLogoCard();renderTransport();
   showStatus('Card cleared.','s-info');
@@ -153,7 +154,8 @@ function buildStateSnapshot(){
     extra_masters:(typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).map(m=>({...m})),
     office_lookup_region:AX_REGION,office_lookup_centre:AUS_CENTRE_FILTER,aus_selected:Array.from(AUS_SELECTED),aus_fp_auto_added:Array.from(_AUS_FP_AUTO_ADDED),
     deposit_note_on:DEPOSIT_NOTE_ON,house_rules_on:HOUSE_RULES_ON,page_url_on:PAGE_URL_ON,
-    vo_centre_id:(document.getElementById('vo-centre-id')?.value||'').trim(),vo_note_on:(typeof VO_NOTE_ON!=='undefined')?VO_NOTE_ON:true,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
+    vo_centre_id:(document.getElementById('vo-centre-id')?.value||'').trim(),vo_note_on:(typeof VO_NOTE_ON!=='undefined')?VO_NOTE_ON:true,
+    vo_detail_on:(typeof VO_DETAIL_ON!=='undefined')?VO_DETAIL_ON:false,mr_page_on:(typeof MR_PAGE_ON!=='undefined')?MR_PAGE_ON:false,it_page_on:(typeof IT_PAGE_ON!=='undefined')?IT_PAGE_ON:false,base_discount_on:BASE_DISCOUNT_ON,base_discount:AUS_DISCOUNT,fp_use_3d:FP_USE_3D,fp_use_local:FP_USE_LOCAL,fp_p2_custom_url:FP_P2_CUSTOM_URL||null,fp_annotations:JSON.parse(JSON.stringify(FP_ANNOTATIONS)),compass_on:COMPASS_ON,compass_angle:COMPASS_ANGLE,client_name:CLIENT_NAME||'',company_name:COMPANY_NAME||'',
     benefits_title:{...BENEFITS_TITLE},
     deposit_note:{...DEPOSIT_NOTE},
     _lang:LANG,
@@ -269,7 +271,8 @@ function restoreStateSnapshot(state){
       const _voB=document.getElementById('vo-note-toggle');
       if(_voB)_voB.classList.toggle('on',VO_NOTE_ON);
       if(_voI)_voI.style.opacity=VO_NOTE_ON?'1':'.4';
-    } }
+    }
+    if(typeof _dpSetToggles==='function') _dpSetToggles(state.vo_detail_on, state.mr_page_on, state.it_page_on); }
   // Restore the on/off toggles + discount value
   if(typeof state.deposit_note_on === 'boolean'){
     DEPOSIT_NOTE_ON = state.deposit_note_on;
@@ -3039,7 +3042,12 @@ function _estimatePdfPages(){
   const per=st=>{
     const ex=(st&&st.extra_masters)?st.extra_masters.length
             :((typeof EXTRA_MASTERS!=='undefined')?EXTRA_MASTERS.length:0);
-    return 2+ex;
+    const dp=st
+      ? (st.vo_detail_on?1:0)+(st.mr_page_on?1:0)+(st.it_page_on?2:0)
+      : ((typeof VO_DETAIL_ON!=='undefined'&&VO_DETAIL_ON)?1:0)
+       +((typeof MR_PAGE_ON!=='undefined'&&MR_PAGE_ON)?1:0)
+       +((typeof IT_PAGE_ON!=='undefined'&&IT_PAGE_ON)?2:0);
+    return 2+ex+dp;
   };
   let n=PDF_QUEUE.length ? PDF_QUEUE.reduce((a,it)=>a+per(it.state),0) : per(null);
   n+=1;                                                     // perks
@@ -3063,6 +3071,13 @@ async function _collectProposalCanvases(onPage){
   if(typeof EXTRA_MASTERS!=='undefined' && EXTRA_MASTERS.length && typeof captureExtraMasterPagesAsync==='function'){
     try{ (await captureExtraMasterPagesAsync('canvas')).forEach(c=>{ if(c){ out.push(c); _tick(); } }); }
     catch(e){ console.warn('[mobile pdf] extras:',e); }
+  }
+  // Optional detail pages (VO / MR / IT) — per current location state
+  if(typeof _detailPagesInner==='function'){
+    for(const html of _detailPagesInner()){
+      const cv=await _htmlPageToCanvas(html);
+      if(cv){ out.push(cv); _tick(); }
+    }
   }
   return out;
 }

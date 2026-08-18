@@ -226,3 +226,167 @@ function buildPerksPageHtml(lang) {
     return ''; // return empty string — print continues without perks page
   }
 }
+
+
+// ══════════════ OPTIONAL DETAIL PAGES — builders (1122×794 landscape) ══════════════
+const _DP_T={
+  'en':{vo:'Virtual Office Packages',mr:'Meeting Room Pricing',it:'IT & Telecommunications',mo:'/month',int:'Internal Clients',ext:'External Clients',room:'Room',p30:'Per 30 mins',pday:'Per day',avail:'Meeting rooms at this centre',lvl:'Level'},
+  'zh-hant':{vo:'虛擬辦公室方案',mr:'會議室價目',it:'IT 與電訊服務',mo:'/月',int:'內部客戶',ext:'外部客戶',room:'會議室',p30:'每 30 分鐘',pday:'每天',avail:'本中心會議室',lvl:'樓層'},
+  'zh-hans':{vo:'虚拟办公室方案',mr:'会议室价目',it:'IT 与电信服务',mo:'/月',int:'内部客户',ext:'外部客户',room:'会议室',p30:'每 30 分钟',pday:'每天',avail:'本中心会议室',lvl:'楼层'},
+  'ja':{vo:'バーチャルオフィスプラン',mr:'会議室料金',it:'IT＆通信サービス',mo:'/月',int:'ご入居のお客様',ext:'外部のお客様',room:'会議室',p30:'30分あたり',pday:'1日あたり',avail:'当センターの会議室',lvl:'フロア'},
+};
+function _dpT(k){ return (_DP_T[LANG]||_DP_T['en'])[k]||_DP_T['en'][k]||k; }
+const _DPF="font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',sans-serif;";
+function _dpPage(title,inner){
+  const nm=document.getElementById('n-main')?.value.trim()||'';
+  const fl=(typeof combineFloorLabel==='function')?combineFloorLabel(document.getElementById('floor')?.value.trim()||''):'';
+  return `<div style="${_DPF}width:1122px;height:794px;background:#fff;overflow:hidden;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;padding:24px 40px 12px;flex-shrink:0;">
+      <div style="width:34px;height:4px;background:#FF6600;margin-right:14px;"></div>
+      <div style="font-size:25px;font-weight:800;color:#1A1A1A;">${title}</div>
+      <div style="margin-left:auto;font-size:12.5px;color:#8A8A8A;font-weight:600;">${nm}${fl?' · '+fl:''}</div>
+    </div>
+    <div style="flex:1;min-height:0;padding:4px 40px 22px;overflow:hidden;">${inner}</div>
+  </div>`;
+}
+function _dpCur(){ return _VO_CUR[(voCurrentId().match(/^([a-z]{2})-/)||[])[1]]||''; }
+
+function buildVoDetailPageHtml(){
+  const id=voCurrentId();
+  if(!id||!VO_PRICES||!VO_PRICES[id]||!DP.vo_features.length) return '';
+  const p=VO_PRICES[id], cur=_dpCur();
+  const set=_voMarketOf(id)==='Australia'?'australia':'default';
+  let rows=DP.vo_features.filter(r=>(r.set||'default')===set);
+  if(!rows.length) rows=DP.vo_features.filter(r=>(r.set||'default')==='default');
+  const feats=rows.filter(r=>r.row_type==='feature'||r.row_type==='category');
+  const notes=rows.filter(r=>r.row_type==='footnote');
+  const fs=feats.length>22?9.5:(feats.length>16?10.5:11.5);
+  const cell=v=>{
+    v=String(v||'').trim();
+    if(v==='•') return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#FF6600;"></span>';
+    if(v==='—'||v==='-'||v==='') return '<span style="color:#CCC;">—</span>';
+    return `<b>${v}</b>`;
+  };
+  let t=`<table style="width:100%;border-collapse:collapse;font-size:${fs}px;">
+    <tr><th style="text-align:left;padding:7px 8px;border-bottom:2.5px solid #1A1A1A;"></th>`+
+    [['Gold',p.gold],['Platinum',p.platinum],['Diamond',p.diamond]].map(([n,pr])=>
+      `<th style="width:150px;text-align:center;padding:7px 8px;border-bottom:2.5px solid #1A1A1A;">
+        <div style="font-size:13px;font-weight:800;letter-spacing:.04em;">${n}</div>
+        <div style="color:#FF6600;font-weight:800;font-size:13.5px;">${cur}${pr}<span style="font-size:9px;color:#999;font-weight:600;"> ${_dpT('mo')}</span></div>
+      </th>`).join('')+`</tr>`;
+  feats.forEach(r=>{
+    if(r.row_type==='category'){
+      t+=`<tr><td colspan="4" style="padding:8px 8px 4px;font-weight:800;font-size:${fs+0.5}px;color:#FF6600;border-bottom:1px solid #EEE;">${_dpL(r,'label')}</td></tr>`;
+    }else{
+      t+=`<tr><td style="padding:4px 8px;border-bottom:1px solid #F2F2F2;color:#444;">${_dpL(r,'label')}</td>`+
+        ['gold','platinum','diamond'].map(k=>`<td style="text-align:center;border-bottom:1px solid #F2F2F2;">${cell(r[k])}</td>`).join('')+`</tr>`;
+    }
+  });
+  t+=`</table>`;
+  if(notes.length) t+=`<div style="margin-top:8px;font-size:8.5px;color:#999;line-height:1.5;">${notes.map(n=>_dpL(n,'label')).join('<br>')}</div>`;
+  return _dpPage(_dpT('vo'),t);
+}
+
+function buildMrPageHtml(){
+  const id=voCurrentId(), mkt=_voMarketOf(id);
+  if(!mkt||!DP.mr_prices.length) return '';
+  const mine=DP.mr_prices.filter(r=>r.market===mkt&&(r.scope==='all'||r.scope===id));
+  if(!mine.length) return '';
+  const tbl=client=>{
+    const rows=mine.filter(r=>r.client===client);
+    if(!rows.length) return '';
+    return `<div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:800;margin:0 0 6px;">${client==='Internal'?_dpT('int'):_dpT('ext')}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <tr><th style="text-align:left;padding:5px 6px;border-bottom:2px solid #1A1A1A;">${_dpT('room')}</th>
+        <th style="text-align:right;padding:5px 6px;border-bottom:2px solid #1A1A1A;">${_dpT('p30')}</th>
+        <th style="text-align:right;padding:5px 6px;border-bottom:2px solid #1A1A1A;">${_dpT('pday')}</th></tr>`+
+      rows.map(r=>`<tr><td style="padding:4.5px 6px;border-bottom:1px solid #F0F0F0;">${r.tier_en||''}${r.scope!=='all'?' <span style="font-size:8.5px;color:#FF6600;">●</span>':''}</td>
+        <td style="text-align:right;padding:4.5px 6px;border-bottom:1px solid #F0F0F0;color:#FF6600;font-weight:700;">${r.per_30_mins||'—'}</td>
+        <td style="text-align:right;padding:4.5px 6px;border-bottom:1px solid #F0F0F0;color:#FF6600;font-weight:700;">${r.per_day||'—'}</td></tr>`).join('')+
+      `</table></div>`;
+  };
+  let inner=`<div style="display:flex;gap:34px;">${tbl('Internal')}${tbl('External')}</div>`;
+  // Availability matrix for THIS centre
+  const mx=DP.mr_matrix.filter(r=>r.centre_id===id);
+  if(mx.length){
+    const tierRow=(DP.mr_tiers||[]).find(r=>r.market===mkt&&r.kind==='matrix');
+    const nCols=Math.max(...mx.map(r=>{let n=0;for(let i=1;i<=6;i++)if((r['t'+i]||'')!=='')n=i;return n;}),
+                         tierRow?[1,2,3,4,5,6].filter(i=>tierRow['t'+i]).length:0);
+    const lbl=i=>tierRow?( _dpL(tierRow,'t'+i)||tierRow['t'+i]||('Room '+i)):('Room '+i);
+    inner+=`<div style="margin-top:16px;">
+      <div style="font-size:13px;font-weight:800;margin:0 0 6px;">${_dpT('avail')}</div>
+      <table style="border-collapse:collapse;font-size:10.5px;">
+        <tr><th style="text-align:left;padding:4px 10px 4px 0;border-bottom:2px solid #1A1A1A;">${_dpT('lvl')}</th>`+
+      Array.from({length:nCols},(_,i)=>`<th style="padding:4px 12px;border-bottom:2px solid #1A1A1A;">${lbl(i+1)}</th>`).join('')+`</tr>`+
+      mx.map(r=>`<tr><td style="padding:4px 10px 4px 0;border-bottom:1px solid #F0F0F0;font-weight:700;">${r.level||''}</td>`+
+        Array.from({length:nCols},(_,i)=>`<td style="text-align:center;border-bottom:1px solid #F0F0F0;color:${(r['t'+(i+1)]||'')!==''?'#57A05A':'#E2E2E2'};font-weight:800;">${(r['t'+(i+1)]||'')!==''?'✓':'–'}</td>`).join('')+`</tr>`).join('')+
+      `</table></div>`;
+  }
+  return _dpPage(_dpT('mr'),inner);
+}
+
+function buildItPagesHtml(){
+  const mkt=_voMarketOf(voCurrentId());
+  if(!mkt||!DP.it_packages.length) return [];
+  const all=DP.it_packages.filter(r=>r.market===mkt);
+  if(!all.length) return [];
+  const secBlock=sk=>{
+    const rows=all.filter(r=>r.section===sk).sort((a,b)=>(+a.sort||0)-(+b.sort||0));
+    if(!rows.length) return '';
+    const tiers=rows.filter(r=>r.row_type==='tier'), nT=tiers.length||1, cw=nT>1?95:170;
+    const sec=rows.find(r=>r.row_type==='section');
+    const tint=['#F5F8FC','#F4FAF5','#FEF8F0'];
+    let h='';
+    if(sec&&_dpL(sec,'label')) h+=`<div style="display:flex;background:#F7F7F7;border-top:2px solid #DDD;align-items:center;">
+      <div style="flex:1;font-size:13.5px;font-weight:800;padding:6px 8px;">${_dpL(sec,'label')}</div></div>`;
+    if(nT>1) h+=`<div style="display:flex;border-bottom:1px solid #E4E4E4;"><div style="flex:1;"></div>`+
+      tiers.map((t,i)=>`<div style="flex:0 0 ${cw}px;text-align:center;padding:3px 2px;background:${tint[i]};font-size:8px;font-weight:700;line-height:1.25;">
+        <div style="font-size:10px;font-weight:800;color:${['#4A78C2','#57A05A','#E8A33D'][i]};">${String(t.note||'').toUpperCase()}</div>${_dpL(t,'label')}</div>`).join('')+`</div>`;
+    const body=rows.filter(r=>['group','bullet','option'].includes(r.row_type));
+    let i=0;
+    while(i<body.length){
+      if(body[i].row_type!=='group'){i++;continue;}
+      const g=body[i]; i++;
+      const kids=[];
+      while(i<body.length&&body[i].row_type!=='group'){kids.push(body[i]);i++;}
+      if(!_dpL(g,'label')) continue;
+      const bl=kids.filter(k=>k.row_type==='bullet'&&_dpL(k,'label'));
+      const op=kids.filter(k=>k.row_type==='option'&&_dpL(k,'label'));
+      const perB=bl.some(b=>b.price_a!=='');
+      h+=`<div style="display:flex;border-top:1px solid #E4E4E4;">
+        <div style="flex:0 0 130px;font-size:9.5px;font-weight:700;padding:4px 6px 4px 0;line-height:1.3;">${_dpL(g,'label')}</div>
+        <div style="flex:1;min-width:0;padding:2px 0;">`+
+        bl.map(b=>`<div style="font-size:8.2px;line-height:1.35;padding:1.2px 4px 1.2px 0;display:flex;gap:4px;"><span>•</span><span style="flex:1;">${_dpL(b,'label')}</span>${perB&&b.price_a?`<span style="color:#FF6600;font-weight:700;">${b.price_a}</span>`:''}</div>`).join('')+`</div>`;
+      if(!perB||g.price_a!==''){
+        const vals=nT>1?[g.price_a,g.price_b,g.price_c].slice(0,nT):[g.price_a];
+        h+=vals.map((v,vi)=>`<div style="flex:0 0 ${cw}px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#FF6600;text-align:center;border-left:1px solid #E4E4E4;background:${nT>1?tint[vi]:'#fff'};padding:2px;line-height:1.25;">${v||''}</div>`).join('');
+      }
+      h+=`</div>`;
+      op.forEach(o=>{h+=`<div style="display:flex;background:#F5F5F5;border-top:1px solid #E4E4E4;">
+        <div style="flex:1;font-size:8.2px;padding:2.5px 4px 2.5px 132px;">${_dpL(o,'label')}</div>
+        <div style="flex:0 0 ${nT*cw}px;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;color:#FF6600;">${o.price_a||''}</div></div>`;});
+    }
+    return h+`<div style="border-bottom:2px solid #DDD;margin-bottom:8px;"></div>`;
+  };
+  const pageA=['wifi_banner','enterprise','standard'].map(secBlock).join('');
+  const pageB=['rack','telecom','bundle'].map(secBlock).join('');
+  const out=[];
+  if(pageA.trim()) out.push(_dpPage(_dpT('it'),pageA));
+  if(pageB.trim()) out.push(_dpPage(_dpT('it')+' <span style="font-size:14px;color:#999;">2/2</span>',pageB));
+  return out;
+}
+
+// Enabled detail pages as inner-page HTML strings (print + mobile use this)
+function _detailPagesInner(){
+  const out=[];
+  try{
+    if(VO_DETAIL_ON){const x=buildVoDetailPageHtml(); if(x)out.push(x);}
+    if(MR_PAGE_ON){const x=buildMrPageHtml(); if(x)out.push(x);}
+    if(IT_PAGE_ON){buildItPagesHtml().forEach(x=>out.push(x));}
+  }catch(e){console.warn('[detail pages]',e);}
+  return out;
+}
+function _detailPagesHtml(){
+  return _detailPagesInner().map(x=>`<div class="page-wrap"><div class="page-clip">${x}</div></div>`).join('\n');
+}

@@ -397,6 +397,7 @@ function applyLocationData(p){
         const _hit=voMatchCentre(_nm); if(_hit)_voI.value=_hit;
       }
     }
+    if(typeof _dpSetToggles==='function') _dpSetToggles(p.vo_detail_on, p.mr_page_on, p.it_page_on);
     if(typeof p.vo_note_on==='boolean'&&typeof VO_NOTE_ON!=='undefined'){
       VO_NOTE_ON=p.vo_note_on;
       const _voB=document.getElementById('vo-note-toggle');

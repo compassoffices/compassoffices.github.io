@@ -1126,6 +1126,7 @@ function _stripCb(u){
 async function refreshImageCache(){
   showStatus('Refreshing images…','s-info');
   if(typeof voFetchPrices==='function'){ try{ voFetchPrices(true); }catch(e){} }
+  if(typeof dpFetchAll==='function'){ try{ dpFetchAll(true); }catch(e){} }
   // ── Layer 1: baked highlight renders ─────────────────────────────────────
   // FP_HIGHLIGHT_CACHE holds finished PNG data-URLs keyed by masterUrl+rooms.
   // When the Cloudinary image changes but the URL doesn't, the key is
