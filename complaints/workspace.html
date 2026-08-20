@@ -23,8 +23,16 @@
   </header>
 
   <main class="co-main">
-    <h1 class="co-page-title" id="pageTitle">Workspace</h1>
-    <p class="co-page-sub" id="pageSub"></p>
+    <div class="co-section-head" style="align-items:flex-start;">
+      <div>
+        <h1 class="co-page-title" id="pageTitle">Workspace</h1>
+        <p class="co-page-sub" id="pageSub" style="margin-bottom:0;"></p>
+      </div>
+      <input class="co-search" id="ticketSearch" type="search"
+             placeholder="Search ticket, client, company, centre…"
+             style="min-width:270px;" aria-label="Search tickets">
+    </div>
+    <div style="height:22px;"></div>
 
     <div class="co-tabs" id="tabs" style="display:none;">
       <button class="co-tab co-active" data-tab="unassigned">Unassigned Queue <span class="co-tab-count" id="countUnassigned">0</span></button>
@@ -32,6 +40,11 @@
     </div>
 
     <section id="unassignedSection" class="co-section">
+      <div class="co-filters" id="queueScope" style="display:none;">
+        <button type="button" class="co-chip co-active" id="scopeMine">My centres</button>
+        <button type="button" class="co-chip" id="scopeAll">All centres</button>
+        <span class="co-section-note" id="scopeNote"></span>
+      </div>
       <div id="unassignedList" class="co-kanban-cards"></div>
     </section>
 
@@ -48,6 +61,10 @@
         <div class="co-kanban-col" data-status="Resolved">
           <div class="co-kanban-col-head"><span class="co-kanban-col-title">Resolved</span><span class="co-tab-count" id="colCountResolved">0</span></div>
           <div class="co-kanban-cards" id="colResolved"></div>
+        </div>
+        <div class="co-kanban-col" data-status="Impossible to Resolve">
+          <div class="co-kanban-col-head"><span class="co-kanban-col-title">Impossible</span><span class="co-tab-count" id="colCountImpossible">0</span></div>
+          <div class="co-kanban-cards" id="colImpossible"></div>
         </div>
       </div>
     </section>
@@ -117,7 +134,9 @@
             <option value="Assigned">Assigned</option>
             <option value="In Progress">In Progress</option>
             <option value="Resolved">Resolved</option>
+            <option value="Impossible to Resolve">Impossible to Resolve</option>
           </select>
+          <p class="co-hint" id="impossibleHint" style="display:none;">Closes the ticket without notifying the client — please contact them yourself to explain.</p>
         </div>
         <button class="co-btn co-btn-primary" id="updateSubmitBtn" style="width:100%; padding:11px;">Post update</button>
       </div>
@@ -154,7 +173,20 @@ const statusBadge = {
   "Assigned": "co-badge-status-assigned",
   "In Progress": "co-badge-status-progress",
   "Resolved": "co-badge-status-resolved",
+  "Impossible to Resolve": "co-badge-status-impossible",
 };
+
+// Free-text search across both the queue and the board. Matches the fields
+// someone would actually have to hand when chasing a ticket.
+let searchTerm = "";
+function matchesSearch(t){
+  if (!searchTerm) return true;
+  return [t.ticketRef, t.clientName, t.company, t.centre, t.location, t.owner, t.roomNumber]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(searchTerm);
+}
 
 function fmtDate(d){
   if(!d) return "—";
@@ -191,6 +223,18 @@ function snapToTickets(snap){
   return snap.docs.map(d => ({ ...d.data(), ticketRef: d.id }));
 }
 
+// The queue defaults to the centres this person covers, but every CS member
+// can still reveal the rest. Deliberately a view filter rather than a hard
+// restriction: if it were enforced, a complaint whose centre's CS owner is
+// away would be invisible to everyone and could sit untriaged.
+let showAllCentres = false;
+
+function coversCentre(t){
+  const centres = staff.centres || [];
+  if (centres.length === 0) return true; // no coverage set — don't hide anything
+  return centres.some(c => c === "*" || c === t.centre || c === t.location);
+}
+
 async function loadUnassigned(){
   let data;
   try {
@@ -199,11 +243,33 @@ async function loadUnassigned(){
   } catch (err) { console.error(err); return; }
   data.sort((a, b) => a.dateRaised < b.dateRaised ? -1 : a.dateRaised > b.dateRaised ? 1 : 0);
   data.forEach(t => ticketsByRef[t.ticketRef] = t);
-  document.getElementById("countUnassigned").textContent = data.length;
+
+  const mine = data.filter(coversCentre);
+  const visible = (showAllCentres ? data : mine).filter(matchesSearch);
+  const hidden = data.length - mine.length;
+
+  document.getElementById("countUnassigned").textContent = visible.length;
+
+  const note = document.getElementById("scopeNote");
+  if ((staff.centres || []).length === 0) {
+    note.textContent = "No centres set on your staff record — showing everything.";
+  } else if (hidden > 0) {
+    note.textContent = showAllCentres
+      ? `Including ${hidden} from centres you don't cover.`
+      : `${hidden} hidden from other centres.`;
+  } else {
+    note.textContent = "";
+  }
+
   const list = document.getElementById("unassignedList");
-  list.innerHTML = data.length
-    ? data.map(ticketCardHTML).join("")
-    : `<div class="co-empty-state"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><div>Nothing waiting on triage.</div></div>`;
+  const emptyMsg = searchTerm
+    ? "No tickets in the queue match your search."
+    : (!showAllCentres && hidden > 0)
+      ? "Nothing waiting on triage for your centres."
+      : "Nothing waiting on triage.";
+  list.innerHTML = visible.length
+    ? visible.map(ticketCardHTML).join("")
+    : `<div class="co-empty-state"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><div>${emptyMsg}</div></div>`;
 }
 
 async function loadBoard(){
@@ -214,18 +280,25 @@ async function loadBoard(){
   } catch (err) { console.error(err); return; }
   data.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.dateRaised ? 1 : 0);
   data.forEach(t => ticketsByRef[t.ticketRef] = t);
-  document.getElementById("countBoard").textContent = data.length;
 
-  const cols = { "Assigned": [], "In Progress": [], "Resolved": [] };
-  data.forEach(t => { if (cols[t.status]) cols[t.status].push(t); });
+  const shown = data.filter(matchesSearch);
+  document.getElementById("countBoard").textContent = shown.length;
 
-  const map = { "Assigned": ["colAssigned","colCountAssigned"], "In Progress": ["colProgress","colCountProgress"], "Resolved": ["colResolved","colCountResolved"] };
+  const cols = { "Assigned": [], "In Progress": [], "Resolved": [], "Impossible to Resolve": [] };
+  shown.forEach(t => { if (cols[t.status]) cols[t.status].push(t); });
+
+  const map = {
+    "Assigned": ["colAssigned","colCountAssigned"],
+    "In Progress": ["colProgress","colCountProgress"],
+    "Resolved": ["colResolved","colCountResolved"],
+    "Impossible to Resolve": ["colImpossible","colCountImpossible"],
+  };
   for (const status of Object.keys(map)){
     const [listId, countId] = map[status];
     document.getElementById(countId).textContent = cols[status].length;
     document.getElementById(listId).innerHTML = cols[status].length
       ? cols[status].map(ticketCardHTML).join("")
-      : `<div class="co-kanban-empty">No tickets</div>`;
+      : `<div class="co-kanban-empty">${searchTerm ? "No matches" : "No tickets"}</div>`;
   }
 }
 
@@ -235,8 +308,29 @@ async function refreshAll(){
   await loadBoard();
 }
 
-// ---- Tabs (CS only) ----
+// Re-render from the tickets already loaded rather than re-querying on
+// every keystroke.
+let searchDebounce;
+document.getElementById("ticketSearch").addEventListener("input", (e) => {
+  searchTerm = e.target.value.trim().toLowerCase();
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(refreshAll, 180);
+});
+
+// ---- Tabs + queue scope toggle (CS only) ----
 if (isCS) {
+  document.getElementById("queueScope").style.display = "flex";
+  const scopeMine = document.getElementById("scopeMine");
+  const scopeAll = document.getElementById("scopeAll");
+  const setScope = (all) => {
+    showAllCentres = all;
+    scopeMine.classList.toggle("co-active", !all);
+    scopeAll.classList.toggle("co-active", all);
+    loadUnassigned();
+  };
+  scopeMine.addEventListener("click", () => setScope(false));
+  scopeAll.addEventListener("click", () => setScope(true));
+
   document.getElementById("tabs").style.display = "flex";
   document.querySelectorAll(".co-tab").forEach(tab => {
     tab.addEventListener("click", () => {
@@ -274,6 +368,13 @@ function populateOwnerOptions(team){
 
 document.getElementById("triageTeam").addEventListener("change", (e) => populateOwnerOptions(e.target.value));
 
+function syncImpossibleHint(){
+  const chosen = document.getElementById("updateStatus").value;
+  document.getElementById("impossibleHint").style.display =
+    chosen === "Impossible to Resolve" ? "block" : "none";
+}
+document.getElementById("updateStatus").addEventListener("change", syncImpossibleHint);
+
 async function openModal(ref){
   const t = ticketsByRef[ref];
   if (!t) return;
@@ -286,6 +387,7 @@ async function openModal(ref){
   const overdue = isOverdue(t);
   document.getElementById("modalDetailGrid").innerHTML = `
     <div class="co-detail-item"><div class="co-detail-label">Email</div><div class="co-detail-value">${escapeHTML(t.email)}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Room / VO</div><div class="co-detail-value">${escapeHTML(t.roomNumber || "—")}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Type</div><div class="co-detail-value">${escapeHTML(t.complaintType)}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Severity</div><div class="co-detail-value"><span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span></div></div>
     <div class="co-detail-item"><div class="co-detail-label">Status</div><div class="co-detail-value"><span class="co-badge ${statusBadge[t.status]}">${t.status}</span> ${overdue ? '<span class="co-badge co-badge-overdue">Overdue</span>' : ""}</div></div>
@@ -317,7 +419,9 @@ async function openModal(ref){
     document.getElementById("triageTarget").value = "";
   } else {
     document.getElementById("updateNote").value = "";
-    document.getElementById("updateStatus").value = t.status === "New - Unassigned" ? "Assigned" : t.status;
+    const statusSel = document.getElementById("updateStatus");
+    statusSel.value = t.status === "New - Unassigned" ? "Assigned" : t.status;
+    syncImpossibleHint();
   }
 
   modalBackdrop.classList.add("co-show");
@@ -348,8 +452,10 @@ document.getElementById("triageSubmitBtn").addEventListener("click", async () =>
   const batch = writeBatch(db);
   batch.update(doc(db, "complaints", ref), {
     ownerTeam: team, owner, severity, status: "Assigned", targetResolutionDate: target, updatedAt: now,
-    // Tells the Apps Script notifier to email the newly assigned owner.
+    // Tells the Apps Script notifier to email the newly assigned owner,
+    // and to refresh this ticket's row in the Google Sheet mirror.
     assignmentNotifyPending: true,
+    sheetSyncPending: true,
   });
   batch.set(doc(collection(db, "complaints", ref, "activity_log")), {
     ts: now, actor: staff.name,
@@ -390,7 +496,7 @@ document.getElementById("updateSubmitBtn").addEventListener("click", async () =>
   const resolvedDate = (status === "Resolved" && !activeTicket.resolvedDate) ? now.slice(0, 10) : (activeTicket.resolvedDate ?? null);
 
   const batch = writeBatch(db);
-  const complaintUpdate = { status, updatedAt: now };
+  const complaintUpdate = { status, updatedAt: now, sheetSyncPending: true };
   if (status === "Resolved") complaintUpdate.resolvedDate = resolvedDate;
   // Only on the transition INTO Resolved — so re-saving an already-resolved
   // ticket doesn't email the client the same "all done" message twice.

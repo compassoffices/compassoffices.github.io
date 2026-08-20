@@ -28,6 +28,7 @@
     <p class="co-page-sub">Live snapshot across every centre and team.</p>
 
     <div class="co-kpis">
+      <div class="co-kpi"><div class="co-kpi-label">Total Complaints</div><div class="co-kpi-value" id="kpiTotal">—</div><div class="co-kpi-sub">All time, open and resolved</div></div>
       <div class="co-kpi"><div class="co-kpi-label">Open Complaints</div><div class="co-kpi-value" id="kpiOpen">—</div><div class="co-kpi-sub">Not yet resolved</div></div>
       <div class="co-kpi"><div class="co-kpi-label">Overdue</div><div class="co-kpi-value co-bad" id="kpiOverdue">—</div><div class="co-kpi-sub">Past target date, still open</div></div>
       <div class="co-kpi"><div class="co-kpi-label">Avg Resolution Time</div><div class="co-kpi-value co-orange" id="kpiAvgTime">—</div><div class="co-kpi-sub">Days, resolved tickets</div></div>
@@ -62,6 +63,7 @@
       <div class="co-filters">
         <input class="co-search" id="searchInput" placeholder="Search client, company, ticket ref…" style="min-width:220px;">
         <select class="co-select" id="filterCentre"><option value="">All centres</option></select>
+        <select class="co-select" id="filterType"><option value="">All types</option></select>
         <select class="co-select" id="filterTeam">
           <option value="">All teams</option>
           <option value="__unassigned">Unassigned</option>
@@ -75,6 +77,7 @@
           <option value="Assigned">Assigned</option>
           <option value="In Progress">In Progress</option>
           <option value="Resolved">Resolved</option>
+          <option value="Impossible to Resolve">Impossible to Resolve</option>
         </select>
         <select class="co-select" id="filterSeverity">
           <option value="">All severities</option>
@@ -146,7 +149,7 @@ function fmtDate(d){
   return new Date(d.length === 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", {year:"numeric", month:"short", day:"numeric"});
 }
 const todayStr = new Date().toISOString().slice(0,10);
-function isOverdue(t){ return t.targetResolutionDate && t.status !== "Resolved" && t.targetResolutionDate < todayStr; }
+function isOverdue(t){ return t.targetResolutionDate && !isClosed(t) && t.targetResolutionDate < todayStr; }
 
 const severityBadge = { Low: "co-badge-sev-low", Med: "co-badge-sev-med", High: "co-badge-sev-high" };
 const statusBadge = {
@@ -154,7 +157,14 @@ const statusBadge = {
   "Assigned": "co-badge-status-assigned",
   "In Progress": "co-badge-status-progress",
   "Resolved": "co-badge-status-resolved",
+  "Impossible to Resolve": "co-badge-status-impossible",
 };
+
+// Both of these close a ticket. "Open" means still needing work, so it
+// excludes them — otherwise anything marked impossible would count as a
+// backlog item forever and show as permanently overdue.
+const CLOSED_STATUSES = ["Resolved", "Impossible to Resolve"];
+const isClosed = (c) => CLOSED_STATUSES.indexOf(c.status) !== -1;
 
 let complaints = [];
 try {
@@ -165,13 +175,14 @@ complaints.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.da
 
 // ---------------- KPIs ----------------
 const total = complaints.length;
-const open = complaints.filter(c => c.status !== "Resolved");
+const open = complaints.filter(c => !isClosed(c));
 const overdue = open.filter(isOverdue);
 const resolved = complaints.filter(c => c.status === "Resolved" && c.resolvedDate);
 const avgDays = resolved.length
   ? (resolved.reduce((sum, c) => sum + (new Date(c.resolvedDate) - new Date(c.dateRaised.slice(0,10))) / 86400000, 0) / resolved.length)
   : null;
 
+document.getElementById("kpiTotal").textContent = total;
 document.getElementById("kpiOpen").textContent = open.length;
 document.getElementById("kpiOverdue").textContent = overdue.length;
 document.getElementById("kpiAvgTime").textContent = avgDays === null ? "—" : avgDays.toFixed(1);
@@ -232,18 +243,26 @@ new Chart(document.getElementById("chartByCentre"), {
 const filterCentre = document.getElementById("filterCentre");
 centreSet.forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = c; filterCentre.appendChild(o); });
 
+// Built from the data rather than config, so the dropdown only ever offers
+// types that actually exist — including any left over from an older list.
+const typeSet = [...new Set(complaints.map(c => c.complaintType).filter(Boolean))].sort();
+const filterType = document.getElementById("filterType");
+typeSet.forEach(t => { const o = document.createElement("option"); o.value = t; o.textContent = t; filterType.appendChild(o); });
+
 let sortKey = "dateRaised";
 let sortDir = -1;
 
 function applyFiltersAndRender(){
   const q = document.getElementById("searchInput").value.trim().toLowerCase();
   const fCentre = document.getElementById("filterCentre").value;
+  const fType = document.getElementById("filterType").value;
   const fTeam = document.getElementById("filterTeam").value;
   const fStatus = document.getElementById("filterStatus").value;
   const fSeverity = document.getElementById("filterSeverity").value;
 
   let rows = complaints.filter(c => {
     if (fCentre && c.centre !== fCentre) return false;
+    if (fType && c.complaintType !== fType) return false;
     if (fTeam === "__unassigned" && c.ownerTeam !== null) return false;
     if (fTeam && fTeam !== "__unassigned" && c.ownerTeam !== fTeam) return false;
     if (fStatus && c.status !== fStatus) return false;
@@ -284,7 +303,7 @@ function applyFiltersAndRender(){
     </tr>`).join("") || `<tr><td colspan="11"><div class="co-empty-state">No complaints match these filters.</div></td></tr>`;
 }
 
-["searchInput","filterCentre","filterTeam","filterStatus","filterSeverity"].forEach(id => {
+["searchInput","filterCentre","filterType","filterTeam","filterStatus","filterSeverity"].forEach(id => {
   document.getElementById(id).addEventListener("input", applyFiltersAndRender);
 });
 
@@ -312,6 +331,7 @@ document.getElementById("tableBody").addEventListener("click", async (e) => {
   document.getElementById("modalSub").textContent = `${t.clientName}${t.company ? " · " + t.company : ""} · ${t.centre}`;
   document.getElementById("modalDetailGrid").innerHTML = `
     <div class="co-detail-item"><div class="co-detail-label">Email</div><div class="co-detail-value">${escapeHTML(t.email)}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Room / VO</div><div class="co-detail-value">${escapeHTML(t.roomNumber || "—")}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Type</div><div class="co-detail-value">${escapeHTML(t.complaintType)}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Severity</div><div class="co-detail-value"><span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span></div></div>
     <div class="co-detail-item"><div class="co-detail-label">Status</div><div class="co-detail-value"><span class="co-badge ${statusBadge[t.status]}">${t.status}</span> ${isOverdue(t) ? '<span class="co-badge co-badge-overdue">Overdue</span>' : ""}</div></div>

@@ -19,6 +19,7 @@ export const firebaseConfig = {
 // sync if a centre opens/closes/renames.
 export const LOCATIONS = {
   "Hong Kong": [
+    "9 Queen's Road Central",
     "Admiralty Centre Tower 1 海富中心一座",
     "Admiralty Centre Tower 2 海富中心二座",
     "AIA Tower 友邦廣場",
@@ -33,6 +34,7 @@ export const LOCATIONS = {
   ],
   "Japan": [
     "ouno八重洲 × Compass Offices",
+    "Museum Tower Kyobashi Tokyo x Compass Offices",
     "イノゲート大阪（INOGATE OSAKA）",
     "WTC annex",
     "虎ノ門40MTビル（Toranomon 40 MT）",
@@ -58,7 +60,7 @@ export const LOCATIONS = {
     "BGC Corporate Center",
   ],
   "Malaysia": [
-    "Malaysia",
+    "Menara AIA Sentral",
   ],
   "Vietnam": [
     "Landmark 81",
