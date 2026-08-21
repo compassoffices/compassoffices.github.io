@@ -24,15 +24,24 @@
   </header>
 
   <main class="co-main">
-    <h1 class="co-page-title">Complaints Overview</h1>
-    <p class="co-page-sub">Live snapshot across every centre and team.</p>
+    <div class="co-section-head" style="align-items:flex-start; margin-bottom:18px;">
+      <div>
+        <h1 class="co-page-title">Complaints Overview</h1>
+        <p class="co-page-sub" style="margin-bottom:0;" id="rangeSub">Live snapshot across every centre and team.</p>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" class="co-chip co-active" id="range90">Last 90 days</button>
+        <button type="button" class="co-chip" id="rangeAll">All time</button>
+      </div>
+    </div>
 
     <div class="co-kpis">
-      <div class="co-kpi"><div class="co-kpi-label">Total Complaints</div><div class="co-kpi-value" id="kpiTotal">—</div><div class="co-kpi-sub">All time, open and resolved</div></div>
-      <div class="co-kpi"><div class="co-kpi-label">Open Complaints</div><div class="co-kpi-value" id="kpiOpen">—</div><div class="co-kpi-sub">Not yet resolved</div></div>
+      <div class="co-kpi"><div class="co-kpi-label">Total Complaints</div><div class="co-kpi-value" id="kpiTotal">—</div><div class="co-kpi-sub" id="kpiTotalSub">Open and closed</div></div>
+      <div class="co-kpi"><div class="co-kpi-label">Open Complaints</div><div class="co-kpi-value" id="kpiOpen">—</div><div class="co-kpi-sub">Still needing work</div></div>
       <div class="co-kpi"><div class="co-kpi-label">Overdue</div><div class="co-kpi-value co-bad" id="kpiOverdue">—</div><div class="co-kpi-sub">Past target date, still open</div></div>
+      <div class="co-kpi"><div class="co-kpi-label">Impossible to Resolve</div><div class="co-kpi-value" id="kpiImpossible">—</div><div class="co-kpi-sub">Closed without a fix</div></div>
       <div class="co-kpi"><div class="co-kpi-label">Avg Resolution Time</div><div class="co-kpi-value co-orange" id="kpiAvgTime">—</div><div class="co-kpi-sub">Days, resolved tickets</div></div>
-      <div class="co-kpi"><div class="co-kpi-label">Resolution Rate</div><div class="co-kpi-value" id="kpiRate">—</div><div class="co-kpi-sub">Resolved of all-time total</div></div>
+      <div class="co-kpi"><div class="co-kpi-label">Resolution Rate</div><div class="co-kpi-value" id="kpiRate">—</div><div class="co-kpi-sub">Resolved of all complaints</div></div>
     </div>
 
     <div class="co-section">
@@ -61,7 +70,7 @@
         <div class="co-section-note" id="tableCount"></div>
       </div>
       <div class="co-filters">
-        <input class="co-search" id="searchInput" placeholder="Search client, company, ticket ref…" style="min-width:220px;">
+        <input class="co-search" id="searchInput" placeholder="Search company, centre, ticket ref…" style="min-width:220px;">
         <select class="co-select" id="filterCentre"><option value="">All centres</option></select>
         <select class="co-select" id="filterType"><option value="">All types</option></select>
         <select class="co-select" id="filterTeam">
@@ -91,7 +100,7 @@
           <thead>
             <tr>
               <th data-key="ticketRef">Ticket</th>
-              <th data-key="clientName">Client</th>
+              <th data-key="company">Company</th>
               <th data-key="centre">Centre</th>
               <th data-key="complaintType">Type</th>
               <th data-key="severity">Severity</th>
@@ -128,7 +137,7 @@
 <script type="module">
 import { db, requireStaffSession, signOutAndRedirect } from "./shared/firebase-client.js";
 import {
-  collection, doc, getDocs, query, orderBy
+  collection, doc, getDocs, query, orderBy, where
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const staff = await requireStaffSession();
@@ -166,88 +175,141 @@ const statusBadge = {
 const CLOSED_STATUSES = ["Resolved", "Impossible to Resolve"];
 const isClosed = (c) => CLOSED_STATUSES.indexOf(c.status) !== -1;
 
+// ---------------- Data loading ----------------
+// Defaults to a rolling window rather than the whole archive. Firestore
+// bills per document read, and an unbounded query would cost one read per
+// complaint on every single page view — fine now, but it would quietly
+// grow into the free tier's daily read cap as the archive builds up.
+let rangeDays = 90;
 let complaints = [];
-try {
-  const snap = await getDocs(collection(db, "complaints"));
-  complaints = snap.docs.map(d => ({ ...d.data(), ticketRef: d.id }));
-} catch (err) { console.error(err); }
-complaints.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.dateRaised ? 1 : 0);
+
+async function loadComplaints(){
+  const body = document.getElementById("tableBody");
+  body.innerHTML = `<tr><td colspan="11"><div class="co-loading">Loading…</div></td></tr>`;
+  try {
+    const ref = collection(db, "complaints");
+    const q = rangeDays
+      ? query(ref, where("dateRaised", ">=", new Date(Date.now() - rangeDays * 86400000).toISOString()))
+      : ref;
+    const snap = await getDocs(q);
+    complaints = snap.docs.map(d => ({ ...d.data(), ticketRef: d.id }));
+  } catch (err) {
+    console.error(err);
+    complaints = [];
+    body.innerHTML = `<tr><td colspan="11"><div class="co-empty-state">Couldn't load complaints. Please refresh.</div></td></tr>`;
+    return;
+  }
+  complaints.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.dateRaised ? 1 : 0);
+
+  document.getElementById("rangeSub").textContent = rangeDays
+    ? `Complaints raised in the last ${rangeDays} days, across every centre and team.`
+    : "Every complaint on record, across every centre and team.";
+  document.getElementById("kpiTotalSub").textContent = rangeDays
+    ? `Open and closed, last ${rangeDays} days`
+    : "Open and closed, all time";
+
+  renderKPIs();
+  renderCharts();
+  populateFilters();
+  applyFiltersAndRender();
+}
 
 // ---------------- KPIs ----------------
-const total = complaints.length;
-const open = complaints.filter(c => !isClosed(c));
-const overdue = open.filter(isOverdue);
-const resolved = complaints.filter(c => c.status === "Resolved" && c.resolvedDate);
-const avgDays = resolved.length
-  ? (resolved.reduce((sum, c) => sum + (new Date(c.resolvedDate) - new Date(c.dateRaised.slice(0,10))) / 86400000, 0) / resolved.length)
-  : null;
+function renderKPIs(){
+  const total = complaints.length;
+  const open = complaints.filter(c => !isClosed(c));
+  const overdue = open.filter(isOverdue);
+  const impossible = complaints.filter(c => c.status === "Impossible to Resolve");
+  const resolved = complaints.filter(c => c.status === "Resolved" && c.resolvedDate);
+  const avgDays = resolved.length
+    ? (resolved.reduce((sum, c) => sum + (new Date(c.resolvedDate) - new Date(c.dateRaised.slice(0,10))) / 86400000, 0) / resolved.length)
+    : null;
 
-document.getElementById("kpiTotal").textContent = total;
-document.getElementById("kpiOpen").textContent = open.length;
-document.getElementById("kpiOverdue").textContent = overdue.length;
-document.getElementById("kpiAvgTime").textContent = avgDays === null ? "—" : avgDays.toFixed(1);
-document.getElementById("kpiRate").textContent = total ? Math.round((resolved.length / total) * 100) + "%" : "—";
+  document.getElementById("kpiTotal").textContent = total;
+  document.getElementById("kpiOpen").textContent = open.length;
+  document.getElementById("kpiOverdue").textContent = overdue.length;
+  document.getElementById("kpiImpossible").textContent = impossible.length;
+  document.getElementById("kpiAvgTime").textContent = avgDays === null ? "—" : avgDays.toFixed(1);
+  document.getElementById("kpiRate").textContent = total ? Math.round((resolved.length / total) * 100) + "%" : "—";
+}
 
 // ---------------- Charts ----------------
-const chartFont = { family: "'Hanken Grotesk','Noto Sans',sans-serif", size: 11 };
-Chart.defaults.font = chartFont;
+Chart.defaults.font = { family: "'Hanken Grotesk','Noto Sans',sans-serif", size: 11 };
 Chart.defaults.color = "#555555";
 
-// Complaints per day, last 30 days
-const days = [];
-for (let i = 29; i >= 0; i--) {
-  const d = new Date();
-  d.setDate(d.getDate() - i);
-  days.push(d.toISOString().slice(0,10));
+let chartPerDay, chartByTeam, chartByCentre;
+
+function renderCharts(){
+  const open = complaints.filter(c => !isClosed(c));
+
+  // Always the last 30 days regardless of the selected range — this chart
+  // is about recent activity, not the whole window.
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0,10));
+  }
+  const perDayCounts = days.map(day => complaints.filter(c => c.dateRaised.slice(0,10) === day).length);
+
+  if (chartPerDay) chartPerDay.destroy();
+  chartPerDay = new Chart(document.getElementById("chartPerDay"), {
+    type: "bar",
+    data: {
+      labels: days.map(d => new Date(d + "T00:00:00").toLocaleDateString("en-US", {month:"short", day:"numeric"})),
+      datasets: [{ data: perDayCounts, backgroundColor: "#FF6600", borderRadius: 3, maxBarThickness: 14 }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+
+  const teamKeys = [["CS","CS"],["Project","Project"],["IT","IT"],[null,"Unassigned"]];
+  const teamCounts = teamKeys.map(([key]) => open.filter(c => c.ownerTeam === key).length);
+  if (chartByTeam) chartByTeam.destroy();
+  chartByTeam = new Chart(document.getElementById("chartByTeam"), {
+    type: "doughnut",
+    data: {
+      labels: teamKeys.map(([,label]) => label),
+      datasets: [{ data: teamCounts, backgroundColor: ["#FF6600","#2B5FA8","#2E7D46","#BBBBBB"] }]
+    },
+    options: { plugins: { legend: { position: "bottom", labels: { boxWidth: 10, padding: 12 } } } }
+  });
+
+  const centres = [...new Set(complaints.map(c => c.centre))].sort();
+  const centreCounts = centres.map(centre => open.filter(c => c.centre === centre).length);
+  if (chartByCentre) chartByCentre.destroy();
+  chartByCentre = new Chart(document.getElementById("chartByCentre"), {
+    type: "bar",
+    data: { labels: centres, datasets: [{ data: centreCounts, backgroundColor: "#E55A00", borderRadius: 3, maxBarThickness: 26 }] },
+    options: {
+      indexAxis: "y",
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } }
+    }
+  });
 }
-const perDayCounts = days.map(day => complaints.filter(c => c.dateRaised.slice(0,10) === day).length);
 
-new Chart(document.getElementById("chartPerDay"), {
-  type: "bar",
-  data: {
-    labels: days.map(d => new Date(d + "T00:00:00").toLocaleDateString("en-US", {month:"short", day:"numeric"})),
-    datasets: [{ data: perDayCounts, backgroundColor: "#FF6600", borderRadius: 3, maxBarThickness: 14 }]
-  },
-  options: {
-    plugins: { legend: { display: false } },
-    scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
-  }
-});
-
-// Open by team
-const teamKeys = [["CS","CS"],["Project","Project"],["IT","IT"],[null,"Unassigned"]];
-const teamCounts = teamKeys.map(([key]) => open.filter(c => c.ownerTeam === key).length);
-new Chart(document.getElementById("chartByTeam"), {
-  type: "doughnut",
-  data: {
-    labels: teamKeys.map(([,label]) => label),
-    datasets: [{ data: teamCounts, backgroundColor: ["#FF6600","#2B5FA8","#2E7D46","#BBBBBB"] }]
-  },
-  options: { plugins: { legend: { position: "bottom", labels: { boxWidth: 10, padding: 12 } } } }
-});
-
-// Open by centre
-const centreSet = [...new Set(complaints.map(c => c.centre))].sort();
-const centreCounts = centreSet.map(centre => open.filter(c => c.centre === centre).length);
-new Chart(document.getElementById("chartByCentre"), {
-  type: "bar",
-  data: { labels: centreSet, datasets: [{ data: centreCounts, backgroundColor: "#E55A00", borderRadius: 3, maxBarThickness: 26 }] },
-  options: {
-    indexAxis: "y",
-    plugins: { legend: { display: false } },
-    scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } }
-  }
-});
-
-// ---------------- Table ----------------
-const filterCentre = document.getElementById("filterCentre");
-centreSet.forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = c; filterCentre.appendChild(o); });
-
-// Built from the data rather than config, so the dropdown only ever offers
-// types that actually exist — including any left over from an older list.
-const typeSet = [...new Set(complaints.map(c => c.complaintType).filter(Boolean))].sort();
-const filterType = document.getElementById("filterType");
-typeSet.forEach(t => { const o = document.createElement("option"); o.value = t; o.textContent = t; filterType.appendChild(o); });
+// ---------------- Filters ----------------
+// Rebuilt on each load so the options match the window, but the current
+// selection is kept when it still exists — switching range shouldn't
+// silently reset what someone was looking at.
+function populateFilters(){
+  const fill = (id, values, allLabel) => {
+    const sel = document.getElementById(id);
+    const previous = sel.value;
+    sel.innerHTML = `<option value="">${allLabel}</option>`;
+    values.forEach(v => {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = v;
+      sel.appendChild(o);
+    });
+    if (previous && values.indexOf(previous) !== -1) sel.value = previous;
+  };
+  fill("filterCentre", [...new Set(complaints.map(c => c.centre).filter(Boolean))].sort(), "All centres");
+  fill("filterType", [...new Set(complaints.map(c => c.complaintType).filter(Boolean))].sort(), "All types");
+}
 
 let sortKey = "dateRaised";
 let sortDir = -1;
@@ -268,7 +330,7 @@ function applyFiltersAndRender(){
     if (fStatus && c.status !== fStatus) return false;
     if (fSeverity && c.severity !== fSeverity) return false;
     if (q) {
-      const hay = `${c.ticketRef} ${c.clientName} ${c.company||""}`.toLowerCase();
+      const hay = `${c.ticketRef} ${c.company||""} ${c.centre||""} ${c.roomNumber||""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -290,7 +352,7 @@ function applyFiltersAndRender(){
   document.getElementById("tableBody").innerHTML = rows.map(t => `
     <tr data-ref="${t.ticketRef}">
       <td><strong>${t.ticketRef}</strong></td>
-      <td>${escapeHTML(t.clientName)}${t.company ? "<br><span style='color:var(--co-muted);font-size:11.5px;'>"+escapeHTML(t.company)+"</span>" : ""}</td>
+      <td>${escapeHTML(t.company || "—")}${t.roomNumber ? "<br><span style='color:var(--co-muted);font-size:11.5px;'>Room "+escapeHTML(t.roomNumber)+"</span>" : ""}</td>
       <td>${escapeHTML(t.centre)}</td>
       <td>${escapeHTML(t.complaintType)}</td>
       <td><span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span></td>
@@ -328,7 +390,7 @@ document.getElementById("tableBody").addEventListener("click", async (e) => {
   if (!t) return;
 
   document.getElementById("modalTitle").textContent = t.ticketRef;
-  document.getElementById("modalSub").textContent = `${t.clientName}${t.company ? " · " + t.company : ""} · ${t.centre}`;
+  document.getElementById("modalSub").textContent = `${t.company || "—"} · ${t.centre}`;
   document.getElementById("modalDetailGrid").innerHTML = `
     <div class="co-detail-item"><div class="co-detail-label">Email</div><div class="co-detail-value">${escapeHTML(t.email)}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Room / VO</div><div class="co-detail-value">${escapeHTML(t.roomNumber || "—")}</div></div>
@@ -357,7 +419,19 @@ document.getElementById("tableBody").addEventListener("click", async (e) => {
   modalBackdrop.classList.add("co-show");
 });
 
-applyFiltersAndRender();
+// ---------------- Date range ----------------
+const range90 = document.getElementById("range90");
+const rangeAll = document.getElementById("rangeAll");
+function setRange(days){
+  rangeDays = days;
+  range90.classList.toggle("co-active", days === 90);
+  rangeAll.classList.toggle("co-active", days === null);
+  loadComplaints();
+}
+range90.addEventListener("click", () => setRange(90));
+rangeAll.addEventListener("click", () => setRange(null));
+
+loadComplaints();
 </script>
 </body>
 </html>
