@@ -1437,13 +1437,21 @@ async function loadFloorplanSheet(){
     const H=rows[0],cC=findCol(H,[/centre/i,/code/i]),cJ=findCol(H,[/floorplan.?data/i,/json/i]),cM=findCol(H,[/master/i,/image/i]);
     if(cJ<0){FP_STATUS.errors.push(tab+' (no json col)');return;}
     let n=0;for(let i=1;i<rows.length;i++){const r=rows[i];const json=(''+(r[cJ]||'')).trim();if(!/^https?:/i.test(json))continue;
-      const code=cC>=0?(''+(r[cC]||'')).trim():('r'+i),master=cM>=0?(''+(r[cM]||'')).trim():'';const m=code.match(/(\d+)\s*$/),level=m?m[1]:'';
+      const code=cC>=0?(''+(r[cC]||'')).trim():('r'+i),master=cM>=0?(''+(r[cM]||'')).trim():'';const m=code.match(/L(?:evel)?\s*[-_ ]?\s*(\d+)\s*$/i)||code.match(/(\d+)\s*$/),level=m?m[1]:'';
       REGISTRY.push({id:tab+'-'+code,code,tab,cities,name:code,level,jsonUrl:json,masterUrl:master,address:''});n++;}
     if(n>0){FP_STATUS.tabs++;FP_STATUS.loaded+=n;}
   }));
   console.log('Floorplan sheet load:',FP_STATUS,REGISTRY);
 }
 let CITY_ITEMS={};
+/* When the floorplan code carries no level, derive it from the offices bound to the plan:
+   the majority floor prefix (office number minus its last two digits). 701..776 -> "7". */
+function inferLevel(offs){
+  const c={};
+  offs.forEach(o=>{const d=(''+o.office).replace(/[^0-9]/g,'');if(d.length>2){const p=d.slice(0,-2);c[p]=(c[p]||0)+1;}});
+  const k=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];
+  return k||'';
+}
 async function resolveItems(city){
   if(CITY_ITEMS[city])return CITY_ITEMS[city];
   const rep=await ensureReport(city);if(!rep){CITY_ITEMS[city]=[];return [];}
@@ -1496,7 +1504,7 @@ async function resolveItems(city){
     if(!centre||!offs.length)return;
     covered.add(centre);
     offs.sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
-    items.push({kind:'floor',id:row.id,row,centre,name:prettyCentre(centre),level:row.level,offices:offs,avail:offs.filter(o=>o.bucket==='month').length});
+    items.push({kind:'floor',id:row.id,row,centre,name:prettyCentre(centre),level:row.level||inferLevel(offs),offices:offs,avail:offs.filter(o=>o.bucket==='month').length});
   }));
   centres.forEach(centre=>{if(covered.has(centre))return;
     const offs=classified.filter(o=>o.centre===centre).sort((a,b)=>a.idx-b.idx||(''+a.office).localeCompare(''+b.office,undefined,{numeric:true}));
