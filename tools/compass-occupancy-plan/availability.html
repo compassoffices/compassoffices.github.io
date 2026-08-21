@@ -1472,7 +1472,11 @@ async function resolveItems(city){
       centre=named;const cOffs=classified.filter(o=>o.centre===centre);const cIdx=centreIdx[centre];
       const seen=new Set();row._rooms.forEach(rm=>{const o=matchRoom(rm,cIdx);if(o&&!seen.has(o.office)){seen.add(o.office);offs.push(o);}});
       if(!offs.length){const lvl=(row.level||'').replace(/[^0-9]/g,'');if(lvl)offs=cOffs.filter(o=>(''+o.office).replace(/[^0-9]/g,'').indexOf(lvl)===0);}
-      if(!offs.length)offs=cOffs;
+      // Whole-centre fallback ONLY for plans with no parsable rooms (plain image overlays).
+      // A plan that HAS rooms but matches none means the report carries nothing on this
+      // floor — render nothing rather than painting the centre's other floors onto it
+      // (otherwise every extra floorplan of a centre duplicates the same offices).
+      if(!offs.length&&!(row._rooms&&row._rooms.length))offs=cOffs;
     } else {
       // (2) fall back to office-number matching — score EACH centre separately and take the
       //     best. A plan binds to exactly one centre and only ever shows that centre's offices;
