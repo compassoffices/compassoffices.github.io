@@ -901,30 +901,32 @@ function _coverSave(){
     url:(document.getElementById('cover-url')?.value||'').trim(),
   })); }catch(e){}
 }
+// Sync every cover-toggle UI instance (desktop Export Options + mobile drawer)
+function _coverSyncUI(){
+  ['dp-cover-card','dp-cover-card-m'].forEach(id=>{
+    const b=document.getElementById(id); if(b)b.classList.toggle('on',COVER_ON);
+  });
+  const f=document.getElementById('cover-url-field'); if(f)f.style.display=COVER_ON?'block':'none';
+}
 function _coverBoot(){
   try{
     const s=JSON.parse(localStorage.getItem('co_cover_v1')||'{}');
     COVER_ON=!!s.on;
-    const b=document.getElementById('dp-cover-card'); if(b)b.classList.toggle('on',COVER_ON);
     const r=document.getElementById('cover-region'); if(r&&s.region)r.value=s.region;
     const u=document.getElementById('cover-url'); if(u&&s.url)u.value=s.url;
-    const f=document.getElementById('cover-url-field'); if(f)f.style.display=COVER_ON?'block':'none';
+    _coverSyncUI();
   }catch(e){}
 }
 function toggleCoverPage(){
   COVER_ON=!COVER_ON;
-  const b=document.getElementById('dp-cover-card');
-  if(b)b.classList.toggle('on',COVER_ON);
-  const f=document.getElementById('cover-url-field');
-  if(f)f.style.display=COVER_ON?'block':'none';
+  _coverSyncUI();
   _coverSave();
   gen();
   if(typeof renderCoverPreview==='function') renderCoverPreview();
 }
 function _coverSet(on,url){
   COVER_ON=!!on;
-  const b=document.getElementById('dp-cover-card'); if(b)b.classList.toggle('on',COVER_ON);
   const u=document.getElementById('cover-url'); if(u)u.value=url||'';
-  const f=document.getElementById('cover-url-field'); if(f)f.style.display=COVER_ON?'block':'none';
+  _coverSyncUI();
   if(typeof renderCoverPreview==='function') renderCoverPreview();
 }

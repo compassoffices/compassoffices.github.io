@@ -491,8 +491,10 @@ function _openQueueTextPrintWindow(captured, existingWindow){
   }).join('\n')
   const _cvOnce=(typeof COVER_ON!=='undefined'&&COVER_ON&&typeof buildCoverPageHtml==='function')?buildCoverPageHtml():'';
   const coverPageHtml=_cvOnce?('<div class="page-wrap"><div class="page-clip">'+_cvOnce+'</div></div>'):'';
-  + `\n<div class="page-wrap"><div class="page-clip">${perksHtml}</div></div>`
-  + (contactHtml ? `\n<div class="page-wrap"><div class="page-clip">${contactHtml}</div></div>` : '');
+  // Perks + contact close the document (was dead code before — a stray `+`
+  // expression meant these pages were silently dropped from queue exports).
+  const tailPagesHtml=(perksHtml ? `\n<div class="page-wrap"><div class="page-clip">${perksHtml}</div></div>` : '')
+    + (contactHtml ? `\n<div class="page-wrap"><div class="page-clip">${contactHtml}</div></div>` : '');
 
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
     || /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -551,7 +553,7 @@ body { background:#fff; overflow:visible; }
 </head>
 <body>
 
-${coverPageHtml}${pagesHtml}
+${coverPageHtml}${pagesHtml}${tailPagesHtml}
 
 <div class="print-controls">
   ${_buildIosTipHtml()}
@@ -938,6 +940,9 @@ body {
 </style>
 </head>
 <body>
+
+<!-- Document cover — once per PDF (global Export Options toggle) -->
+${(typeof COVER_ON!=='undefined'&&COVER_ON&&typeof buildCoverPageHtml==='function'&&buildCoverPageHtml()) ? `<div class="page-wrap"><div class="page-clip">${buildCoverPageHtml()}</div></div>` : ''}
 
 <!-- Page 1 -->
 <div class="page-wrap"><div class="page-clip">${page1Html}</div></div>
