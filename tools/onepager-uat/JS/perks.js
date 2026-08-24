@@ -271,36 +271,38 @@ function buildVoDetailPageHtml(){
     {k:'platinum',n:'Platinum',price:p.platinum,pop:true},
     {k:'diamond',n:'Diamond',price:p.diamond},
   ];
-  const check='<span style="flex:0 0 auto;width:15px;height:15px;border-radius:50%;background:#FFF3EB;color:#FF6600;font-size:9.5px;font-weight:900;line-height:15px;text-align:center;margin-top:1px;">✓</span>';
+  const check='<span style="flex:0 0 auto;width:17px;height:17px;border-radius:50%;background:#FFF3EB;color:#FF6600;font-size:10.5px;font-weight:900;line-height:17px;text-align:center;margin-top:1px;">✓</span>';
   const dense=feats.length>14;
-  const ifs=dense?10:11, igap=dense?6:9;
+  const ifs=dense?10.5:12, igap=dense?7:11;
   const cards=tiers.map((t,ti)=>{
     const prev=ti>0?tiers[ti-1]:null;
     const fl=feats.filter(r=>has(r[t.k])&&(!prev||val(r[t.k])!==val(r[prev.k])));
     const items=fl.map(r=>{
       const v=val(r[t.k]);
       const extra=(v&&v!=='•')?` <b style="color:#FF6600;white-space:nowrap;">${v}</b>`:'';
-      return `<div style="display:flex;margin-bottom:${igap}px;font-size:${ifs}px;line-height:1.45;color:#333333;">${check}<span style="flex:1;margin-left:8px;">${_dpL(r,'label')}${extra}</span></div>`;
+      return `<div style="display:flex;margin-bottom:${igap}px;font-size:${ifs}px;line-height:1.5;color:#333333;">${check}<span style="flex:1;margin-left:9px;">${_dpL(r,'label')}${extra}</span></div>`;
     }).join('');
-    return `<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:${t.pop?'#FFF9F5':'#FFFFFF'};border:${t.pop?'2px solid #FF6600':'1px solid #E5E5E5'};border-radius:14px;padding:20px 22px 14px;position:relative;">
-      ${t.pop?`<div style="position:absolute;top:15px;right:16px;border:1.5px solid #FF6600;color:#FF6600;font-size:9px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:2px 10px;text-transform:uppercase;">${_dpT('pop')}</div>`:''}
-      <div style="font-size:17px;font-weight:800;color:#1A1A1A;">${t.n}</div>
-      <div style="font-size:9.5px;font-weight:700;color:#888888;margin:8px 0 1px;">${_dpT('from')}</div>
-      <div style="font-size:26px;font-weight:800;color:#1A1A1A;letter-spacing:-.01em;">${cur}${t.price||''}<span style="font-size:11px;font-weight:700;color:#888888;">${_dpT('mo')}</span></div>
-      <div style="height:1px;background:${t.pop?'rgba(255,102,0,.25)':'#E5E5E5'};margin:12px 0;"></div>
-      ${prev?`<div style="font-size:10.5px;font-weight:800;color:#1A1A1A;margin-bottom:9px;">${_dpT('plus').replace('%s',prev.n)}</div>`:''}
+    return `<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:${t.pop?'#FFF9F5':'#FFFFFF'};border:${t.pop?'2px solid #FF6600':'1px solid #E5E5E5'};border-radius:16px;padding:26px 28px 20px;position:relative;">
+      ${t.pop?`<div style="position:absolute;top:20px;right:20px;border:1.5px solid #FF6600;color:#FF6600;font-size:10px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:3px 12px;text-transform:uppercase;">${_dpT('pop')}</div>`:''}
+      <div style="font-size:20px;font-weight:800;color:#1A1A1A;">${t.n}</div>
+      <div style="font-size:10.5px;font-weight:700;color:#888888;margin:10px 0 1px;">${_dpT('from')}</div>
+      <div style="font-size:31px;font-weight:800;color:#1A1A1A;letter-spacing:-.01em;">${cur}${t.price||''}<span style="font-size:12px;font-weight:700;color:#888888;">${_dpT('mo')}</span></div>
+      <div style="height:1px;background:${t.pop?'rgba(255,102,0,.25)':'#E5E5E5'};margin:15px 0;"></div>
+      ${prev?`<div style="font-size:12px;font-weight:800;color:#1A1A1A;margin-bottom:11px;">${_dpT('plus').replace('%s',prev.n)}</div>`:''}
       <div style="flex:1;overflow:hidden;">${items}</div>
     </div>`;
-  }).join('<div style="flex:0 0 18px;"></div>');
+  }).join('<div style="flex:0 0 22px;"></div>');
   let notesHtml='';
   if(notes.length){
     const txts=notes.map(n=>_dpL(n,'label')).filter(Boolean);
     const mid=Math.ceil(txts.length/2);
     const col=a=>`<div style="flex:1;min-width:0;">${a.map(x=>`<div style="margin-bottom:2px;">${x}</div>`).join('')}</div>`;
-    notesHtml=`<div style="display:flex;flex-shrink:0;margin-top:13px;font-size:8.2px;color:#888888;line-height:1.5;">${col(txts.slice(0,mid))}<div style="flex:0 0 26px;"></div>${col(txts.slice(mid))}</div>`;
+    notesHtml=`<div style="display:flex;flex-shrink:0;margin-top:16px;font-size:9px;color:#888888;line-height:1.55;">${col(txts.slice(0,mid))}<div style="flex:0 0 30px;"></div>${col(txts.slice(mid))}</div>`;
   }
-  const inner=`<div style="display:flex;flex-direction:column;height:100%;">
-    <div style="display:flex;flex:1;min-height:0;align-items:stretch;">${cards}</div>
+  // Cards hug their content (equal height = tallest card, i.e. Gold), with
+  // footnotes right below — no stretching to the bottom of the page.
+  const inner=`<div style="display:flex;flex-direction:column;justify-content:center;height:100%;">
+    <div style="display:flex;align-items:stretch;flex:0 0 auto;">${cards}</div>
     ${notesHtml}
   </div>`;
   return _dpPage(_dpT('vo'),inner);

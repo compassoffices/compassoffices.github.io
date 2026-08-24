@@ -558,7 +558,7 @@ ${coverPageHtml}${pagesHtml}${tailPagesHtml}
 <div class="print-controls">
   ${_buildIosTipHtml()}
   <div class="print-hint-box">
-    <b>${captured.length} location${captured.length>1?'s':''}</b> · ${captured.length*2}${contactHtml?' + 1 contact':''} pages ready.<br>
+    <b>${captured.length} location${captured.length>1?'s':''}</b> · ${((coverPageHtml+pagesHtml+tailPagesHtml).match(/page-wrap/g)||[]).length} pages ready.<br>
     In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
     <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
   </div>
@@ -966,7 +966,11 @@ ${buildContactPageHtml() ? `<div class="page-wrap"><div class="page-clip">${buil
 <div class="print-controls">
   ${_buildIosTipHtml()}
   <div class="print-hint-box">
-    <b>1 location</b> · ${2+extraPages.length} pages ready.<br>
+    <b>1 location</b> · ${(()=>{try{return 1+(page2Html?1:0)+extraPages.length
+      +((typeof _detailPagesInner==='function')?_detailPagesInner().length:0)
+      +((typeof buildPerksPageHtml==='function'&&buildPerksPageHtml(LANG))?1:0)
+      +(buildContactPageHtml()?1:0)
+      +((typeof COVER_ON!=='undefined'&&COVER_ON&&typeof buildCoverPageHtml==='function'&&buildCoverPageHtml())?1:0);}catch(e){return 2+extraPages.length;}})()} pages ready.<br>
     In the print dialog, choose <b>Save as PDF</b> &amp; set <b>Margins: None</b>.<br>
     <span style="display:inline-block;margin-top:6px;padding:2px 8px;background:#FF6600;color:#fff;border-radius:99px;font-size:11px;font-weight:700;">✓ Selectable text</span>
   </div>
