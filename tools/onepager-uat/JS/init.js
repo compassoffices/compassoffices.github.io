@@ -141,7 +141,8 @@ async function forceUpdate(){
   if(typeof voFetchPrices==='function') voFetchPrices();
   if(typeof dpFetchAll==='function') dpFetchAll();
   if(typeof renderDetailPreviews==='function') renderDetailPreviews();
+  if(typeof _coverBoot==='function') _coverBoot();
   if(typeof renderCoverPreview==='function') renderCoverPreview();
-  console.log('[One-Pager Builder] build 20260808e');
+  console.log('[One-Pager Builder] build 20260808g');
 })();
 

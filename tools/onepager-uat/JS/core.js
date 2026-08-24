@@ -379,7 +379,6 @@ async function printQueue(){
         }catch(e){console.warn('extra masters capture:',e);}
         captured.push({
           name: item.name || '',
-          cover: (typeof COVER_ON!=='undefined'&&COVER_ON&&typeof buildCoverPageHtml==='function')?buildCoverPageHtml():'',
           slide1: page1El.outerHTML,
           slide2: page2El ? page2El.outerHTML : '',
           extras: _extras,
@@ -484,9 +483,7 @@ function _openQueueTextPrintWindow(captured, existingWindow){
     ? buildPerksPageHtml(LANG)
     : '';
   const pagesHtml = captured.flatMap(c => {
-    const arr = [];
-    if(c.cover) arr.push(`<div class="page-wrap"><div class="page-clip">${c.cover}</div></div>`);
-    arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`);
+    const arr = [`<div class="page-wrap"><div class="page-clip">${c.slide1}</div></div>`];
     if(c.slide2) arr.push(`<div class="page-wrap"><div class="page-clip">${c.slide2}</div></div>`);
     (c.extras||[]).forEach(x=>arr.push(`<div class="page-wrap"><div class="page-clip">${x}</div></div>`));
     (c.details||[]).forEach(x=>arr.push(`<div class="page-wrap"><div class="page-clip">${x}</div></div>`));
@@ -552,7 +549,7 @@ body { background:#fff; overflow:visible; }
 </head>
 <body>
 
-${pagesHtml}
+${coverPageHtml}${pagesHtml}
 
 <div class="print-controls">
   ${_buildIosTipHtml()}
@@ -579,6 +576,8 @@ ${pagesHtml}
       if(img.complete) onDone();
       else { img.addEventListener('load', onDone); img.addEventListener('error', onDone); }
     });
+  const coverOnce=(typeof COVER_ON!=='undefined'&&COVER_ON&&typeof buildCoverPageHtml==='function')?buildCoverPageHtml():'';
+  const coverPageHtml=coverOnce?`<div class="page-wrap"><div class="page-clip">${coverOnce}</div></div>`:'';
     setTimeout(() => window.focus(), 3000);
   })();
   ${_IOS_TIP_JS}
@@ -1127,8 +1126,6 @@ function downloadCurrentJSON(){
     extra_masters: (typeof EXTRA_MASTERS!=='undefined'?EXTRA_MASTERS:[]).filter(m=>!m._auto).map(m=>({url:(typeof _stripCb==='function'?_stripCb(m.url):m.url)||'',label:m.label||'',fp_base_url:m.fp_base_url||'',fp_data_url:m.fp_data_url||''})),
     vo_centre_id: (document.getElementById('vo-centre-id')?.value||'').trim(),
     vo_note_on: (typeof VO_NOTE_ON!=='undefined')?VO_NOTE_ON:true,
-    cover_on: (typeof COVER_ON!=='undefined')?COVER_ON:false,
-    cover_url: (document.getElementById('cover-url')?.value||'').trim(),
     vo_detail_on: (typeof VO_DETAIL_ON!=='undefined')?VO_DETAIL_ON:false,
     mr_page_on: (typeof MR_PAGE_ON!=='undefined')?MR_PAGE_ON:false,
     it_page_on: (typeof IT_PAGE_ON!=='undefined')?IT_PAGE_ON:false,

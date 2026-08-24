@@ -439,14 +439,20 @@ function buildCoverPageHtml(){
   const d=new Date();
   const dateStr=d.toLocaleDateString(LANG==='ja'?'ja-JP':(LANG&&LANG.startsWith('zh')?'zh-HK':'en-GB'),{year:'numeric',month:'long',day:'numeric'});
   const who=[comp,cli].filter(Boolean).join(' · ');
-  return `<div style="${_DPF}width:1122px;height:794px;position:relative;overflow:hidden;background:#111;">
+  const centre=(document.getElementById('n-main')?.value||'').trim();
+  const fl=(typeof combineFloorLabel==='function')?combineFloorLabel(document.getElementById('floor')?.value.trim()||''):'';
+  const city=(document.getElementById('city')?.value||'').trim();
+  const by=[(document.getElementById('pf-firstname')?.value||'').trim(),(document.getElementById('pf-lastname')?.value||'').trim()].filter(Boolean).join(' ');
+  return `<div style="${_DPF}width:1122px;height:794px;position:relative;overflow:hidden;background:#fff;">
     <img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;"
          onerror="this.onerror=null;this.src='${COVER_CDN}default.jpg';">
-    ${who?`<div style="position:absolute;left:44px;bottom:40px;color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.45);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.22em;opacity:.85;">PREPARED FOR</div>
-      <div style="font-size:20px;font-weight:800;margin-top:3px;">${who}</div>
-      <div style="font-size:10.5px;opacity:.8;margin-top:4px;">${dateStr}</div>
-    </div>`:''}
+    <div style="position:absolute;left:52px;bottom:46px;color:#1A1A1A;max-width:520px;">
+      <div style="width:30px;height:3.5px;background:#FF6600;margin-bottom:12px;"></div>
+      ${who?`<div style="font-size:9.5px;font-weight:800;letter-spacing:.24em;color:#8A8A8A;">PREPARED FOR</div>
+      <div style="font-size:22px;font-weight:800;margin:3px 0 6px;line-height:1.2;">${who}</div>`:''}
+      ${centre?`<div style="font-size:12px;font-weight:700;color:#444;">${centre}${fl?' · '+fl:''}${city?' · '+city:''}</div>`:''}
+      <div style="font-size:9.5px;color:#999;margin-top:7px;font-weight:600;">${by?`Prepared by ${by} · `:''}${dateStr}</div>
+    </div>
   </div>`;
 }
 function renderCoverPreview(){

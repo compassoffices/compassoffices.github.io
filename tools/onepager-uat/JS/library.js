@@ -398,7 +398,6 @@ function applyLocationData(p){
       }
     }
     if(typeof _dpSetToggles==='function') _dpSetToggles(p.vo_detail_on, p.mr_page_on, p.it_page_on);
-    if(typeof _coverSet==='function') _coverSet(p.cover_on, p.cover_url);
     if(typeof p.vo_note_on==='boolean'&&typeof VO_NOTE_ON!=='undefined'){
       VO_NOTE_ON=p.vo_note_on;
       const _voB=document.getElementById('vo-note-toggle');
