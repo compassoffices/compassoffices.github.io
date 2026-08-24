@@ -489,6 +489,8 @@ function _openQueueTextPrintWindow(captured, existingWindow){
     (c.details||[]).forEach(x=>arr.push(`<div class="page-wrap"><div class="page-clip">${x}</div></div>`));
     return arr;
   }).join('\n')
+  const _cvOnce=(typeof COVER_ON!=='undefined'&&COVER_ON&&typeof buildCoverPageHtml==='function')?buildCoverPageHtml():'';
+  const coverPageHtml=_cvOnce?('<div class="page-wrap"><div class="page-clip">'+_cvOnce+'</div></div>'):'';
   + `\n<div class="page-wrap"><div class="page-clip">${perksHtml}</div></div>`
   + (contactHtml ? `\n<div class="page-wrap"><div class="page-clip">${contactHtml}</div></div>` : '');
 
@@ -576,8 +578,6 @@ ${coverPageHtml}${pagesHtml}
       if(img.complete) onDone();
       else { img.addEventListener('load', onDone); img.addEventListener('error', onDone); }
     });
-  const coverOnce=(typeof COVER_ON!=='undefined'&&COVER_ON&&typeof buildCoverPageHtml==='function')?buildCoverPageHtml():'';
-  const coverPageHtml=coverOnce?`<div class="page-wrap"><div class="page-clip">${coverOnce}</div></div>`:'';
     setTimeout(() => window.focus(), 3000);
   })();
   ${_IOS_TIP_JS}
