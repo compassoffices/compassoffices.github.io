@@ -237,6 +237,7 @@ function setLang(lc){
 
   gen();
   if(typeof renderDetailPreviews==='function') renderDetailPreviews();
+  if(typeof renderCoverPreview==='function') renderCoverPreview();
 }
 
 // ══════════════════════════════════════════════════════════

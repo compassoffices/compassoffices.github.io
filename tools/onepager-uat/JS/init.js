@@ -141,6 +141,7 @@ async function forceUpdate(){
   if(typeof voFetchPrices==='function') voFetchPrices();
   if(typeof dpFetchAll==='function') dpFetchAll();
   if(typeof renderDetailPreviews==='function') renderDetailPreviews();
-  console.log('[One-Pager Builder] build 20260808d');
+  if(typeof renderCoverPreview==='function') renderCoverPreview();
+  console.log('[One-Pager Builder] build 20260808e');
 })();
 

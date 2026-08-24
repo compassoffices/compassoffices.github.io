@@ -427,3 +427,42 @@ function renderDetailPreviews(){
     }catch(e){ console.warn('[detail preview]',e); }
   }, 400);
 }
+
+
+// ══════════════ COVER PAGE — builder + live preview ══════════════
+function buildCoverPageHtml(){
+  if(typeof COVER_ON==='undefined'||!COVER_ON) return '';
+  const url=coverUrl();
+  if(!url) return '';
+  const comp=(document.getElementById('company-name')?.value||'').trim();
+  const cli=(document.getElementById('client-name')?.value||'').trim();
+  const d=new Date();
+  const dateStr=d.toLocaleDateString(LANG==='ja'?'ja-JP':(LANG&&LANG.startsWith('zh')?'zh-HK':'en-GB'),{year:'numeric',month:'long',day:'numeric'});
+  const who=[comp,cli].filter(Boolean).join(' · ');
+  return `<div style="${_DPF}width:1122px;height:794px;position:relative;overflow:hidden;background:#111;">
+    <img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;"
+         onerror="this.onerror=null;this.src='${COVER_CDN}default.jpg';">
+    ${who?`<div style="position:absolute;left:44px;bottom:40px;color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.45);">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.22em;opacity:.85;">PREPARED FOR</div>
+      <div style="font-size:20px;font-weight:800;margin-top:3px;">${who}</div>
+      <div style="font-size:10.5px;opacity:.8;margin-top:4px;">${dateStr}</div>
+    </div>`:''}
+  </div>`;
+}
+function renderCoverPreview(){
+  clearTimeout(renderCoverPreview._t);
+  renderCoverPreview._t=setTimeout(()=>{
+    const box=document.getElementById('cover-preview');
+    if(!box) return;
+    try{
+      const html=buildCoverPageHtml();
+      if(!html){ box.innerHTML=''; return; }
+      box.innerHTML=
+        `<div class="pmeta" style="margin-bottom:0"><span class="pmeta-lbl">Cover</span><span style="font-size:11px;color:var(--xlt)">A4 Landscape · 297 × 210 mm</span></div>`+
+        `<div class="slide-wrap" style="margin-bottom:24px"><div class="dp-slide"><div class="dp-fix">${html}</div></div></div>`;
+      const w=box.querySelector('.dp-slide');
+      const fit=()=>{const f=w&&w.firstElementChild;if(f&&w.clientWidth>0)f.style.transform='scale('+(w.clientWidth/1122)+')';};
+      fit(); setTimeout(fit,300);
+    }catch(e){ console.warn('[cover preview]',e); }
+  },400);
+}

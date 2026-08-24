@@ -875,3 +875,37 @@ function _dpSetToggles(vo,mr,it){
   });
   if(typeof renderDetailPreviews==='function') renderDetailPreviews();
 }
+
+
+// ══════════════ COVER PAGE ══════════════
+// Regional cover graphic (designed by Will) hosted on Cloudinary:
+//   _CompassOffices/covers/<region-key>.jpg   e.g. hong-kong.jpg, melbourne.jpg
+// Auto-picked from the card's City/Region field; custom URL overrides.
+const COVER_CDN='https://res.cloudinary.com/dutvfdhdp/image/upload/_CompassOffices/covers/';
+let COVER_ON=false;
+function coverKey(){
+  const city=(document.getElementById('city')?.value||'').trim();
+  return city.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+function coverUrl(){
+  const custom=(document.getElementById('cover-url')?.value||'').trim();
+  if(custom) return custom;
+  const k=coverKey();
+  return k ? COVER_CDN+k+'.jpg' : '';
+}
+function toggleCoverPage(){
+  COVER_ON=!COVER_ON;
+  const b=document.getElementById('dp-cover-card');
+  if(b)b.classList.toggle('on',COVER_ON);
+  const f=document.getElementById('cover-url-field');
+  if(f)f.style.display=COVER_ON?'block':'none';
+  gen();
+  if(typeof renderCoverPreview==='function') renderCoverPreview();
+}
+function _coverSet(on,url){
+  COVER_ON=!!on;
+  const b=document.getElementById('dp-cover-card'); if(b)b.classList.toggle('on',COVER_ON);
+  const u=document.getElementById('cover-url'); if(u)u.value=url||'';
+  const f=document.getElementById('cover-url-field'); if(f)f.style.display=COVER_ON?'block':'none';
+  if(typeof renderCoverPreview==='function') renderCoverPreview();
+}
