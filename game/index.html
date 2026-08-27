@@ -576,9 +576,18 @@ function covLoadWorld(scene, url, onProgress, onDone, onError){
     const world = gltf.scene;
     world.traverse(o => {
       if (o.isMesh){
-        if (o.material){
-          o.material.side = THREE.FrontSide;
-          if (o.material.map) o.material.map.anisotropy = 4;
+        const old = o.material;
+        if (old){
+          // SketchUp/PBR metallic settings render flat & lifeless without an environment —
+          // convert to simply-lit textured materials that respond to our warm lights.
+          const map = old.map || null;
+          if (map) map.anisotropy = 4;
+          const params = { map, color: old.color ? old.color.clone() : new THREE.Color(0xffffff) };
+          if (old.transparent && old.opacity < 0.98){
+            params.transparent = true; params.opacity = Math.max(0.15, old.opacity);
+            params.depthWrite = false;
+          }
+          o.material = new THREE.MeshLambertMaterial(params);
         }
         covAddCollider(o);
       }
@@ -805,16 +814,16 @@ function covBlobShadow(){
   return m;
 }
 
-/* ================= GAME ENGINE (toy-scale third person in the SKP lounge) ================= */
-const AV_SCALE = 0.10;          // player height ~16 cm — a tiny toy person
+/* ================= GAME ENGINE (first-person, toy-scale, SKP lounge) ================= */
+const EYE_HEIGHT = 0.15;        // tiny explorer eye level (~16 cm person)
 const WALK_SPEED = 0.55, RUN_SPEED = 1.1;
-const CAM_DIST = 0.55, CAM_HEIGHT = 0.20;
 const CLAIM_DIST = 1.4;
 const GIFT_SCALE = 0.22;
+const BODY_R = 0.04;
 
 let scene, camera, renderer, clock;
-let camYaw = 0, camPitch = -0.22;
-let avatar = null, blob = null, avYawCur = 0, walkPhase = 0, moveAmt = 0, groundY = 0;
+let camYaw = 0, camPitch = -0.05;
+let pPos = null, walkPhase = 0, moveAmt = 0, groundY = 0;
 const keys = {};
 const giftMeshes = {};
 const moveVec = { x:0, y:0 };
@@ -869,16 +878,20 @@ function initEngine(){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.12;
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x14110E);
-  camera = new THREE.PerspectiveCamera(58, 1, 0.01, 80);
+  camera = new THREE.PerspectiveCamera(66, 1, 0.01, 80);
+  camera.rotation.order = "YXZ";
   clock = new THREE.Clock();
 
-  scene.add(new THREE.HemisphereLight(0xfff3e2, 0x4a4038, 1.15));
-  const dl = new THREE.DirectionalLight(0xffeed4, 0.55);
+  scene.add(new THREE.HemisphereLight(0xfff3e2, 0x51463c, 1.25));
+  const dl = new THREE.DirectionalLight(0xffeed4, 0.5);
   dl.position.set(6, 12, 4);
   scene.add(dl);
+  const dl2 = new THREE.DirectionalLight(0xffe6c8, 0.25);
+  dl2.position.set(-7, 9, -6);
+  scene.add(dl2);
 
   covLoadWorld(scene, "lounge.glb",
     p => { const pc = Math.round(p*100);
@@ -887,14 +900,16 @@ function initEngine(){
     () => {
       $("ltext").textContent = "Preparing the toy world…";
       setTimeout(() => {
-        try {
-          db.ref("game/config/loungeSet").once("value").then(s => {
-            const ls = s.val() || { x: 0, z: 0, yaw: 0 };
-            covBuildLoungeSet(scene, ls);
-            covBuildTree(scene, ls.x + 2.6, ls.z - 2.3, 0.5);
-            startWorld();
-          }).catch(() => { covBuildLoungeSet(scene, {x:0,z:0,yaw:0}); covBuildTree(scene, 2.6, -2.3, 0.5); startWorld(); });
-        } catch(err){ console.error(err); $("ltext").textContent = "Could not build the set: " + err.message; }
+        db.ref("game/config/loungeSet").once("value").then(s => {
+          const ls = s.val() || { x: 0, z: 0, yaw: 0 };
+          covBuildLoungeSet(scene, ls);
+          covBuildTree(scene, ls.x + 2.6, ls.z - 2.3, 0.5);
+          startWorld(ls);
+        }).catch(() => {
+          covBuildLoungeSet(scene, {x:0,z:0,yaw:0});
+          covBuildTree(scene, 2.6, -2.3, 0.5);
+          startWorld({x:0,z:0,yaw:0});
+        });
       }, 30);
     },
     err => { console.error(err); engineFail("model failed to download"); });
@@ -904,25 +919,35 @@ function initEngine(){
   bindControls(canvas);
 }
 
-function startWorld(){
-  avatar = covBuildAvatar();
-  avatar.g.scale.setScalar(AV_SCALE);
-  scene.add(avatar.g);
-  blob = covBlobShadow();
-  blob.scale.setScalar(0.14);
-  scene.add(blob);
+function spotClear(x, z){
+  const gy = covGroundY(x, z, 2.5);
+  if (gy === null || gy > 0.25) return null;        // no floor, or on top of furniture
+  const h1 = gy + 0.03, h2 = gy + 0.13;
+  for (const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+    if (covRayBlocked(x, h1, z, d[0], d[1], 0.14)) return null;
+    if (covRayBlocked(x, h2, z, d[0], d[1], 0.14)) return null;
+  }
+  return gy;
+}
 
-  let sx = 0.5, sz = 0.5;
-  const gy = covGroundY(sx, sz, 2.5);
-  groundY = (gy === null) ? 0 : gy;
-  avatar.g.position.set(sx, groundY, sz);
-  camYaw = 2.6;
+function startWorld(ls){
+  pPos = new THREE.Vector3(0.5, 0, 0.5);
+  // find a clear spawn around the lounge set
+  const cands = [[0,2.6],[2.6,0],[-2.6,0],[0,-2.8],[2.2,2.2],[-2.2,2.2],[2.2,-2.4],[-2.2,-2.4],[0,3.6],[3.6,0]];
+  for (const c of cands){
+    const x = (ls.x||0) + c[0], z = (ls.z||0) + c[1];
+    const gy = spotClear(x, z);
+    if (gy !== null){
+      pPos.set(x, 0, z); groundY = gy;
+      camYaw = Math.atan2((ls.x||0) - x, (ls.z||0) - z) + Math.PI;  // face the furniture set
+      break;
+    }
+  }
   db.ref("game/config/spawn").once("value").then(s => {
     const sp = s.val();
     if (sp){
-      const gy2 = covGroundY(sp.x, sp.z, 2.5);
-      avatar.g.position.set(sp.x, gy2 === null ? 0 : gy2, sp.z);
-      camYaw = (sp.yaw || 0) + Math.PI;
+      const gy2 = spotClear(sp.x, sp.z);
+      if (gy2 !== null){ pPos.set(sp.x, 0, sp.z); groundY = gy2; camYaw = (sp.yaw || 0); }
     }
   }).catch(()=>{});
 
@@ -969,9 +994,9 @@ function bindControls(canvas){
     if (e.pointerId === lookId){
       const dx = e.clientX - lx, dy = e.clientY - ly;
       moved += Math.abs(dx)+Math.abs(dy);
-      camYaw   -= dx * 0.005;
-      camPitch -= dy * 0.004;
-      camPitch = Math.max(-1.05, Math.min(0.5, camPitch));
+      camYaw   -= dx * 0.0042;
+      camPitch -= dy * 0.0036;
+      camPitch = Math.max(-1.25, Math.min(1.25, camPitch));
       lx = e.clientX; ly = e.clientY;
     }
   });
@@ -992,7 +1017,7 @@ function bindControls(canvas){
 }
 
 function tapClaim(cx, cy){
-  if (!camera || !avatar) return;
+  if (!camera || !pPos) return;
   const ndc = new THREE.Vector2((cx/window.innerWidth)*2-1, -(cy/window.innerHeight)*2+1);
   const rc = new THREE.Raycaster();
   rc.setFromCamera(ndc, camera);
@@ -1003,18 +1028,23 @@ function tapClaim(cx, cy){
   let node = hits[0].object;
   while (node && !node.userData.giftId) node = node.parent;
   if (!node) return;
-  if (avatar.g.position.distanceTo(node.position) > CLAIM_DIST){
+  if (pPos.distanceTo(node.position) > CLAIM_DIST){
     toast("Walk closer to open that gift."); return;
   }
   attemptClaim(node.userData.giftId);
 }
 
-const _camDirV = new THREE.Vector3(), _camTargetV = new THREE.Vector3();
-function lerpAngle(a, b, t){
-  let d = (b - a) % (Math.PI*2);
-  if (d > Math.PI) d -= Math.PI*2;
-  if (d < -Math.PI) d += Math.PI*2;
-  return a + d * t;
+function tryMove(dx, dz){
+  const h1 = groundY + 0.03, h2 = groundY + 0.13;
+  const okX = dx !== 0 &&
+    !covRayBlocked(pPos.x, h1, pPos.z, dx, 0, BODY_R + Math.abs(dx)) &&
+    !covRayBlocked(pPos.x, h2, pPos.z, dx, 0, BODY_R + Math.abs(dx));
+  if (okX) pPos.x += dx;
+  const okZ = dz !== 0 &&
+    !covRayBlocked(pPos.x, h1, pPos.z, 0, dz, BODY_R + Math.abs(dz)) &&
+    !covRayBlocked(pPos.x, h2, pPos.z, 0, dz, BODY_R + Math.abs(dz));
+  if (okZ) pPos.z += dz;
+  return okX || okZ;
 }
 
 function animate(){
@@ -1031,40 +1061,25 @@ function animate(){
   const mag = Math.min(1, Math.hypot(fwd, str));
   const speed = ((keys["ShiftLeft"] || keys["ShiftRight"]) ? RUN_SPEED : WALK_SPEED) * mag;
 
-  const p = avatar.g.position;
   if (mag > 0.05){
     const len = Math.hypot(fwd, str) || 1;
     const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
     const rx = -fz, rz = fx;
     const dx = (fx*fwd + rx*str)/len * speed * dt;
     const dz = (fz*fwd + rz*str)/len * speed * dt;
-    const r = 0.05;
-    const h1 = groundY + 0.03, h2 = groundY + 0.13;
-    if (!covRayBlocked(p.x, h1, p.z, dx, 0, r + Math.abs(dx)) &&
-        !covRayBlocked(p.x, h2, p.z, dx, 0, r + Math.abs(dx))) p.x += dx;
-    if (!covRayBlocked(p.x, h1, p.z, 0, dz, r + Math.abs(dz)) &&
-        !covRayBlocked(p.x, h2, p.z, 0, dz, r + Math.abs(dz))) p.z += dz;
-    avYawCur = lerpAngle(avYawCur, Math.atan2(dx, dz), 1 - Math.exp(-12*dt));
-    avatar.g.rotation.y = avYawCur;
+    tryMove(dx, dz);
     walkPhase += dt * (6 + speed*22);
     moveAmt = Math.min(1, moveAmt + dt*6);
-    // follow the ground (small steps only — rugs, thresholds)
-    const gy = covGroundY(p.x, p.z, p.y + 0.3);
+    const gy = covGroundY(pPos.x, pPos.z, groundY + 0.4);
     if (gy !== null && Math.abs(gy - groundY) < 0.06) groundY = gy;
   } else {
     moveAmt = Math.max(0, moveAmt - dt*6);
   }
-  p.y = groundY + Math.abs(Math.sin(walkPhase)) * 0.004 * moveAmt;
-  const sw = Math.sin(walkPhase) * 0.55 * moveAmt;
-  avatar.legL.rotation.x = sw;  avatar.legR.rotation.x = -sw;
-  avatar.armL.rotation.x = -sw * 0.8; avatar.armR.rotation.x = sw * 0.8;
-  if (blob){ blob.position.set(p.x, groundY + 0.004, p.z); }
 
-  _camTargetV.set(p.x, groundY + CAM_HEIGHT, p.z);
-  _camDirV.set(Math.sin(camYaw)*Math.cos(camPitch), -Math.sin(camPitch), Math.cos(camYaw)*Math.cos(camPitch));
-  const dist = covCamDist(_camTargetV, _camDirV, CAM_DIST);
-  camera.position.copy(_camTargetV).addScaledVector(_camDirV, dist);
-  camera.lookAt(_camTargetV);
+  camera.position.set(pPos.x,
+    groundY + EYE_HEIGHT + Math.abs(Math.sin(walkPhase)) * 0.004 * moveAmt,
+    pPos.z);
+  camera.rotation.set(camPitch, camYaw, 0);
 
   for (const m of Object.values(giftMeshes)){
     m.rotation.y = t*0.9;

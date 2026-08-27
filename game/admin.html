@@ -341,9 +341,18 @@ function covLoadWorld(scene, url, onProgress, onDone, onError){
     const world = gltf.scene;
     world.traverse(o => {
       if (o.isMesh){
-        if (o.material){
-          o.material.side = THREE.FrontSide;
-          if (o.material.map) o.material.map.anisotropy = 4;
+        const old = o.material;
+        if (old){
+          // SketchUp/PBR metallic settings render flat & lifeless without an environment —
+          // convert to simply-lit textured materials that respond to our warm lights.
+          const map = old.map || null;
+          if (map) map.anisotropy = 4;
+          const params = { map, color: old.color ? old.color.clone() : new THREE.Color(0xffffff) };
+          if (old.transparent && old.opacity < 0.98){
+            params.transparent = true; params.opacity = Math.max(0.15, old.opacity);
+            params.depthWrite = false;
+          }
+          o.material = new THREE.MeshLambertMaterial(params);
         }
         covAddCollider(o);
       }
