@@ -3107,7 +3107,6 @@ function _buildShareSummary(){
 
 async function downloadPDFMobile(){
   if(downloadPDFMobile._busy) return; downloadPDFMobile._busy=true;
-  const _zoomRestoreAll=(typeof _zoomNeutral==='function')?_zoomNeutral():()=>{};
   _mobilePdfSetBtn('Building…');
   const _est=_estimatePdfPages();
   // Adaptive quality: big multi-location builds drop to 1.5× render scale +
@@ -3196,31 +3195,10 @@ async function downloadPDFMobile(){
     console.error('[mobile pdf]',e);
     showStatus('PDF build failed — please try again, or use a desktop browser.','s-err');
   }finally{
-    try{ _zoomRestoreAll(); }catch(e){}
     _pdfOverlayHide();
     _mobilePdfSetBtn(null);
     downloadPDFMobile._busy=false;
   }
-}
-
-// ── Pinch-zoom neutralizer for captures ──────────────────────────────────────
-// #preview-zoom (mobile pinch-zoom) carries transform + will-change:transform.
-// will-change alone makes it a CONTAINING BLOCK, so the capture pipeline's
-// position:fixed slides anchor to the narrow wrapper instead of the viewport —
-// and any pinch scale distorts html2canvas output. Neutralize during capture,
-// restore after. No-op on desktop (wrapper absent).
-function _zoomNeutral(){
-  const z=document.getElementById('preview-zoom');
-  if(!z) return ()=>{};
-  const t=z.style.transform, w=z.style.willChange, tr=z.style.transition;
-  z.style.transition='none'; z.style.transform='none'; z.style.willChange='auto';
-  const p=document.querySelector('.preview');
-  const po=p?p.style.overflow:'', pt=p?p.style.touchAction:'';
-  if(p){ p.style.overflow=''; p.style.touchAction=''; }
-  return ()=>{
-    z.style.transform=t; z.style.willChange=w; z.style.transition=tr;
-    if(p){ p.style.overflow=po; p.style.touchAction=pt; }
-  };
 }
 
 async function slideToCanvas(elId){
@@ -3232,7 +3210,6 @@ async function slideToCanvas(elId){
   const prevPreviewD=preview?preview.style.display:'';
   const prevPreviewV=preview?preview.style.visibility:'';
   if(preview){preview.style.display='block';preview.style.visibility='visible';}
-  const _zoomRestore=(typeof _zoomNeutral==='function')?_zoomNeutral():()=>{};
 
   // 2. Force the slide to exact output dimensions
   const prevW=el.style.width,prevH=el.style.height,prevAR=el.style.aspectRatio;
@@ -3456,7 +3433,6 @@ async function slideToCanvas(elId){
   el.style.width=prevW;el.style.height=prevH;el.style.aspectRatio=prevAR;
   el.style.position=prevPos;el.style.left=prevLeft;el.style.top=prevTop;
   if(preview){preview.style.display=prevPreviewD;preview.style.visibility=prevPreviewV;}
-  try{ _zoomRestore(); }catch(e){}
   // Re-render preview at normal (mobile-appropriate) size
   gen();
 
