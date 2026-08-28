@@ -143,6 +143,6 @@ async function forceUpdate(){
   if(typeof renderDetailPreviews==='function') renderDetailPreviews();
   if(typeof _coverBoot==='function') _coverBoot();
   if(typeof renderCoverPreview==='function') renderCoverPreview();
-  console.log('[One-Pager Builder] build 20260808j');
+  console.log('[One-Pager Builder] build 20260808k');
 })();
 
