@@ -517,7 +517,11 @@ function buildCoverPageHtml(){
   const by=[(document.getElementById('pf-firstname')?.value||'').trim(),(document.getElementById('pf-lastname')?.value||'').trim()].filter(Boolean).join(' ');
   return `<div style="${_DPF}width:1122px;height:794px;position:relative;overflow:hidden;background:#fff;">
     <img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;"
-         onerror="this.onerror=null;this.src='${COVER_CDN}default.jpg';">
+         onerror="if(!this._f1){this._f1=1;this.src='${url.replace(/\d+\.jpg$/,'.jpg')}';}else if(!this._f2){this._f2=1;this.src='${COVER_CDN}default.jpg';}">
+    <div style="position:absolute;left:44px;top:36px;display:flex;align-items:center;gap:10px;">
+      <svg style="height:34px;width:34px;display:block;" viewBox="78 72 256 256" xmlns="http://www.w3.org/2000/svg"><path fill="#FF6600" d="M321.05,200c0,63.81-51.72,115.52-115.52,115.52s-115.53-51.71-115.53-115.52,51.72-115.53,115.53-115.53,115.52,51.72,115.52,115.53Z"/><polygon fill="#fff" points="207.5 195.58 232.27 240.03 263.79 240.03 207.5 139.14 149.17 240.03 181.8 240.03 207.5 195.58"/></svg>
+      <div style="font-size:16.5px;font-weight:800;letter-spacing:.04em;color:#1A1A1A;line-height:1;">COMPASS<span style="font-weight:300;"> OFFICES</span></div>
+    </div>
     <div style="position:absolute;left:52px;bottom:46px;color:#1A1A1A;max-width:520px;">
       <div style="width:30px;height:3.5px;background:#FF6600;margin-bottom:12px;"></div>
       ${who?`<div style="font-size:9.5px;font-weight:800;letter-spacing:.24em;color:#8A8A8A;">PREPARED FOR</div>

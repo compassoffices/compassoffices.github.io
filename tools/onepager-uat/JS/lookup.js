@@ -893,13 +893,15 @@ function coverUrl(){
   const custom=(document.getElementById('cover-url')?.value||'').trim();
   if(custom) return custom;
   const sel=(document.getElementById('cover-region')?.value||'auto');
+  const v=(document.getElementById('cover-variant')?.value||'1');
   const k=sel!=='auto'?sel:coverKey();
-  return k ? COVER_CDN+k+'.jpg' : '';
+  return k ? COVER_CDN+k+(v==='1'?'':v)+'.jpg' : '';
 }
 function _coverSave(){
   try{ localStorage.setItem('co_cover_v1', JSON.stringify({
     on:COVER_ON,
     region:(document.getElementById('cover-region')?.value||'auto'),
+    variant:(document.getElementById('cover-variant')?.value||'1'),
     url:(document.getElementById('cover-url')?.value||'').trim(),
   })); }catch(e){}
 }
@@ -915,6 +917,7 @@ function _coverBoot(){
     const s=JSON.parse(localStorage.getItem('co_cover_v1')||'{}');
     COVER_ON=!!s.on;
     const r=document.getElementById('cover-region'); if(r&&s.region)r.value=s.region;
+    const vv=document.getElementById('cover-variant'); if(vv&&s.variant)vv.value=s.variant;
     const u=document.getElementById('cover-url'); if(u&&s.url)u.value=s.url;
     _coverSyncUI();
   }catch(e){}
