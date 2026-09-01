@@ -226,6 +226,25 @@
 .sk-net-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--co-ink);}
 .sk-net-grid .gh{font-size:13.5px;font-weight:800;padding:6px 4px 3px;border-bottom:1px solid var(--co-line);}
 .sk-net-grid .gi{font-size:12.5px;color:var(--co-text);padding:3px 4px;border-bottom:1px dotted var(--co-line);}
+/* compact levels — used automatically so the network fits one page */
+.sk-net.c1{gap:0 20px;}
+.sk-net.c1 .sk-net-sec{margin-bottom:10px;}
+.sk-net.c1 .sk-net-h{font-size:15px;padding:4px 10px;margin-bottom:6px;}
+.sk-net.c1 .sk-net-city{font-size:12.5px;margin:6px 0 2px;}
+.sk-net.c1 .sk-net-line{font-size:11px;padding:2.5px 0;line-height:1.35;}
+.sk-net.c1 .sk-net-blurb{font-size:11px;margin:4px 0 6px;line-height:1.4;}
+.sk-net.c1 .sk-net-hq .b{font-size:12.5px;} .sk-net.c1 .sk-net-hq .a{font-size:11px;}
+.sk-net.c1 .sk-net-grid .gh{font-size:11.5px;padding:4px 3px 2px;}
+.sk-net.c1 .sk-net-grid .gi{font-size:11px;padding:2px 3px;}
+.sk-net.c2{gap:0 16px;}
+.sk-net.c2 .sk-net-sec{margin-bottom:8px;}
+.sk-net.c2 .sk-net-h{font-size:13px;padding:3px 9px;margin-bottom:5px;}
+.sk-net.c2 .sk-net-city{font-size:11px;margin:5px 0 1px;}
+.sk-net.c2 .sk-net-line{font-size:9.8px;padding:2px 0;line-height:1.3;}
+.sk-net.c2 .sk-net-blurb{font-size:10px;margin:3px 0 5px;line-height:1.35;}
+.sk-net.c2 .sk-net-hq .b{font-size:11px;} .sk-net.c2 .sk-net-hq .a{font-size:9.8px;}
+.sk-net.c2 .sk-net-grid .gh{font-size:10.2px;padding:3px 3px 2px;}
+.sk-net.c2 .sk-net-grid .gi{font-size:9.8px;padding:1.5px 3px;}
 
 /* ---- Service Price Guide ---- */
 .sp-t{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2px;}
@@ -1444,29 +1463,50 @@ function renderNetwork(stage){
     s += '</div>';
     secs.push(s);
   });
-  /* measured fill: left column, then right, then a fresh page — nothing is ever clipped */
-  function newNetPage(){
+  /* auto-fit: one page at the largest type size that fits; a second page only as a last resort */
+  function newNetPage(cls){
     var page = skPage(SKT("title.network.line1") || "GLOBAL", SKT("title.network.line2") || "NETWORK");
     stage.appendChild(page);
     var body = page.querySelector(".vopl-pbody");
-    body.innerHTML = '<div class="sk-net"><div></div><div></div></div>';
+    body.innerHTML = '<div class="sk-net' + (cls ? ' ' + cls : '') + '"><div></div><div></div></div>';
     var grid = body.firstElementChild;
-    return { body: body, cols: [grid.children[0], grid.children[1]] };
+    return { page: page, body: body, cols: [grid.children[0], grid.children[1]] };
   }
   function overflows(pg){ return pg.body.scrollHeight > pg.body.clientHeight + 1; }
-  var pg = newNetPage(), ci = 0;
-  secs.forEach(function(sHtml){
+  function nodeFor(sHtml){
     var tp = document.createElement("template");
     tp.innerHTML = sHtml;
-    var node = tp.content.firstElementChild;
+    return tp.content.firstElementChild;
+  }
+  /* true content height of a column (grid stretches the divs, so offsetHeight lies) */
+  function colH(col){
+    if (!col.lastElementChild) return 0;
+    return col.lastElementChild.getBoundingClientRect().bottom - col.getBoundingClientRect().top;
+  }
+  /* try to fit everything on ONE page, balancing the two columns by measured content height */
+  function tryOnePage(cls){
+    var pg = newNetPage(cls);
+    secs.forEach(function(sHtml, i){
+      var target = (i === 0 || colH(pg.cols[0]) <= colH(pg.cols[1])) ? pg.cols[0] : pg.cols[1];
+      target.appendChild(nodeFor(sHtml));
+    });
+    if (!overflows(pg)) return true;
+    stage.removeChild(pg.page);
+    return false;
+  }
+  if (tryOnePage("") || tryOnePage("c1") || tryOnePage("c2")) return;
+  /* still too much: sequential fill at the smallest size, spilling to extra pages */
+  var pg = newNetPage("c2"), ci = 0;
+  secs.forEach(function(sHtml){
+    var node = nodeFor(sHtml);
     pg.cols[ci].appendChild(node);
     if (overflows(pg)){
       pg.cols[ci].removeChild(node);
       if (ci === 0){
         ci = 1; pg.cols[1].appendChild(node);
-        if (overflows(pg)){ pg.cols[1].removeChild(node); pg = newNetPage(); ci = 0; pg.cols[0].appendChild(node); }
+        if (overflows(pg)){ pg.cols[1].removeChild(node); pg = newNetPage("c2"); ci = 0; pg.cols[0].appendChild(node); }
       } else {
-        pg = newNetPage(); ci = 0; pg.cols[0].appendChild(node);
+        pg = newNetPage("c2"); ci = 0; pg.cols[0].appendChild(node);
       }
     }
   });
@@ -1518,7 +1558,8 @@ function renderSP(stage){
   return true;
 }
 function renderSPCity(stage, all, city){
-  var place = city ? curMarket + " - " + city : curMarket;
+  var cname = (typeof COUNTRY !== "undefined" && COUNTRY[curMarket]) ? COUNTRY[curMarket] : curMarket;
+  var place = city ? cname + " - " + city : cname;
   var subtitle = spLbl("title.sp.line2", "In-House / Virtual Office Clients", "\u30AA\u30D5\u30A3\u30B9/\u30D0\u30FC\u30C1\u30E3\u30EB\u30AA\u30D5\u30A3\u30B9");
   var titles = {
     t1: spLbl("title.sp.line1", "Service Price Guide", "\u30B5\u30FC\u30D3\u30B9\u6599\u91D1\u30AC\u30A4\u30C9"),
