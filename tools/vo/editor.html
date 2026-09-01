@@ -338,6 +338,15 @@ function load(){
       MT  = JSON.parse(JSON.stringify(DB.mrTiers));
       VF  = JSON.parse(JSON.stringify(DB.voFeatures));
       SP  = JSON.parse(JSON.stringify(DB.spServices));
+      /* legacy schema (v4.4): plain price_1/price_2 -> move into the _en fields */
+      SP.forEach(function(r){
+        ["price_1","price_2"].forEach(function(f){
+          if (r[f] !== undefined && String(r[f]) !== ""){
+            if (!r[f + "_en"]) r[f + "_en"] = r[f];
+            r[f] = "";
+          }
+        });
+      });
       SKI = JSON.parse(JSON.stringify(DB.skIncluded));
       SKA = JSON.parse(JSON.stringify(DB.skAdditional));
       SKP = JSON.parse(JSON.stringify(DB.skAddPrices));
@@ -1063,6 +1072,7 @@ function bindSp(){
     ["label","price_1","price_2","remark"].forEach(function(f){
       ["en","tc","sc","jp","vi"].forEach(function(lg){ base.push(f+"_"+lg); });
     });
+    base.push("price_1","price_2");   /* legacy v4.4 columns: kept in the header (blank) so the sheet guard passes */
     saveTabs([
       {tab:"SP-Services", header:tabHeader(SP, base), rows:SP}
     ], function(){ spDirty=false; setStatus("Service Guide saved","ok"); load(); })
