@@ -40,6 +40,7 @@
 .mdcanvas .mdline{position:absolute;left:0;right:0;height:16px;transform:translateY(-50%);cursor:ns-resize;}
 .mdcanvas .mdpin{position:absolute;width:34px;height:48px;transform:translate(-50%,-100%);cursor:move;}
 .mdcanvas .mdpin svg{width:100%;height:100%;display:block;}
+.mdcanvas .mdpin.unplaced{opacity:.38;filter:grayscale(.4);}
 .mdcanvas .mdcard{position:absolute;background:rgba(255,255,255,.94);border-radius:8px;padding:8px 11px 4px;cursor:move;box-shadow:0 1px 6px rgba(0,0,0,.10);}
 .mdcanvas .mdcard .dn{font-size:14px;font-weight:800;margin-bottom:3px;}
 .mdcanvas [data-md]:hover{outline:1.5px dashed rgba(255,102,0,.5);outline-offset:2px;}
@@ -50,6 +51,8 @@
 .mdpanel input[type=text],.mdpanel input[type=number]{width:100%;font:inherit;font-size:12.5px;border:1px solid var(--co-line);border-radius:7px;padding:6px 9px;}
 .mdpanel input[type=range]{width:100%;accent-color:#FF6600;}
 .mdpanel .hint2{font-size:10.5px;color:var(--co-muted);line-height:1.5;margin-top:4px;}
+.mdconn{position:absolute;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);cursor:move;border:2.5px solid #fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.25);z-index:6;}
+.mdconn.s{background:#2E7D32;} .mdconn.e{background:#FF6600;}
 .mdgeo-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#BBB;font-size:12px;text-align:center;padding:30px;background:#F6F6F6;}
 .coed-drop{border:2px dashed #FFD9B8;background:#FFFBF7;border-radius:12px;padding:16px;text-align:center;font-size:12.5px;color:#7A4A1F;margin:0 0 14px;cursor:pointer;transition:background .15s,border-color .15s;}
 .coed-drop b{color:var(--co-orange);}
@@ -798,6 +801,25 @@ function renderTexts(){
     if (rows.length) h += textTable(rows, false);
     if (g[2]) h += '<button class="addbar" style="margin-top:6px" data-txadd="' + g[2] + '">+ add line</button>';
   });
+  /* country names for the Global Network page — offered even before the rows exist */
+  var COUNTRY_ED = { "Hong Kong":"Hong Kong", "Japan":"Japan", "Australia":"Australia",
+    "Singapore":"Singapore", "Manila":"Philippines", "Kuala Lumpur":"Malaysia", "Ho Chi Minh City":"Vietnam" };
+  var cnames = [], seenCn = {};
+  DB.config.forEach(function(c2){
+    var cn = COUNTRY_ED[c2.market] || c2.market;
+    if (!seenCn[cn]){ seenCn[cn] = 1; cnames.push(cn); }
+  });
+  cnames.forEach(function(cn){
+    if (!findText("all", "", "country." + cn)){
+      var r0 = blankTextRow("country." + cn);
+      r0.market = "all"; r0.text_en = cn;
+      DB.texts.push(r0);
+    }
+  });
+  var cRows = DB.texts.filter(function(t){ return t.market === "all" && t.key.indexOf("country.") === 0; });
+  if (cRows.length){
+    h += '<div class="coed-group">Global Network \u2014 country names</div>' + textTable(cRows, false);
+  }
   var rest = DB.texts.filter(function(t){
     return (t.market === mkt || t.market === "all") &&
       !shown[["tx", t.market, t.centre_id, t.key].join("|")];
@@ -1189,7 +1211,9 @@ function mdAttr(kind, ref){ return ' data-md="'+esc(kind+"|"+ref)+'"'; }
 function mdSelCls(kind, ref){ return (mdSel && mdSel.kind===kind && String(mdSel.ref)===String(ref)) ? " sel" : ""; }
 
 /* draw the tube map into the canvas (mirrors the price-list renderer) */
+var MDCONN = {};
 function mdDrawTransit(box){
+  MDCONN = {};
   var nodes = mdNodes();
   var lines = mdLines();
   var W = 698, H = 915;
@@ -1211,8 +1235,11 @@ function mdDrawTransit(box){
   function drawConn(ref, b, defStart, ex, ey, my2, useElbow){
     var pos = mdPosXY("block", ref);
     var o = connOpt(pos ? pos.opt : "");
-    if (o.conn === "none") return;
+    if (o.conn === "none"){ delete MDCONN[ref]; return; }
     var start = blockAnchor(b, o.attach) || defStart;
+    if (o.sx !== undefined && o.sy !== undefined) start = [Number(o.sx)/100*W, Number(o.sy)/100*H];
+    if (o.ex !== undefined && o.ey !== undefined){ ex = Number(o.ex)/100*W; ey = Number(o.ey)/100*H; my2 = null; }
+    MDCONN[ref] = { sx:start[0], sy:start[1], ex:ex, ey:ey };
     if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
     else elbow(start[0], start[1], ex, ey, my2 === null ? (start[1] + ey) / 2 : my2);
   }
@@ -1341,6 +1368,11 @@ function mdDrawTransit(box){
       });
     });
   }
+  if (mdSel && mdSel.kind === "block" && MDCONN[mdSel.ref]){
+    var cp = MDCONN[mdSel.ref];
+    handles += '<div class="mdconn s" data-md="connstart|'+esc(mdSel.ref)+'" title="Connector start (card side)" style="left:'+cp.sx+'px;top:'+cp.sy+'px"></div>';
+    handles += '<div class="mdconn e" data-md="connend|'+esc(mdSel.ref)+'" title="Connector end (line side)" style="left:'+cp.ex+'px;top:'+cp.ey+'px"></div>';
+  }
   box.innerHTML = '<svg class="base" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">'+conn+svg+'</svg>' + html + handles;
 }
 
@@ -1374,15 +1406,17 @@ function mdGeoFetch(city){
     .catch(function(e){ MDGEO[key] = false; MDGEO[key + "_err"] = e.message; if (view === "mapd") mdRedraw(); });
   return null;
 }
+function mdMapKey(city){ return city ? "map." + mkt + "." + city : "map." + mkt; }
 function mdDrawGeo(box){
-  var W = 698, H = 476;
-  box.style.height = H + "px";
+  var W = 698;
   var city = mdCity || mdGeoCities()[0] || "";
   var cityCentres = centresOf(mkt).filter(function(c){ return mdCityKeyOf(c.district_en)===city; });
   var aid = null;
   [(city ? "map."+mkt+"."+city : null), "map."+mkt].forEach(function(k){
     if (!aid && k){ var r=(DB.skAssets||[]).filter(function(a){return a.key===k;})[0]; if (r && r.drive_file_id) aid = r.drive_file_id; }
   });
+  var H = aid ? 428 : 476;                    /* matches the printed page exactly */
+  box.style.height = H + "px";
   var auto = aid ? undefined : mdGeoFetch(city);
   var autoPins = {};
   if (auto && auto.pins) auto.pins.forEach(function(p2){ autoPins[p2.centre_id] = p2; });
@@ -1392,18 +1426,19 @@ function mdDrawGeo(box){
   } else if (auto && auto.dataUri){
     h = '<img src="'+auto.dataUri+'" style="position:absolute;top:0;left:0;width:100%;height:auto;filter:grayscale(1) brightness(1.06) contrast(.92)">';
   } else if (auto === null){
-    h = '<div class="mdgeo-ph">Loading the automatic Google map\u2026</div>';
+    h = '<div class="mdgeo-ph">Loading the automatic Google map\u2026<br><br><b>Or drop your own map screenshot anywhere on this canvas</b> \u2014 it uploads and becomes the page background.</div>';
   } else {
-    h = '<div class="mdgeo-ph">Automatic map unavailable' +
-      (MDGEO[mkt+"|"+city+"_err"] ? ':<br><b>'+esc(MDGEO[mkt+"|"+city+"_err"])+'</b><br>' : '. ') +
-      '(Needs Code.gs v4.4+ deployed.) You can still place pins \u2014 or upload a \u201Cmap.'+esc(mkt)+(city?'.'+esc(city):'')+'\u201D image in Sales Kit \u2192 Photos.' +
-      '<br><button class="addbar" style="margin-top:8px" id="mdGeoRetry">retry</button></div>';
+    h = '<div class="mdgeo-ph">No map yet \u2014 <b>drop a Google Maps screenshot anywhere on this canvas</b> (or use the button below) and it becomes the printed background.' +
+      (MDGEO[mkt+"|"+city+"_err"] ? '<br><span style="font-size:10px;color:#C77">auto map: '+esc(MDGEO[mkt+"|"+city+"_err"])+'</span>' : '') +
+      '<br><button class="addbar" style="margin-top:8px" id="mdGeoRetry">retry auto map</button></div>';
   }
   cityCentres.forEach(function(ct){
     var ap = autoPins[ct.id];
-    var pos = mdPosXY("pin", ct.id);
-    if (!pos || pos.x === null) pos = ap ? { x:Number(ap.x_pct), y:Number(ap.y_pct) } : { x: 30 + (cityCentres.indexOf(ct)*15)%50, y: 60 };
-    h += '<div class="mdpin'+mdSelCls("pin",ct.id)+'"'+mdAttr("pin",ct.id)+' style="left:'+pos.x+'%;top:'+pos.y+'%" title="'+esc(ct.building_en)+'">'+
+    var stored = mdPosXY("pin", ct.id);
+    var placed = (stored && stored.x !== null) || !!ap;
+    var pos = stored && stored.x !== null ? stored :
+      (ap ? { x:Number(ap.x_pct), y:Number(ap.y_pct) } : { x: 24 + (cityCentres.indexOf(ct)*18)%55, y: 55 });
+    h += '<div class="mdpin'+mdSelCls("pin",ct.id)+(placed?"":" unplaced")+'"'+mdAttr("pin",ct.id)+' style="left:'+pos.x+'%;top:'+pos.y+'%" title="'+esc(ct.building_en)+(placed?"":" \u2014 unplaced: drag to place")+'">'+
       '<svg viewBox="0 0 34 48"><path d="M17 48 C11 37 3 32 3 22 A14 14 0 1 1 31 22 C31 32 23 37 17 48 Z" fill="#FF6600"/><circle cx="17" cy="21" r="5.5" fill="#fff"/></svg></div>';
     var cpos = mdPosXY("card", ct.id);
     if (cpos && cpos.x !== null){
@@ -1411,14 +1446,69 @@ function mdDrawGeo(box){
         '<div class="dn">'+esc(mdCityKeyOf(ct.district_en)||ct.building_en)+'</div>'+mdLoc(ct)+'</div>';
     }
   });
+  h += '<div style="position:absolute;left:8px;bottom:8px;display:flex;gap:6px;z-index:8">'+
+    '<button class="addbar" style="margin:0;background:rgba(255,255,255,.92)" id="mdMapUp">\u2912 '+(aid?"replace":"upload")+' map image</button>'+
+    (aid?'<button class="addbar" style="margin:0;background:rgba(255,255,255,.92);color:#C33;border-color:#EBB" id="mdMapRm">\u00D7 remove image</button>':"")+'</div>';
   box.innerHTML = h;
   box.dataset.city = city;
   var rt = box.querySelector("#mdGeoRetry");
   if (rt) rt.addEventListener("click", function(){ delete MDGEO[mkt+"|"+city]; mdRedraw(); });
+  var up = box.querySelector("#mdMapUp");
+  if (up) up.addEventListener("click", function(ev){
+    ev.stopPropagation();
+    var inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
+    inp.addEventListener("change", function(){
+      if (inp.files[0]) uploadAssetFile(mdMapKey(city), inp.files[0], up);
+    });
+    inp.click();
+  });
+  var rm = box.querySelector("#mdMapRm");
+  if (rm) rm.addEventListener("click", function(ev){
+    ev.stopPropagation();
+    if (!confirm("Remove the map image for "+(city||mkt)+"? The page falls back to the automatic map.")) return;
+    dirty["sks|"+mdMapKey(city)+"|drive_file_id"] = "";
+    var row=(DB.skAssets||[]).filter(function(a){return a.key===mdMapKey(city);})[0];
+    if (row) row.drive_file_id = "";
+    syncSavebar(); mdRedraw();
+    setStatus("Map image removed \u2014 press Save all (black bar) to store", "ok");
+  });
+  ["dragover","dragenter"].forEach(function(evn){ box.addEventListener(evn, function(e){ e.preventDefault(); box.style.outline="3px dashed var(--co-orange)"; }); });
+  ["dragleave","dragend"].forEach(function(evn){ box.addEventListener(evn, function(e){ e.preventDefault(); box.style.outline=""; }); });
+  box.addEventListener("drop", function(e){
+    e.preventDefault(); box.style.outline="";
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f && f.type.indexOf("image/")===0) uploadAssetFile(mdMapKey(city), f, null);
+  });
 }
 
+var mdLastFresh = 0;
+function mdRefresh(){
+  fetch(SCRIPT_URL + "?action=data")
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) return;
+      DB.skMapPins  = rowsToObjects(j.tabs["SK-MapPins"] || []);
+      DB.skMapNodes = rowsToObjects(j.tabs["SK-MapNodes"] || []);
+      DB.skAssets   = rowsToObjects(j.tabs["SK-Assets"] || []);
+      if (!mdDirty){
+        MN = JSON.parse(JSON.stringify(DB.skMapNodes));
+        MP = (DB.skMapPins || []).map(function(r2){
+          return { market:r2.market, kind:String(r2.kind||"pin"),
+            ref:String(r2.ref!==undefined&&r2.ref!==""?r2.ref:(r2.centre_id||"")),
+            x_pct:r2.x_pct, y_pct:r2.y_pct, w_pct:(r2.w_pct===undefined?"":r2.w_pct), opt:(r2.opt===undefined?"":r2.opt) };
+        });
+        idxAll();
+        if (view === "mapd"){ mdRedraw(); setStatus("Map data refreshed \u2014 includes positions saved from the page", "ok"); }
+      }
+    })
+    .catch(function(){});
+}
 function renderMapd(){
   idxAll();
+  if (!mdDirty && Date.now() - mdLastFresh > 30000){
+    mdLastFresh = Date.now();
+    mdRefresh();
+  }
   var lines = mdLines();
   var isTransit = lines.length > 0;
   var h = chipsHtml();
@@ -1520,9 +1610,20 @@ function mdPanel(){
       '<select id="mdAttach" style="width:100%;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--co-line);border-radius:7px">'+
         [["auto","Auto"],["top","Top of the card"],["left","Left edge"],["right","Right edge"]].map(function(o2){
           return '<option value="'+o2[0]+'"'+(oB.attach===o2[0]?" selected":"")+'>'+o2[1]+'</option>'; }).join("")+'</select>'+
-      '<button class="addbar" style="margin-top:10px" id="mdBlkReset">reset position &amp; width</button>';
+      '<label>Connector start (card side) \u2014 X / Y %</label><div style="display:flex;gap:6px">'+
+        '<input type="number" step="0.1" data-mdcon="sx" value="'+(oB.sx!==undefined?oB.sx:"")+'" placeholder="auto">'+
+        '<input type="number" step="0.1" data-mdcon="sy" value="'+(oB.sy!==undefined?oB.sy:"")+'" placeholder="auto"></div>'+
+      '<label>Connector end (line side) \u2014 X / Y %</label><div style="display:flex;gap:6px">'+
+        '<input type="number" step="0.1" data-mdcon="ex" value="'+(oB.ex!==undefined?oB.ex:"")+'" placeholder="auto">'+
+        '<input type="number" step="0.1" data-mdcon="ey" value="'+(oB.ey!==undefined?oB.ey:"")+'" placeholder="auto"></div>'+
+      '<div class="hint2">Or drag the green (start) and orange (end) dots on the canvas while this card is selected.</div>'+
+      '<button class="addbar" style="margin-top:8px" id="mdConnReset">reset connector endpoints</button>'+
+      '<button class="addbar" style="margin-top:6px" id="mdBlkReset">reset position &amp; width</button>';
   } else if (mdSel.kind === "pin"){
-    h = '<h4>Map pin</h4><div class="hint2">Drag it on the canvas. Its card can be shown too:</div>'+
+    var pinStored = mdPosXY("pin", mdSel.ref);
+    h = '<h4>Map pin</h4>'+
+      ((pinStored && pinStored.x !== null) ? '<div class="hint2">Drag it on the canvas. Its card can be shown too:</div>'
+        : '<div class="hint2" style="color:#C77"><b>Unplaced</b> \u2014 this pin will NOT print until you drag it (or type a position).</div>')+
       mdPrec("pin", mdSel.ref, ["x","y"])+
       '<button class="addbar" style="margin-top:8px" id="mdPinCard">'+(mdRow("card",mdSel.ref)?'remove its card':'+ add its card')+'</button>'+
       '<button class="addbar" style="margin-top:6px" id="mdPinReset">reset pin (use auto position)</button>';
@@ -1660,6 +1761,17 @@ function mdPanelBind(){
   });
   var cn = el("#mdConn");
   if (cn) cn.addEventListener("change", function(){ mdSetOpt("block", mdSel.ref, "conn", cn.value); mdRedraw(); });
+  document.querySelectorAll("#mdPanel [data-mdcon]").forEach(function(inp){
+    inp.addEventListener("change", function(){
+      mdSetOpt("block", mdSel.ref, inp.dataset.mdcon, inp.value === "" ? "" : String(Math.round(Number(inp.value)*10)/10));
+      mdRedraw();
+    });
+  });
+  var cr = el("#mdConnReset");
+  if (cr) cr.addEventListener("click", function(){
+    ["sx","sy","ex","ey"].forEach(function(k){ mdSetOpt("block", mdSel.ref, k, ""); });
+    mdRedraw();
+  });
   var at = el("#mdAttach");
   if (at) at.addEventListener("change", function(){ mdSetOpt("block", mdSel.ref, "attach", at.value); mdRedraw(); });
   var le = el("#mdLnEven");
@@ -1700,7 +1812,7 @@ function bindMapd(box, isTransit){
     ev.preventDefault();
     var parts = elm.dataset.md.split("|");
     var kind = parts.shift(), ref = parts.join("|");
-    mdSel = { kind:kind, ref:ref };
+    mdSel = (kind === "connstart" || kind === "connend") ? { kind:"block", ref:ref } : { kind:kind, ref:ref };
     var rect = box.getBoundingClientRect();
     var orig = elm.getBoundingClientRect();
     var sx = ev.clientX, sy = ev.clientY, moved = false;
@@ -1728,6 +1840,16 @@ function bindMapd(box, isTransit){
       else if (kind==="station"){
         if (axis==="y") mdSet("station", ref, null, ny);   /* branch stations slide on the branch */
         else mdSet("station", ref, nx, null);              /* main-line stations stay ON the line */
+      }
+      else if (kind==="connstart"){
+        mdSetOpt("block", ref, "sx", String(Math.round(nx*10)/10));
+        mdSetOpt("block", ref, "sy", String(Math.round(ny*10)/10));
+        mdSel = { kind:"block", ref:ref };
+      }
+      else if (kind==="connend"){
+        mdSetOpt("block", ref, "ex", String(Math.round(nx*10)/10));
+        mdSetOpt("block", ref, "ey", String(Math.round(ny*10)/10));
+        mdSel = { kind:"block", ref:ref };
       }
       else mdSet(kind, ref, nx, ny);
       mdRedraw();

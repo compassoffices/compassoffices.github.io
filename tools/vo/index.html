@@ -1197,6 +1197,8 @@ function renderTransit(stage, style){
     var o = connOpt(pos ? pos.opt : "");
     if (o.conn === "none") return;
     var start = blockAnchor(b, o.attach) || defStart;
+    if (o.sx !== undefined && o.sy !== undefined) start = [Number(o.sx) / 100 * W, Number(o.sy) / 100 * H];
+    if (o.ex !== undefined && o.ey !== undefined){ ex = Number(o.ex) / 100 * W; ey = Number(o.ey) / 100 * H; my2 = null; }
     if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
     else elbow(start[0], start[1], ex, ey, my2 === null ? (start[1] + ey) / 2 : my2);
   }
@@ -1405,7 +1407,8 @@ function pinsFor(city, cityCentres){
   var ids = {};
   cityCentres.forEach(function(ct){ ids[ct.id] = ct; });
   var out = [];
-  var auto = geoAuto(city);
+  var hasOwnMap = assetId("map." + curMarket + "." + city) || assetId("map." + curMarket);
+  var auto = hasOwnMap ? false : geoAuto(city);
   if (auto && auto.pins) out = auto.pins.filter(function(p){ return ids[p.centre_id]; })
     .map(function(p){ return { ct: ids[p.centre_id], x: Number(p.x_pct), y: Number(p.y_pct) }; });
   /* saved / dragged pin positions override the auto ones (and work with uploaded map images too) */
@@ -1530,7 +1533,8 @@ function renderNetwork(stage){
   // Hong Kong featured
   var hkC = skMarketCentres("Hong Kong");
   var hq = hkC.filter(function(x){ return x.id === "hk-wing-on-centre"; })[0] || hkC[0];
-  var h = '<div class="sk-net-sec"><div class="sk-net-h hl">Hong Kong</div>';
+  function countryName(cn){ return TXT("country." + cn) || cn; }
+  var h = '<div class="sk-net-sec"><div class="sk-net-h hl">' + esc(countryName("Hong Kong")) + '</div>';
   if (hq) h += '<div class="sk-net-hq"><div class="b">' + esc(String(hq.levels)) + ', ' + esc(L(hq, "building")) + '</div>' +
     '<div class="a">' + esc(L(hq, "address")) + '</div></div>';
   var blurb = SKT("network.hk.blurb");
@@ -1551,7 +1555,7 @@ function renderNetwork(stage){
   order.slice(1).forEach(function(country){
     var mkts = byCountry[country];
     if (!mkts) return;
-    var s = '<div class="sk-net-sec"><div class="sk-net-h">' + esc(country) + '</div>';
+    var s = '<div class="sk-net-sec"><div class="sk-net-h">' + esc(countryName(country)) + '</div>';
     mkts.forEach(function(m){
       var byCity = centreCards(m, true);
       byCity.order.forEach(function(city){
@@ -1847,7 +1851,7 @@ document.getElementById("ebSave").addEventListener("click", function(){
     edits.push({ kind: kind, keys: keys, field: field, value: value });
   });
   var btn = document.getElementById("ebSave"); btn.disabled = true;
-  setStatus("Saving " + kk.length + " change(s)\u2026");
+  setStatus("Saving " + (kk.length + Object.keys(MAPPOS).length) + " change(s)\u2026");
   var rows = Object.keys(newRows).map(function(sg){ return newRows[sg]; });
   saveMapPins()
   .then(function(){ return rows.length ? post({ action:"addRows", tab:"Text", rows: rows }) : { ok:true }; })
