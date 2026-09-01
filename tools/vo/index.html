@@ -190,10 +190,11 @@
 .sk-tcanvas{position:relative;width:698px;height:915px;}
 .sk-tcanvas > svg{position:absolute;inset:0;width:698px;height:915px;}
 .sk-block{position:absolute;}
-.sk-block .sk-loc .b{font-size:13.5px;}
-.sk-block .sk-loc .l{font-size:11.5px;}
-.sk-block .sk-loc .a{font-size:11px;}
-.sk-block .dn{font-size:23px;font-weight:800;color:var(--co-ink);margin-bottom:9px;letter-spacing:.2px;}
+.sk-block .sk-loc .b{font-size:11.5px;}
+.sk-block .sk-loc .l{font-size:10px;}
+.sk-block .sk-loc .a{font-size:9.5px;}
+.sk-block .sk-loc{margin-bottom:8px;}
+.sk-block .dn{font-size:16px;font-weight:800;color:var(--co-ink);margin-bottom:6px;letter-spacing:.2px;}
 .sk-loc{margin-bottom:13px;}
 .sk-loc .b{font-size:14.5px;font-weight:700;color:var(--co-orange);line-height:1.3;}
 .sk-loc .l{font-size:12.5px;font-weight:700;color:var(--co-orange);margin-top:1px;}
@@ -207,8 +208,14 @@
 .sk-geobox .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
 .sk-geobox .bg.ph{background:var(--co-bg);display:flex;align-items:center;justify-content:center;color:var(--co-faint);font-size:11px;}
 .sk-geobox .ovl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
-.sk-card{position:absolute;width:44%;background:rgba(255,255,255,.9);border-radius:8px;padding:9px 13px 5px;}
-.sk-card .dn{font-size:20px;font-weight:800;color:var(--co-ink);margin-bottom:4px;}
+.sk-card{position:absolute;width:40%;background:rgba(255,255,255,.92);border-radius:8px;padding:8px 11px 4px;}
+.sk-card .dn{font-size:14px;font-weight:800;color:var(--co-ink);margin-bottom:3px;}
+.sk-card .sk-loc .b{font-size:12px;} .sk-card .sk-loc .l{font-size:10.5px;} .sk-card .sk-loc .a{font-size:10px;}
+.sk-card .sk-loc{margin-bottom:8px;}
+body.editing [data-mapdrag]{cursor:move;}
+body.editing .sk-block,body.editing .sk-card{outline:1.5px dashed rgba(255,102,0,.45);outline-offset:3px;border-radius:6px;}
+.mapdrag-pin{position:absolute;width:36px;height:52px;transform:translate(-50%,-100%);z-index:5;border-radius:8px;}
+body.editing .mapdrag-pin{outline:1.5px dashed rgba(255,102,0,.55);}
 .sk-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 20px;margin-bottom:14px;}
 .sk-dist{break-inside:avoid;padding-top:10px;}
 .sk-dist .dn{font-size:20px;font-weight:800;color:var(--co-ink);margin-bottom:7px;}
@@ -1118,13 +1125,31 @@ function centresForNodeDistrict(nodeDist){
     return cd === nd || (nd && cd.slice(-nd.length) === nd) || (cd && nd.slice(-cd.length) === cd && cd);
   });
 }
-/* Interchange stations render as perpendicular capsules (MTR/JR visual grammar). */
+/* explicit centre assignment wins; district text match is the fallback */
+function centresForNode(n){
+  var ids = String(n.centre_ids || "").split(",").map(function(x){ return x.trim(); }).filter(String);
+  if (ids.length){
+    return ids.map(function(id){ return centre(id); }).filter(Boolean);
+  }
+  return centresForNodeDistrict(n.district_en);
+}
+/* saved / dragged position for a map element (pct of its container) */
+var MAPPOS = {}, mapDirty = false;
+function mapPos(kind, ref){
+  var k = curMarket + "|" + kind + "|" + ref;
+  if (MAPPOS[k]) return MAPPOS[k];
+  var row = (DB.skMapPins || []).filter(function(r){
+    return r.market === curMarket && String(r.kind || "pin") === kind && String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id) === String(ref);
+  })[0];
+  if (row && String(row.x_pct) !== "" && String(row.y_pct) !== "") return { x:Number(row.x_pct), y:Number(row.y_pct) };
+  return null;
+}
+function dragAttr(kind, ref){
+  return EDIT ? ' data-mapdrag="' + esc(kind + "|" + ref) + '"' : '';
+}
+/* Interchange stations render as perpendicular capsules (MTR visual grammar). */
 var INTERCHANGE = { "central":1, "admiralty":1, "northpoint":1, "quarrybay":1, "mongkok":1, "yaumatei":1,
   "tokyo":1, "osaka":1, "shimbashi":1 };
-function blockHtml(title, centres, style){
-  return '<div class="sk-block" style="' + style + '"><div class="dn">' + esc(title) + '</div>' +
-    centres.map(locCard).join("") + '</div>';
-}
 function renderTransit(stage, style){
   var nodes = DB.skMapNodes.filter(function(n){ return n.market === curMarket; })
     .sort(function(a, b){ return (Number(a.sort)||0) - (Number(b.sort)||0); });
@@ -1136,116 +1161,141 @@ function renderTransit(stage, style){
 
   var lines = [];
   nodes.forEach(function(n){ if (lines.indexOf(n.line) < 0) lines.push(n.line); });
-  var main = nodes.filter(function(n){ return n.line === lines[0]; });
-  var branch = lines[1] ? nodes.filter(function(n){ return n.line === lines[1]; }) : [];
-  var W = 698, H = 915, mainY = 560;
-  var padL = 102, padR = 44;
-  var step = (W - padL - padR) / Math.max(main.length - 1, 1);
-  main.forEach(function(n, i){ n._x = padL + step * i; });
-  var mainCol = style === "jr" ? "#2E7D32" : "#1B5FA6";
+  var W = 698, H = 915;
+  var svg = "", conn = "", blocks = "";
+  var LINECOLS = ["#2E7D32", "#1B5FA6", "#C0392B", "#E8A33D"];
 
-  var svg = '';
-  /* branch (red) line: vertical, elbow joining the main line */
-  var bx = 0, joinX = 0;
-  if (branch.length){
-    var bi = Math.min(main.length - 2, Math.max(2, Math.round((main.length - 1) * 0.42)));
-    bx = (main[bi]._x + main[bi + 1]._x) / 2;
-    joinX = main[Math.max(bi - 1, 1)]._x + 10;
-    var topY = 160, lastY = 430;
-    branch.forEach(function(n, i){
-      n._x = bx;
-      n._y = topY + (lastY - topY) * (branch.length > 1 ? (branch.length - 1 - i) / (branch.length - 1) : 0);
+  function dot(sx, sy, ex, ey){
+    conn += '<path d="M ' + sx + ' ' + sy + ' L ' + ex + ' ' + ey +
+      '" fill="none" stroke="#D9D9D9" stroke-width="1.3" stroke-dasharray="2 5" stroke-linecap="round"/>';
+  }
+  function elbow(sx, sy, ex, ey, my2){
+    var k = my2 + (sy > my2 ? 1 : -1) * Math.abs(ex - sx);
+    if ((sy > my2 && (k > sy || k < my2)) || (sy < my2 && (k < sy || k > my2))) k = (sy + my2) / 2;
+    conn += '<path d="M ' + sx + ' ' + sy + ' L ' + sx + ' ' + k + ' L ' + ex + ' ' + my2 + ' L ' + ex + ' ' + ey +
+      '" fill="none" stroke="#D9D9D9" stroke-width="1.3" stroke-dasharray="2 5" stroke-linejoin="round" stroke-linecap="round"/>';
+  }
+  function marker(x, y, vertical, name){
+    if (INTERCHANGE[normd(name)]){
+      var w = vertical ? 13 : 26, h = vertical ? 26 : 13;
+      return '<rect x="' + (x - w/2) + '" y="' + (y - h/2) + '" width="' + w + '" height="' + h + '" rx="' + Math.min(w,h)/2 + '" fill="#fff" stroke="#1A1A1A" stroke-width="3.2"/>';
+    }
+    return '<circle cx="' + x + '" cy="' + y + '" r="6" fill="#fff" stroke="#1A1A1A" stroke-width="3.2"/>';
+  }
+  function blockAt(node2, centres, ref, defX, defY, wpx){
+    var pos = mapPos("block", ref);
+    var left = pos ? pos.x / 100 * W : defX;
+    var top  = pos ? pos.y / 100 * H : defY;
+    blocks += '<div class="sk-block"' + dragAttr("block", ref) + ' style="left:' + left + 'px;top:' + top + 'px;width:' + wpx + 'px;">' +
+      '<div class="dn">' + esc(shortDist(node2)) + '</div>' + centres.map(locCard).join("") + '</div>';
+    return { x: left, y: top, w: wpx };
+  }
+
+  var isHK = lines.length === 2 && !nodes.some(function(n){ return String(n.station_code || "").trim() !== ""; });
+
+  if (isHK){
+    /* ── composed MTR map: main line + branch (Hong Kong) ── */
+    var main = nodes.filter(function(n){ return n.line === lines[0]; });
+    var branch = nodes.filter(function(n){ return n.line === lines[1]; });
+    var mainY = 560, padL = 102, padR = 44;
+    var step = (W - padL - padR) / Math.max(main.length - 1, 1);
+    main.forEach(function(n, i){ n._x = padL + step * i; });
+    var bx = 0;
+    if (branch.length){
+      var bi = Math.min(main.length - 2, Math.max(2, Math.round((main.length - 1) * 0.42)));
+      bx = (main[bi]._x + main[bi + 1]._x) / 2;
+      var joinX = main[Math.max(bi - 1, 1)]._x + 10;
+      var topY = 160, lastY = 430;
+      branch.forEach(function(n, i){
+        n._x = bx;
+        n._y = topY + (lastY - topY) * (branch.length > 1 ? (branch.length - 1 - i) / (branch.length - 1) : 0);
+      });
+      svg += '<path d="M ' + bx + ' 116 L ' + bx + ' ' + (lastY + 24) + ' L ' + joinX + ' ' + (mainY - 7) +
+        '" fill="none" stroke="#C0392B" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+    svg += '<rect x="' + (padL - 14) + '" y="' + (mainY - 5.5) + '" width="' + (W - padL - padR + 28) + '" height="11" rx="5.5" fill="#1B5FA6"/>';
+    branch.forEach(function(n){
+      var act = String(n.active).indexOf("\u2713") > -1;
+      svg += marker(n._x, n._y, false, n.label_en);
+      svg += '<text x="' + (n._x + 20) + '" y="' + (n._y + 5) + '" font-size="13" font-weight="' + (act ? "800" : "600") + '" fill="' + (act ? "#1A1A1A" : "#C4C4C4") + '" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">' + esc(L(n, "label")) + '</text>';
     });
-    svg += '<path d="M ' + bx + ' 116 L ' + bx + ' ' + (lastY + 24) +
-      ' L ' + joinX + ' ' + (mainY - 7) +
-      '" fill="none" stroke="#C0392B" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>';
-  }
-  /* main (blue/green) line */
-  svg += '<rect x="' + (padL - 14) + '" y="' + (mainY - 6.5) + '" width="' + (W - padL - padR + 28) + '" height="13" rx="6.5" fill="' + mainCol + '"/>';
-
-  function marker(x, y, active, vertical, lineCol){
-    var stroke = "#1A1A1A";
-    if (INTERCHANGE[normd(arguments[5])]){
-      var w = vertical ? 17 : 34, h = vertical ? 34 : 17;
-      return '<rect x="' + (x - w/2) + '" y="' + (y - h/2) + '" width="' + w + '" height="' + h + '" rx="' + Math.min(w,h)/2 + '" fill="#fff" stroke="' + stroke + '" stroke-width="4"/>';
+    main.forEach(function(n){
+      var act = String(n.active).indexOf("\u2713") > -1;
+      svg += marker(n._x, mainY, true, n.label_en);
+      svg += '<text x="' + (n._x - 7) + '" y="' + (mainY + 38) + '" font-size="14" font-weight="' + (act ? "800" : "600") + '" fill="' + (act ? "#1A1A1A" : "#C4C4C4") + '" transform="rotate(-45 ' + (n._x - 7) + ' ' + (mainY + 38) + ')" text-anchor="end" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">' + esc(L(n, "label")) + '</text>';
+    });
+    /* info blocks (positions saved/draggable; auto layout as fallback) */
+    var seen = {}, mainDist = [], branchDist = [];
+    main.forEach(function(n){
+      if (String(n.active).indexOf("\u2713") < 0) return;
+      var cs = centresForNode(n);
+      if (!cs.length || seen[n.label_en]) return;
+      seen[n.label_en] = 1; mainDist.push({ n:n, cs:cs });
+    });
+    branch.forEach(function(n){
+      if (String(n.active).indexOf("\u2713") < 0) return;
+      var cs = centresForNode(n);
+      if (!cs.length || seen[n.label_en]) return;
+      seen[n.label_en] = 1; branchDist.push({ n:n, cs:cs });
+    });
+    var bottom = mainDist.slice();
+    if (mainDist.length > 3){
+      var tl = bottom.shift();
+      var b1 = blockAt(tl.n, tl.cs, lines[0] + "|" + tl.n.label_en, 96, 126, 250);
+      elbow(b1.x + 16, b1.y + b1.w * 0.72, tl.n._x, mainY - 13, mainY - 27);
     }
-    return '<circle cx="' + x + '" cy="' + y + '" r="8" fill="#fff" stroke="' + stroke + '" stroke-width="4"/>';
-  }
-  branch.forEach(function(n){
-    var act = String(n.active).indexOf("\u2713") > -1;
-    svg += marker(n._x, n._y, act, false, "#C0392B", n.label_en);
-    svg += '<text x="' + (n._x + 22) + '" y="' + (n._y + 5.5) + '" font-size="14.5" font-weight="' + (act ? "800" : "600") + '" fill="' + (act ? "#1A1A1A" : "#BBBBBB") + '" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">' + esc(L(n, "label")) + '</text>';
-  });
-  main.forEach(function(n){
-    var act = String(n.active).indexOf("\u2713") > -1;
-    if (style === "jr"){
-      svg += '<rect x="' + (n._x - 13) + '" y="' + (mainY - 17) + '" width="26" height="34" rx="5" fill="#fff" stroke="' + (act ? "#1A1A1A" : mainCol) + '" stroke-width="3"/>';
-      var code = String(n.station_code || "");
-      svg += '<text x="' + n._x + '" y="' + (mainY - 3) + '" font-size="8.5" text-anchor="middle" font-weight="800" fill="' + (act ? "#1A1A1A" : "#888") + '" font-family="Hanken Grotesk, sans-serif">' + esc(code.slice(0,2)) + '</text>';
-      svg += '<text x="' + n._x + '" y="' + (mainY + 9) + '" font-size="9.5" text-anchor="middle" font-weight="800" fill="' + (act ? "#1A1A1A" : "#888") + '" font-family="Hanken Grotesk, sans-serif">' + esc(code.slice(2)) + '</text>';
-    } else {
-      svg += marker(n._x, mainY, act, true, mainCol, n.label_en);
+    var tr = branchDist[0] || (bottom.length > 4 ? bottom.pop() : null);
+    if (tr){
+      var refTr = (branchDist[0] ? lines[1] : lines[0]) + "|" + tr.n.label_en;
+      var b2 = blockAt(tr.n, tr.cs, refTr, 538, 126, 158);
+      var trX = (tr.n._x !== undefined ? tr.n._x : 600), trY = (tr.n._y !== undefined ? tr.n._y : mainY);
+      elbow(b2.x - 4, b2.y + 42, trX + 90, trY + 30, trY + 54);
     }
-    svg += '<text x="' + (n._x - 7) + '" y="' + (mainY + 42) + '" font-size="16" font-weight="' + (act ? "800" : "600") + '" fill="' + (act ? "#1A1A1A" : "#BBBBBB") + '" transform="rotate(-45 ' + (n._x - 7) + ' ' + (mainY + 42) + ')" text-anchor="end" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">' + esc(L(n, "label")) + '</text>';
-  });
-
-  /* ---- info blocks around the diagram ---- */
-  var blocks = "";
-  var conn = "";     // light grey connector lines
-  /* Elbow built backwards from the endpoint: vertical stub from the start,
-     then a diagonal locked to 45\u00B0 \u2014 parallel to the rotated station labels,
-     so it threads the gaps between them instead of crossing text. */
-  /* Four-point connector: vertical stub -> 45\u00B0 diagonal (parallel to the rotated
-     labels, running in the corridor between them) -> short vertical approach.
-     Built backwards from the endpoint so the diagonal angle is exact and the
-     line never crosses label text. */
-  function connect(sx, sy, ex, ey, my){
-    var k = my + (sy > my ? 1 : -1) * Math.abs(ex - sx);
-    if ((sy > my && (k > sy || k < my)) || (sy < my && (k < sy || k > my))) k = (sy + my) / 2;
-    conn += '<path d="M ' + sx + ' ' + sy + ' L ' + sx + ' ' + k + ' L ' + ex + ' ' + my + ' L ' + ex + ' ' + ey +
-      '" fill="none" stroke="#ECECEC" stroke-width="1.3" stroke-linejoin="round"/>';
+    var nB = Math.max(bottom.length, 1);
+    var colW = Math.min(178, (W - 8) / nB - 10);
+    bottom.forEach(function(d, i){
+      var left = 4 + i * ((W - 8) / nB);
+      var b3 = blockAt(d.n, d.cs, lines[0] + "|" + d.n.label_en, left, 678, colW);
+      var bex = d.n._x - 22, bsx = b3.x + 56;
+      if (Math.abs(bex - bsx) > 78) bsx = bex + (bsx > bex ? 78 : -78);
+      elbow(bsx, b3.y - 4, bex, mainY + 16, mainY + 30);
+    });
+  } else {
+    /* ── stacked line diagrams: one clean horizontal line per `line` (Japan) ── */
+    var segH = H / lines.length;
+    lines.forEach(function(ln, li){
+      var lnNodes = nodes.filter(function(n){ return n.line === ln; });
+      var lineY = segH * li + Math.min(150, segH * 0.28);
+      var padL2 = 80, padR2 = 56;
+      var step2 = lnNodes.length > 1 ? (W - padL2 - padR2) / (lnNodes.length - 1) : 0;
+      var col = LINECOLS[li % LINECOLS.length];
+      lnNodes.forEach(function(n, i){ n._x = lnNodes.length > 1 ? padL2 + step2 * i : W / 2; n._y = lineY; });
+      svg += '<rect x="' + (padL2 - 16) + '" y="' + (lineY - 4.5) + '" width="' + (W - padL2 - padR2 + 32) + '" height="9" rx="4.5" fill="' + col + '"/>';
+      lnNodes.forEach(function(n){
+        var act = String(n.active).indexOf("\u2713") > -1;
+        var code = String(n.station_code || "").trim();
+        if (code){
+          svg += '<rect x="' + (n._x - 10) + '" y="' + (lineY - 13) + '" width="20" height="26" rx="4.5" fill="#fff" stroke="' + (act ? "#1A1A1A" : col) + '" stroke-width="2.4"/>';
+          svg += '<text x="' + n._x + '" y="' + (lineY - 2.5) + '" font-size="7" text-anchor="middle" font-weight="800" fill="' + (act ? "#1A1A1A" : "#999") + '" font-family="Hanken Grotesk, sans-serif">' + esc(code.slice(0, 2)) + '</text>';
+          svg += '<text x="' + n._x + '" y="' + (lineY + 7.5) + '" font-size="8" text-anchor="middle" font-weight="800" fill="' + (act ? "#1A1A1A" : "#999") + '" font-family="Hanken Grotesk, sans-serif">' + esc(code.slice(2)) + '</text>';
+        } else {
+          svg += '<circle cx="' + n._x + '" cy="' + lineY + '" r="6" fill="#fff" stroke="' + (act ? "#1A1A1A" : col) + '" stroke-width="3"/>';
+        }
+        svg += '<text x="' + (n._x - 6) + '" y="' + (lineY + 34) + '" font-size="12.5" font-weight="' + (act ? "800" : "600") + '" fill="' + (act ? "#1A1A1A" : "#C4C4C4") + '" transform="rotate(-45 ' + (n._x - 6) + ' ' + (lineY + 34) + ')" text-anchor="end" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">' + esc(L(n, "label")) + '</text>';
+      });
+      /* info blocks under this line */
+      var withC = lnNodes.filter(function(n){
+        return String(n.active).indexOf("\u2713") > -1 && centresForNode(n).length;
+      });
+      var nB2 = Math.max(withC.length, 1);
+      var colW2 = Math.min(200, (W - 16) / nB2 - 12);
+      withC.forEach(function(n, i){
+        var left = 8 + i * ((W - 16) / nB2);
+        var b = blockAt(n, centresForNode(n), ln + "|" + n.label_en, left, lineY + 110, colW2);
+        dot(n._x, lineY + 18, b.x + Math.min(56, b.w / 2), b.y - 5);
+      });
+    });
   }
-  var seen = {}, mainDist = [];
-  main.forEach(function(n){
-    if (String(n.active).indexOf("\u2713") < 0 || !n.district_en) return;
-    if (seen[n.district_en]) return;
-    seen[n.district_en] = 1;
-    mainDist.push(n);
-  });
-  var branchDist = [];
-  branch.forEach(function(n){
-    if (String(n.active).indexOf("\u2713") < 0 || !n.district_en || seen[n.district_en]) return;
-    seen[n.district_en] = 1;
-    branchDist.push(n);
-  });
-  /* top-left block: leftmost main district */
-  var bottom = mainDist.slice();
-  if (mainDist.length > 3){
-    var tl = bottom.shift();
-    blocks += blockHtml(L(tl, "label") ? shortDist(tl) : "", centresForNodeDistrict(tl.district_en),
-      "left:96px;top:126px;width:250px;");
-    connect(112, 126 + 186, tl._x, mainY - 13, mainY - 27);
-  }
-  /* top-right block: branch district (or rightmost main) */
-  var tr = branchDist[0] || (bottom.length > 4 ? bottom.pop() : null);
-  if (tr){
-    blocks += blockHtml(shortDist(tr), centresForNodeDistrict(tr.district_en),
-      "left:538px;top:126px;width:158px;");
-    var trX = (tr._x !== undefined ? tr._x : 600), trY = (tr._y !== undefined ? tr._y : mainY);
-    connect(534, 168, trX + 96, trY + 30, trY + 54);
-  }
-  /* bottom row */
-  var n = Math.max(bottom.length, 1);
-  var colW = Math.min(178, (W - 8) / n - 10);
-  bottom.forEach(function(nd, i){
-    var left = 4 + i * ((W - 8) / n);
-    blocks += blockHtml(shortDist(nd), centresForNodeDistrict(nd.district_en),
-      "left:" + left + "px;top:678px;width:" + colW + "px;");
-    var bex = nd._x - 22, bsx = left + 56;
-    if (Math.abs(bex - bsx) > 78) bsx = bex + (bsx > bex ? 78 : -78);   // keep the 45\u00B0 diagonal inside the stub zone
-    connect(bsx, 674, bex, mainY + 16, mainY + 30);
-  });
-
   body.innerHTML = '<div class="sk-tcanvas">' +
     '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">' + conn + svg + '</svg>' +
     blocks + '</div>';
@@ -1310,16 +1360,19 @@ function monoize(dataUri, cb){   // monotone map: grayscale wash baked into the 
 function pinsFor(city, cityCentres){
   var ids = {};
   cityCentres.forEach(function(ct){ ids[ct.id] = ct; });
-  var manual = DB.skMapPins.filter(function(p){
-    return p.market === curMarket && ids[p.centre_id] && p.x_pct !== "" && p.y_pct !== "";
-  }).map(function(p){
-    return { ct: ids[p.centre_id], x: Number(p.x_pct), y: Number(p.y_pct) };
-  });
-  if (manual.length) return manual;                      // designer override wins
+  var out = [];
   var auto = geoAuto(city);
-  if (auto && auto.pins) return auto.pins.filter(function(p){ return ids[p.centre_id]; })
+  if (auto && auto.pins) out = auto.pins.filter(function(p){ return ids[p.centre_id]; })
     .map(function(p){ return { ct: ids[p.centre_id], x: Number(p.x_pct), y: Number(p.y_pct) }; });
-  return [];
+  /* saved / dragged pin positions override the auto ones (and work with uploaded map images too) */
+  cityCentres.forEach(function(ct){
+    var pos = mapPos("pin", ct.id);
+    if (!pos) return;
+    var hit = out.filter(function(p){ return p.ct.id === ct.id; })[0];
+    if (hit){ hit.x = pos.x; hit.y = pos.y; }
+    else out.push({ ct: ct, x: pos.x, y: pos.y });
+  });
+  return out;
 }
 function geoCityHtml(displayCity, cityCentres, rawKey){
   var city = rawKey === undefined ? displayCity : rawKey;
@@ -1338,7 +1391,7 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
     else if (auto === null) h += '<div class="bg ph">building map from Google\u2026</div>';
     else h += '<div class="bg ph">map unavailable \u2014 add an image in SK-Assets</div>';
   }
-  var ovl = "", cards = "";
+  var ovl = "", cards = "", handles = "";
   var slotsL = [4, 40, 68], slotsR = [4, 40, 68], usedL = 0, usedR = 0;
   pins.sort(function(a, b){ return a.y - b.y; });
   pins.forEach(function(p){
@@ -1348,20 +1401,23 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
     else if (usedR < 3){ side = "R"; slot = slotsR[usedR++]; }
     else { side = "L"; slot = slotsL[Math.min(usedL++, 2)]; }
     var cardLeft = side === "L" ? 3 : 51;    /* % */
-    cards += '<div class="sk-card" style="left:' + cardLeft + '%;top:' + slot + '%;">' +
+    var cpos = mapPos("card", p.ct.id);
+    if (cpos){ cardLeft = cpos.x; slot = cpos.y; }
+    cards += '<div class="sk-card"' + dragAttr("card", p.ct.id) + ' style="left:' + cardLeft + '%;top:' + slot + '%;">' +
       '<div class="dn">' + esc(geoHeading(p.ct)) + '</div>' + geoCard(p.ct) + '</div>';
+    if (EDIT) handles += '<div class="mapdrag-pin" data-mapdrag="pin|' + esc(p.ct.id) + '" style="left:' + p.x + '%;top:' + p.y + '%;"></div>';
     /* pixel coordinates (uniform scale, undistorted shapes) */
     var px = p.x / 100 * W, py = p.y / 100 * H;
-    var axp = (side === "L" ? cardLeft + 43 : cardLeft) / 100 * W;
+    var axp = (cardLeft + (p.x > cardLeft + 20 ? 40 : 0)) / 100 * W;   /* connector leaves the card edge nearer the pin */
     var ayp = (slot + 9) / 100 * H;
-    /* connector: dot at the card edge, one bend, ending just above the pin head */
+    /* connector: dotted, one bend, ending just above the pin head */
     var route;
     if (Math.abs(py - ayp) > 46)
       route = 'M ' + axp + ' ' + ayp + ' L ' + axp + ' ' + (py - 58) + ' L ' + px + ' ' + (py - 58) + ' L ' + px + ' ' + (py - 46);
     else
       route = 'M ' + axp + ' ' + ayp + ' L ' + px + ' ' + ayp + ' L ' + px + ' ' + (py - 46);
-    ovl += '<path d="' + route + '" fill="none" stroke="#FF6600" stroke-width="1.5" stroke-linejoin="round"/>';
-    ovl += '<circle cx="' + axp + '" cy="' + ayp + '" r="3" fill="#FF6600"/>';
+    ovl += '<path d="' + route + '" fill="none" stroke="#FF6600" stroke-width="1.4" stroke-dasharray="3 5" stroke-linecap="round" stroke-linejoin="round"/>';
+    ovl += '<circle cx="' + axp + '" cy="' + ayp + '" r="2.6" fill="#FF6600"/>';
     /* teardrop pin, tip exactly on the location */
     ovl += '<g transform="translate(' + px + ',' + py + ')">' +
       '<path d="M0 0 C-6.5 -11 -14.5 -15.5 -14.5 -25.5 A14.5 14.5 0 1 1 14.5 -25.5 C14.5 -15.5 6.5 -11 0 0 Z" fill="#FF6600"/>' +
@@ -1369,7 +1425,7 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
   });
   if (pins.length)
     h += '<svg class="ovl" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">' + ovl + '</svg>';
-  h += cards + '</div>';
+  h += cards + handles + '</div>';
   if (isAuto) h += '<div class="sk-mapcredit">Map data \u00A9Google</div>';
   /* centres without a pin: cards grid below the map */
   var pinned = {};
@@ -1639,6 +1695,47 @@ document.getElementById("btnEdit").addEventListener("click", function(){
   setStatus(EDIT ? "Edit mode \u2014 click any underlined text or price, type, then Save." : "Edit mode off", EDIT ? "ok" : "");
 });
 var stageEl = document.getElementById("stage");
+stageEl.addEventListener("pointerdown", function(ev){
+  if (!EDIT) return;
+  var el = ev.target && ev.target.closest ? ev.target.closest("[data-mapdrag]") : null;
+  if (!el) return;
+  ev.preventDefault();
+  var cont = el.closest(".sk-tcanvas, .sk-geobox");
+  if (!cont) return;
+  var rect = cont.getBoundingClientRect();
+  var orig = el.getBoundingClientRect();
+  var sx = ev.clientX, sy = ev.clientY, moved = false;
+  function mv(e){
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
+    el.style.transform = "translate(" + dx + "px," + dy + "px)";
+  }
+  function up(e){
+    document.removeEventListener("pointermove", mv);
+    document.removeEventListener("pointerup", up);
+    el.style.transform = "";
+    if (!moved) return;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    var parts = el.dataset.mapdrag.split("|");
+    var kind = parts.shift(), ref = parts.join("|");
+    var nx, ny;
+    if (kind === "pin"){                             /* stored point = pin tip (handle is translate(-50%,-100%)) */
+      nx = (orig.left + orig.width / 2 + dx - rect.left) / rect.width * 100;
+      ny = (orig.top + orig.height + dy - rect.top) / rect.height * 100;
+    } else {                                         /* blocks + cards: top-left corner */
+      nx = (orig.left + dx - rect.left) / rect.width * 100;
+      ny = (orig.top + dy - rect.top) / rect.height * 100;
+    }
+    nx = Math.max(0, Math.min(99, Math.round(nx * 10) / 10));
+    ny = Math.max(0, Math.min(99, Math.round(ny * 10) / 10));
+    MAPPOS[curMarket + "|" + kind + "|" + ref] = { x: nx, y: ny };
+    mapDirty = true;
+    syncEditbar();
+    render();
+  }
+  document.addEventListener("pointermove", mv);
+  document.addEventListener("pointerup", up);
+});
 stageEl.addEventListener("input", function(ev){
   var t = ev.target && ev.target.closest ? ev.target.closest("[data-ed]") : null;
   if (!t) return;
@@ -1652,16 +1749,37 @@ stageEl.addEventListener("keydown", function(ev){
   }
 });
 function syncEditbar(){
-  var n = Object.keys(dirty).length;
+  var n = Object.keys(dirty).length + Object.keys(MAPPOS).length;
   document.getElementById("editbarText").textContent = n + " unsaved change" + (n === 1 ? "" : "s");
   document.getElementById("editbar").classList.toggle("show", n > 0);
 }
 document.getElementById("ebDiscard").addEventListener("click", function(){
-  dirty = {}; syncEditbar(); render();
+  dirty = {}; MAPPOS = {}; mapDirty = false; syncEditbar(); render();
 });
+function saveMapPins(){
+  if (!mapDirty) return Promise.resolve({ ok:true });
+  var rows = (DB.skMapPins || []).map(function(r){
+    return { market:r.market, kind:String(r.kind || "pin"), ref:String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id || ""), x_pct:r.x_pct, y_pct:r.y_pct };
+  });
+  Object.keys(MAPPOS).forEach(function(k){
+    var parts = k.split("|");
+    var market = parts.shift(), kind = parts.shift(), ref = parts.join("|");
+    var hit = rows.filter(function(r){ return r.market === market && r.kind === kind && r.ref === ref; })[0];
+    if (hit){ hit.x_pct = MAPPOS[k].x; hit.y_pct = MAPPOS[k].y; }
+    else rows.push({ market:market, kind:kind, ref:ref, x_pct:MAPPOS[k].x, y_pct:MAPPOS[k].y });
+  });
+  var header = ["market","kind","ref","x_pct","y_pct"];
+  return post({ action:"saveTab", tab:"SK-MapPins", header: header,
+    rows: rows.map(function(r){ return header.map(function(h){ return r[h] === undefined ? "" : r[h]; }); }) })
+  .then(function(){
+    DB.skMapPins = rows;
+    MAPPOS = {}; mapDirty = false;
+    return { ok:true };
+  });
+}
 document.getElementById("ebSave").addEventListener("click", function(){
   var kk = Object.keys(dirty);
-  if (!kk.length) return;
+  if (!kk.length && !mapDirty) return;
   var edits = [], newRows = {};
   var NUMF = { gold:1, platinum:1, diamond:1, per_30_mins:1, per_day:1 };
   kk.forEach(function(k){
@@ -1686,7 +1804,8 @@ document.getElementById("ebSave").addEventListener("click", function(){
   var btn = document.getElementById("ebSave"); btn.disabled = true;
   setStatus("Saving " + kk.length + " change(s)\u2026");
   var rows = Object.keys(newRows).map(function(sg){ return newRows[sg]; });
-  (rows.length ? post({ action:"addRows", tab:"Text", rows: rows }) : Promise.resolve({ ok:true }))
+  saveMapPins()
+  .then(function(){ return rows.length ? post({ action:"addRows", tab:"Text", rows: rows }) : { ok:true }; })
   .then(function(){ return edits.length ? post({ action:"saveEdits", edits: edits }) : { ok:true, skipped:[] }; })
   .then(function(j){
     btn.disabled = false;

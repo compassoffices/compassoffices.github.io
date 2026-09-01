@@ -348,6 +348,7 @@ function load(){
         });
       });
       SKI = JSON.parse(JSON.stringify(DB.skIncluded));
+      MN  = JSON.parse(JSON.stringify(DB.skMapNodes));
       SKA = JSON.parse(JSON.stringify(DB.skAdditional));
       SKP = JSON.parse(JSON.stringify(DB.skAddPrices));
       mrDirty=false; skDirty=false; vfDirty=false; spDirty=false; idxAll();
@@ -1191,6 +1192,41 @@ function renderSalesKit(){
   });
   h += '</div>';
 
+  /* Locations map: stations & lines */
+  h += '<div class="coed-card"><h3>Locations map \u2014 stations &amp; lines</h3>'+
+    '<p class="hint">This drives the tube-style Locations page for '+esc(mkt)+'. Each <b>line</b> is drawn as its own horizontal diagram (e.g. Japan: a Tokyo line and an Osaka line). '+
+    'Tick which centres belong to each station \u2014 that is what fills the info card under the station. \u2713 = station highlighted. '+
+    'Positions of the info cards are adjusted by dragging on the price-list page in \u270E Edit mode. Saved with <b>Save Sales Kit</b>.</p>';
+  var mnLines=[]; MN.forEach(function(n){ if(n.market===mkt && mnLines.indexOf(n.line)<0) mnLines.push(n.line); });
+  var mktCentres = centresOf(mkt);
+  mnLines.forEach(function(ln){
+    var rows = MN.filter(function(n){ return n.market===mkt && n.line===ln; })
+      .sort(function(a,b){ return (Number(a.sort)||0)-(Number(b.sort)||0); });
+    h += '<div style="border:1px solid #EDEDED;border-radius:10px;padding:8px 12px;margin-bottom:10px">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:10px;font-weight:800;color:#999;text-transform:uppercase">Line</span>'+
+      '<input value="'+esc(ln)+'" data-mnline="'+esc(ln)+'" style="font:inherit;font-size:12px;font-weight:800;border:1px dashed #E4E4E4;border-radius:6px;padding:3px 8px;width:130px">'+
+      '<button class="addbar" style="margin:0;font-size:10px;padding:2px 8px" data-mnadd="'+esc(ln)+'">+ station</button>'+
+      '<button class="addbar" style="margin:0;font-size:10px;padding:2px 8px;color:#C33;border-color:#EBB" data-mnlinedel="'+esc(ln)+'">\u00D7 line</button></div>';
+    rows.forEach(function(n){
+      var ids = String(n.centre_ids||"").split(",").map(function(x){return x.trim();}).filter(String);
+      h += '<div class="mxrow mrr" style="align-items:center">'+
+        '<span style="flex:0 0 150px;font-size:12px;font-weight:700">'+ce("MN",n,"label","","Station name",true)+'</span>'+
+        '<input value="'+esc(n.station_code||"")+'" data-mncode="'+n.__i+'" placeholder="code" title="Station code badge (e.g. JY01) \u2014 blank = plain dot" style="font:inherit;font-size:10.5px;width:52px;border:1px dashed #E8E8E8;border-radius:6px;padding:3px 5px;text-align:center">'+
+        '<button class="mxpill'+(String(n.active).indexOf("\u2713")>-1?" on":"")+'" data-mnact="'+n.__i+'" title="Highlighted station">\u2713</button>'+
+        '<span style="display:flex;flex-wrap:wrap;gap:3px;flex:1">'+mktCentres.map(function(c){
+          var on = ids.indexOf(c.id)>-1;
+          return '<button class="mxpill'+(on?" on":"")+'" style="font-size:9.5px;padding:3px 9px" data-mncent="'+n.__i+'|'+esc(c.id)+'">'+esc(c.building_en||c.id)+'</button>';
+        }).join("")+'</span>'+
+        '<span class="rowops"><button data-mnmv="'+n.__i+'|up">\u2191</button><button data-mnmv="'+n.__i+'|dn">\u2193</button><button class="del" data-mndel="'+n.__i+'">\u00D7</button></span></div>';
+    });
+    h += '</div>';
+  });
+  h += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">'+
+    '<input id="mnNewLine" placeholder="new line name, e.g. tokyo" style="font:inherit;font-size:11.5px;border:1px solid var(--co-line);border-radius:8px;padding:6px 10px;width:180px">'+
+    '<button class="addbar" style="margin:0" id="mnAddLine">+ add line</button>'+
+    '<span class="hint" style="font-size:10.5px;margin:0">No lines at all = the Locations page uses map images / Google maps instead.</span></div>';
+  h += '</div>';
+
   /* Sales Kit texts (page titles, network blurb) */
   h += '<div class="coed-card"><h3>Sales Kit texts</h3>'+
     '<p class="hint">Page titles and the network blurb. Edits here use the black \u201CSave all\u201D bar at the bottom of the screen.</p>'+
@@ -1206,7 +1242,68 @@ function renderSalesKit(){
 
   h += renderSkAssets();
   el("#main").innerHTML = h;
-  bindChips(); bindWLang(); bindCE(function(){skMark();}); bindAssetUploads(); bindSk(); bindCells();
+  bindChips(); bindWLang(); bindCE(function(){skMark();}); bindAssetUploads(); bindSk(); bindMapNodes(); bindCells();
+}
+function bindMapNodes(){
+  document.querySelectorAll("[data-mnline]").forEach(function(inp){
+    inp.addEventListener("change", function(){
+      var old = inp.dataset.mnline, nv = inp.value.trim();
+      if (!nv || nv === old) return;
+      MN.forEach(function(n){ if (n.market===mkt && n.line===old) n.line = nv; });
+      idxAll(); skMark(); renderSalesKit();
+    });
+  });
+  document.querySelectorAll("[data-mnadd]").forEach(function(b){ b.addEventListener("click", function(){
+    var ln = b.dataset.mnadd;
+    var mx = MN.filter(function(n){ return n.market===mkt && n.line===ln; })
+      .reduce(function(m,n){ return Math.max(m, Number(n.sort)||0); }, 0);
+    MN.push({ market:mkt, line:ln, sort:mx+1, label_en:"", label_tc:"", label_sc:"", label_jp:"", station_code:"", active:"\u2713", district_en:"", centre_ids:"" });
+    idxAll(); skMark(); renderSalesKit();
+  });});
+  document.querySelectorAll("[data-mnlinedel]").forEach(function(b){ b.addEventListener("click", function(){
+    if (!confirm("Delete line \u201C"+b.dataset.mnlinedel+"\u201D and all its stations for "+mkt+"?")) return;
+    MN = MN.filter(function(n){ return !(n.market===mkt && n.line===b.dataset.mnlinedel); });
+    idxAll(); skMark(); renderSalesKit();
+  });});
+  var al = el("#mnAddLine");
+  if (al) al.addEventListener("click", function(){
+    var ln = el("#mnNewLine").value.trim();
+    if (!ln){ setStatus("Type the line name first (e.g. tokyo)", "err"); return; }
+    MN.push({ market:mkt, line:ln, sort:1, label_en:"", label_tc:"", label_sc:"", label_jp:"", station_code:"", active:"\u2713", district_en:"", centre_ids:"" });
+    idxAll(); skMark(); renderSalesKit();
+  });
+  document.querySelectorAll("[data-mncode]").forEach(function(inp){ inp.addEventListener("input", function(){
+    MN[Number(inp.dataset.mncode)].station_code = inp.value.trim(); skMark();
+  });});
+  document.querySelectorAll("[data-mnact]").forEach(function(b){ b.addEventListener("click", function(){
+    var n = MN[Number(b.dataset.mnact)];
+    var on = String(n.active).indexOf("\u2713") < 0;
+    n.active = on ? "\u2713" : "";
+    b.classList.toggle("on", on); skMark();
+  });});
+  document.querySelectorAll("[data-mncent]").forEach(function(b){ b.addEventListener("click", function(){
+    var pp = b.dataset.mncent.split("|");
+    var n = MN[Number(pp[0])], id = pp[1];
+    var ids = String(n.centre_ids||"").split(",").map(function(x){return x.trim();}).filter(String);
+    var i = ids.indexOf(id);
+    if (i > -1) ids.splice(i,1); else ids.push(id);
+    n.centre_ids = ids.join(",");
+    b.classList.toggle("on", i === -1); skMark();
+  });});
+  document.querySelectorAll("[data-mnmv]").forEach(function(b){ b.addEventListener("click", function(){
+    var pp = b.dataset.mnmv.split("|");
+    var n = MN[Number(pp[0])];
+    var rows = MN.filter(function(x){ return x.market===mkt && x.line===n.line; })
+      .sort(function(a,b2){ return (Number(a.sort)||0)-(Number(b2.sort)||0); });
+    var i = rows.indexOf(n), sw = pp[1]==="up" ? rows[i-1] : rows[i+1];
+    if (!sw) return;
+    var t = n.sort; n.sort = sw.sort; sw.sort = t;
+    idxAll(); skMark(); renderSalesKit();
+  });});
+  document.querySelectorAll("[data-mndel]").forEach(function(b){ b.addEventListener("click", function(){
+    MN.splice(Number(b.dataset.mndel), 1);
+    idxAll(); skMark(); renderSalesKit();
+  });});
 }
 function bindSk(){
   document.querySelectorAll("[data-skdel]").forEach(function(b){ b.addEventListener("click",function(){
@@ -1232,7 +1329,9 @@ function bindSk(){
     SKP.push({market:mkt, category:p[0], bullet_sort:p[1], note_en:"", note_tc:"", note_sc:"", note_jp:"", note_vi:""});
     idxAll(); skMark(); renderSalesKit();
   });});
-  document.querySelectorAll("[data-skimg]").forEach(function(sp){ sp.addEventListener("click",function(){
+  document.querySelectorAll("[data-skimg]").forEach(function(sp){
+    makeDroppable(sp, function(){ return sp.dataset.skimg; });
+    sp.addEventListener("click",function(){
     var akey=sp.dataset.skimg;
     var inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
     inp.addEventListener("change",function(){
@@ -1258,14 +1357,16 @@ function bindSk(){
     saveTabs([
       {tab:"SK-Included",  header:tabHeader(SKI,["category","sort","row_type","label_en","label_tc","label_sc","label_jp","label_vi","image_1","image_2"]), rows:SKI},
       {tab:"SK-Additional",header:tabHeader(SKA,["category","market","sort","row_type","label_en","label_tc","label_sc","label_jp","label_vi"]), rows:SKA},
-      {tab:"SK-AddPrices", header:tabHeader(SKP,["market","category","bullet_sort","note_en","note_tc","note_sc","note_jp","note_vi"]), rows:SKP}
+      {tab:"SK-AddPrices", header:tabHeader(SKP,["market","category","bullet_sort","note_en","note_tc","note_sc","note_jp","note_vi"]), rows:SKP},
+      {tab:"SK-MapNodes",  header:tabHeader(MN,["market","line","sort","label_en","label_tc","label_sc","label_jp","station_code","active","district_en","centre_ids"]), rows:MN}
     ], function(){ skDirty=false; setStatus("Sales Kit saved","ok"); load(); })
     .catch(function(e){ sv.disabled=false; setStatus("Save failed: "+e.message,"err"); });
   });
   var dc=el("#skDiscard"); if(dc) dc.addEventListener("click",function(){
     if(!confirm("Discard Sales Kit changes?")) return;
     SKI=JSON.parse(JSON.stringify(DB.skIncluded)); SKA=JSON.parse(JSON.stringify(DB.skAdditional));
-    SKP=JSON.parse(JSON.stringify(DB.skAddPrices)); skDirty=false; idxAll(); renderSalesKit();
+    SKP=JSON.parse(JSON.stringify(DB.skAddPrices)); MN=JSON.parse(JSON.stringify(DB.skMapNodes));
+    skDirty=false; idxAll(); renderSalesKit();
   });
 }
 
@@ -1289,34 +1390,53 @@ function renderSkAssets(){
   h += '</div></div>';
   return h;
 }
+function uploadAssetFile(key, f, busyEl, busyText){
+  if (!f || f.type.indexOf("image/") !== 0){ setStatus("Not an image file", "err"); return; }
+  if (f.size > 8 * 1024 * 1024){ setStatus("Image too large (max 8 MB)", "err"); return; }
+  var revert = busyEl ? busyEl.textContent : "";
+  if (busyEl){ busyEl.classList.add("busy"); busyEl.textContent = busyText || "Uploading\u2026"; }
+  var rd = new FileReader();
+  rd.onload = function(){
+    var b64 = String(rd.result).split(",")[1];
+    post({ action:"uploadImage", filename: key + "-" + f.name, mimeType: f.type, assetKey: key, dataBase64: b64 })
+    .then(function(j){
+      var row = (DB.skAssets || []).filter(function(r){ return r.key === key; })[0];
+      if (row) row.drive_file_id = j.id; else (DB.skAssets = DB.skAssets || []).push({ key:key, drive_file_id:j.id, note:"" });
+      var card = document.querySelector('[data-askey="' + key + '"] .th');
+      if (card){ card.style.backgroundImage = "url('" + driveThumb(j.id) + "')"; card.textContent = ""; }
+      if (busyEl){ busyEl.classList.remove("busy"); busyEl.textContent = "\u2191 Uploaded \u2713"; }
+      setStatus("Image uploaded and published \u2014 " + key, "ok");
+      renderView();
+    })
+    .catch(function(e){
+      if (busyEl){ busyEl.classList.remove("busy"); busyEl.textContent = revert; }
+      setStatus("Upload failed: " + e.message, "err");
+    });
+  };
+  rd.readAsDataURL(f);
+}
+function makeDroppable(el, getKey){
+  ["dragover","dragenter"].forEach(function(evn){ el.addEventListener(evn, function(e){ e.preventDefault(); el.style.outline = "2px dashed var(--co-orange)"; }); });
+  ["dragleave","dragend"].forEach(function(evn){ el.addEventListener(evn, function(e){ e.preventDefault(); el.style.outline = ""; }); });
+  el.addEventListener("drop", function(e){
+    e.preventDefault(); el.style.outline = "";
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) uploadAssetFile(getKey(), f, el.querySelector(".coed-upbtn") || el);
+  });
+}
 function bindAssetUploads(){
   document.querySelectorAll("[data-upkey]").forEach(function(btn){
     btn.addEventListener("click", function(){
       var key = btn.dataset.upkey;
       var inp = document.createElement("input");
       inp.type = "file"; inp.accept = "image/*";
-      inp.addEventListener("change", function(){
-        var f = inp.files[0]; if (!f) return;
-        if (f.size > 8 * 1024 * 1024){ setStatus("Image too large (max 8 MB)", "err"); return; }
-        btn.classList.add("busy"); btn.textContent = "Uploading\u2026";
-        var rd = new FileReader();
-        rd.onload = function(){
-          var b64 = String(rd.result).split(",")[1];
-          post({ action:"uploadImage", filename: key + "-" + f.name, mimeType: f.type, assetKey: key, dataBase64: b64 })
-          .then(function(j){
-            var row = (DB.skAssets || []).filter(function(r){ return r.key === key; })[0];
-            if (row) row.drive_file_id = j.id; else (DB.skAssets = DB.skAssets || []).push({ key:key, drive_file_id:j.id, note:"" });
-            var card = document.querySelector('[data-askey="' + key + '"] .th');
-            if (card){ card.style.backgroundImage = "url('" + driveThumb(j.id) + "')"; card.textContent = ""; }
-            btn.classList.remove("busy"); btn.textContent = "\u2191 Uploaded \u2713";
-            setStatus("Image uploaded and published", "ok");
-          })
-          .catch(function(e){ btn.classList.remove("busy"); btn.textContent = "\u2b06 Upload new"; setStatus("Upload failed: " + e.message, "err"); });
-        };
-        rd.readAsDataURL(f);
-      });
+      inp.addEventListener("change", function(){ uploadAssetFile(key, inp.files[0], btn); });
       inp.click();
     });
+  });
+  /* whole card is a drop target */
+  document.querySelectorAll(".coed-imgcard[data-askey]").forEach(function(card){
+    makeDroppable(card, function(){ return card.dataset.askey; });
   });
   document.querySelectorAll("[data-copyid]").forEach(function(b){
     b.addEventListener("click", function(){
@@ -1401,7 +1521,7 @@ function bindVf(setName){
 
 /* ================= WYSIWYG SHARED ================= */
 var WLANG = localStorage.getItem("coed_wlang") || "en";
-var MRP=[], MRX=[], MT=[], VF=[], SP=[], SKI=[], SKA=[], SKP=[], mrDirty=false, skDirty=false, vfDirty=false, spDirty=false;
+var MRP=[], MRX=[], MT=[], VF=[], SP=[], SKI=[], SKA=[], SKP=[], MN=[], mrDirty=false, skDirty=false, vfDirty=false, spDirty=false;
 function wLangTabs(){
   var o=[["en","English"],["tc","繁體"],["sc","简体"],["jp","日本語"],["vi","Tiếng Việt"]];
   return '<div class="wzlang">'+o.map(function(x){
@@ -1418,9 +1538,9 @@ function ce(arr,row,field,cls,ph,langed){
   var fallback = langed && WLANG!=="en" && !v ? (row[field+"_en"]||"") : "";
   return '<span class="'+(cls||"")+'" contenteditable data-m="'+arr+'|'+row.__i+'|'+f+'" data-ph="'+esc(fallback||ph||"\u2026")+'">'+esc(v)+'</span>';
 }
-function idxAll(){[["IT",IT],["MRP",MRP],["MRX",MRX],["MT",MT],["VF",VF],["SP",SP],["SKI",SKI],["SKA",SKA],["SKP",SKP]].forEach(function(p){
+function idxAll(){[["IT",IT],["MRP",MRP],["MRX",MRX],["MT",MT],["VF",VF],["SP",SP],["SKI",SKI],["SKA",SKA],["SKP",SKP],["MN",MN]].forEach(function(p){
   p[1].forEach(function(r,i){r.__i=i;});});}
-function modelOf(n){return {IT:IT,MRP:MRP,MRX:MRX,MT:MT,VF:VF,SP:SP,SKI:SKI,SKA:SKA,SKP:SKP}[n];}
+function modelOf(n){return {IT:IT,MRP:MRP,MRX:MRX,MT:MT,VF:VF,SP:SP,SKI:SKI,SKA:SKA,SKP:SKP,MN:MN}[n];}
 function bindCE(dirtyFn){
   document.querySelectorAll("[data-m]").forEach(function(elm){
     elm.addEventListener("input",function(){
