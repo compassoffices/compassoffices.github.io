@@ -702,14 +702,24 @@ function bindMr(){
 
 /* ================= VIEW: TEXTS ================= */
 var TEXT_GROUPS = [
-  ["Section titles", /^mr\.(internal|external)\.title|^mr\.allcentres/],
-  ["Row labels", /^mr\.per/],
-  ["Video conferencing", /^vc\./],
-  ["Terms and Conditions", /^tc\./],
-  ["Included with booking", /^incl\./],
-  ["Available on request", /^avail\./],
-  ["Page titles & formats (all markets)", /^title\.|^level\./]
+  ["Section titles", /^mr\.(internal|external)\.title|^mr\.allcentres/, null],
+  ["Row labels", /^mr\.per/, null],
+  ["Video conferencing", /^vc\./, "vc"],
+  ["Terms and Conditions", /^tc\./, "tc"],
+  ["Included with booking", /^incl\./, "incl"],
+  ["Available on request", /^avail\./, "avail"],
+  ["Page titles & formats (all markets)", /^title\.|^level\./, null]
 ];
+function blankTextRow(key){
+  var o = { market:mkt, centre_id:"", key:key, __new:true };
+  LANGS.forEach(function(L){ o["text_" + L[0]] = ""; });
+  return o;
+}
+function findText(market, centre, key){
+  return DB.texts.filter(function(t){
+    return t.market === market && String(t.centre_id) === String(centre) && t.key === key;
+  })[0];
+}
 function renderTexts(){
   var h = chipsHtml();
   h += '<h2 class="coed-h2">Texts &amp; T&amp;C \u2014 ' + esc(mkt) + '</h2>';
@@ -735,18 +745,47 @@ function renderTexts(){
       var m = (g[1].source.indexOf("title\\.") > -1) ? (t.market === "all") : (t.market === mkt);
       return m && g[1].test(t.key);
     });
-    if (!rows.length) return;
-    h += '<div class="coed-group">' + g[0] + '</div>' + textTable(rows, false);
+    if (!rows.length && !g[2]) return;
+    h += '<div class="coed-group">' + g[0] + '</div>';
+    if (rows.length) h += textTable(rows, false);
+    if (g[2]) h += '<button class="addbar" style="margin-top:6px" data-txadd="' + g[2] + '">+ add line</button>';
   });
   var rest = DB.texts.filter(function(t){
     return (t.market === mkt || t.market === "all") &&
       !shown[["tx", t.market, t.centre_id, t.key].join("|")];
   });
-  if (rest.length){
-    h += '<div class="coed-group">Other texts</div>' + textTable(rest, true);
-  }
+  h += '<div class="coed-group">Other texts</div>';
+  if (rest.length) h += textTable(rest, true);
+  h += '<div style="display:flex;gap:8px;margin-top:6px;align-items:center">' +
+    '<input id="txNewKey" placeholder="new key, e.g. vo.head.gold" style="font-family:inherit;font-size:12px;padding:7px 10px;border:1px solid var(--co-line);border-radius:8px;width:240px">' +
+    '<button class="addbar" style="margin:0" id="txAddCustom">+ add text row for ' + esc(mkt) + '</button></div>';
   el("#main").innerHTML = h;
-  bindChips(); bindCells();
+  bindChips(); bindCells(); bindTxAdd();
+}
+function bindTxAdd(){
+  document.querySelectorAll("[data-txadd]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var prefix = b.dataset.txadd, maxN = 0;
+      DB.texts.forEach(function(t){
+        if (t.market !== mkt) return;
+        var m = t.key.match(new RegExp("^" + prefix + "\\.(\\d+)$"));
+        if (m) maxN = Math.max(maxN, Number(m[1]));
+      });
+      DB.texts.push(blankTextRow(prefix + "." + (maxN + 1)));
+      renderTexts();
+      setStatus("New line added \u2014 fill in EN (at least), then press Save all", "ok");
+    });
+  });
+  var bc = el("#txAddCustom");
+  if (bc) bc.addEventListener("click", function(){
+    var key = el("#txNewKey").value.trim();
+    if (!key){ setStatus("Type a key first (e.g. vo.head.gold)", "err"); return; }
+    if (key.indexOf("|") > -1){ setStatus("Keys cannot contain |", "err"); return; }
+    if (findText(mkt, "", key)){ setStatus("'" + key + "' already exists for " + mkt, "err"); return; }
+    DB.texts.push(blankTextRow(key));
+    renderTexts();
+    setStatus("Row '" + key + "' added \u2014 fill it in, then press Save all", "ok");
+  });
 }
 
 /* ================= VIEW: SALES KIT ================= */
@@ -1306,13 +1345,32 @@ function syncSavebar(){
 }
 el("#sbDiscard").addEventListener("click", function(){ dirty = {}; syncSavebar(); renderView(); });
 el("#sbSave").addEventListener("click", function(){
-  var edits = Object.keys(dirty).map(function(k){
+  var edits = [], newRows = [];
+  Object.keys(dirty).forEach(function(k){
     var parts = k.split("|");
     var field = parts.pop();
-    return { kind: parts[0], keys: parts.slice(1), field: field, value: dirty[k] };
+    if (parts[0] === "tx"){
+      var row = findText(parts[1], parts[2], parts[3]);
+      if (row && row.__new){
+        row[field] = dirty[k];
+        if (newRows.indexOf(row) < 0) newRows.push(row);
+        return;                       /* created via addRows, not saveEdits */
+      }
+    }
+    edits.push({ kind: parts[0], keys: parts.slice(1), field: field, value: dirty[k] });
   });
-  var btn = el("#sbSave"); btn.disabled = true; setStatus("Saving " + edits.length + " change(s)\u2026");
-  post({ action:"saveEdits", edits: edits })
+  var btn = el("#sbSave"); btn.disabled = true;
+  setStatus("Saving " + (edits.length + newRows.length) + " change(s)\u2026");
+  (newRows.length
+    ? post({ action:"addRows", tab:"Text", rows: newRows.map(stripPrivate).map(function(r){
+        var o = {}; Object.keys(r).forEach(function(kk){ if (kk !== "__new") o[kk] = r[kk]; }); return o;
+      }) })
+    : Promise.resolve({ ok:true }))
+  .then(function(){
+    newRows.forEach(function(r){ delete r.__new; });
+    if (!edits.length) return { ok:true, applied:newRows.length, skipped:[] };
+    return post({ action:"saveEdits", edits: edits });
+  })
   .then(function(j){
     btn.disabled = false;
     var skipped = j.skipped || [];
