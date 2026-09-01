@@ -1461,39 +1461,59 @@ function renderSK(stage){
 }
 
 /* =====================================================================
-   SERVICE PRICE GUIDE (SP-Services tab)
+   SERVICE PRICE GUIDE (SP-Services tab) — per market, optionally per city
    ===================================================================== */
-function spPlain(v){ return /inclusive|request|competitive|at cost|market price|included/i.test(String(v)); }
-function spPrice(v, r, field){
-  var disp = '<span class="v' + (spPlain(v) ? " plain" : "") + '">' + esc(v) + '</span>';
-  if (!EDIT) return disp;
-  return '<span class="v' + (spPlain(v) ? " plain" : "") + '">' +
-    edSpan("sp", [r.market, r.section, r.sort, r.row_type], field, v, esc(v)) + '</span>';
+function spPlain(v){ return /inclusive|request|competitive|contact us|at cost|market price|included|含まれます|ご相談|ご要望|実費|定価/i.test(String(v)); }
+function spVal(r, field){
+  var lk = LANG_KEYS[curLang];
+  var v = r[field + "_" + lk];
+  if (v === undefined || v === "") v = r[field + "_en"];
+  if (v === undefined || v === "") v = r[field];          /* legacy single column */
+  return v === undefined ? "" : String(v);
+}
+function spLbl(key, enDef, jpDef){
+  return TXT(key) || (LANG_KEYS[curLang] === "jp" && jpDef ? jpDef : enDef);
+}
+function spPrice(r, field){
+  var v = spVal(r, field);
+  var cls = 'v' + (spPlain(v) ? " plain" : "");
+  if (!EDIT) return '<span class="' + cls + '">' + esc(v) + '</span>';
+  var f = field + "_" + LANG_KEYS[curLang];
+  var raw = r[f] !== undefined && r[f] !== "" ? r[f] : v;
+  return '<span class="' + cls + '">' +
+    edSpan("sp", [r.market, r.city || "", r.section, r.sort, r.row_type], f, raw, esc(v)) + '</span>';
 }
 function spCell(r, field, disp){
   if (!EDIT) return disp;
   var f = field + "_" + LANG_KEYS[curLang];
   var raw = r[f] !== undefined && r[f] !== "" ? r[f] : (r[field + "_en"] || "");
-  return edSpan("sp", [r.market, r.section, r.sort, r.row_type], f, raw, disp);
+  return edSpan("sp", [r.market, r.city || "", r.section, r.sort, r.row_type], f, raw, disp);
 }
 function renderSP(stage){
-  var all = (DB.spServices || []).filter(function(r){ return r.market === curMarket; });
-  if (!all.length) return false;
-  var c = conf();
-  var subtitle = TXT("title.sp.line2") || "In-House / Virtual Office Clients";
+  var mine = (DB.spServices || []).filter(function(r){ return r.market === curMarket; });
+  if (!mine.length) return false;
+  var cities = [], seenC = {};
+  mine.forEach(function(r){ var ck = String(r.city || ""); if (!seenC[ck]){ seenC[ck] = 1; cities.push(ck); } });
+  cities.forEach(function(city){ renderSPCity(stage, mine.filter(function(r){ return String(r.city || "") === city; }), city); });
+  return true;
+}
+function renderSPCity(stage, all, city){
+  var place = city ? curMarket + " - " + city : curMarket;
+  var subtitle = spLbl("title.sp.line2", "In-House / Virtual Office Clients", "\u30AA\u30D5\u30A3\u30B9/\u30D0\u30FC\u30C1\u30E3\u30EB\u30AA\u30D5\u30A3\u30B9");
   var titles = {
-    t1: TXT("title.sp.line1") || "Service Price Guide",
-    k1: "title.sp.line1", cls: "sp",
-    t2html: (EDIT ? txEd("title.sp.line2", esc(subtitle)) : esc(subtitle)) + '<span class="mk">' + esc(curMarket) + '</span>'
+    t1: spLbl("title.sp.line1", "Service Price Guide", "\u30B5\u30FC\u30D3\u30B9\u6599\u91D1\u30AC\u30A4\u30C9"),
+    k1: EDIT ? "title.sp.line1" : null, cls: "sp",
+    t2html: (EDIT ? txEd("title.sp.line2", esc(subtitle)) : esc(subtitle)) + '<span class="mk">' + esc(place) + '</span>'
   };
   var secs = [], seen = {};
   all.forEach(function(r){ if (!seen[r.section]){ seen[r.section] = 1; secs.push(r.section); } });
   var colHead = '<div class="sp-colhead" data-hdr="1">' +
-    '<div>' + esc(TXT("sp.col.desc") || "Descriptions") + '</div>' +
-    '<div>' + esc(TXT("sp.col.price") || "Price / Unit (In Local Currency)") + '</div>' +
-    '<div>' + esc(TXT("sp.col.remarks") || "Remarks") + '</div></div>';
+    '<div>' + esc(spLbl("sp.col.desc", "Descriptions", "\u9805\u76EE")) + '</div>' +
+    '<div>' + esc(spLbl("sp.col.price", "Price / Unit (In Local Currency)", "\u4FA1\u683C / \u5358\u4F4D\uFF08\u7A0E\u5225\uFF09")) + '</div>' +
+    '<div>' + esc(spLbl("sp.col.remarks", "Remarks", "\u5099\u8003")) + '</div></div>';
   var items = [{ html: colHead }];
-  var splitL = TXT("sp.split.left") || "Office Space", splitR = TXT("sp.split.right") || "Virtual Office";
+  var splitL = spLbl("sp.split.left", "Office Space", "\u30AA\u30D5\u30A3\u30B9"),
+      splitR = spLbl("sp.split.right", "Virtual Office", "\u30D0\u30FC\u30C1\u30E3\u30EB\u30AA\u30D5\u30A3\u30B9");
   var firstSec = true;
   secs.forEach(function(sec){
     var rows = all.filter(function(r){ return r.section === sec; })
@@ -1501,11 +1521,11 @@ function renderSP(stage){
     var secRow = rows.filter(function(r){ return r.row_type === "section"; })[0];
     var body = rows.filter(function(r){ return ["item","sub","group","split"].indexOf(r.row_type) > -1; });
     var feet = rows.filter(function(r){ return r.row_type === "foot"; });
-    var secRemark = secRow ? String(L(secRow, "remark") || "") : "";
+    var secRemark = secRow ? String(spVal(secRow, "remark")) : "";
     var h = '<table class="sp-t"><colgroup><col class="c1"><col class="c2"><col></colgroup>';
     if (secRow){
-      h += '<tr class="sec"><td>' + spCell(secRow, "label", esc(L(secRow, "label"))) + '</td>' +
-        '<td class="mk">' + (firstSec ? esc(curMarket) : "") + '</td>';
+      h += '<tr class="sec"><td>' + spCell(secRow, "label", esc(spVal(secRow, "label"))) + '</td>' +
+        '<td class="mk">' + (firstSec ? esc(place) : "") + '</td>';
       if (secRemark){
         h += '<td class="rm" rowspan="' + (body.length + 1) + '">' +
           secRemark.split(/\n/).map(function(l2){ return l2.trim() ? '<div class="b2">' + esc(l2.replace(/^\s*[\u2022\u25AA\u00B7]\s*/, "")) + '</div>' : ""; }).join("") + '</td>';
@@ -1515,7 +1535,7 @@ function renderSP(stage){
       h += '</tr>';
     }
     body.forEach(function(r){
-      var lbl = spCell(r, "label", esc(L(r, "label")));
+      var lbl = spCell(r, "label", esc(spVal(r, "label")));
       h += '<tr>';
       if (r.row_type === "group"){
         h += '<td class="d g">' + lbl + '</td><td class="p"></td>';
@@ -1523,29 +1543,28 @@ function renderSP(stage){
         h += '<td class="d' + (r.row_type === "sub" ? " sub" : "") + '">' + lbl + '</td>';
         if (r.row_type === "split"){
           h += '<td class="p"><div class="split"><div class="sh">' + esc(splitL) + '</div><div class="sh">' + esc(splitR) + '</div>' +
-            '<div class="sv">' + spPrice(r.price_1, r, "price_1") + '</div><div class="sv">' + spPrice(r.price_2, r, "price_2") + '</div></div></td>';
-        } else if (String(r.price_2 || "") !== ""){
-          h += '<td class="p"><div class="dual"><span>' + spPrice(r.price_1, r, "price_1") + '</span><span>' + spPrice(r.price_2, r, "price_2") + '</span></div></td>';
+            '<div class="sv">' + spPrice(r, "price_1") + '</div><div class="sv">' + spPrice(r, "price_2") + '</div></div></td>';
+        } else if (spVal(r, "price_2") !== ""){
+          h += '<td class="p"><div class="dual"><span>' + spPrice(r, "price_1") + '</span><span>' + spPrice(r, "price_2") + '</span></div></td>';
         } else {
-          h += '<td class="p">' + spPrice(r.price_1, r, "price_1") + '</td>';
+          h += '<td class="p">' + spPrice(r, "price_1") + '</td>';
         }
       }
       if (!secRemark){
-        var rk = String(L(r, "remark") || "");
+        var rk = spVal(r, "remark");
         h += '<td class="rm">' + (EDIT ? spCell(r, "remark", esc(rk)) : esc(rk)) + '</td>';
       }
       h += '</tr>';
     });
     h += '</table>';
     feet.forEach(function(r){
-      h += '<div class="sp-foot">' + spCell(r, "label", esc(L(r, "label"))) + '</div>';
+      h += '<div class="sp-foot">' + spCell(r, "label", esc(spVal(r, "label"))) + '</div>';
     });
     h += '<div class="sp-gap"></div>';
     items.push({ html: h });
     firstSec = false;
   });
   paginateItems(stage, titles, items, function(){ var d = document.createElement("div"); return d; });
-  return true;
 }
 
 /* =====================================================================
