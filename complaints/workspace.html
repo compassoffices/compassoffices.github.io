@@ -360,7 +360,18 @@ async function loadOverview(){
     }
     const snap = await getDocs(q);
     data = snapToTickets(snap);
-  } catch (err) { console.error(err); return; }
+  } catch (err) {
+    // Denied usually means the published rules predate this view. Say so
+    // rather than rendering an empty table, which reads as "no tickets".
+    console.error(err);
+    document.getElementById("overviewBody").innerHTML =
+      `<tr><td colspan="9"><div class="co-empty-state">Couldn't load these tickets.${
+        err && err.code === "permission-denied"
+          ? " Your access doesn't cover this view yet — the security rules may need republishing."
+          : " Please refresh and try again."
+      }</div></td></tr>`;
+    return;
+  }
 
   data.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.dateRaised ? 1 : 0);
   data.forEach(t => ticketsByRef[t.ticketRef] = t);
