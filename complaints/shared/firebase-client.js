@@ -26,10 +26,24 @@ export function requireStaffSession() {
         resolve(null);
         return;
       }
-      const snap = await getDoc(doc(db, "staff", user.uid));
+      // Reading /staff is itself gated on having a staff record, so an
+      // unapproved account gets permission-denied here rather than an
+      // empty snapshot. Both mean the same thing — no access yet — but
+      // the thrown case must be caught, or this promise never settles
+      // and the page hangs on a blank screen forever.
+      let snap;
+      try {
+        snap = await getDoc(doc(db, "staff", user.uid));
+      } catch (err) {
+        console.error("Staff record unreadable — not approved yet?", err);
+        await signOut(auth);
+        window.location.href = "login.html?pending=1";
+        resolve(null);
+        return;
+      }
       if (!snap.exists()) {
         await signOut(auth);
-        window.location.href = "login.html";
+        window.location.href = "login.html?pending=1";
         resolve(null);
         return;
       }

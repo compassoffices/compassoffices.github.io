@@ -65,13 +65,18 @@
 
         <div class="co-row2">
           <div class="co-field">
+            <label class="co-label" for="f_floor">Floor <span class="co-req">*</span></label>
+            <select class="co-select-field" id="f_floor" name="floor" required disabled></select>
+          </div>
+          <div class="co-field">
             <label class="co-label" for="f_room">Room number / VO</label>
             <input class="co-input" id="f_room" name="room_number" maxlength="60" placeholder="Optional">
           </div>
-          <div class="co-field">
-            <label class="co-label" for="f_type">Type of complaint <span class="co-req">*</span></label>
-            <select class="co-select-field" id="f_type" name="complaint_type" required></select>
-          </div>
+        </div>
+
+        <div class="co-field">
+          <label class="co-label" for="f_type">Type of complaint <span class="co-req">*</span></label>
+          <select class="co-select-field" id="f_type" name="complaint_type" required></select>
         </div>
 
         <div class="co-field">
@@ -114,20 +119,43 @@ import {
 
 const locationSel = document.getElementById("f_location");
 const centreSel = document.getElementById("f_centre");
+const floorSel = document.getElementById("f_floor");
 const typeSel = document.getElementById("f_type");
 const placeholder = (text) => { const o = document.createElement("option"); o.value=""; o.textContent=text; o.disabled=true; o.selected=true; return o; };
+const addOption = (sel, value, label) => {
+  const o = document.createElement("option");
+  o.value = value; o.textContent = label ?? value;
+  sel.appendChild(o);
+};
 
 locationSel.appendChild(placeholder("Select a location"));
-Object.keys(LOCATIONS).forEach(loc => { const o=document.createElement("option"); o.value=loc; o.textContent=loc; locationSel.appendChild(o); });
+Object.keys(LOCATIONS).forEach(loc => addOption(locationSel, loc));
 
 centreSel.appendChild(placeholder("Select a location first"));
+floorSel.appendChild(placeholder("Select a centre first"));
 
 locationSel.addEventListener("change", () => {
-  const centres = LOCATIONS[locationSel.value] || [];
+  const centres = Object.keys(LOCATIONS[locationSel.value] || {});
   centreSel.innerHTML = "";
   centreSel.disabled = false;
   centreSel.appendChild(placeholder("Select a centre"));
-  centres.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c; centreSel.appendChild(o); });
+  centres.forEach(c => addOption(centreSel, c));
+
+  // Changing market invalidates whatever floor was chosen.
+  floorSel.innerHTML = "";
+  floorSel.disabled = true;
+  floorSel.appendChild(placeholder("Select a centre first"));
+});
+
+centreSel.addEventListener("change", () => {
+  const floors = (LOCATIONS[locationSel.value] || {})[centreSel.value] || [];
+  floorSel.innerHTML = "";
+  floorSel.disabled = false;
+  floorSel.appendChild(placeholder("Select a floor"));
+  floors.forEach(f => addOption(floorSel, f, f + "/F"));
+  // A virtual-office client has no floor, so give them somewhere honest to
+  // land rather than forcing an arbitrary pick.
+  addOption(floorSel, "Virtual Office", "Virtual Office / not applicable");
 });
 
 typeSel.appendChild(placeholder("Select a type"));
@@ -166,12 +194,13 @@ form.addEventListener("submit", async (e) => {
     email: fd.get("email").trim(),
     location: fd.get("location"),
     centre: fd.get("centre"),
+    floor: fd.get("floor"),
     roomNumber: fd.get("room_number").trim() || null,
     complaintType: fd.get("complaint_type"),
     description: fd.get("description").trim(),
   };
 
-  if (!complaint.clientName || !complaint.company || !complaint.email || !complaint.location || !complaint.centre || !complaint.complaintType || !complaint.description) {
+  if (!complaint.clientName || !complaint.company || !complaint.email || !complaint.location || !complaint.centre || !complaint.floor || !complaint.complaintType || !complaint.description) {
     showError("Please fill in all required fields.");
     return;
   }

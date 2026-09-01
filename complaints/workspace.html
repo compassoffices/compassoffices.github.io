@@ -29,15 +29,31 @@
         <p class="co-page-sub" id="pageSub" style="margin-bottom:0;"></p>
       </div>
       <input class="co-search" id="ticketSearch" type="search"
-             placeholder="Search ticket, client, company, centre…"
+             placeholder="Search ticket, company, centre, floor…"
              style="min-width:270px;" aria-label="Search tickets">
     </div>
     <div style="height:22px;"></div>
 
     <div class="co-tabs" id="tabs" style="display:none;">
-      <button class="co-tab co-active" data-tab="unassigned">Unassigned Queue <span class="co-tab-count" id="countUnassigned">0</span></button>
-      <button class="co-tab" data-tab="board">My Team's Board <span class="co-tab-count" id="countBoard">0</span></button>
+      <button class="co-tab co-active" data-tab="unassigned" id="tabUnassigned">Unassigned Queue <span class="co-tab-count" id="countUnassigned">0</span></button>
+      <button class="co-tab" data-tab="board" id="tabBoard">My Team's Board <span class="co-tab-count" id="countBoard">0</span></button>
+      <button class="co-tab" data-tab="overview" id="tabOverview" style="display:none;"><span id="tabOverviewLabel">All Tickets</span> <span class="co-tab-count" id="countOverview">0</span></button>
     </div>
+
+    <section id="overviewSection" class="co-section" style="display:none;">
+      <p class="co-section-note" id="overviewNote" style="margin-bottom:14px;"></p>
+      <div class="co-table-wrap">
+        <table class="co-table">
+          <thead>
+            <tr>
+              <th>Ticket</th><th>Company</th><th>Centre</th><th>Type</th>
+              <th>Status</th><th>Team</th><th>Owner</th><th>Raised</th><th>Target</th>
+            </tr>
+          </thead>
+          <tbody id="overviewBody"></tbody>
+        </table>
+      </div>
+    </section>
 
     <section id="unassignedSection" class="co-section">
       <div class="co-filters" id="queueScope" style="display:none;">
@@ -96,6 +112,8 @@
               <option value="CS">CS</option>
               <option value="Project">Project</option>
               <option value="IT">IT</option>
+              <option value="Finance">Finance</option>
+              <option value="Sales">Sales</option>
             </select>
           </div>
           <div class="co-field">
@@ -122,6 +140,18 @@
         <button class="co-btn co-btn-primary" id="triageSubmitBtn" style="width:100%; padding:11px;">Assign &amp; move to Assigned</button>
       </div>
 
+      <div id="readOnlyNote" class="co-hint" style="display:none; padding-top:6px;">
+        This ticket belongs to another team — you can follow its progress here, but only its owning team can update it.
+      </div>
+
+      <div id="reassignForm" style="display:none; margin-bottom:20px;">
+        <div class="co-section-title" style="margin-bottom:10px;">Reassign within your team</div>
+        <div class="co-field" style="margin-bottom:10px;">
+          <select class="co-select-field" id="reassignOwner"></select>
+        </div>
+        <button class="co-btn" id="reassignBtn" style="width:100%; padding:10px;">Reassign owner</button>
+      </div>
+
       <div id="updateForm" style="display:none;">
         <div class="co-section-title" style="margin-bottom:10px;">Post an Update</div>
         <div class="co-field">
@@ -146,6 +176,7 @@
 
 <script type="module">
 import { db, requireStaffSession, signOutAndRedirect } from "./shared/firebase-client.js";
+import { FRESH_TICKET_URL } from "./shared/config.js";
 import {
   collection, doc, getDocs, query, where, orderBy, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
@@ -158,10 +189,18 @@ document.getElementById("whoTeam").textContent = staff.team + " Team";
 document.getElementById("logoutBtn").addEventListener("click", signOutAndRedirect);
 
 const isCS = staff.team === "CS";
+const isSales = staff.team === "Sales";
+const isLead = staff.isLead === true;
+// Sales see their whole market; CS see everything after triaging it. Both
+// get the read-only "All Tickets" tab.
+const hasOverview = isCS || isSales;
+
 document.getElementById("pageTitle").textContent = isCS ? "CS Workspace" : `${staff.team} Workspace`;
 document.getElementById("pageSub").textContent = isCS
   ? "Triage incoming complaints and track your own team's tickets."
-  : `Tickets currently assigned to ${staff.team}.`;
+  : isSales
+    ? `Tickets assigned to Sales, plus every complaint in your markets.`
+    : `Tickets currently assigned to ${staff.team}.`;
 
 let allStaff = [];
 const staffSnap = await getDocs(collection(db, "staff"));
@@ -181,7 +220,7 @@ const statusBadge = {
 let searchTerm = "";
 function matchesSearch(t){
   if (!searchTerm) return true;
-  return [t.ticketRef, t.clientName, t.company, t.centre, t.location, t.owner, t.roomNumber]
+  return [t.ticketRef, t.clientName, t.company, t.centre, t.location, t.floor, t.owner, t.roomNumber]
     .filter(Boolean)
     .join(" ")
     .toLowerCase()
@@ -302,10 +341,61 @@ async function loadBoard(){
   }
 }
 
+// Read-only view of tickets this person can see but mostly can't act on:
+// everything, for CS; everything in their markets, for Sales.
+async function loadOverview(){
+  if (!hasOverview) return;
+  let data;
+  try {
+    const ref = collection(db, "complaints");
+    // Sales must query by market — the rules only clear documents in the
+    // markets on their staff record, and a list query has to match that.
+    const q = isCS
+      ? ref
+      : query(ref, where("location", "in", (staff.markets || []).slice(0, 30)));
+    if (!isCS && (staff.markets || []).length === 0) {
+      document.getElementById("overviewBody").innerHTML =
+        `<tr><td colspan="9"><div class="co-empty-state">No markets set on your staff record — ask your admin.</div></td></tr>`;
+      return;
+    }
+    const snap = await getDocs(q);
+    data = snapToTickets(snap);
+  } catch (err) { console.error(err); return; }
+
+  data.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.dateRaised ? 1 : 0);
+  data.forEach(t => ticketsByRef[t.ticketRef] = t);
+
+  const shown = data.filter(matchesSearch);
+  document.getElementById("countOverview").textContent = shown.length;
+  document.getElementById("overviewNote").textContent = isCS
+    ? "Every complaint, including those you've routed to other teams. Read-only unless it's yours."
+    : `Every complaint in ${(staff.markets || []).join(", ")}. Read-only unless it's assigned to Sales.`;
+
+  document.getElementById("overviewBody").innerHTML = shown.length ? shown.map(t => `
+    <tr data-ref="${t.ticketRef}">
+      <td><strong>${t.ticketRef}</strong></td>
+      <td>${escapeHTML(t.company || "—")}</td>
+      <td>${escapeHTML(t.centre)}</td>
+      <td>${escapeHTML(t.complaintType)}</td>
+      <td><span class="co-badge ${statusBadge[t.status]}">${t.status}</span></td>
+      <td>${t.ownerTeam ? `<span class="co-badge co-badge-team">${t.ownerTeam}</span>` : "—"}</td>
+      <td>${escapeHTML(t.owner || "—")}</td>
+      <td>${fmtDate(t.dateRaised.slice(0,10))}</td>
+      <td>${fmtDate(t.targetResolutionDate)}</td>
+    </tr>`).join("")
+    : `<tr><td colspan="9"><div class="co-empty-state">${searchTerm ? "No tickets match your search." : "Nothing to show yet."}</div></td></tr>`;
+}
+
+document.getElementById("overviewBody").addEventListener("click", (e) => {
+  const row = e.target.closest("tr[data-ref]");
+  if (row) openModal(row.dataset.ref);
+});
+
 async function refreshAll(){
   ticketsByRef = {};
   if (isCS) await loadUnassigned();
   await loadBoard();
+  await loadOverview();
 }
 
 // Re-render from the tickets already loaded rather than re-querying on
@@ -317,7 +407,7 @@ document.getElementById("ticketSearch").addEventListener("input", (e) => {
   searchDebounce = setTimeout(refreshAll, 180);
 });
 
-// ---- Tabs + queue scope toggle (CS only) ----
+// ---- Queue scope toggle (CS only) ----
 if (isCS) {
   document.getElementById("queueScope").style.display = "flex";
   const scopeMine = document.getElementById("scopeMine");
@@ -330,20 +420,31 @@ if (isCS) {
   };
   scopeMine.addEventListener("click", () => setScope(false));
   scopeAll.addEventListener("click", () => setScope(true));
+}
 
-  document.getElementById("tabs").style.display = "flex";
-  document.querySelectorAll(".co-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".co-tab").forEach(t => t.classList.remove("co-active"));
-      tab.classList.add("co-active");
-      const which = tab.dataset.tab;
-      document.getElementById("unassignedSection").style.display = which === "unassigned" ? "block" : "none";
-      document.getElementById("boardSection").style.display = which === "board" ? "block" : "none";
-    });
+// ---- Tabs ----
+// CS gets all three. Sales gets board + all-tickets. Everyone else works a
+// single board and sees no tabs at all.
+function showTab(which){
+  document.querySelectorAll(".co-tab").forEach(t => {
+    t.classList.toggle("co-active", t.dataset.tab === which);
   });
+  document.getElementById("unassignedSection").style.display = which === "unassigned" ? "block" : "none";
+  document.getElementById("boardSection").style.display = which === "board" ? "block" : "none";
+  document.getElementById("overviewSection").style.display = which === "overview" ? "block" : "none";
+}
+
+if (isCS || hasOverview) {
+  document.getElementById("tabs").style.display = "flex";
+  document.getElementById("tabUnassigned").style.display = isCS ? "" : "none";
+  document.getElementById("tabOverview").style.display = hasOverview ? "" : "none";
+  if (isSales) document.getElementById("tabOverviewLabel").textContent = "My Markets";
+  document.querySelectorAll(".co-tab").forEach(tab => {
+    tab.addEventListener("click", () => showTab(tab.dataset.tab));
+  });
+  showTab(isCS ? "unassigned" : "board");
 } else {
-  document.getElementById("unassignedSection").style.display = "none";
-  document.getElementById("boardSection").style.display = "block";
+  showTab("board");
 }
 
 // ---- Modal ----
@@ -387,12 +488,18 @@ async function openModal(ref){
   const overdue = isOverdue(t);
   document.getElementById("modalDetailGrid").innerHTML = `
     <div class="co-detail-item"><div class="co-detail-label">Email</div><div class="co-detail-value">${escapeHTML(t.email)}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Floor</div><div class="co-detail-value">${escapeHTML(t.floor || "—")}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Room / VO</div><div class="co-detail-value">${escapeHTML(t.roomNumber || "—")}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Type</div><div class="co-detail-value">${escapeHTML(t.complaintType)}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Severity</div><div class="co-detail-value"><span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span></div></div>
     <div class="co-detail-item"><div class="co-detail-label">Status</div><div class="co-detail-value"><span class="co-badge ${statusBadge[t.status]}">${t.status}</span> ${overdue ? '<span class="co-badge co-badge-overdue">Overdue</span>' : ""}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Date Raised</div><div class="co-detail-value">${fmtDate(t.dateRaised.slice(0,10))}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Target Resolution</div><div class="co-detail-value">${fmtDate(t.targetResolutionDate)}</div></div>
+    ${t.freshTicketId ? `<div class="co-detail-item co-span2"><div class="co-detail-label">IT service desk</div><div class="co-detail-value">${
+      FRESH_TICKET_URL
+        ? `<a href="${FRESH_TICKET_URL}${encodeURIComponent(t.freshTicketId)}" target="_blank" rel="noopener" style="color:var(--co-orange-dk);">Ticket #${escapeHTML(t.freshTicketId)}</a>`
+        : `Ticket #${escapeHTML(t.freshTicketId)}`
+    }${t.freshSyncActive ? " · syncing" : " · closed there"}</div></div>` : ""}
   `;
   document.getElementById("modalDescription").textContent = t.description;
 
@@ -408,16 +515,32 @@ async function openModal(ref){
       <div class="co-log-note">${escapeHTML(l.note)}</div>
     </div>`).join("") || `<div class="co-hint">No activity yet.</div>`;
 
-  const needsTriage = t.ownerTeam === null;
+  // What this person may do with this ticket, mirroring the security rules:
+  // CS triages anything unassigned; a team works its own tickets; everything
+  // else is visible but read-only.
+  const needsTriage = t.ownerTeam === null && isCS;
+  const canAct = needsTriage || t.ownerTeam === staff.team;
+  const canReassign = isLead && t.ownerTeam === staff.team;
+
   document.getElementById("triageForm").style.display = needsTriage ? "block" : "none";
-  document.getElementById("updateForm").style.display = needsTriage ? "none" : "block";
+  document.getElementById("updateForm").style.display = (canAct && !needsTriage) ? "block" : "none";
+  document.getElementById("reassignForm").style.display = canReassign ? "block" : "none";
+  document.getElementById("readOnlyNote").style.display = canAct ? "none" : "block";
+
+  if (canReassign) {
+    const sel = document.getElementById("reassignOwner");
+    const names = allStaff.filter(s => s.team === staff.team).map(s => s.name);
+    sel.innerHTML = names.map(n =>
+      `<option value="${escapeHTML(n)}"${n === t.owner ? " selected" : ""}>${escapeHTML(n)}</option>`
+    ).join("") || `<option value="" disabled>No one else on your team yet</option>`;
+  }
 
   if (needsTriage) {
     document.getElementById("triageTeam").value = "";
     document.getElementById("triageOwner").innerHTML = `<option value="" disabled selected>Select team first</option>`;
     document.getElementById("triageSeverity").value = "Low";
     document.getElementById("triageTarget").value = "";
-  } else {
+  } else if (canAct) {
     document.getElementById("updateNote").value = "";
     const statusSel = document.getElementById("updateStatus");
     statusSel.value = t.status === "New - Unassigned" ? "Assigned" : t.status;
@@ -452,10 +575,15 @@ document.getElementById("triageSubmitBtn").addEventListener("click", async () =>
   const batch = writeBatch(db);
   batch.update(doc(db, "complaints", ref), {
     ownerTeam: team, owner, severity, status: "Assigned", targetResolutionDate: target, updatedAt: now,
+    // Recorded so the assignment email can say who did the assigning.
+    assignedBy: staff.name,
     // Tells the Apps Script notifier to email the newly assigned owner,
     // and to refresh this ticket's row in the Google Sheet mirror.
     assignmentNotifyPending: true,
     sheetSyncPending: true,
+    // IT works in Freshservice, so routing there also opens a ticket in
+    // their system and starts syncing its status back.
+    ...(team === "IT" ? { freshPushPending: true } : {}),
   });
   batch.set(doc(collection(db, "complaints", ref, "activity_log")), {
     ts: now, actor: staff.name,
@@ -471,6 +599,50 @@ document.getElementById("triageSubmitBtn").addEventListener("click", async () =>
     modalErr.textContent = "Couldn't save — please try again.";
     modalErr.classList.add("co-show");
     console.error(updErr);
+    return;
+  }
+
+  closeModal();
+  await refreshAll();
+});
+
+document.getElementById("reassignBtn").addEventListener("click", async () => {
+  const newOwner = document.getElementById("reassignOwner").value;
+  if (!newOwner || newOwner === activeTicket.owner) {
+    modalErr.textContent = "Pick a different team member to reassign to.";
+    modalErr.classList.add("co-show");
+    return;
+  }
+
+  const btn = document.getElementById("reassignBtn");
+  btn.disabled = true; btn.textContent = "Reassigning…";
+
+  const ref = activeTicket.ticketRef;
+  const now = new Date().toISOString();
+  const previous = activeTicket.owner || "nobody";
+
+  const batch = writeBatch(db);
+  batch.update(doc(db, "complaints", ref), {
+    owner: newOwner,
+    updatedAt: now,
+    assignedBy: staff.name,
+    assignmentNotifyPending: true,
+    sheetSyncPending: true,
+  });
+  batch.set(doc(collection(db, "complaints", ref, "activity_log")), {
+    ts: now, actor: staff.name,
+    note: `Reassigned from ${previous} to ${newOwner}.`,
+  });
+
+  let err = null;
+  try { await batch.commit(); } catch (e) { err = e; }
+
+  btn.disabled = false; btn.textContent = "Reassign owner";
+
+  if (err) {
+    modalErr.textContent = "Couldn't reassign — please try again.";
+    modalErr.classList.add("co-show");
+    console.error(err);
     return;
   }
 

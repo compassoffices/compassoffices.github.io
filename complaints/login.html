@@ -78,6 +78,8 @@
             <option value="CS">CS</option>
             <option value="Project">Project</option>
             <option value="IT">IT</option>
+            <option value="Finance">Finance</option>
+            <option value="Sales">Sales</option>
             <option value="Management">Management</option>
           </select>
         </div>
@@ -85,6 +87,11 @@
           <label class="co-label">Centres you cover</label>
           <p class="co-hint" style="margin:0 0 8px;">You'll be emailed when a complaint comes in for any of these. Tick a whole market, or pick individual centres.</p>
           <div class="co-centre-picker" id="regCentres"></div>
+        </div>
+        <div class="co-field" id="regMarketsField" style="display:none;">
+          <label class="co-label">Markets you cover</label>
+          <p class="co-hint" style="margin:0 0 8px;">You'll be able to see every complaint in these markets, whichever team is handling it.</p>
+          <div class="co-centre-picker" id="regMarkets"></div>
         </div>
         <div class="co-field">
           <label class="co-label" for="regPassword">Password</label>
@@ -104,7 +111,7 @@
 
 <script type="module">
 import { auth, db } from "./shared/firebase-client.js";
-import { LOCATIONS } from "./shared/config.js";
+import { LOCATIONS, FLOOR_SEP } from "./shared/config.js";
 import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendPasswordResetEmail, onAuthStateChanged, signOut
@@ -157,6 +164,9 @@ const centresBox = document.getElementById("regCentres");
 const regTeam = document.getElementById("regTeam");
 const regCentresField = document.getElementById("regCentresField");
 
+// Three levels of coverage: a whole market, a whole centre, or specific
+// floors within one. Floor entries encode as "Centre::15" so a single flat
+// array on the staff record can express any of the three.
 centresBox.innerHTML =
   `<label class="co-centre-all"><input type="checkbox" value="*"> All centres, everywhere</label>` +
   Object.keys(LOCATIONS).map(loc => `
@@ -164,7 +174,13 @@ centresBox.innerHTML =
       <summary>${escapeHtml(loc)}</summary>
       <div class="co-group-body">
         <label><input type="checkbox" value="${escapeHtml(loc)}"><strong>All ${escapeHtml(loc)} centres</strong></label>
-        ${LOCATIONS[loc].map(c => `<label><input type="checkbox" value="${escapeHtml(c)}">${escapeHtml(c)}</label>`).join("")}
+        ${Object.keys(LOCATIONS[loc]).map(c => {
+          const floors = LOCATIONS[loc][c] || [];
+          return `<label><input type="checkbox" value="${escapeHtml(c)}">${escapeHtml(c)}</label>` +
+            (floors.length ? `<div style="padding-left:20px;">${
+              floors.map(f => `<label><input type="checkbox" value="${escapeHtml(c + FLOOR_SEP + f)}">${escapeHtml(f)}/F only</label>`).join("")
+            }</div>` : "");
+        }).join("")}
       </div>
     </details>`).join("");
 
@@ -181,22 +197,47 @@ centresBox.addEventListener("change", (e) => {
   }
 });
 
-// Only CS is routed by centre; the other teams are notified by assignment.
+// Markets picker — Sales only. Deliberately market-level rather than the
+// centre-level list CS gets: Sales work a country, not a building.
+const marketsBox = document.getElementById("regMarkets");
+const regMarketsField = document.getElementById("regMarketsField");
+marketsBox.innerHTML = Object.keys(LOCATIONS).map(loc =>
+  `<label><input type="checkbox" value="${escapeHtml(loc)}">${escapeHtml(loc)}</label>`
+).join("");
+
+// CS is routed by centre, Sales is scoped by market, everyone else is
+// notified by assignment and needs neither.
 regTeam.addEventListener("change", () => {
   regCentresField.style.display = regTeam.value === "CS" ? "block" : "none";
+  regMarketsField.style.display = regTeam.value === "Sales" ? "block" : "none";
 });
 
 async function routeToWorkspace(userId){
-  const snap = await getDoc(doc(db, "staff", userId));
-  const team = snap.exists() ? snap.data().team : null;
+  // An unapproved account can't read /staff at all — the rule requires a
+  // staff record to read staff records — so this throws rather than
+  // returning an empty snapshot. Left uncaught it produced the worst
+  // possible outcome: clicking Sign in did nothing at all, with no error.
+  let team = null;
+  try {
+    const snap = await getDoc(doc(db, "staff", userId));
+    team = snap.exists() ? snap.data().team : null;
+  } catch (err) {
+    console.error("Staff record unreadable — not approved yet?", err);
+  }
+
   if (team === "Management") {
     window.location.href = "management.html";
   } else if (team) {
     window.location.href = "workspace.html";
   } else {
-    showError("Your login isn't linked to a staff record yet. Contact your admin.");
+    showError("Your account hasn't been approved yet. An administrator has to grant you access before you can sign in — please check with them.");
     await signOut(auth);
   }
+}
+
+// Bounced back here by a workspace page because there's no staff record.
+if (new URLSearchParams(window.location.search).get("pending")) {
+  showError("Your account hasn't been approved yet. An administrator has to grant you access before you can sign in — please check with them.");
 }
 
 // If already signed in, skip straight to the right workspace.
@@ -257,6 +298,9 @@ registerForm.addEventListener("submit", async (e) => {
   const centres = Array.from(
     centresBox.querySelectorAll("input[type=checkbox]:checked")
   ).map(cb => cb.value);
+  const markets = Array.from(
+    marketsBox.querySelectorAll("input[type=checkbox]:checked")
+  ).map(cb => cb.value);
 
   if (!name) {
     showError("Please enter your full name.");
@@ -272,6 +316,10 @@ registerForm.addEventListener("submit", async (e) => {
   }
   if (team === "CS" && centres.length === 0) {
     showError("Please choose at least one centre you cover, so we know which complaints to email you about.");
+    return;
+  }
+  if (team === "Sales" && markets.length === 0) {
+    showError("Please choose at least one market you cover, so we know which complaints you should see.");
     return;
   }
   if (password !== confirm) {
@@ -310,6 +358,7 @@ registerForm.addEventListener("submit", async (e) => {
       email: email,
       requestedTeam: team,
       centres: centres,
+      markets: markets,
       requestedAt: new Date().toISOString(),
       status: "pending",
     });
@@ -329,6 +378,7 @@ registerForm.addEventListener("submit", async (e) => {
   registerBtn.textContent = "Request access";
   registerForm.reset();
   regCentresField.style.display = "none";
+  regMarketsField.style.display = "none";
   showSuccess("Request sent. Once an admin approves your access, come back and sign in.");
 });
 </script>
