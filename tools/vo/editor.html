@@ -233,6 +233,7 @@
     <button data-view="vofeat"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>VO Features</span></button>
     <button data-view="texts"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Texts &amp; T&amp;C</span></button>
     <button data-view="it"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>IT &amp; Telecom</span><span id="itNavBadge" class="coed-savebadge" style="display:none">0</span></button>
+    <button data-view="sp"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M10 9v11"/></svg><span>Service Guide</span></button>
     <button data-view="saleskit"><svg viewBox="0 0 24 24"><path d="M3 7h18M3 7l2 12h14l2-12M9 7V5a3 3 0 0 1 6 0v2"/></svg><span>Sales Kit</span></button>
     <button data-view="config"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg><span>Config</span></button>
   </nav>
@@ -325,17 +326,19 @@ function load(){
         skAssets:    rowsToObjects(j.tabs["SK-Assets"] || []),
         skText:      rowsToObjects(j.tabs["SK-Text"] || []),
         skMapNodes:  rowsToObjects(j.tabs["SK-MapNodes"] || []),
-        itPackages:  rowsToObjects(j.tabs["IT-Packages"] || [])
+        itPackages:  rowsToObjects(j.tabs["IT-Packages"] || []),
+        spServices:  rowsToObjects(j.tabs["SP-Services"] || [])
       };
       IT  = JSON.parse(JSON.stringify(DB.itPackages)); itDirty = false; syncItBadge();
       MRP = JSON.parse(JSON.stringify(DB.mrPrices));
       MRX = JSON.parse(JSON.stringify(DB.mrMatrix));
       MT  = JSON.parse(JSON.stringify(DB.mrTiers));
       VF  = JSON.parse(JSON.stringify(DB.voFeatures));
+      SP  = JSON.parse(JSON.stringify(DB.spServices));
       SKI = JSON.parse(JSON.stringify(DB.skIncluded));
       SKA = JSON.parse(JSON.stringify(DB.skAdditional));
       SKP = JSON.parse(JSON.stringify(DB.skAddPrices));
-      mrDirty=false; skDirty=false; vfDirty=false; idxAll();
+      mrDirty=false; skDirty=false; vfDirty=false; spDirty=false; idxAll();
       if (!mkt) mkt = DB.config.length ? DB.config[0].market : null;
       dirty = {}; syncSavebar();
       setStatus("Loaded \u00B7 " + new Date().toLocaleTimeString(), "ok");
@@ -343,7 +346,7 @@ function load(){
     })
     .catch(function(e){ setStatus("Load failed: " + e.message, "err"); });
 }
-function anyDirty(){ return Object.keys(dirty).length>0 || itDirty || mrDirty || skDirty || vfDirty; }
+function anyDirty(){ return Object.keys(dirty).length>0 || itDirty || mrDirty || skDirty || vfDirty || spDirty; }
 window.addEventListener("beforeunload", function(ev){
   if (anyDirty()){ ev.preventDefault(); ev.returnValue = ""; }
 });
@@ -816,6 +819,208 @@ function bindTxAdd(){
   });
 }
 
+
+/* ================= VIEW: SERVICE PRICE GUIDE ================= */
+var SP_TPL = [
+  ["meeting","section","Meeting / Function Rooms","","","All meeting rooms are equipped with a telephone handset with local number\nThis price is valid for private office and meeting rooms during Office Hours*.\nSurcharge will be applied for non-office hours**\nMinimum booking for meeting room usage is 30 min. during office hours. Minimum 2-hour booking is required on weekends and public holidays\nAll prices and plans are subject to change without prior notice\nMeeting rooms and private rooms are subject to availability"],
+  ["meeting","item","Private Offices","15% of the selected office market price / day","",""],
+  ["meeting","item","1-4 pax meeting room","$16 / 30 mins","$192 / day",""],
+  ["meeting","item","5-8 pax meeting room","$24 / 30 mins","$288 / day",""],
+  ["meeting","item","10-14 pax meeting room","$40 / 30 mins","$480 / day",""],
+  ["meeting","foot","* Office Hours: Monday to Friday 9:00am to 6:00pm (excluding Public Holidays)","","",""],
+  ["meeting","foot","** 100% surcharge will be applied for non-office hours usage of all meeting rooms and private rooms on Weekdays 18:00 \u2013 24:00 & 06:00 \u2013 09:00","","",""],
+  ["meeting","foot","200% surcharge will be applied for non-office hours usage of all meeting rooms and private rooms on Weekdays 00:00 \u2013 06:00, Saturdays, Sundays & Public Holidays","","",""],
+  ["mr_support","section","Meeting Room Support","","",""],
+  ["mr_support","item","Telephone Line","Inclusive","",""],
+  ["mr_support","item","Flat Screen","Inclusive","",""],
+  ["mr_support","item","WIFI Connection (Day Session)","Inclusive","",""],
+  ["catering","section","Catering","","",""],
+  ["catering","item","Refreshments","Inclusive","","Freshly ground coffee and a selection of high grade teas"],
+  ["catering","item","Breakfast / Lunch / Snack Platter","On request / person","",""],
+  ["facilities","section","Centre Facilities","","",""],
+  ["facilities","item","Car Parking","On request / Car","",""],
+  ["facilities","group","Office Furniture and Equipment For Hire","","",""],
+  ["facilities","sub","Furnished Office Suites (Including Desk(s), Chair(s) and Pedestal(s))","Inclusive","","Furniture included as per service agreement, ergonomic design"],
+  ["facilities","sub","Optional Cabinet","$35 / month / each","",""],
+  ["facilities","sub","Additional Furniture / Storage Fee for Removed Furniture","$20 / month / each","",""],
+  ["facilities","sub","Additional Furniture Set (Desk with Chair and Pedestal)","$60 / month / each set","",""],
+  ["admin","section","Administrative Support","","",""],
+  ["admin","item","Itemized Service Charge Bills","On request","",""],
+  ["admin","item","Repeat Invoice Fee","$5 / invoice","",""],
+  ["admin","item","Secretarial & Concierge Services","$10 / 15 mins block","",""],
+  ["admin","item","Purchase on behalf","At cost plus 30% service charge","","Professional staff to handle your secretarial needs, including packing, errands, etc."],
+  ["business","section","Business Services","","",""],
+  ["business","item","A4 - B&W Copying / Printing","$0.13 / page","","High speed and premium quality copying and printing facilities"],
+  ["business","item","A4 - Colour Copying / Printing","$0.7 / page","",""],
+  ["business","item","A3 - B&W Copying / Printing","$0.45 / page","",""],
+  ["business","item","A3 - Colour Copying / Printing","$0.9 / page","",""],
+  ["business","item","Colour Copying / Printing - Transparency","$2.7 / page","",""],
+  ["business","item","Scanning","$0.55 / page","","High speed scanner sends files direct to email in PDF"],
+  ["business","item","Incoming Fax Transmission","$0.13 / page","",""],
+  ["business","item","Binding Service - 15mm or Below","$4 / set","",""],
+  ["business","item","Binding Service - 16mm or Above","$8 / set","",""],
+  ["business","item","Laminating Services","$3 / page","",""],
+  ["business","group","Local Courier Services","","",""],
+  ["business","sub","Within own district","Competitive rates upon request","",""],
+  ["business","sub","Urgent items","Competitive rates upon request","",""],
+  ["business","sub","Overweight items (1kg or above)","Competitive rates upon request","",""],
+  ["business","sub","Bulk items","Competitive rates upon request","",""],
+  ["business","item","International Courier Services","Competitive rates upon request","",""],
+  ["business","item","Translation and Interpretation Services","Competitive rates upon request","",""],
+  ["additional","section","Additional Centre Services","","",""],
+  ["additional","split","Name Change Administration Fee","$370 / transaction","$100 / transaction",""],
+  ["additional","item","Corporate Travel Arrangements","Competitive rates upon request","",""],
+  ["additional","item","Limousine Services","Competitive rates upon request","",""],
+  ["additional","item","Accounting Services","Competitive rates upon request","",""],
+  ["additional","item","Company Formation","Competitive rates upon request","",""],
+  ["additional","item","Business Registration","Competitive rates upon request","",""],
+  ["additional","item","Emergency Door Opening","$150 / request","",""],
+  ["others","section","Others","","",""],
+  ["others","item","Air Conditioning","$100 / hour","","With minimum 48 hours notice for use outside business hours and business houses may vary between locations"],
+  ["others","item","Deposit for CO Access Card","$50 / card","",""],
+  ["others","item","Additional CO Access Card","$200 / card / month","",""],
+  ["others","item","Replacement for CO Access Card","$50 / card","",""],
+  ["others","item","Deposit for Building Access Card","$40 / card","",""],
+  ["others","item","Additional Building Access Card","$40 / card","",""],
+  ["others","item","Replacement for Building Access Card","$40 / card","",""],
+  ["others","item","Office / Stationery Supplies","Competitive rates upon request","",""],
+  ["others","item","Storage Space","$40 / item / month","","Each item should be within 30cm (D) x 30cm (L) x 30cm (W)"],
+  ["others","item","Company Signage","$68 / signage / month","","Additional one-off set-up fee from $100 or more, including artwork"],
+  ["others","item","Accent Wall","Competitive rates upon request","",""]
+];
+function spBlank(sec, type){
+  return { market:mkt, section:sec, sort:0, row_type:type,
+    label_en:"", label_tc:"", label_sc:"", label_jp:"", label_vi:"",
+    price_1:"", price_2:"",
+    remark_en:"", remark_tc:"", remark_sc:"", remark_jp:"", remark_vi:"" };
+}
+function spMark(){ spDirty=true; var b=el("#spSave"); if(b)b.disabled=false; var d=el("#spDiscard"); if(d)d.disabled=false; }
+function spRows(sec){
+  return SP.filter(function(r){ return r.market===mkt && r.section===sec; })
+    .sort(function(a,b){ return (Number(a.sort)||0)-(Number(b.sort)||0); });
+}
+function spRenumber(){
+  var secs=[]; SP.forEach(function(r){ if(r.market===mkt && secs.indexOf(r.section)<0) secs.push(r.section); });
+  secs.forEach(function(sec){ spRows(sec).forEach(function(r,i){ r.sort=(i+1)*10; }); });
+}
+function renderSp(){
+  idxAll();
+  var mine = SP.filter(function(r){ return r.market===mkt; });
+  var h = chipsHtml();
+  h += '<h2 class="coed-h2">Service Price Guide <span style="font-size:12px;color:var(--co-muted);font-weight:600">\u2014 '+esc(mkt)+'</span></h2>';
+  h += '<div class="coed-help"><b>What you see is what the PDF shows.</b> Click any description, price or remark and type. ' +
+    'Row types: normal rows, <i>indented sub-rows</i>, <b>bold group headers</b> (no price), a \u201Csplit\u201D row (Office Space / Virtual Office prices side by side), and small footnotes under the section. ' +
+    'The section\u2019s big remark (bullet list beside the rows) lives on the section row \u2014 one bullet per line. Press <b>Save Service Guide</b> when done.</div>';
+  h += wLangTabs();
+  h += '<div class="wzsave"><button class="coed-btn primary" id="spSave"'+(spDirty?"":" disabled")+'>Save Service Guide</button>'+
+       '<button class="coed-btn" id="spDiscard"'+(spDirty?"":" disabled")+'>Discard</button></div>';
+  if (!mine.length){
+    h += '<div class="coed-card"><h3>No Service Price Guide for '+esc(mkt)+' yet</h3>'+
+      '<p class="hint">Start from the standard layout (taken from the Singapore Service Price Guide) and adjust prices/currency, or start empty.</p>'+
+      '<div style="display:flex;gap:8px"><button class="coed-btn primary" id="spTpl">Load standard template</button>'+
+      '<button class="coed-btn" id="spEmpty">Start with one empty section</button></div></div>';
+  } else {
+    var secs=[]; mine.forEach(function(r){ if(secs.indexOf(r.section)<0) secs.push(r.section); });
+    secs.forEach(function(sec){
+      var rows = spRows(sec);
+      var secRow = rows.filter(function(r){ return r.row_type==="section"; })[0];
+      h += '<div class="wz">';
+      if (secRow){
+        h += '<div class="secband"><div class="tt" style="color:var(--co-orange)">'+ce("SP",secRow,"label","","Section title",true)+'</div></div>';
+        h += '<div style="display:flex;gap:10px;margin:8px 0"><div style="flex:0 0 120px;font-size:10px;font-weight:800;color:#999;text-transform:uppercase;padding-top:6px">Section remark<br>(one bullet per line)</div>'+
+          '<textarea data-spta="'+secRow.__i+'|remark" style="flex:1;border:1px dashed #E4E4E4;border-radius:8px;padding:7px 10px;font:inherit;font-size:11.5px;min-height:40px" placeholder="Optional \u2014 shown as the bullet block beside this section\u2019s rows (all per-row remarks are hidden when used)">'+esc(secRow["remark_"+WLANG]||secRow.remark_en||"")+'</textarea></div>';
+      }
+      rows.filter(function(r){ return ["item","sub","group","split"].indexOf(r.row_type)>-1; }).forEach(function(r){
+        h += '<div class="mxrow mrr" style="align-items:flex-start">'+
+          '<span style="flex:0 0 250px;font-size:12px;'+(r.row_type==="sub"?"padding-left:18px;font-style:italic;":"")+(r.row_type==="group"?"font-weight:800;":"font-weight:700;")+'">'+ce("SP",r,"label","","description",true)+'</span>';
+        if (r.row_type!=="group"){
+          h += '<span style="flex:0 0 150px;font-size:12px;color:var(--co-orange);font-weight:700;text-align:center">'+ce("SP",r,"price_1","",(r.row_type==="split"?"Office Space price":"price"))+'</span>'+
+            '<span style="flex:0 0 130px;font-size:12px;color:var(--co-orange);font-weight:700;text-align:center">'+ce("SP",r,"price_2","",(r.row_type==="split"?"Virtual Office price":"price 2 (optional)"))+'</span>';
+        } else {
+          h += '<span style="flex:0 0 284px"></span>';
+        }
+        h += '<textarea data-spta="'+r.__i+'|remark" style="flex:1;border:1px dashed #EEE;border-radius:6px;padding:4px 8px;font:inherit;font-size:10.5px;min-height:26px" placeholder="remark">'+esc(r["remark_"+WLANG]||r.remark_en||"")+'</textarea>'+
+          '<span class="rowops"><button data-spmv="'+r.__i+'|up">\u2191</button><button data-spmv="'+r.__i+'|dn">\u2193</button><button class="del" data-spdel="'+r.__i+'">\u00D7</button></span></div>';
+      });
+      rows.filter(function(r){ return r.row_type==="foot"; }).forEach(function(r){
+        h += '<div class="mxrow mrr"><span style="flex:0 0 60px;font-size:9px;font-weight:800;color:#BBB;text-transform:uppercase;padding-top:4px">footnote</span>'+
+          '<span style="flex:1;font-size:10.5px;font-weight:700">'+ce("SP",r,"label","","footnote text",true)+'</span>'+
+          '<span class="rowops"><button class="del" data-spdel="'+r.__i+'">\u00D7</button></span></div>';
+      });
+      h += '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
+        ["item","sub","group","split","foot"].map(function(t){
+          return '<button class="addbar" style="margin:0;font-size:10px;padding:3px 9px" data-spadd="'+esc(sec)+'|'+t+'">+ '+t+'</button>';
+        }).join("")+
+        '<button class="addbar" style="margin:0;font-size:10px;padding:3px 9px;color:#C33;border-color:#EBB" data-spsecdel="'+esc(sec)+'">\u00D7 delete section</button></div>';
+      h += '</div>';
+    });
+    h += '<button class="addbar" id="spAddSec">+ Add section</button>';
+  }
+  el("#main").innerHTML = h;
+  bindChips(); bindWLang(); bindCE(function(){spMark();}); bindSp();
+}
+function bindSp(){
+  var tpl=el("#spTpl");
+  if (tpl) tpl.addEventListener("click", function(){
+    SP_TPL.forEach(function(t){
+      var r = spBlank(t[0], t[1]);
+      r.label_en=t[2]; r.price_1=t[3]; r.price_2=t[4]; r.remark_en=t[5];
+      SP.push(r);
+    });
+    spRenumber(); idxAll(); spMark(); renderSp();
+    setStatus("Template loaded \u2014 adjust prices/currency for "+mkt+", then Save","ok");
+  });
+  var emp=el("#spEmpty");
+  if (emp) emp.addEventListener("click", function(){
+    var r=spBlank("sec1","section"); r.sort=10; SP.push(r);
+    idxAll(); spMark(); renderSp();
+  });
+  document.querySelectorAll("[data-spta]").forEach(function(ta){
+    ta.addEventListener("input", function(){
+      var pp=ta.dataset.spta.split("|");
+      SP[Number(pp[0])][pp[1]+"_"+WLANG]=ta.value;
+      spMark();
+    });
+  });
+  document.querySelectorAll("[data-spdel]").forEach(function(b){ b.addEventListener("click",function(){
+    SP.splice(Number(b.dataset.spdel),1); spRenumber(); idxAll(); spMark(); renderSp(); });});
+  document.querySelectorAll("[data-spsecdel]").forEach(function(b){ b.addEventListener("click",function(){
+    if(!confirm("Delete this whole section and its rows for "+mkt+"?")) return;
+    SP=SP.filter(function(r){ return !(r.market===mkt && r.section===b.dataset.spsecdel); });
+    idxAll(); spMark(); renderSp(); });});
+  document.querySelectorAll("[data-spadd]").forEach(function(b){ b.addEventListener("click",function(){
+    var pp=b.dataset.spadd.split("|");
+    var r=spBlank(pp[0], pp[1]);
+    var mx=spRows(pp[0]).reduce(function(m,x){return Math.max(m,Number(x.sort)||0);},0);
+    r.sort=mx+10; SP.push(r);
+    idxAll(); spMark(); renderSp(); });});
+  document.querySelectorAll("[data-spmv]").forEach(function(b){ b.addEventListener("click",function(){
+    var pp=b.dataset.spmv.split("|"); var r=SP[Number(pp[0])];
+    var rows=spRows(r.section).filter(function(x){ return ["item","sub","group","split"].indexOf(x.row_type)>-1; });
+    var i=rows.indexOf(r), sw=pp[1]==="up"?rows[i-1]:rows[i+1];
+    if(!sw) return;
+    var t=r.sort; r.sort=sw.sort; sw.sort=t;
+    idxAll(); spMark(); renderSp(); });});
+  var badd=el("#spAddSec");
+  if (badd) badd.addEventListener("click", function(){
+    var n=1; SP.forEach(function(r){ var m2=String(r.section).match(/^sec(\d+)$/); if(m2) n=Math.max(n,Number(m2[1])+1); });
+    var r=spBlank("sec"+n,"section"); r.sort=10; SP.push(r);
+    idxAll(); spMark(); renderSp();
+  });
+  var sv=el("#spSave"); if(sv) sv.addEventListener("click",function(){
+    sv.disabled=true; setStatus("Saving Service Guide\u2026");
+    spRenumber();
+    saveTabs([
+      {tab:"SP-Services", header:tabHeader(SP,["market","section","sort","row_type","label_en","label_tc","label_sc","label_jp","label_vi","price_1","price_2","remark_en","remark_tc","remark_sc","remark_jp","remark_vi"]), rows:SP}
+    ], function(){ spDirty=false; setStatus("Service Guide saved","ok"); load(); })
+    .catch(function(e){ sv.disabled=false; setStatus("Save failed: "+e.message,"err"); });
+  });
+  var dc=el("#spDiscard"); if(dc) dc.addEventListener("click",function(){
+    if(!confirm("Discard Service Guide changes?")) return;
+    SP=JSON.parse(JSON.stringify(DB.spServices)); spDirty=false; idxAll(); renderSp();
+  });
+}
+
 /* ================= VIEW: SALES KIT ================= */
 var SK_TABLES = [
   { title:"Included Services", data:"skIncluded", kind:"ski",
@@ -1133,7 +1338,7 @@ function bindVf(setName){
 
 /* ================= WYSIWYG SHARED ================= */
 var WLANG = localStorage.getItem("coed_wlang") || "en";
-var MRP=[], MRX=[], MT=[], VF=[], SKI=[], SKA=[], SKP=[], mrDirty=false, skDirty=false, vfDirty=false;
+var MRP=[], MRX=[], MT=[], VF=[], SP=[], SKI=[], SKA=[], SKP=[], mrDirty=false, skDirty=false, vfDirty=false, spDirty=false;
 function wLangTabs(){
   var o=[["en","English"],["tc","繁體"],["sc","简体"],["jp","日本語"],["vi","Tiếng Việt"]];
   return '<div class="wzlang">'+o.map(function(x){
@@ -1150,9 +1355,9 @@ function ce(arr,row,field,cls,ph,langed){
   var fallback = langed && WLANG!=="en" && !v ? (row[field+"_en"]||"") : "";
   return '<span class="'+(cls||"")+'" contenteditable data-m="'+arr+'|'+row.__i+'|'+f+'" data-ph="'+esc(fallback||ph||"\u2026")+'">'+esc(v)+'</span>';
 }
-function idxAll(){[["IT",IT],["MRP",MRP],["MRX",MRX],["MT",MT],["VF",VF],["SKI",SKI],["SKA",SKA],["SKP",SKP]].forEach(function(p){
+function idxAll(){[["IT",IT],["MRP",MRP],["MRX",MRX],["MT",MT],["VF",VF],["SP",SP],["SKI",SKI],["SKA",SKA],["SKP",SKP]].forEach(function(p){
   p[1].forEach(function(r,i){r.__i=i;});});}
-function modelOf(n){return {IT:IT,MRP:MRP,MRX:MRX,MT:MT,VF:VF,SKI:SKI,SKA:SKA,SKP:SKP}[n];}
+function modelOf(n){return {IT:IT,MRP:MRP,MRX:MRX,MT:MT,VF:VF,SP:SP,SKI:SKI,SKA:SKA,SKP:SKP}[n];}
 function bindCE(dirtyFn){
   document.querySelectorAll("[data-m]").forEach(function(elm){
     elm.addEventListener("input",function(){
@@ -1424,6 +1629,7 @@ function renderView(){
   else if (view === "mrprices") renderMrPrices();
   else if (view === "vofeat") renderVoFeatures();
   else if (view === "texts") renderTexts();
+  else if (view === "sp") renderSp();
   else if (view === "saleskit") renderSalesKit();
   else if (view === "it") renderIt();
   else renderConfig();
