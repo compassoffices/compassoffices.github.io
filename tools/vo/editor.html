@@ -26,6 +26,18 @@
 .coed-status.ok{color:#2E7D32;} .coed-status.err{color:#C0392B;}
 /* ── v2 additions ─────────────────────────────────────────────── */
 .coed-help{background:#FFF7F0;border:1px solid #FFD9B8;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#7A4A1F;line-height:1.55;margin:10px 0 16px;}
+/* ── preloader ── */
+.coed-loader{min-height:62vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}
+.coed-loader .ldr{position:relative;width:104px;height:104px;margin-bottom:14px;}
+.coed-loader .ring{position:absolute;inset:0;width:100%;height:100%;animation:coed-spin 1.1s linear infinite;}
+.coed-loader .mark{position:absolute;inset:24px;width:56px;height:56px;animation:coed-pulse 1.6s ease-in-out infinite;}
+.coed-loader .t{font-size:15px;font-weight:800;color:var(--co-ink);}
+.coed-loader .s{font-size:12px;color:var(--co-muted);}
+.coed-loader .s::after{content:"";animation:coed-dots 1.4s steps(4,end) infinite;}
+.coed-loader .err{font-size:13px;color:#C0392B;max-width:420px;text-align:center;line-height:1.6;margin-top:4px;}
+@keyframes coed-spin{to{transform:rotate(360deg);}}
+@keyframes coed-pulse{0%,100%{transform:scale(.94);opacity:.85;}50%{transform:scale(1.05);opacity:1;}}
+@keyframes coed-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
 /* ── Map Designer ── */
 .mdwrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
 .mdcanvas{position:relative;width:698px;background:#fff;border:1px solid var(--co-line);box-shadow:0 4px 18px rgba(0,0,0,.08);flex:0 0 698px;overflow:hidden;}
@@ -269,7 +281,7 @@
     <button data-view="saleskit"><svg viewBox="0 0 24 24"><path d="M3 7h18M3 7l2 12h14l2-12M9 7V5a3 3 0 0 1 6 0v2"/></svg><span>Sales Kit</span></button>
     <button data-view="config"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg><span>Config</span></button>
   </nav>
-  <main class="coed-main" id="main"><div class="coed-empty">Loading data from Google Sheets&hellip;</div></main>
+  <main class="coed-main" id="main"></main>
 </div>
 
 <div class="coed-veil" id="veil"></div>
@@ -337,8 +349,24 @@ function post(payload){
 }
 
 /* ================= LOAD ================= */
+var ED_MARK = '<svg class="mark" viewBox="80 74 252 252" xmlns="http://www.w3.org/2000/svg">' +
+  '<path fill="#FF6600" d="M321.05,200c0,63.81-51.72,115.52-115.52,115.52s-115.53-51.71-115.53-115.52,51.72-115.53,115.53-115.53,115.52,51.72,115.52,115.53Z"/>' +
+  '<polygon fill="#fff" points="207.5 195.58 232.27 240.03 263.79 240.03 207.5 139.14 149.17 240.03 181.8 240.03 207.5 195.58"/></svg>';
+function edLoaderHtml(errMsg){
+  return '<div class="coed-loader"><div class="ldr">' +
+    '<svg class="ring" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+      '<circle cx="50" cy="50" r="45" fill="none" stroke="#FFE3CF" stroke-width="5.5"/>' +
+      '<circle cx="50" cy="50" r="45" fill="none" stroke="#FF6600" stroke-width="5.5" stroke-linecap="round" stroke-dasharray="72 211"/></svg>' +
+    ED_MARK + '</div>' +
+    '<div class="t">Price List Editor</div>' +
+    (errMsg
+      ? '<div class="err">' + errMsg + '</div><button class="coed-btn primary" id="edLdrRetry" style="margin-top:14px">Try again</button>'
+      : '<div class="s">Loading the latest data from Google Sheets</div>') +
+    '</div>';
+}
 function load(){
   setStatus("Loading\u2026");
+  if (!DB) el("#main").innerHTML = edLoaderHtml();
   fetch(SCRIPT_URL + "?action=data")
     .then(function(r){ return r.json(); })
     .then(function(j){
@@ -392,7 +420,17 @@ function load(){
       setStatus("Loaded \u00B7 " + new Date().toLocaleTimeString(), "ok");
       renderView();
     })
-    .catch(function(e){ setStatus("Load failed: " + e.message, "err"); });
+    .catch(function(e){
+      setStatus("Load failed: " + e.message, "err");
+      if (!DB){
+        el("#main").innerHTML = edLoaderHtml("Could not reach Google Sheets: " + esc(e.message));
+        var rb = el("#edLdrRetry");
+        if (rb) rb.addEventListener("click", load);
+        var rg = document.querySelector("#main .ring"), mk = document.querySelector("#main .mark");
+        if (rg) rg.style.animationPlayState = "paused";
+        if (mk) mk.style.animationPlayState = "paused";
+      }
+    });
 }
 function anyDirty(){ return Object.keys(dirty).length>0 || itDirty || mrDirty || skDirty || vfDirty || spDirty || mdDirty; }
 window.addEventListener("beforeunload", function(ev){
@@ -2049,9 +2087,33 @@ function bindSk(){
 /* ---- Photos & Images: visual manager with upload ---- */
 function driveThumb(id){ return id ? "https://drive.google.com/thumbnail?id=" + encodeURIComponent(id) + "&sz=w400" : ""; }
 function renderSkAssets(){
-  var rows = DB.skAssets || [];
+  var rows = (DB.skAssets || []).slice();
+  /* auto-offer a map card for every market AND every city (from the Centres data) —
+     new markets/cities get their card automatically */
+  var have = {};
+  rows.forEach(function(r){ have[r.key] = 1; });
+  var tubeMkts = {};
+  (DB.skMapNodes || []).forEach(function(n){ tubeMkts[n.market] = 1; });
+  DB.config.forEach(function(cf){
+    var m = cf.market;
+    var cities = [], seenC = {};
+    (DB.centres || []).filter(function(c){ return c.market === m; }).forEach(function(c){
+      var k = mdCityKeyOf(c.district_en);
+      if (k && !seenC[k]){ seenC[k] = 1; cities.push(k); }
+    });
+    var keys = cities.map(function(ct){ return "map." + m + "." + ct; });
+    keys.push("map." + m);
+    keys.forEach(function(k){
+      if (!have[k]){
+        have[k] = 1;
+        rows.push({ key: k, drive_file_id: "",
+          note: (tubeMkts[m] ? "Only used if " + m + " drops its tube map" : "Locations background map (geo style)") });
+      }
+    });
+  });
   var h = '<div class="coed-card"><h3>Photos &amp; Images</h3>' +
-    '<p class="hint">Every picture the Sales Kit uses. Press <b>Upload new</b> on a card, pick the photo, and it\u2019s stored in Drive, made link-viewable and wired in automatically \u2014 then press Save. No more copying file IDs.</p>' +
+    '<p class="hint">Every picture the Sales Kit uses \u2014 click <b>Upload new</b> or just drag an image onto a card; it\u2019s stored in Google Drive and wired in automatically. ' +
+    'Map cards exist for every market <b>and every city</b> (Sydney, Melbourne, Tokyo\u2026) \u2014 a city card wins over the market card on that city\u2019s Locations page. New markets/cities get their card automatically.</p>' +
     '<div class="coed-imggrid">';
   rows.forEach(function(r){
     var th = driveThumb(r.drive_file_id);
