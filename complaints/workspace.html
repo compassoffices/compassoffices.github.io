@@ -178,7 +178,7 @@
 import { db, requireStaffSession, signOutAndRedirect } from "./shared/firebase-client.js";
 import { FRESH_TICKET_URL } from "./shared/config.js";
 import {
-  collection, doc, getDocs, query, where, orderBy, writeBatch
+  collection, doc, getDoc, getDocs, query, where, orderBy, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const staff = await requireStaffSession();
@@ -488,8 +488,23 @@ function syncImpossibleHint(){
 document.getElementById("updateStatus").addEventListener("change", syncImpossibleHint);
 
 async function openModal(ref){
-  const t = ticketsByRef[ref];
+  let t = ticketsByRef[ref];
   if (!t) return;
+
+  // Re-read before rendering. The Apps Script sync can change a ticket's
+  // status between page load and opening it — and since the activity log
+  // below is always fetched live, stale fields up here would contradict it
+  // ("Assigned" sitting above a log entry saying IT resolved it).
+  try {
+    const snap = await getDoc(doc(db, "complaints", ref));
+    if (snap.exists()) {
+      t = { ...snap.data(), ticketRef: snap.id };
+      ticketsByRef[ref] = t;
+    }
+  } catch (err) {
+    console.error(err); // fall back to the cached copy
+  }
+
   activeTicket = t;
   modalErr.classList.remove("co-show");
 
