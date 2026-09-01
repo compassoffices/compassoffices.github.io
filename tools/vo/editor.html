@@ -26,6 +26,9 @@
 .coed-status.ok{color:#2E7D32;} .coed-status.err{color:#C0392B;}
 /* ── v2 additions ─────────────────────────────────────────────── */
 .coed-help{background:#FFF7F0;border:1px solid #FFD9B8;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#7A4A1F;line-height:1.55;margin:10px 0 16px;}
+.coed-drop{border:2px dashed #FFD9B8;background:#FFFBF7;border-radius:12px;padding:16px;text-align:center;font-size:12.5px;color:#7A4A1F;margin:0 0 14px;cursor:pointer;transition:background .15s,border-color .15s;}
+.coed-drop b{color:var(--co-orange);}
+.coed-drop.on{background:#FFE9D6;border-color:var(--co-orange);}
 .coed-card{background:#fff;border:1px solid var(--co-line,#E4E4E4);border-radius:12px;padding:14px 16px;margin:0 0 14px;}
 .coed-card h3{margin:0 0 2px;font-size:14.5px;color:var(--co-ink,#1A1A1A);}
 .coed-card .hint{font-size:11.5px;color:var(--co-muted,#8A8A8A);margin:0 0 10px;line-height:1.5;}
@@ -858,6 +861,50 @@ function spLoadRows(tplRows, city){
   idxAll(); spMark(); renderSp();
 }
 function spGuideName(){ return spCity ? mkt + " - " + spCity : mkt; }
+function spImportData(data){
+  if (!data || !data.rows || !data.rows.length) throw new Error("no rows in file");
+  var market = String(data.market || "").trim();
+  if (!market) throw new Error("file has no \u201Cmarket\u201D field");
+  if (!DB.config.some(function(c){ return c.market === market; }))
+    throw new Error("unknown market \u201C" + market + "\u201D \u2014 must match a market in Config exactly");
+  var city = data.city !== undefined ? String(data.city).trim() : "";
+  SP = SP.filter(function(r){ return !(r.market === market && String(r.city || "") === city); });
+  var sortc = {};
+  data.rows.forEach(function(row){
+    var r = spBlank(city, row.section || "sec1", row.row_type || "item");
+    r.market = market;
+    Object.keys(row).forEach(function(k){ if (k !== "market" && k !== "city" && k.charAt(0) !== "_") r[k] = row[k]; });
+    if (!r.sort){ sortc[r.section] = (sortc[r.section] || 0) + 10; r.sort = sortc[r.section]; }
+    SP.push(r);
+  });
+  return { market: market, city: city, n: data.rows.length };
+}
+function spHandleFiles(files){
+  var done = [], errs = [], pend = files.length;
+  Array.prototype.forEach.call(files, function(f){
+    var rd = new FileReader();
+    rd.onload = function(){
+      try { done.push(spImportData(JSON.parse(String(rd.result)))); }
+      catch(e2){ errs.push(f.name + ": " + e2.message); }
+      if (--pend === 0) finish();
+    };
+    rd.onerror = function(){ errs.push(f.name + ": read error"); if (--pend === 0) finish(); };
+    rd.readAsText(f);
+  });
+  function finish(){
+    if (done.length){
+      var last = done[done.length - 1];
+      mkt = last.market; spMkt = mkt; spCity = last.city;
+      idxAll(); spMark(); renderSp();
+    }
+    var msg = done.length
+      ? "Imported " + done.map(function(d){ return (d.city ? d.market + " - " + d.city : d.market) + " (" + d.n + " rows)"; }).join(", ") +
+        " \u2014 press Save Service Guide once to store everything."
+      : "";
+    if (errs.length) msg += (msg ? "  \u00B7  " : "") + "FAILED \u2014 " + errs.join("; ");
+    setStatus(msg || "Nothing imported", errs.length ? "err" : "ok");
+  }
+}
 function renderSp(){
   idxAll();
   if (spMkt !== mkt){ spMkt = mkt; spCity = null; }
@@ -880,8 +927,9 @@ function renderSp(){
   h += '<div class="wzsave"><button class="coed-btn primary" id="spSave"'+(spDirty?"":" disabled")+'>Save Service Guide</button>'+
        '<button class="coed-btn" id="spDiscard"'+(spDirty?"":" disabled")+'>Discard</button>'+
        '<span style="flex:1"></span>'+
-       '<button class="coed-btn" id="spExport" title="Download this guide as a JSON file">\u2913 JSON</button>'+
-       '<button class="coed-btn" id="spImport" title="Import a guide from a JSON file">\u2912 JSON</button></div>';
+       '<button class="coed-btn" id="spExport" title="Download this guide as a JSON file">\u2913 JSON</button></div>';
+  h += '<div class="coed-drop" id="spDrop"><b>\u2912 Master upload:</b> drop Service-Guide JSON files here (or click to pick) \u2014 several at once is fine. '+
+       'Each file names its own market and city, so it lands in the right guide automatically and <b>replaces</b> that market/city\u2019s content. Then press Save Service Guide once.</div>';
   if (!mine.length){
     h += '<div class="coed-card"><h3>No Service Price Guide for '+esc(spGuideName())+' yet</h3>'+
       '<p class="hint">Start from a ready-made guide \u2014 contents taken from your existing PDFs \u2014 or start empty. Templates load into <b>'+esc(spGuideName())+'</b>; city templates also set the city.</p>'+
@@ -962,34 +1010,20 @@ function bindSp(){
     a.click();
     setStatus("Exported "+spGuideName()+" as JSON","ok");
   });
-  var im=el("#spImport");
-  if (im) im.addEventListener("click", function(){
-    var inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json";
-    inp.addEventListener("change", function(){
-      var f=inp.files[0]; if(!f) return;
-      var rd=new FileReader();
-      rd.onload=function(){
-        try{
-          var data=JSON.parse(String(rd.result));
-          if(!data.rows || !data.rows.length) throw new Error("no rows in file");
-          var city = data.city !== undefined ? String(data.city) : (spCity||"");
-          if (SP.some(function(r){ return r.market===mkt && String(r.city||"")===city; }) &&
-              !confirm("Replace the existing "+(city?mkt+" - "+city:mkt)+" guide with this file?")) return;
-          SP = SP.filter(function(r){ return !(r.market===mkt && String(r.city||"")===city); });
-          data.rows.forEach(function(row){
-            var r = spBlank(city, row.section||"sec1", row.row_type||"item");
-            Object.keys(row).forEach(function(k){ if(k!=="market"&&k!=="city"&&k.charAt(0)!=="_") r[k]=row[k]; });
-            SP.push(r);
-          });
-          spCity=city;
-          idxAll(); spMark(); renderSp();
-          setStatus("Imported "+data.rows.length+" rows into "+spGuideName()+" \u2014 press Save Service Guide to store","ok");
-        }catch(e2){ setStatus("Import failed: "+e2.message,"err"); }
-      };
-      rd.readAsText(f);
+  var dz=el("#spDrop");
+  if (dz){
+    ["dragover","dragenter"].forEach(function(evn){ dz.addEventListener(evn, function(e){ e.preventDefault(); dz.classList.add("on"); }); });
+    ["dragleave","dragend"].forEach(function(evn){ dz.addEventListener(evn, function(e){ e.preventDefault(); dz.classList.remove("on"); }); });
+    dz.addEventListener("drop", function(e){
+      e.preventDefault(); dz.classList.remove("on");
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) spHandleFiles(e.dataTransfer.files);
     });
-    inp.click();
-  });
+    dz.addEventListener("click", function(){
+      var inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json"; inp.multiple=true;
+      inp.addEventListener("change", function(){ if (inp.files.length) spHandleFiles(inp.files); });
+      inp.click();
+    });
+  }
   document.querySelectorAll("[data-spta]").forEach(function(ta){
     ta.addEventListener("input", function(){
       var pp=ta.dataset.spta.split("|");

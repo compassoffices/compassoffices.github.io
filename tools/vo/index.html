@@ -1444,12 +1444,32 @@ function renderNetwork(stage){
     s += '</div>';
     secs.push(s);
   });
-  var page = skPage(SKT("title.network.line1") || "GLOBAL", SKT("title.network.line2") || "NETWORK");
-  stage.appendChild(page);
-  var left = [], right = [];
-  secs.forEach(function(s, i){ (i % 2 === 0 ? left : right).push(s); });
-  page.querySelector(".vopl-pbody").innerHTML =
-    '<div class="sk-net"><div>' + left.join("") + '</div><div>' + right.join("") + '</div></div>';
+  /* measured fill: left column, then right, then a fresh page — nothing is ever clipped */
+  function newNetPage(){
+    var page = skPage(SKT("title.network.line1") || "GLOBAL", SKT("title.network.line2") || "NETWORK");
+    stage.appendChild(page);
+    var body = page.querySelector(".vopl-pbody");
+    body.innerHTML = '<div class="sk-net"><div></div><div></div></div>';
+    var grid = body.firstElementChild;
+    return { body: body, cols: [grid.children[0], grid.children[1]] };
+  }
+  function overflows(pg){ return pg.body.scrollHeight > pg.body.clientHeight + 1; }
+  var pg = newNetPage(), ci = 0;
+  secs.forEach(function(sHtml){
+    var tp = document.createElement("template");
+    tp.innerHTML = sHtml;
+    var node = tp.content.firstElementChild;
+    pg.cols[ci].appendChild(node);
+    if (overflows(pg)){
+      pg.cols[ci].removeChild(node);
+      if (ci === 0){
+        ci = 1; pg.cols[1].appendChild(node);
+        if (overflows(pg)){ pg.cols[1].removeChild(node); pg = newNetPage(); ci = 0; pg.cols[0].appendChild(node); }
+      } else {
+        pg = newNetPage(); ci = 0; pg.cols[0].appendChild(node);
+      }
+    }
+  });
 }
 function renderSK(stage){
   var before = stage.children.length;
