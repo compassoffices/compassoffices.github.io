@@ -723,20 +723,21 @@ function findText(market, centre, key){
 function renderTexts(){
   var h = chipsHtml();
   h += '<h2 class="coed-h2">Texts &amp; T&amp;C \u2014 ' + esc(mkt) + '</h2>';
-  h += '<p class="coed-sub">Everything written on the documents. Blank translations fall back to English. For T&amp;C and the two \u201Cincluded / on request\u201D cards: <b>don\u2019t type \u2022</b> \u2014 the PDF adds the bullet dot itself; press <b>Enter</b> inside a cell to force a line break within a bullet (breaks you type show on the PDF); type just <b>-</b> when that language deliberately has no line there \u2014 the PDF skips it instead of falling back to English.</p>';
+  h += '<p class="coed-sub">Everything written on the documents. For T&amp;C and the two \u201Cincluded / on request\u201D cards: <b>don\u2019t type \u2022</b> (the PDF adds the dot itself); <b>Enter</b> inside a cell makes a real line break on the PDF; and once a language has its own lines, <b>an empty cell in that language is simply not shown</b> \u2014 English is only used when a language has no translations at all. Use \u00D7 to delete a line everywhere.</p>';
   var shown = {};
   function textTable(rows, withMarket){
     var t2 = '<table class="coed-table"><tr><th style="width:9%">Key</th>' +
       (withMarket ? '<th style="width:6%">Market</th>' : '') +
-      LANGS.map(function(L){ return '<th>' + L[1] + '</th>'; }).join("") + '</tr>';
+      LANGS.map(function(L){ return '<th>' + L[1] + '</th>'; }).join("") + '<th style="width:26px"></th></tr>';
     rows.forEach(function(t){
       var key = ["tx", t.market, t.centre_id, t.key].join("|");
       shown[key] = 1;
-      t2 += '<tr><td>' + esc(t.key) + '</td>' +
+      t2 += '<tr><td>' + esc(t.key) + (t.__new ? ' <span class="coed-savebadge">new</span>' : '') + '</td>' +
         (withMarket ? '<td style="color:#999;font-size:11px">' + esc(t.market) + '</td>' : '') +
         LANGS.map(function(L){
           return '<td data-cell="' + esc(key) + '|text_' + L[0] + '"><textarea>' + esc(t["text_" + L[0]]) + '</textarea></td>';
-        }).join("") + '</tr>';
+        }).join("") +
+        '<td style="vertical-align:middle"><button class="coed-del" data-txdel="' + esc([t.market, t.centre_id, t.key].join("|")) + '" title="Delete this line">\u00D7</button></td></tr>';
     });
     return t2 + '</table>';
   }
@@ -763,6 +764,33 @@ function renderTexts(){
   bindChips(); bindCells(); bindTxAdd();
 }
 function bindTxAdd(){
+  document.querySelectorAll("[data-txdel]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var p = b.dataset.txdel.split("|");
+      var row = findText(p[0], p[1], p[2]);
+      if (!row) return;
+      var dropDirty = function(){
+        Object.keys(dirty).forEach(function(k){
+          if (k.indexOf(["tx", p[0], p[1], p[2]].join("|") + "|") === 0) delete dirty[k];
+        });
+        syncSavebar();
+      };
+      if (row.__new){
+        DB.texts.splice(DB.texts.indexOf(row), 1);
+        dropDirty(); renderTexts(); return;
+      }
+      var scope = p[0] === "all" ? "ALL markets" : p[0];
+      if (!confirm("Delete '" + p[2] + "' (" + scope + ")?\nThis removes the line from the documents immediately.")) return;
+      setStatus("Deleting\u2026");
+      post({ action:"deleteRows", tab:"Text", rows:[{ market:p[0], centre_id:p[1], key:p[2] }] })
+      .then(function(j){
+        DB.texts.splice(DB.texts.indexOf(row), 1);
+        dropDirty(); renderTexts();
+        setStatus(j.message || "Deleted", "ok");
+      })
+      .catch(function(e){ setStatus("Delete failed: " + e.message, "err"); });
+    });
+  });
   document.querySelectorAll("[data-txadd]").forEach(function(b){
     b.addEventListener("click", function(){
       var prefix = b.dataset.txadd, maxN = 0;

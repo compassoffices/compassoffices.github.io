@@ -384,13 +384,31 @@ function TXT(key, centreId){
   return (v === undefined || v === "") ? String(r.text_en || "") : String(v);
 }
 function txtSeries(prefix){
-  var out = [];
+  /* Language rule: if this language has its OWN translated lines in the series,
+     blank lines are simply left out (empty = not shown). English is used as a
+     whole-list fallback only when the language has no translations at all.
+     A cell containing just "-" is always skipped. */
+  var f = "text_" + LANG_KEYS[curLang];
+  function skipVal(v){ return v === "" || v === "-" || v === "\u2013" || v === "\u2014"; }
+  var entries = [];
   for (var i = 1; i <= 40; i++){
-    var v = TXT(prefix + "." + i);
-    if (v === "") break;
-    if (v === "-" || v === "\u2013" || v === "\u2014") continue;  /* "-" = deliberately no line in this language */
-    out.push({ key: prefix + "." + i, v: v });
+    var key = prefix + "." + i;
+    var r = txRowFor(key);
+    if (!r) break;
+    entries.push({ key: key, r: r });
   }
+  var hasOwn = LANG_KEYS[curLang] !== "en" && entries.some(function(e){
+    var v = String(e.r[f] === undefined ? "" : e.r[f]).trim();
+    return !skipVal(v);
+  });
+  var out = [];
+  entries.forEach(function(e){
+    var v = String(e.r[f] === undefined ? "" : e.r[f]).trim();
+    var en = String(e.r.text_en === undefined ? "" : e.r.text_en).trim();
+    var use = v !== "" ? v : (hasOwn ? "" : en);
+    if (skipVal(use)) return;
+    out.push({ key: e.key, v: use });
+  });
   return out;
 }
 /* ---- inline editing helpers ---- */
