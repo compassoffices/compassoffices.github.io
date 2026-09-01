@@ -16,7 +16,7 @@ export const firebaseConfig = {
 // Where IT's service desk lives, used only to turn a stored Freshservice
 // ticket id into a clickable link. Leave blank to show the id as plain
 // text. No credentials here — the API key lives in Apps Script only.
-export const FRESH_TICKET_URL = ""; // e.g. "https://compass.freshservice.com/a/tickets/"
+export const FRESH_TICKET_URL = "https://encoreit.freshdesk.com/a/tickets/";
 
 // Teams a complaint can be routed to during triage. Management is a staff
 // team but never owns tickets — it's read-only across everything.
