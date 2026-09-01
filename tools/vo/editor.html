@@ -378,7 +378,7 @@ function load(){
       MP  = (DB.skMapPins || []).map(function(r){
         return { market:r.market, kind:String(r.kind||"pin"),
           ref:String(r.ref!==undefined&&r.ref!==""?r.ref:(r.centre_id||"")),
-          x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct) };
+          x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct), opt:(r.opt===undefined?"":r.opt) };
       });
       mdDirty = false;
       SKA = JSON.parse(JSON.stringify(DB.skAdditional));
@@ -1127,17 +1127,41 @@ function mdRow(kind, ref){
 }
 function mdPosXY(kind, ref){
   var r = mdRow(kind, ref);
-  if (r && String(r.x_pct)!=="" && String(r.y_pct)!=="")
-    return { x:Number(r.x_pct), y:Number(r.y_pct), w:(String(r.w_pct)!==""?Number(r.w_pct):null) };
+  if (r && (String(r.x_pct)!=="" || String(r.y_pct)!=="" || String(r.w_pct||"")!=="" || String(r.opt||"")!==""))
+    return { x:(String(r.x_pct)!==""?Number(r.x_pct):null), y:(String(r.y_pct)!==""?Number(r.y_pct):null),
+             w:(String(r.w_pct||"")!==""?Number(r.w_pct):null), opt:String(r.opt||"") };
   return null;
 }
 function mdSet(kind, ref, x, y, w){
   var r = mdRow(kind, ref);
-  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"" }; MP.push(r); }
-  if (x !== undefined && x !== null) r.x_pct = Math.round(x*10)/10;
-  if (y !== undefined && y !== null) r.y_pct = Math.round(y*10)/10;
+  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"", opt:"" }; MP.push(r); }
+  if (x !== undefined && x !== null) r.x_pct = Math.round(x*2)/2;
+  if (y !== undefined && y !== null) r.y_pct = Math.round(y*2)/2;
   if (w !== undefined) r.w_pct = w === null ? "" : Math.round(w*10)/10;
   mdMark();
+}
+function mdSetOpt(kind, ref, key, val){
+  var r = mdRow(kind, ref);
+  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"", opt:"" }; MP.push(r); }
+  var o = connOpt(r.opt);
+  o[key] = val;
+  r.opt = Object.keys(o).filter(function(k){ return o[k] && o[k] !== "auto"; })
+    .map(function(k){ return k + ":" + o[k]; }).join(";");
+  mdMark();
+}
+function connOpt(optStr){
+  var o = { conn:"auto", attach:"auto" };
+  String(optStr || "").split(";").forEach(function(kv){
+    var p2 = kv.split(":");
+    if (p2[0] && p2[1]) o[p2[0].trim()] = p2[1].trim();
+  });
+  return o;
+}
+function blockAnchor(b, attach){
+  if (attach === "top")   return [b.x + b.w/2, b.y - 4];
+  if (attach === "left")  return [b.x - 4, b.y + 26];
+  if (attach === "right") return [b.x + b.w + 4, b.y + 26];
+  return null;
 }
 function mdReset(kind, ref){
   var i = MP.indexOf(mdRow(kind, ref));
@@ -1184,10 +1208,18 @@ function mdDrawTransit(box){
     }
     return '<circle cx="'+x+'" cy="'+y+'" r="6" fill="#fff" stroke="#1A1A1A" stroke-width="3.2"/>';
   }
+  function drawConn(ref, b, defStart, ex, ey, my2, useElbow){
+    var pos = mdPosXY("block", ref);
+    var o = connOpt(pos ? pos.opt : "");
+    if (o.conn === "none") return;
+    var start = blockAnchor(b, o.attach) || defStart;
+    if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
+    else elbow(start[0], start[1], ex, ey, my2 === null ? (start[1] + ey) / 2 : my2);
+  }
   function block(n, centres, ref, defX, defY, wpx){
     var pos = mdPosXY("block", ref);
-    var left = pos ? pos.x/100*W : defX;
-    var top  = pos ? pos.y/100*H : defY;
+    var left = pos && pos.x !== null ? pos.x/100*W : defX;
+    var top  = pos && pos.y !== null ? pos.y/100*H : defY;
     if (pos && pos.w) wpx = pos.w/100*W;
     html += '<div class="sk-block'+mdSelCls("block",ref)+'"'+mdAttr("block",ref)+' style="left:'+left+'px;top:'+top+'px;width:'+wpx+'px;">'+
       '<div class="dn">'+esc(mdLbl(n))+'</div>'+centres.map(mdLoc).join("")+'</div>';
@@ -1199,11 +1231,11 @@ function mdDrawTransit(box){
     var main = nodes.filter(function(n){ return n.line===lines[0]; });
     var branch = nodes.filter(function(n){ return n.line===lines[1]; });
     var mainY = 560, padL = 102, padR = 44;
-    var lp = mdPosXY("line", lines[0]); if (lp) mainY = lp.y/100*H;
+    var lp = mdPosXY("line", lines[0]); if (lp && lp.y !== null) mainY = lp.y/100*H;
     var step = (W-padL-padR)/Math.max(main.length-1,1);
     main.forEach(function(n,i){
       n._x = padL + step*i;
-      var sp = mdPosXY("station", lines[0]+"|"+n.label_en); if (sp) n._x = sp.x/100*W;
+      var sp = mdPosXY("station", lines[0]+"|"+n.label_en); if (sp && sp.x !== null) n._x = sp.x/100*W;
       n._y = mainY;
     });
     var bx = 0;
@@ -1215,7 +1247,7 @@ function mdDrawTransit(box){
       branch.forEach(function(n,i){
         n._x = bx;
         n._y = topY + (lastY-topY)*(branch.length>1 ? (branch.length-1-i)/(branch.length-1) : 0);
-        var sp = mdPosXY("station", lines[1]+"|"+n.label_en); if (sp){ n._x = sp.x/100*W; n._y = sp.y/100*H; }
+        var sp = mdPosXY("station", lines[1]+"|"+n.label_en); if (sp && sp.y !== null) n._y = sp.y/100*H;
       });
       svg += '<path d="M '+bx+' 116 L '+bx+' '+(lastY+24)+' L '+joinX+' '+(mainY-7)+'" fill="none" stroke="#C0392B" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>';
     }
@@ -1225,13 +1257,13 @@ function mdDrawTransit(box){
       var act = String(n.active).indexOf("\u2713")>-1;
       svg += marker(n._x,n._y,false,n.label_en);
       svg += '<text x="'+(n._x+20)+'" y="'+(n._y+5)+'" font-size="13" font-weight="'+(act?"800":"600")+'" fill="'+(act?"#1A1A1A":"#C4C4C4")+'" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">'+esc(mdLbl(n))+'</text>';
-      handles += '<div class="mdsta'+mdSelCls("station",lines[1]+"|"+n.label_en)+'"'+mdAttr("station",lines[1]+"|"+n.label_en)+' style="left:'+n._x+'px;top:'+n._y+'px"></div>';
+      handles += '<div class="mdsta'+mdSelCls("station",lines[1]+"|"+n.label_en)+'"'+mdAttr("station",lines[1]+"|"+n.label_en)+' data-axis="y" style="left:'+n._x+'px;top:'+n._y+'px"></div>';
     });
     main.forEach(function(n){
       var act = String(n.active).indexOf("\u2713")>-1;
       svg += marker(n._x,mainY,true,n.label_en);
       svg += '<text x="'+(n._x-7)+'" y="'+(mainY+38)+'" font-size="14" font-weight="'+(act?"800":"600")+'" fill="'+(act?"#1A1A1A":"#C4C4C4")+'" transform="rotate(-45 '+(n._x-7)+' '+(mainY+38)+')" text-anchor="end" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">'+esc(mdLbl(n))+'</text>';
-      handles += '<div class="mdsta'+mdSelCls("station",lines[0]+"|"+n.label_en)+'"'+mdAttr("station",lines[0]+"|"+n.label_en)+' style="left:'+n._x+'px;top:'+mainY+'px"></div>';
+      handles += '<div class="mdsta'+mdSelCls("station",lines[0]+"|"+n.label_en)+'"'+mdAttr("station",lines[0]+"|"+n.label_en)+' data-axis="x" style="left:'+n._x+'px;top:'+mainY+'px"></div>';
     });
     var seen = {}, mainDist = [], branchDist = [];
     main.forEach(function(n){
@@ -1249,36 +1281,38 @@ function mdDrawTransit(box){
     var bottom = mainDist.slice();
     if (mainDist.length>3){
       var tl = bottom.shift();
-      var b1 = block(tl.n, tl.cs, lines[0]+"|"+tl.n.label_en, 96, 126, 250);
-      elbow(b1.x+16, b1.y+b1.w*0.72, tl.n._x, mainY-13, mainY-27);
+      var refTL = lines[0]+"|"+tl.n.label_en;
+      var b1 = block(tl.n, tl.cs, refTL, 96, 126, 250);
+      drawConn(refTL, b1, [b1.x+16, b1.y+b1.w*0.72], tl.n._x, mainY-13, mainY-27, true);
     }
     var tr = branchDist[0] || (bottom.length>4 ? bottom.pop() : null);
     if (tr){
       var refTr = (branchDist[0]?lines[1]:lines[0])+"|"+tr.n.label_en;
       var b2 = block(tr.n, tr.cs, refTr, 538, 126, 158);
-      elbow(b2.x-4, b2.y+42, (tr.n._x||600)+90, (tr.n._y||mainY)+30, (tr.n._y||mainY)+54);
+      drawConn(refTr, b2, [b2.x-4, b2.y+42], (tr.n._x||600)+90, (tr.n._y||mainY)+30, (tr.n._y||mainY)+54, true);
     }
     var nB = Math.max(bottom.length,1);
     var colW = Math.min(178,(W-8)/nB-10);
     bottom.forEach(function(d,i){
       var left = 4 + i*((W-8)/nB);
-      var b3 = block(d.n, d.cs, lines[0]+"|"+d.n.label_en, left, 678, colW);
+      var refB = lines[0]+"|"+d.n.label_en;
+      var b3 = block(d.n, d.cs, refB, left, 678, colW);
       var bex = d.n._x-22, bsx = b3.x+56;
       if (Math.abs(bex-bsx)>78) bsx = bex + (bsx>bex?78:-78);
-      elbow(bsx, b3.y-4, bex, mainY+16, mainY+30);
+      drawConn(refB, b3, [bsx, b3.y-4], bex, mainY+16, mainY+30, true);
     });
   } else {
     var segH = H/Math.max(lines.length,1);
     lines.forEach(function(ln, li){
       var lnNodes = nodes.filter(function(n){ return n.line===ln; });
       var lineY = segH*li + Math.min(150, segH*0.28);
-      var lp2 = mdPosXY("line", ln); if (lp2) lineY = lp2.y/100*H;
+      var lp2 = mdPosXY("line", ln); if (lp2 && lp2.y !== null) lineY = lp2.y/100*H;
       var padL2 = 80, padR2 = 56;
       var step2 = lnNodes.length>1 ? (W-padL2-padR2)/(lnNodes.length-1) : 0;
       var col = MD_COLS[li % MD_COLS.length];
       lnNodes.forEach(function(n,i){
         n._x = lnNodes.length>1 ? padL2+step2*i : W/2;
-        var sp = mdPosXY("station", ln+"|"+n.label_en); if (sp) n._x = sp.x/100*W;
+        var sp = mdPosXY("station", ln+"|"+n.label_en); if (sp && sp.x !== null) n._x = sp.x/100*W;
         n._y = lineY;
       });
       svg += '<rect x="'+(padL2-16)+'" y="'+(lineY-4.5)+'" width="'+(W-padL2-padR2+32)+'" height="9" rx="4.5" fill="'+col+'"/>';
@@ -1294,15 +1328,16 @@ function mdDrawTransit(box){
           svg += '<circle cx="'+n._x+'" cy="'+lineY+'" r="6" fill="#fff" stroke="'+(act?"#1A1A1A":col)+'" stroke-width="3"/>';
         }
         svg += '<text x="'+(n._x-6)+'" y="'+(lineY+34)+'" font-size="12.5" font-weight="'+(act?"800":"600")+'" fill="'+(act?"#1A1A1A":"#C4C4C4")+'" transform="rotate(-45 '+(n._x-6)+' '+(lineY+34)+')" text-anchor="end" font-family="Hanken Grotesk, Noto Sans TC, Noto Sans JP, sans-serif">'+esc(mdLbl(n))+'</text>';
-        handles += '<div class="mdsta'+mdSelCls("station",ln+"|"+n.label_en)+'"'+mdAttr("station",ln+"|"+n.label_en)+' style="left:'+n._x+'px;top:'+lineY+'px"></div>';
+        handles += '<div class="mdsta'+mdSelCls("station",ln+"|"+n.label_en)+'"'+mdAttr("station",ln+"|"+n.label_en)+' data-axis="x" style="left:'+n._x+'px;top:'+lineY+'px"></div>';
       });
       var withC = lnNodes.filter(function(n){ return String(n.active).indexOf("\u2713")>-1 && mdCentresFor(n).length; });
       var nB2 = Math.max(withC.length,1);
       var colW2 = Math.min(200,(W-16)/nB2-12);
       withC.forEach(function(n,i){
         var left = 8 + i*((W-16)/nB2);
-        var b = block(n, mdCentresFor(n), ln+"|"+n.label_en, left, lineY+110, colW2);
-        dot(n._x, lineY+18, b.x+Math.min(56,b.w/2), b.y-5);
+        var refS = ln+"|"+n.label_en;
+        var b = block(n, mdCentresFor(n), refS, left, lineY+110, colW2);
+        drawConn(refS, b, [b.x+Math.min(56,b.w/2), b.y-5], n._x, lineY+18, null, false);
       });
     });
   }
@@ -1324,6 +1359,21 @@ function mdGeoCities(){
   });
   return out;
 }
+var MDGEO = {};   /* market|city -> null(loading) | false(failed:msg) | {dataUri,pins} */
+function mdGeoFetch(city){
+  var key = mkt + "|" + city;
+  if (MDGEO[key] !== undefined) return MDGEO[key];
+  MDGEO[key] = null;
+  fetch(SCRIPT_URL + "?action=staticmap&market=" + encodeURIComponent(mkt) + "&city=" + encodeURIComponent(city))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      MDGEO[key] = j.ok ? j : false;
+      if (!j.ok) MDGEO[key + "_err"] = j.error || "backend error";
+      if (view === "mapd") mdRedraw();
+    })
+    .catch(function(e){ MDGEO[key] = false; MDGEO[key + "_err"] = e.message; if (view === "mapd") mdRedraw(); });
+  return null;
+}
 function mdDrawGeo(box){
   var W = 698, H = 476;
   box.style.height = H + "px";
@@ -1333,21 +1383,38 @@ function mdDrawGeo(box){
   [(city ? "map."+mkt+"."+city : null), "map."+mkt].forEach(function(k){
     if (!aid && k){ var r=(DB.skAssets||[]).filter(function(a){return a.key===k;})[0]; if (r && r.drive_file_id) aid = r.drive_file_id; }
   });
-  var h = aid
-    ? '<img src="https://drive.google.com/thumbnail?id='+encodeURIComponent(aid)+'&sz=w1200" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) brightness(1.06) contrast(.92)">'
-    : '<div class="mdgeo-ph">No map image uploaded for this city \u2014 the page will use the automatic Google map.<br>Pins you place here are used on it. (Upload a \u201Cmap.'+esc(mkt)+(city?'.'+esc(city):'')+'\u201D image in Sales Kit \u2192 Photos for full control.)</div>';
+  var auto = aid ? undefined : mdGeoFetch(city);
+  var autoPins = {};
+  if (auto && auto.pins) auto.pins.forEach(function(p2){ autoPins[p2.centre_id] = p2; });
+  var h;
+  if (aid){
+    h = '<img src="https://drive.google.com/thumbnail?id='+encodeURIComponent(aid)+'&sz=w1200" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) brightness(1.06) contrast(.92)">';
+  } else if (auto && auto.dataUri){
+    h = '<img src="'+auto.dataUri+'" style="position:absolute;top:0;left:0;width:100%;height:auto;filter:grayscale(1) brightness(1.06) contrast(.92)">';
+  } else if (auto === null){
+    h = '<div class="mdgeo-ph">Loading the automatic Google map\u2026</div>';
+  } else {
+    h = '<div class="mdgeo-ph">Automatic map unavailable' +
+      (MDGEO[mkt+"|"+city+"_err"] ? ':<br><b>'+esc(MDGEO[mkt+"|"+city+"_err"])+'</b><br>' : '. ') +
+      '(Needs Code.gs v4.4+ deployed.) You can still place pins \u2014 or upload a \u201Cmap.'+esc(mkt)+(city?'.'+esc(city):'')+'\u201D image in Sales Kit \u2192 Photos.' +
+      '<br><button class="addbar" style="margin-top:8px" id="mdGeoRetry">retry</button></div>';
+  }
   cityCentres.forEach(function(ct){
-    var pos = mdPosXY("pin", ct.id) || { x: 30 + (cityCentres.indexOf(ct)*15)%50, y: 60 };
+    var ap = autoPins[ct.id];
+    var pos = mdPosXY("pin", ct.id);
+    if (!pos || pos.x === null) pos = ap ? { x:Number(ap.x_pct), y:Number(ap.y_pct) } : { x: 30 + (cityCentres.indexOf(ct)*15)%50, y: 60 };
     h += '<div class="mdpin'+mdSelCls("pin",ct.id)+'"'+mdAttr("pin",ct.id)+' style="left:'+pos.x+'%;top:'+pos.y+'%" title="'+esc(ct.building_en)+'">'+
       '<svg viewBox="0 0 34 48"><path d="M17 48 C11 37 3 32 3 22 A14 14 0 1 1 31 22 C31 32 23 37 17 48 Z" fill="#FF6600"/><circle cx="17" cy="21" r="5.5" fill="#fff"/></svg></div>';
     var cpos = mdPosXY("card", ct.id);
-    if (cpos){
+    if (cpos && cpos.x !== null){
       h += '<div class="mdcard'+mdSelCls("card",ct.id)+'"'+mdAttr("card",ct.id)+' style="left:'+cpos.x+'%;top:'+cpos.y+'%;width:'+(cpos.w||40)+'%">'+
         '<div class="dn">'+esc(mdCityKeyOf(ct.district_en)||ct.building_en)+'</div>'+mdLoc(ct)+'</div>';
     }
   });
   box.innerHTML = h;
   box.dataset.city = city;
+  var rt = box.querySelector("#mdGeoRetry");
+  if (rt) rt.addEventListener("click", function(){ delete MDGEO[mkt+"|"+city]; mdRedraw(); });
 }
 
 function renderMapd(){
@@ -1378,7 +1445,7 @@ function renderMapd(){
     sv.disabled = true; setStatus("Saving map\u2026");
     saveTabs([
       {tab:"SK-MapNodes", header:tabHeader(MN,["market","line","sort","label_en","label_tc","label_sc","label_jp","station_code","active","district_en","centre_ids"]), rows:MN},
-      {tab:"SK-MapPins",  header:tabHeader(MP,["market","kind","ref","x_pct","y_pct","w_pct"]), rows:MP}
+      {tab:"SK-MapPins",  header:tabHeader(MP,["market","kind","ref","x_pct","y_pct","w_pct","opt"]), rows:MP}
     ], function(){ mdDirty=false; setStatus("Map saved","ok"); load(); })
     .catch(function(e){ sv.disabled=false; setStatus("Save failed: "+e.message,"err"); });
   });
@@ -1386,7 +1453,7 @@ function renderMapd(){
   if (dc) dc.addEventListener("click", function(){
     if (!confirm("Discard map changes?")) return;
     MN = JSON.parse(JSON.stringify(DB.skMapNodes));
-    MP = (DB.skMapPins||[]).map(function(r){ return { market:r.market, kind:String(r.kind||"pin"), ref:String(r.ref!==undefined&&r.ref!==""?r.ref:(r.centre_id||"")), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct) }; });
+    MP = (DB.skMapPins||[]).map(function(r){ return { market:r.market, kind:String(r.kind||"pin"), ref:String(r.ref!==undefined&&r.ref!==""?r.ref:(r.centre_id||"")), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct), opt:(r.opt===undefined?"":r.opt) }; });
     mdDirty=false; mdSel=null; idxAll(); renderMapd();
   });
   document.querySelectorAll("[data-mdcity]").forEach(function(b){
@@ -1412,35 +1479,51 @@ function mdPanel(){
     var ids = String(n.centre_ids||"").split(",").map(function(x){return x.trim();}).filter(String);
     h = '<h4>Station</h4>'+
       '<label>Name (EN \u2014 also the internal key)</label><input type="text" id="mdF" data-mdf="label_en" value="'+esc(n.label_en)+'">'+
-      (WLANG!=="en" ? '<label>Name ('+WLANG.toUpperCase()+')</label><input type="text" data-mdf="label_'+WLANG+'" value="'+esc(n["label_"+WLANG]||"")+'">' : '')+
+      [["tc","\u7E41\u9AD4"],["sc","\u7B80\u4F53"],["jp","\u65E5\u672C\u8A9E"],["vi","Ti\u1EBFng Vi\u1EC7t"]].map(function(Lg){
+        return '<label>Name ('+Lg[1]+')</label><input type="text" data-mdf="label_'+Lg[0]+'" value="'+esc(n["label_"+Lg[0]]||"")+'">';
+      }).join("")+
       '<label>Station code badge (blank = dot)</label><input type="text" data-mdf="station_code" value="'+esc(n.station_code||"")+'" placeholder="JY01">'+
       '<label><input type="checkbox" id="mdAct"'+(String(n.active).indexOf("\u2713")>-1?" checked":"")+' style="width:auto;margin-right:6px">Highlighted (bold, dark)</label>'+
       '<label>Centres at this station (fills the info card)</label>'+
       centresOf(mkt).map(function(c){
         return '<label style="font-weight:600;margin:2px 0"><input type="checkbox" data-mdcent="'+esc(c.id)+'"'+(ids.indexOf(c.id)>-1?" checked":"")+' style="width:auto;margin-right:6px">'+esc(c.building_en||c.id)+'</label>';
       }).join("")+
+      mdPrec("station", mdSel.ref, ["x","y"])+
       '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'+
       '<button class="addbar" style="margin:0" id="mdStaReset">reset position</button>'+
       '<button class="addbar" style="margin:0;color:#C33;border-color:#EBB" id="mdStaDel">\u00D7 delete station</button></div>';
   } else if (mdSel.kind === "line"){
     var count = mdNodes().filter(function(n){ return n.line===mdSel.ref; }).length;
     h = '<h4>Line</h4>'+
-      '<label>Line name</label><input type="text" id="mdLnName" value="'+esc(mdSel.ref)+'">'+
+      '<label>Line name (internal key \u2014 not printed)</label><input type="text" id="mdLnName" value="'+esc(mdSel.ref)+'">'+
       '<div class="hint2">'+count+' station(s). Drag the bar up/down on the canvas.</div>'+
+      mdPrec("line", mdSel.ref, ["y"])+
       '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'+
       '<button class="addbar" style="margin:0" id="mdLnAddSta">+ add station</button>'+
+      '<button class="addbar" style="margin:0" id="mdLnEven">align stations evenly</button>'+
       '<button class="addbar" style="margin:0" id="mdLnReset">reset height</button>'+
       '<button class="addbar" style="margin:0;color:#C33;border-color:#EBB" id="mdLnDel">\u00D7 delete line</button></div>';
   } else if (mdSel.kind === "block"){
     var pos = mdPosXY("block", mdSel.ref);
     var wNow = pos && pos.w ? pos.w : 28;
+    var oB = connOpt(pos ? pos.opt : "");
     h = '<h4>Info card</h4>'+
       '<div class="hint2">Content comes from the centres ticked on its station \u2014 select the station to change them.</div>'+
       '<label>Width: <span id="mdWVal">'+wNow+'%</span></label>'+
       '<input type="range" id="mdW" min="14" max="48" step="1" value="'+wNow+'">'+
+      mdPrec("block", mdSel.ref, ["x","y","w"])+
+      '<label>Connector line</label>'+
+      '<select id="mdConn" style="width:100%;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--co-line);border-radius:7px">'+
+        [["auto","Dotted, with elbow (auto)"],["straight","Dotted, straight"],["none","Hidden"]].map(function(o2){
+          return '<option value="'+o2[0]+'"'+(oB.conn===o2[0]?" selected":"")+'>'+o2[1]+'</option>'; }).join("")+'</select>'+
+      '<label>Connector attaches to</label>'+
+      '<select id="mdAttach" style="width:100%;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--co-line);border-radius:7px">'+
+        [["auto","Auto"],["top","Top of the card"],["left","Left edge"],["right","Right edge"]].map(function(o2){
+          return '<option value="'+o2[0]+'"'+(oB.attach===o2[0]?" selected":"")+'>'+o2[1]+'</option>'; }).join("")+'</select>'+
       '<button class="addbar" style="margin-top:10px" id="mdBlkReset">reset position &amp; width</button>';
   } else if (mdSel.kind === "pin"){
     h = '<h4>Map pin</h4><div class="hint2">Drag it on the canvas. Its card can be shown too:</div>'+
+      mdPrec("pin", mdSel.ref, ["x","y"])+
       '<button class="addbar" style="margin-top:8px" id="mdPinCard">'+(mdRow("card",mdSel.ref)?'remove its card':'+ add its card')+'</button>'+
       '<button class="addbar" style="margin-top:6px" id="mdPinReset">reset pin (use auto position)</button>';
   } else if (mdSel.kind === "card"){
@@ -1449,11 +1532,55 @@ function mdPanel(){
     h = '<h4>Location card</h4>'+
       '<label>Width: <span id="mdWVal">'+cw+'%</span></label>'+
       '<input type="range" id="mdW" min="22" max="60" step="1" value="'+cw+'">'+
+      mdPrec("card", mdSel.ref, ["x","y","w"])+
       '<button class="addbar" style="margin-top:10px" id="mdCardDel">remove card</button>';
   }
   p.innerHTML = h;
   mdPanelBind();
 }
+function mdPrec(kind, ref, fields){
+  var pos = mdPosXY(kind, ref) || {};
+  var names = { x:"X %", y:"Y %", w:"W %" };
+  return '<label>Precise position</label><div style="display:flex;gap:6px">'+
+    fields.map(function(f){
+      var v = pos[f] !== undefined && pos[f] !== null ? pos[f] : "";
+      return '<div style="flex:1"><div style="font-size:9px;font-weight:800;color:#BBB">'+names[f]+'</div>'+
+        '<input type="number" step="0.1" data-mdnum="'+f+'" value="'+v+'" placeholder="auto"></div>';
+    }).join("")+'</div>'+
+    '<div class="hint2">Arrow keys nudge the selected element by 0.2% (\u21E7 = 1%). Empty = automatic.</div>';
+}
+function mdNudge(dx, dy){
+  if (!mdSel || ["station","line","block","pin","card"].indexOf(mdSel.kind) < 0) return;
+  var pos = mdPosXY(mdSel.kind, mdSel.ref) || {};
+  var box = el("#mdCanvas");
+  /* start from the element's current rendered spot when no stored value yet */
+  var elm = box ? box.querySelector('[data-md="'+(mdSel.kind+"|"+mdSel.ref).replace(/"/g,'\\"')+'"]') : null;
+  var bx = 0, by = 0;
+  if (elm && box){
+    var r = box.getBoundingClientRect(), er = elm.getBoundingClientRect();
+    bx = (er.left + (mdSel.kind==="pin"?er.width/2:0) - r.left) / r.width * 100;
+    by = (er.top + (mdSel.kind==="pin"?er.height:(mdSel.kind==="station"||mdSel.kind==="line"?er.height/2:0)) - r.top) / r.height * 100;
+    if (mdSel.kind==="station") bx = (er.left + er.width/2 - r.left) / r.width * 100;
+  }
+  var x = pos.x !== undefined && pos.x !== null ? pos.x : bx;
+  var y = pos.y !== undefined && pos.y !== null ? pos.y : by;
+  if (mdSel.kind === "line") mdSet("line", mdSel.ref, null, y + dy);
+  else if (mdSel.kind === "station"){
+    var ax = elm ? (elm.dataset.axis || "x") : "x";
+    if (ax === "y") mdSet("station", mdSel.ref, null, y + dy);
+    else mdSet("station", mdSel.ref, x + dx, null);      /* stays ON the line */
+  }
+  else mdSet(mdSel.kind, mdSel.ref, x + dx, y + dy);
+  mdRedraw();
+}
+document.addEventListener("keydown", function(ev){
+  if (view !== "mapd" || !mdSel) return;
+  var t = ev.target && ev.target.tagName;
+  if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
+  var st = ev.shiftKey ? 1 : 0.2;
+  var map2 = { ArrowLeft:[-st,0], ArrowRight:[st,0], ArrowUp:[0,-st], ArrowDown:[0,st] };
+  if (map2[ev.key]){ ev.preventDefault(); mdNudge(map2[ev.key][0], map2[ev.key][1]); }
+});
 function mdRedraw(){
   var box = el("#mdCanvas");
   if (!box) return;
@@ -1520,6 +1647,29 @@ function mdPanelBind(){
     MN = MN.filter(function(x){ return !(x.market===mkt && x.line===mdSel.ref); });
     mdSel=null; idxAll(); mdMark(); mdRedraw();
   });
+  document.querySelectorAll("#mdPanel [data-mdnum]").forEach(function(inp){
+    inp.addEventListener("change", function(){
+      var f = inp.dataset.mdnum;
+      var v = inp.value === "" ? null : Number(inp.value);
+      var r = mdRow(mdSel.kind, mdSel.ref);
+      if (!r && v === null) return;
+      if (!r){ r = { market:mkt, kind:mdSel.kind, ref:String(mdSel.ref), x_pct:"", y_pct:"", w_pct:"", opt:"" }; MP.push(r); }
+      r[f + "_pct"] = v === null ? "" : Math.round(v*10)/10;
+      mdMark(); mdRedraw();
+    });
+  });
+  var cn = el("#mdConn");
+  if (cn) cn.addEventListener("change", function(){ mdSetOpt("block", mdSel.ref, "conn", cn.value); mdRedraw(); });
+  var at = el("#mdAttach");
+  if (at) at.addEventListener("change", function(){ mdSetOpt("block", mdSel.ref, "attach", at.value); mdRedraw(); });
+  var le = el("#mdLnEven");
+  if (le) le.addEventListener("click", function(){
+    var ln2 = mdSel.ref;
+    for (var i = MP.length - 1; i >= 0; i--){
+      if (MP[i].market===mkt && MP[i].kind==="station" && String(MP[i].ref).indexOf(ln2+"|")===0) MP.splice(i,1);
+    }
+    mdMark(); mdRedraw();
+  });
   var w = el("#mdW");
   if (w) w.addEventListener("input", function(){
     el("#mdWVal").textContent = w.value + "%";
@@ -1554,12 +1704,12 @@ function bindMapd(box, isTransit){
     var rect = box.getBoundingClientRect();
     var orig = elm.getBoundingClientRect();
     var sx = ev.clientX, sy = ev.clientY, moved = false;
+    var axis = elm.dataset.axis || "";
     function mv(e){
       var dx = e.clientX-sx, dy = e.clientY-sy;
-      if (kind==="station" && !isNaN(dy)) dy = (mdLines().length ? dy : dy);   /* stations: free for branch, else horizontal */
       if (Math.abs(dx)>2 || Math.abs(dy)>2) moved = true;
       if (kind==="line") elm.style.transform = "translateY("+dy+"px)";
-      else if (kind==="station") elm.style.transform = "translate("+dx+"px,0)";
+      else if (kind==="station") elm.style.transform = (axis==="y" ? "translate(0,"+dy+"px)" : "translate("+dx+"px,0)");
       else elm.style.transform = "translate("+dx+"px,"+dy+"px)";
     }
     function up(e){
@@ -1575,7 +1725,10 @@ function bindMapd(box, isTransit){
       var ny = (cy + dy - rect.top)/rect.height*100;
       nx = Math.max(0, Math.min(99, nx)); ny = Math.max(0, Math.min(99, ny));
       if (kind==="line") mdSet("line", ref, null, ny);
-      else if (kind==="station") mdSet("station", ref, nx, ny);
+      else if (kind==="station"){
+        if (axis==="y") mdSet("station", ref, null, ny);   /* branch stations slide on the branch */
+        else mdSet("station", ref, nx, null);              /* main-line stations stay ON the line */
+      }
       else mdSet(kind, ref, nx, ny);
       mdRedraw();
     }

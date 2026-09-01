@@ -1141,8 +1141,24 @@ function mapPos(kind, ref){
   var row = (DB.skMapPins || []).filter(function(r){
     return r.market === curMarket && String(r.kind || "pin") === kind && String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id) === String(ref);
   })[0];
-  if (row && String(row.x_pct) !== "" && String(row.y_pct) !== "")
-    return { x:Number(row.x_pct), y:Number(row.y_pct), w:(row.w_pct !== undefined && String(row.w_pct) !== "" ? Number(row.w_pct) : null) };
+  if (row && (String(row.x_pct) !== "" || String(row.y_pct) !== "" || String(row.w_pct||"") !== "" || String(row.opt||"") !== ""))
+    return { x:(String(row.x_pct)!==""?Number(row.x_pct):null), y:(String(row.y_pct)!==""?Number(row.y_pct):null),
+             w:(row.w_pct !== undefined && String(row.w_pct) !== "" ? Number(row.w_pct) : null),
+             opt:String(row.opt||"") };
+  return null;
+}
+function connOpt(optStr){
+  var o = { conn:"auto", attach:"auto" };
+  String(optStr || "").split(";").forEach(function(kv){
+    var p2 = kv.split(":");
+    if (p2[0] && p2[1]) o[p2[0].trim()] = p2[1].trim();
+  });
+  return o;
+}
+function blockAnchor(b, attach){
+  if (attach === "top")   return [b.x + b.w/2, b.y - 4];
+  if (attach === "left")  return [b.x - 4, b.y + 26];
+  if (attach === "right") return [b.x + b.w + 4, b.y + 26];
   return null;
 }
 function dragAttr(kind, ref){
@@ -1176,6 +1192,14 @@ function renderTransit(stage, style){
     conn += '<path d="M ' + sx + ' ' + sy + ' L ' + sx + ' ' + k + ' L ' + ex + ' ' + my2 + ' L ' + ex + ' ' + ey +
       '" fill="none" stroke="#D9D9D9" stroke-width="1.3" stroke-dasharray="2 5" stroke-linejoin="round" stroke-linecap="round"/>';
   }
+  function drawConn(ref, b, defStart, ex, ey, my2, useElbow){
+    var pos = mapPos("block", ref);
+    var o = connOpt(pos ? pos.opt : "");
+    if (o.conn === "none") return;
+    var start = blockAnchor(b, o.attach) || defStart;
+    if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
+    else elbow(start[0], start[1], ex, ey, my2 === null ? (start[1] + ey) / 2 : my2);
+  }
   function marker(x, y, vertical, name){
     if (INTERCHANGE[normd(name)]){
       var w = vertical ? 13 : 26, h = vertical ? 26 : 13;
@@ -1185,8 +1209,8 @@ function renderTransit(stage, style){
   }
   function blockAt(node2, centres, ref, defX, defY, wpx){
     var pos = mapPos("block", ref);
-    var left = pos ? pos.x / 100 * W : defX;
-    var top  = pos ? pos.y / 100 * H : defY;
+    var left = pos && pos.x !== null ? pos.x / 100 * W : defX;
+    var top  = pos && pos.y !== null ? pos.y / 100 * H : defY;
     if (pos && pos.w) wpx = pos.w / 100 * W;
     blocks += '<div class="sk-block"' + dragAttr("block", ref) + ' style="left:' + left + 'px;top:' + top + 'px;width:' + wpx + 'px;">' +
       '<div class="dn">' + esc(shortDist(node2)) + '</div>' + centres.map(locCard).join("") + '</div>';
@@ -1200,8 +1224,14 @@ function renderTransit(stage, style){
     var main = nodes.filter(function(n){ return n.line === lines[0]; });
     var branch = nodes.filter(function(n){ return n.line === lines[1]; });
     var mainY = 560, padL = 102, padR = 44;
+    var lpHK = mapPos("line", lines[0]);
+    if (lpHK && lpHK.y !== null) mainY = lpHK.y / 100 * H;
     var step = (W - padL - padR) / Math.max(main.length - 1, 1);
-    main.forEach(function(n, i){ n._x = padL + step * i; });
+    main.forEach(function(n, i){
+      n._x = padL + step * i;
+      var spHK = mapPos("station", lines[0] + "|" + n.label_en);
+      if (spHK && spHK.x !== null) n._x = spHK.x / 100 * W;
+    });
     var bx = 0;
     if (branch.length){
       var bi = Math.min(main.length - 2, Math.max(2, Math.round((main.length - 1) * 0.42)));
@@ -1211,6 +1241,8 @@ function renderTransit(stage, style){
       branch.forEach(function(n, i){
         n._x = bx;
         n._y = topY + (lastY - topY) * (branch.length > 1 ? (branch.length - 1 - i) / (branch.length - 1) : 0);
+        var spB = mapPos("station", lines[1] + "|" + n.label_en);
+        if (spB && spB.y !== null) n._y = spB.y / 100 * H;
       });
       svg += '<path d="M ' + bx + ' 116 L ' + bx + ' ' + (lastY + 24) + ' L ' + joinX + ' ' + (mainY - 7) +
         '" fill="none" stroke="#C0392B" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -1243,24 +1275,26 @@ function renderTransit(stage, style){
     var bottom = mainDist.slice();
     if (mainDist.length > 3){
       var tl = bottom.shift();
-      var b1 = blockAt(tl.n, tl.cs, lines[0] + "|" + tl.n.label_en, 96, 126, 250);
-      elbow(b1.x + 16, b1.y + b1.w * 0.72, tl.n._x, mainY - 13, mainY - 27);
+      var refTL = lines[0] + "|" + tl.n.label_en;
+      var b1 = blockAt(tl.n, tl.cs, refTL, 96, 126, 250);
+      drawConn(refTL, b1, [b1.x + 16, b1.y + b1.w * 0.72], tl.n._x, mainY - 13, mainY - 27, true);
     }
     var tr = branchDist[0] || (bottom.length > 4 ? bottom.pop() : null);
     if (tr){
       var refTr = (branchDist[0] ? lines[1] : lines[0]) + "|" + tr.n.label_en;
       var b2 = blockAt(tr.n, tr.cs, refTr, 538, 126, 158);
       var trX = (tr.n._x !== undefined ? tr.n._x : 600), trY = (tr.n._y !== undefined ? tr.n._y : mainY);
-      elbow(b2.x - 4, b2.y + 42, trX + 90, trY + 30, trY + 54);
+      drawConn(refTr, b2, [b2.x - 4, b2.y + 42], trX + 90, trY + 30, trY + 54, true);
     }
     var nB = Math.max(bottom.length, 1);
     var colW = Math.min(178, (W - 8) / nB - 10);
     bottom.forEach(function(d, i){
       var left = 4 + i * ((W - 8) / nB);
-      var b3 = blockAt(d.n, d.cs, lines[0] + "|" + d.n.label_en, left, 678, colW);
+      var refB = lines[0] + "|" + d.n.label_en;
+      var b3 = blockAt(d.n, d.cs, refB, left, 678, colW);
       var bex = d.n._x - 22, bsx = b3.x + 56;
       if (Math.abs(bex - bsx) > 78) bsx = bex + (bsx > bex ? 78 : -78);
-      elbow(bsx, b3.y - 4, bex, mainY + 16, mainY + 30);
+      drawConn(refB, b3, [bsx, b3.y - 4], bex, mainY + 16, mainY + 30, true);
     });
   } else {
     /* ── stacked line diagrams: one clean horizontal line per `line` (Japan) ── */
@@ -1269,14 +1303,14 @@ function renderTransit(stage, style){
       var lnNodes = nodes.filter(function(n){ return n.line === ln; });
       var lineY = segH * li + Math.min(150, segH * 0.28);
       var lpos = mapPos("line", ln);
-      if (lpos) lineY = lpos.y / 100 * H;
+      if (lpos && lpos.y !== null) lineY = lpos.y / 100 * H;
       var padL2 = 80, padR2 = 56;
       var step2 = lnNodes.length > 1 ? (W - padL2 - padR2) / (lnNodes.length - 1) : 0;
       var col = LINECOLS[li % LINECOLS.length];
       lnNodes.forEach(function(n, i){
         n._x = lnNodes.length > 1 ? padL2 + step2 * i : W / 2;
         var spos = mapPos("station", ln + "|" + n.label_en);
-        if (spos) n._x = spos.x / 100 * W;
+        if (spos && spos.x !== null) n._x = spos.x / 100 * W;
         n._y = lineY;
       });
       svg += '<rect x="' + (padL2 - 16) + '" y="' + (lineY - 4.5) + '" width="' + (W - padL2 - padR2 + 32) + '" height="9" rx="4.5" fill="' + col + '"/>';
@@ -1300,8 +1334,9 @@ function renderTransit(stage, style){
       var colW2 = Math.min(200, (W - 16) / nB2 - 12);
       withC.forEach(function(n, i){
         var left = 8 + i * ((W - 16) / nB2);
-        var b = blockAt(n, centresForNode(n), ln + "|" + n.label_en, left, lineY + 110, colW2);
-        dot(n._x, lineY + 18, b.x + Math.min(56, b.w / 2), b.y - 5);
+        var refS = ln + "|" + n.label_en;
+        var b = blockAt(n, centresForNode(n), refS, left, lineY + 110, colW2);
+        drawConn(refS, b, [b.x + Math.min(56, b.w / 2), b.y - 5], n._x, lineY + 18, null, false);
       });
     });
   }
@@ -1376,7 +1411,7 @@ function pinsFor(city, cityCentres){
   /* saved / dragged pin positions override the auto ones (and work with uploaded map images too) */
   cityCentres.forEach(function(ct){
     var pos = mapPos("pin", ct.id);
-    if (!pos) return;
+    if (!pos || pos.x === null || pos.y === null) return;
     var hit = out.filter(function(p){ return p.ct.id === ct.id; })[0];
     if (hit){ hit.x = pos.x; hit.y = pos.y; }
     else out.push({ ct: ct, x: pos.x, y: pos.y });
@@ -1411,7 +1446,7 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
     else { side = "L"; slot = slotsL[Math.min(usedL++, 2)]; }
     var cardLeft = side === "L" ? 3 : 51;    /* % */
     var cpos = mapPos("card", p.ct.id);
-    if (cpos){ cardLeft = cpos.x; slot = cpos.y; }
+    if (cpos){ if (cpos.x !== null) cardLeft = cpos.x; if (cpos.y !== null) slot = cpos.y; }
     var cw = cpos && cpos.w ? 'width:' + cpos.w + '%;' : '';
     cards += '<div class="sk-card"' + dragAttr("card", p.ct.id) + ' style="left:' + cardLeft + '%;top:' + slot + '%;' + cw + '">' +
       '<div class="dn">' + esc(geoHeading(p.ct)) + '</div>' + geoCard(p.ct) + '</div>';
@@ -1769,7 +1804,7 @@ document.getElementById("ebDiscard").addEventListener("click", function(){
 function saveMapPins(){
   if (!mapDirty) return Promise.resolve({ ok:true });
   var rows = (DB.skMapPins || []).map(function(r){
-    return { market:r.market, kind:String(r.kind || "pin"), ref:String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id || ""), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct === undefined ? "" : r.w_pct) };
+    return { market:r.market, kind:String(r.kind || "pin"), ref:String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id || ""), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct === undefined ? "" : r.w_pct), opt:(r.opt === undefined ? "" : r.opt) };
   });
   Object.keys(MAPPOS).forEach(function(k){
     var parts = k.split("|");
@@ -1778,7 +1813,7 @@ function saveMapPins(){
     if (hit){ hit.x_pct = MAPPOS[k].x; hit.y_pct = MAPPOS[k].y; }
     else rows.push({ market:market, kind:kind, ref:ref, x_pct:MAPPOS[k].x, y_pct:MAPPOS[k].y });
   });
-  var header = ["market","kind","ref","x_pct","y_pct","w_pct"];
+  var header = ["market","kind","ref","x_pct","y_pct","w_pct","opt"];
   return post({ action:"saveTab", tab:"SK-MapPins", header: header,
     rows: rows.map(function(r){ return header.map(function(h){ return r[h] === undefined ? "" : r[h]; }); }) })
   .then(function(){
