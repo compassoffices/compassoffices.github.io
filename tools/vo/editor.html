@@ -409,7 +409,8 @@ function load(){
       MP  = (DB.skMapPins || []).map(function(r){
         return { market:r.market, kind:String(r.kind||"pin"),
           ref:String(r.ref!==undefined&&r.ref!==""?r.ref:(r.centre_id||"")),
-          x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct), opt:(r.opt===undefined?"":r.opt) };
+          x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct), opt:(r.opt===undefined?"":r.opt),
+          t1:(r.t1===undefined?"":r.t1), t2:(r.t2===undefined?"":r.t2), t3:(r.t3===undefined?"":r.t3), t4:(r.t4===undefined?"":r.t4) };
       });
       mdDirty = false;
       SKA = JSON.parse(JSON.stringify(DB.skAdditional));
@@ -1187,14 +1188,16 @@ function mdRow(kind, ref){
 }
 function mdPosXY(kind, ref){
   var r = mdRow(kind, ref);
-  if (r && (String(r.x_pct)!=="" || String(r.y_pct)!=="" || String(r.w_pct||"")!=="" || String(r.opt||"")!==""))
+  if (r && (String(r.x_pct)!=="" || String(r.y_pct)!=="" || String(r.w_pct||"")!=="" || String(r.opt||"")!=="" ||
+      String(r.t1||"")!=="" || String(r.t2||"")!=="" || String(r.t3||"")!=="" || String(r.t4||"")!==""))
     return { x:(String(r.x_pct)!==""?Number(r.x_pct):null), y:(String(r.y_pct)!==""?Number(r.y_pct):null),
-             w:(String(r.w_pct||"")!==""?Number(r.w_pct):null), opt:String(r.opt||"") };
+             w:(String(r.w_pct||"")!==""?Number(r.w_pct):null), opt:String(r.opt||""),
+             t1:String(r.t1||""), t2:String(r.t2||""), t3:String(r.t3||""), t4:String(r.t4||"") };
   return null;
 }
 function mdSet(kind, ref, x, y, w){
   var r = mdRow(kind, ref);
-  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"", opt:"" }; MP.push(r); }
+  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"", opt:"", t1:"", t2:"", t3:"", t4:"" }; MP.push(r); }
   if (x !== undefined && x !== null) r.x_pct = Math.round(x*2)/2;
   if (y !== undefined && y !== null) r.y_pct = Math.round(y*2)/2;
   if (w !== undefined) r.w_pct = w === null ? "" : Math.round(w*10)/10;
@@ -1202,11 +1205,18 @@ function mdSet(kind, ref, x, y, w){
 }
 function mdSetOpt(kind, ref, key, val){
   var r = mdRow(kind, ref);
-  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"", opt:"" }; MP.push(r); }
+  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"", opt:"", t1:"", t2:"", t3:"", t4:"" }; MP.push(r); }
   var o = connOpt(r.opt);
   o[key] = val;
   r.opt = Object.keys(o).filter(function(k){ return o[k] && o[k] !== "auto"; })
     .map(function(k){ return k + ":" + o[k]; }).join(";");
+  mdMark();
+}
+function mdSetTxt(kind, ref, field, val){
+  var r = mdRow(kind, ref);
+  if (!r && !val) return;
+  if (!r){ r = { market:mkt, kind:kind, ref:String(ref), x_pct:"", y_pct:"", w_pct:"", opt:"", t1:"", t2:"", t3:"", t4:"" }; MP.push(r); }
+  r[field] = val || "";
   mdMark();
 }
 function connOpt(optStr){
@@ -1287,7 +1297,7 @@ function mdDrawTransit(box){
     var top  = pos && pos.y !== null ? pos.y/100*H : defY;
     if (pos && pos.w) wpx = pos.w/100*W;
     html += '<div class="sk-block'+mdSelCls("block",ref)+'"'+mdAttr("block",ref)+' style="left:'+left+'px;top:'+top+'px;width:'+wpx+'px;">'+
-      '<div class="dn">'+esc(mdLbl(n))+'</div>'+centres.map(mdLoc).join("")+'</div>';
+      '<div class="dn">'+esc(pos && pos.t1 ? pos.t1 : mdLbl(n))+'</div>'+centres.map(mdLoc).join("")+'</div>';
     return { x:left, y:top, w:wpx };
   }
   var isHK = lines.length===2 && !nodes.some(function(n){ return String(n.station_code||"").trim()!==""; });
@@ -1480,8 +1490,14 @@ function mdDrawGeo(box){
       '<svg viewBox="0 0 34 48"><path d="M17 48 C11 37 3 32 3 22 A14 14 0 1 1 31 22 C31 32 23 37 17 48 Z" fill="#FF6600"/><circle cx="17" cy="21" r="5.5" fill="#fff"/></svg></div>';
     var cpos = mdPosXY("card", ct.id);
     if (cpos && cpos.x !== null){
+      var head = cpos.t1 || mdCityKeyOf(ct.district_en) || ct.building_en;
+      var body;
+      if (cpos.t2 || cpos.t3 || cpos.t4){
+        body = '<div class="mdloc"><div class="b">'+esc(cpos.t2 || ct.building_en)+'</div>'+
+          '<div class="l">'+esc(cpos.t3 || ct.levels)+'</div><div class="a">'+esc(cpos.t4 || ct.address_en)+'</div></div>';
+      } else body = mdLoc(ct);
       h += '<div class="mdcard'+mdSelCls("card",ct.id)+'"'+mdAttr("card",ct.id)+' style="left:'+cpos.x+'%;top:'+cpos.y+'%;width:'+(cpos.w||40)+'%">'+
-        '<div class="dn">'+esc(mdCityKeyOf(ct.district_en)||ct.building_en)+'</div>'+mdLoc(ct)+'</div>';
+        '<div class="dn">'+esc(head)+'</div>'+body+'</div>';
     }
   });
   h += '<div style="position:absolute;left:8px;bottom:8px;display:flex;gap:6px;z-index:8">'+
@@ -1533,7 +1549,8 @@ function mdRefresh(){
         MP = (DB.skMapPins || []).map(function(r2){
           return { market:r2.market, kind:String(r2.kind||"pin"),
             ref:String(r2.ref!==undefined&&r2.ref!==""?r2.ref:(r2.centre_id||"")),
-            x_pct:r2.x_pct, y_pct:r2.y_pct, w_pct:(r2.w_pct===undefined?"":r2.w_pct), opt:(r2.opt===undefined?"":r2.opt) };
+            x_pct:r2.x_pct, y_pct:r2.y_pct, w_pct:(r2.w_pct===undefined?"":r2.w_pct), opt:(r2.opt===undefined?"":r2.opt),
+            t1:(r2.t1===undefined?"":r2.t1), t2:(r2.t2===undefined?"":r2.t2), t3:(r2.t3===undefined?"":r2.t3), t4:(r2.t4===undefined?"":r2.t4) };
         });
         idxAll();
         if (view === "mapd"){ mdRedraw(); setStatus("Map data refreshed \u2014 includes positions saved from the page", "ok"); }
@@ -1573,7 +1590,7 @@ function renderMapd(){
     sv.disabled = true; setStatus("Saving map\u2026");
     saveTabs([
       {tab:"SK-MapNodes", header:tabHeader(MN,["market","line","sort","label_en","label_tc","label_sc","label_jp","station_code","active","district_en","centre_ids"]), rows:MN},
-      {tab:"SK-MapPins",  header:tabHeader(MP,["market","kind","ref","x_pct","y_pct","w_pct","opt"]), rows:MP}
+      {tab:"SK-MapPins",  header:tabHeader(MP,["market","kind","ref","x_pct","y_pct","w_pct","opt","t1","t2","t3","t4"]), rows:MP}
     ], function(){ mdDirty=false; setStatus("Map saved","ok"); load(); })
     .catch(function(e){ sv.disabled=false; setStatus("Save failed: "+e.message,"err"); });
   });
@@ -1581,7 +1598,8 @@ function renderMapd(){
   if (dc) dc.addEventListener("click", function(){
     if (!confirm("Discard map changes?")) return;
     MN = JSON.parse(JSON.stringify(DB.skMapNodes));
-    MP = (DB.skMapPins||[]).map(function(r){ return { market:r.market, kind:String(r.kind||"pin"), ref:String(r.ref!==undefined&&r.ref!==""?r.ref:(r.centre_id||"")), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct), opt:(r.opt===undefined?"":r.opt) }; });
+    MP = (DB.skMapPins||[]).map(function(r){ return { market:r.market, kind:String(r.kind||"pin"), ref:String(r.ref!==undefined&&r.ref!==""?r.ref:(r.centre_id||"")), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct===undefined?"":r.w_pct), opt:(r.opt===undefined?"":r.opt),
+          t1:(r.t1===undefined?"":r.t1), t2:(r.t2===undefined?"":r.t2), t3:(r.t3===undefined?"":r.t3), t4:(r.t4===undefined?"":r.t4) }; });
     mdDirty=false; mdSel=null; idxAll(); renderMapd();
   });
   document.querySelectorAll("[data-mdcity]").forEach(function(b){
@@ -1640,6 +1658,11 @@ function mdPanel(){
       '<label>Width: <span id="mdWVal">'+wNow+'%</span></label>'+
       '<input type="range" id="mdW" min="14" max="48" step="1" value="'+wNow+'">'+
       mdPrec("block", mdSel.ref, ["x","y","w"])+
+      (function(){
+        var bp = mdPosXY("block", mdSel.ref) || {};
+        return '<label>Heading (blank = station name)</label>'+
+          '<input type="text" data-mdtxt="t1" value="'+esc(bp.t1||"")+'" placeholder="auto">';
+      })()+
       '<label>Connector line</label>'+
       '<select id="mdConn" style="width:100%;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--co-line);border-radius:7px">'+
         [["auto","Dotted, with elbow (auto)"],["straight","Dotted, straight"],["none","Hidden"]].map(function(o2){
@@ -1672,6 +1695,15 @@ function mdPanel(){
       '<label>Width: <span id="mdWVal">'+cw+'%</span></label>'+
       '<input type="range" id="mdW" min="22" max="60" step="1" value="'+cw+'">'+
       mdPrec("card", mdSel.ref, ["x","y","w"])+
+      (function(){
+        var cp = mdPosXY("card", mdSel.ref) || {};
+        return '<label>Card text (blank = automatic from Centres data)</label>'+
+          '<input type="text" data-mdtxt="t1" value="'+esc(cp.t1||"")+'" placeholder="Heading (e.g. SYDNEY)">'+
+          '<input type="text" data-mdtxt="t2" value="'+esc(cp.t2||"")+'" placeholder="Orange line (building / street)" style="margin-top:4px">'+
+          '<input type="text" data-mdtxt="t3" value="'+esc(cp.t3||"")+'" placeholder="Floors line (e.g. 21F)" style="margin-top:4px">'+
+          '<input type="text" data-mdtxt="t4" value="'+esc(cp.t4||"")+'" placeholder="Address line" style="margin-top:4px">'+
+          '<div class="hint2">Typed text shows the same in every language.</div>';
+      })()+
       '<button class="addbar" style="margin-top:10px" id="mdCardDel">remove card</button>';
   }
   p.innerHTML = h;
@@ -1795,6 +1827,12 @@ function mdPanelBind(){
       if (!r){ r = { market:mkt, kind:mdSel.kind, ref:String(mdSel.ref), x_pct:"", y_pct:"", w_pct:"", opt:"" }; MP.push(r); }
       r[f + "_pct"] = v === null ? "" : Math.round(v*10)/10;
       mdMark(); mdRedraw();
+    });
+  });
+  document.querySelectorAll("#mdPanel [data-mdtxt]").forEach(function(inp){
+    inp.addEventListener("change", function(){
+      mdSetTxt(mdSel.kind, mdSel.ref, inp.dataset.mdtxt, inp.value.trim());
+      mdRedraw();
     });
   });
   var cn = el("#mdConn");
@@ -2117,15 +2155,23 @@ function renderSkAssets(){
     '<div class="coed-imggrid">';
   rows.forEach(function(r){
     var th = driveThumb(r.drive_file_id);
+    var standard = /^(included\.|additional\.|map\.)/.test(r.key);
+    var showRemove = !standard || r.drive_file_id;   /* standard cards: clear image only; custom cards: delete card */
     h += '<div class="coed-imgcard" data-askey="' + esc(r.key) + '">' +
       '<div class="th" style="' + (th ? "background-image:url(\'" + th + "\')" : "") + '">' + (th ? "" : "no image yet") + '</div>' +
       '<div class="bd"><div class="ky">' + esc(r.key) + '</div>' +
       (r.note ? '<div class="nt">' + esc(r.note) + '</div>' : "") +
       '<div class="ops"><button class="coed-upbtn" data-upkey="' + esc(r.key) + '">&#8682; Upload new</button>' +
       (r.drive_file_id ? '<button class="coed-minibtn" data-copyid="' + esc(r.drive_file_id) + '" title="Copy Drive file ID">ID</button>' : "") +
+      (showRemove ? '<button class="coed-minibtn" style="color:#C33" data-asdel="' + esc(r.key) + '" data-asstd="' + (standard ? 1 : 0) + '" title="' + (standard ? "Remove this image" : "Delete this card") + '">\u00D7</button>' : "") +
       '</div></div></div>';
   });
-  h += '</div></div>';
+  h += '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;align-items:center">' +
+    '<input id="asNewKey" placeholder="new image key, e.g. cover.photo" style="font:inherit;font-size:12px;padding:7px 10px;border:1px solid var(--co-line);border-radius:8px;width:240px">' +
+    '<button class="addbar" style="margin:0" id="asAddCard">+ add image card</button>' +
+    '<span class="hint" style="font-size:10.5px;margin:0">The card is created when you upload its first image.</span></div>' +
+    '</div>';
   return h;
 }
 /* big images are resized (max 1600px) and re-encoded as JPEG before upload */
@@ -2174,7 +2220,8 @@ function uploadAssetFile(key, f, busyEl, busyText){
     post({ action:"uploadImage", filename: key + "-" + res.name, mimeType: res.mime, assetKey: key, dataBase64: res.b64 })
     .then(function(j){
       var row = (DB.skAssets || []).filter(function(r){ return r.key === key; })[0];
-      if (row) row.drive_file_id = j.id; else (DB.skAssets = DB.skAssets || []).push({ key:key, drive_file_id:j.id, note:"" });
+      if (row){ row.drive_file_id = j.id; delete row.__local; }
+      else (DB.skAssets = DB.skAssets || []).push({ key:key, drive_file_id:j.id, note:"" });
       var card = document.querySelector('[data-askey="' + key + '"] .th');
       if (card){ card.style.backgroundImage = "url('" + driveThumb(j.id) + "')"; card.textContent = ""; }
       if (busyEl){ busyEl.classList.remove("busy"); busyEl.textContent = "\u2191 Uploaded \u2713"; }
@@ -2211,10 +2258,50 @@ function bindAssetUploads(){
     makeDroppable(card, function(){ return card.dataset.askey; });
   });
   document.querySelectorAll("[data-copyid]").forEach(function(b){
-    b.addEventListener("click", function(){
+    b.addEventListener("click", function(ev){
+      ev.stopPropagation();
       navigator.clipboard && navigator.clipboard.writeText(b.dataset.copyid);
       setStatus("Drive file ID copied", "ok");
     });
+  });
+  document.querySelectorAll("[data-asdel]").forEach(function(b){
+    b.addEventListener("click", function(ev){
+      ev.stopPropagation();
+      var key = b.dataset.asdel, standard = b.dataset.asstd === "1";
+      var row = (DB.skAssets || []).filter(function(r){ return r.key === key; })[0];
+      if (standard){
+        if (!confirm("Remove the image from \u201C" + key + "\u201D?\nThe card stays, and the file itself remains in Google Drive.")) return;
+        setStatus("Removing image\u2026");
+        post({ action:"saveEdits", edits:[{ kind:"sks", keys:[key], field:"drive_file_id", value:"" }] })
+        .then(function(){
+          if (row) row.drive_file_id = "";
+          renderView(); setStatus("Image removed from " + key, "ok");
+        })
+        .catch(function(e){ setStatus("Remove failed: " + e.message, "err"); });
+      } else {
+        if (!confirm("Delete the card \u201C" + key + "\u201D" + (row && row.drive_file_id ? " and unlink its image" : "") + "?\n(The file itself remains in Google Drive.)")) return;
+        var finish = function(){
+          DB.skAssets = (DB.skAssets || []).filter(function(r){ return r.key !== key; });
+          renderView(); setStatus("Card \u201C" + key + "\u201D deleted", "ok");
+        };
+        if (row && !row.__local){
+          setStatus("Deleting\u2026");
+          post({ action:"deleteRows", tab:"SK-Assets", rows:[{ key:key }] })
+          .then(finish)
+          .catch(function(e){ setStatus("Delete failed: " + e.message, "err"); });
+        } else finish();
+      }
+    });
+  });
+  var aa = el("#asAddCard");
+  if (aa) aa.addEventListener("click", function(){
+    var key = el("#asNewKey").value.trim();
+    if (!key){ setStatus("Type the new image key first (e.g. cover.photo)", "err"); return; }
+    if (/[|]/.test(key)){ setStatus("Keys cannot contain |", "err"); return; }
+    if ((DB.skAssets || []).some(function(r){ return r.key === key; })){ setStatus("\u201C" + key + "\u201D already exists", "err"); return; }
+    (DB.skAssets = DB.skAssets || []).push({ key:key, drive_file_id:"", note:"Custom image", __local:true });
+    renderView();
+    setStatus("Card \u201C" + key + "\u201D added \u2014 upload its image to store it", "ok");
   });
 }
 

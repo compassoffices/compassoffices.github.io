@@ -285,6 +285,18 @@ body.editing .mapdrag-pin{outline:1.5px dashed rgba(255,102,0,.55);}
 .vopl-ptitle.sp .t2{font-size:17px;font-weight:700;line-height:1.3;margin-top:2px;}
 .vopl-ptitle.sp .t2 .mk{color:var(--co-muted);font-weight:600;margin-left:10px;}
 
+/* ---- preloader ---- */
+.vopl-loader{min-height:62vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}
+.vopl-loader .ldr{position:relative;width:104px;height:104px;margin-bottom:14px;}
+.vopl-loader .ring{position:absolute;inset:0;width:100%;height:100%;animation:vopl-spin 1.1s linear infinite;}
+.vopl-loader .mark{position:absolute;inset:24px;width:56px;height:56px;animation:vopl-pulse 1.6s ease-in-out infinite;}
+.vopl-loader .t{font-size:15px;font-weight:800;color:var(--co-ink);letter-spacing:.2px;}
+.vopl-loader .s{font-size:12px;color:var(--co-muted);}
+.vopl-loader .s::after{content:"";animation:vopl-dots 1.4s steps(4,end) infinite;}
+.vopl-loader .err{font-size:13px;color:#C0392B;max-width:420px;text-align:center;line-height:1.6;margin-top:4px;}
+@keyframes vopl-spin{to{transform:rotate(360deg);}}
+@keyframes vopl-pulse{0%,100%{transform:scale(.94);opacity:.85;}50%{transform:scale(1.05);opacity:1;}}
+@keyframes vopl-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
 /* ---- inline editing ---- */
 .vopl-btn.on{background:var(--co-ink);border-color:var(--co-ink);color:#fff;}
 .ved{outline:none;border-radius:3px;}
@@ -329,9 +341,7 @@ body.editing .ved:hover{background:#FFF3E8;}
   <div class="vopl-status" id="status">No data loaded yet.</div>
 </div>
 
-<div class="vopl-stage" id="stage">
-  <div class="vopl-empty">Fetching data&hellip; (or use <b>Load XLSX</b> to test offline &mdash; you can select both workbooks at once)</div>
-</div>
+<div class="vopl-stage" id="stage"></div>
 
 <div class="vopl-editbar" id="editbar">
   <span id="editbarText">0 unsaved changes</span>
@@ -455,9 +465,39 @@ function ingest(tabs){
   mktSel.value = curMarket;
 }
 
+function logoMark(){
+  return '<svg class="mark" viewBox="80 74 252 252" xmlns="http://www.w3.org/2000/svg">' +
+    '<path fill="#FF6600" d="M321.05,200c0,63.81-51.72,115.52-115.52,115.52s-115.53-51.71-115.53-115.52,51.72-115.53,115.53-115.53,115.52,51.72,115.52,115.53Z"/>' +
+    '<polygon fill="#fff" points="207.5 195.58 232.27 240.03 263.79 240.03 207.5 139.14 149.17 240.03 181.8 240.03 207.5 195.58"/></svg>';
+}
+function loaderHtml(sub, errMsg){
+  return '<div class="vopl-loader"><div class="ldr">' +
+    '<svg class="ring" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+      '<circle cx="50" cy="50" r="45" fill="none" stroke="#FFE3CF" stroke-width="5.5"/>' +
+      '<circle cx="50" cy="50" r="45" fill="none" stroke="#FF6600" stroke-width="5.5" stroke-linecap="round" stroke-dasharray="72 211"/></svg>' +
+    logoMark() + '</div>' +
+    '<div class="t">Compass Offices \u2014 Price Lists</div>' +
+    (errMsg
+      ? '<div class="err">' + errMsg + '</div>' +
+        '<button class="vopl-btn primary" id="ldrRetry" style="margin-top:14px">Try again</button>' +
+        '<div class="s" style="margin-top:8px">or use <b>Load XLSX</b> in the toolbar to work offline</div>'
+      : '<div class="s">' + (sub || "Loading the latest data from Google Sheets") + '</div>') +
+    '</div>';
+}
+function showLoader(sub, errMsg){
+  var stage = document.getElementById("stage");
+  stage.innerHTML = loaderHtml(sub, errMsg);
+  if (errMsg){
+    stage.querySelector(".ring").style.animationPlayState = "paused";
+    stage.querySelector(".mark").style.animationPlayState = "paused";
+    var rb = document.getElementById("ldrRetry");
+    if (rb) rb.addEventListener("click", fetchData);
+  }
+}
 function fetchData(){
   if (!SCRIPT_URL){ setStatus("SCRIPT_URL is not set.", "err"); return; }
   setStatus("Fetching from Google Sheets\u2026");
+  if (!DB) showLoader();
   fetch(SCRIPT_URL + (SCRIPT_URL.indexOf("?") > -1 ? "&" : "?") + "action=data")
     .then(function(r){ return r.json(); })
     .then(function(j){
@@ -466,7 +506,10 @@ function fetchData(){
       setStatus("Loaded \u00B7 " + new Date().toLocaleTimeString(), "ok");
       render();
     })
-    .catch(function(err){ setStatus("Fetch failed: " + err.message, "err"); });
+    .catch(function(err){
+      setStatus("Fetch failed: " + err.message, "err");
+      if (!DB) showLoader(null, "Could not reach Google Sheets: " + esc(err.message));
+    });
 }
 
 function loadXlsx(ev){
@@ -1141,10 +1184,11 @@ function mapPos(kind, ref){
   var row = (DB.skMapPins || []).filter(function(r){
     return r.market === curMarket && String(r.kind || "pin") === kind && String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id) === String(ref);
   })[0];
-  if (row && (String(row.x_pct) !== "" || String(row.y_pct) !== "" || String(row.w_pct||"") !== "" || String(row.opt||"") !== ""))
+  if (row && (String(row.x_pct) !== "" || String(row.y_pct) !== "" || String(row.w_pct||"") !== "" || String(row.opt||"") !== "" ||
+      String(row.t1||"") !== "" || String(row.t2||"") !== "" || String(row.t3||"") !== "" || String(row.t4||"") !== ""))
     return { x:(String(row.x_pct)!==""?Number(row.x_pct):null), y:(String(row.y_pct)!==""?Number(row.y_pct):null),
              w:(row.w_pct !== undefined && String(row.w_pct) !== "" ? Number(row.w_pct) : null),
-             opt:String(row.opt||"") };
+             opt:String(row.opt||""), t1:String(row.t1||""), t2:String(row.t2||""), t3:String(row.t3||""), t4:String(row.t4||"") };
   return null;
 }
 function connOpt(optStr){
@@ -1215,7 +1259,7 @@ function renderTransit(stage, style){
     var top  = pos && pos.y !== null ? pos.y / 100 * H : defY;
     if (pos && pos.w) wpx = pos.w / 100 * W;
     blocks += '<div class="sk-block"' + dragAttr("block", ref) + ' style="left:' + left + 'px;top:' + top + 'px;width:' + wpx + 'px;">' +
-      '<div class="dn">' + esc(shortDist(node2)) + '</div>' + centres.map(locCard).join("") + '</div>';
+      '<div class="dn">' + esc(pos && pos.t1 ? pos.t1 : shortDist(node2)) + '</div>' + centres.map(locCard).join("") + '</div>';
     return { x: left, y: top, w: wpx };
   }
 
@@ -1451,8 +1495,16 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
     var cpos = mapPos("card", p.ct.id);
     if (cpos){ if (cpos.x !== null) cardLeft = cpos.x; if (cpos.y !== null) slot = cpos.y; }
     var cw = cpos && cpos.w ? 'width:' + cpos.w + '%;' : '';
+    var cHead = cpos && cpos.t1 ? cpos.t1 : geoHeading(p.ct);
+    var cBody;
+    if (cpos && (cpos.t2 || cpos.t3 || cpos.t4)){
+      var aF = L(p.ct, "address");
+      cBody = '<div class="sk-loc"><div class="b">' + esc(cpos.t2 || (geoWard(p.ct) ? L(p.ct, "building") : aF.split(",")[0])) + '</div>' +
+        '<div class="l">' + esc(cpos.t3 || String(p.ct.levels)) + '</div>' +
+        '<div class="a">' + esc(cpos.t4 || aF) + '</div></div>';
+    } else cBody = geoCard(p.ct);
     cards += '<div class="sk-card"' + dragAttr("card", p.ct.id) + ' style="left:' + cardLeft + '%;top:' + slot + '%;' + cw + '">' +
-      '<div class="dn">' + esc(geoHeading(p.ct)) + '</div>' + geoCard(p.ct) + '</div>';
+      '<div class="dn">' + esc(cHead) + '</div>' + cBody + '</div>';
     if (EDIT) handles += '<div class="mapdrag-pin" data-mapdrag="pin|' + esc(p.ct.id) + '" style="left:' + p.x + '%;top:' + p.y + '%;"></div>';
     /* pixel coordinates (uniform scale, undistorted shapes) */
     var px = p.x / 100 * W, py = p.y / 100 * H;
@@ -1808,7 +1860,8 @@ document.getElementById("ebDiscard").addEventListener("click", function(){
 function saveMapPins(){
   if (!mapDirty) return Promise.resolve({ ok:true });
   var rows = (DB.skMapPins || []).map(function(r){
-    return { market:r.market, kind:String(r.kind || "pin"), ref:String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id || ""), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct === undefined ? "" : r.w_pct), opt:(r.opt === undefined ? "" : r.opt) };
+    return { market:r.market, kind:String(r.kind || "pin"), ref:String(r.ref !== undefined && r.ref !== "" ? r.ref : r.centre_id || ""), x_pct:r.x_pct, y_pct:r.y_pct, w_pct:(r.w_pct === undefined ? "" : r.w_pct), opt:(r.opt === undefined ? "" : r.opt),
+      t1:(r.t1 === undefined ? "" : r.t1), t2:(r.t2 === undefined ? "" : r.t2), t3:(r.t3 === undefined ? "" : r.t3), t4:(r.t4 === undefined ? "" : r.t4) };
   });
   Object.keys(MAPPOS).forEach(function(k){
     var parts = k.split("|");
@@ -1817,7 +1870,7 @@ function saveMapPins(){
     if (hit){ hit.x_pct = MAPPOS[k].x; hit.y_pct = MAPPOS[k].y; }
     else rows.push({ market:market, kind:kind, ref:ref, x_pct:MAPPOS[k].x, y_pct:MAPPOS[k].y });
   });
-  var header = ["market","kind","ref","x_pct","y_pct","w_pct","opt"];
+  var header = ["market","kind","ref","x_pct","y_pct","w_pct","opt","t1","t2","t3","t4"];
   return post({ action:"saveTab", tab:"SK-MapPins", header: header,
     rows: rows.map(function(r){ return header.map(function(h){ return r[h] === undefined ? "" : r[h]; }); }) })
   .then(function(){
