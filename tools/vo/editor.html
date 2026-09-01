@@ -111,6 +111,16 @@
 .wz .mrprice{color:#FF6600;font-weight:700;}
 .wz .mxcell{text-align:center;font-size:14px;cursor:pointer;user-select:none;color:#57A05A;font-weight:800;}
 .wz .mxcell.off{color:#E2E2E2;}
+.wz .mxgrp{border:1px solid #EDEDED;border-radius:10px;padding:10px 14px;margin:10px 0;}
+.wz .mxgrp .mxc{font-size:13.5px;font-weight:800;margin-bottom:2px;}
+.wz .mxrow{display:flex;gap:7px;align-items:center;padding:5px 0;position:relative;flex-wrap:wrap;}
+.wz .mxrow:hover>.rowops{display:flex;}
+.wz .mxlvl{flex:0 0 auto;min-width:92px;font-size:12.5px;font-weight:700;border:1px dashed #E8E8E8;border-radius:7px;padding:5px 9px;}
+.wz .mxlvl [contenteditable]{display:inline-block;min-width:60px;}
+.wz .mxpill{border:1.5px solid #E4E4E4;background:#fff;border-radius:999px;padding:6px 14px;font-size:11.5px;font-weight:700;color:#999;cursor:pointer;font-family:inherit;line-height:1.2;}
+.wz .mxpill:hover{border-color:#FFD9BD;}
+.wz .mxpill.on{background:#FF6600;border-color:#FF6600;color:#fff;}
+.wz .mxpill.on::before{content:"\2713  ";}
 .coed-savebadge{background:var(--co-orange,#FF6600);color:#fff;border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;margin-left:6px;}
 
 .coed-shell{display:flex;min-height:calc(100vh - 51px);}
@@ -523,7 +533,8 @@ function stripPrivate(o){
 /* ================= VIEW: MR PRICES ================= */
 function mrMark(){ mrDirty=true; var b=el("#mrSave"); if(b)b.disabled=false; var d=el("#mrDiscard"); if(d)d.disabled=false; }
 function mrTierList(kind){
-  var t=(DB.mrTiers||[]).filter(function(x){return x.market===mkt && x.kind===kind;})[0]||{};
+  var src = MT.length ? MT : (DB.mrTiers||[]);
+  var t=src.filter(function(x){return x.market===mkt && x.kind===kind;})[0]||{};
   var out=[]; for(var i=1;i<=6;i++){ if(t["t"+i]) out.push(t["t"+i]); }
   return out;
 }
@@ -569,7 +580,7 @@ function renderMrPrices(){
 
   /* tier labels (drives the columns of both tables) */
   h += '<div class="wz"><div class="secband"><div class="tt">Room size / tier labels</div></div>'+
-    '<p class="hint" style="font-size:11px;color:#999;margin:8px 0">\u201CPricing\u201D tiers are the column headers of the price tables above; \u201Cmatrix\u201D tiers are the columns of the availability matrix below. Fill EN first, then use the language tabs to translate. A market with no matrix tiers has no availability page. New tier columns appear in the tables after you press Save.</p>';
+    '<p class="hint" style="font-size:11px;color:#999;margin:8px 0">\u201CPricing\u201D tiers are the column headers of the price tables above; \u201Cmatrix\u201D tiers are the columns of the availability matrix below. Fill EN first, then use the language tabs to translate. A market with no matrix tiers has no availability page. New sizes appear as toggles below immediately \u2014 remember to press Save when done.</p>';
   ["pricing","matrix"].forEach(function(kind){
     var trow=MT.filter(function(t){return t.market===mkt && t.kind===kind;})[0];
     h += '<div style="display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap"><span style="font-size:10px;font-weight:800;width:56px;text-transform:uppercase;color:#999">'+kind+'</span>';
@@ -585,29 +596,44 @@ function renderMrPrices(){
   });
   h += '</div>';
 
-  /* room availability matrix */
+  /* room availability, grouped by centre */
   var mTiers = mrTierList("matrix");
   h += '<div class="wz"><div class="secband"><div class="tt">Room availability by centre</div></div>';
-  h += '<p class="hint" style="font-size:11px;color:#999;margin:8px 0">Click a cell to toggle whether that room size exists at the centre \u2014 this drives the availability matrix page.</p>';
-  h += '<table class="mrtable"><tr><th>Centre</th><th>Level</th>'+mTiers.map(function(t){return '<th style="text-align:center">'+esc(t)+'</th>';}).join("")+'<th style="width:8px"></th></tr>';
-  MRX.forEach(function(r){
-    if (centresOf(mkt).map(function(c){return c.id;}).indexOf(r.centre_id)<0) return;
-    h += '<tr class="mrr"><td style="font-size:11.5px">'+esc(centreName(r.centre_id))+'</td><td>'+ce("MRX",r,"level","","level")+'</td>';
-    mTiers.forEach(function(t,ti){
-      var f="t"+(ti+1), on=String(r[f]||"").trim()!=="";
-      h += '<td class="mxcell'+(on?"":" off")+'" data-mx="'+r.__i+'|'+f+'">'+(on?"\u2713":"\u2013")+'</td>';
+  if (!mTiers.length){
+    var hasMatrixRow = MT.some(function(t){ return t.market===mkt && t.kind==="matrix"; });
+    h += hasMatrixRow
+      ? '<div class="coed-help" style="margin:12px 0">Almost there \u2014 type the room sizes (e.g. <b>4 pax</b>, <b>8 pax</b>) into the <b>matrix</b> row of the card above. The floor toggles appear here as soon as the first size is filled in.</div>'
+      : '<div class="coed-help" style="margin:12px 0"><b>'+esc(mkt)+' has no room-size tiers yet</b>, so the availability page is off and there is nothing to tick here. '+
+        'Enable them in the <b>Room size / tier labels</b> card above (\u201C+ enable matrix tiers\u201D), type the sizes (e.g. 4 pax, 8 pax), and the toggles appear here immediately.</div>';
+  } else {
+    h += '<p class="hint" style="font-size:11px;color:#999;margin:8px 0">Each centre lists its meeting-room floors. Type the floor number, then click the room-size pills to switch a size on (orange) or off for that floor. A floor with nothing switched on stays off the PDF.</p>';
+    centresOf(mkt).forEach(function(c){
+      var rows = MRX.filter(function(r){ return r.centre_id===c.id; });
+      h += '<div class="mxgrp"><div class="mxc">'+esc(c.building_en||c.id)+
+        (rows.length?'':' <span style="font-weight:600;color:#BBB;font-size:11px">\u2014 no meeting-room floors yet</span>')+'</div>';
+      rows.forEach(function(r){
+        h += '<div class="mxrow mrr">'+
+          '<span class="mxlvl">'+ce("MRX",r,"level","","floor no.")+'</span>'+
+          mTiers.map(function(t,ti){
+            var f="t"+(ti+1), on=String(r[f]||"").trim()!=="";
+            return '<button class="mxpill'+(on?" on":"")+'" data-mx="'+r.__i+'|'+f+'" title="Click to toggle">'+esc(t)+'</button>';
+          }).join("")+
+          '<span class="rowops"><button class="del" data-mxdel="'+r.__i+'">\u00D7</button></span></div>';
+      });
+      h += '<button class="addbar" style="font-size:10px;padding:3px 10px;margin:4px 0 0" data-mxaddc="'+esc(c.id)+'">+ add floor</button>';
+      h += '</div>';
     });
-    h += '<td><span class="rowops"><button class="del" data-mxdel="'+r.__i+'">\u00D7</button></span></td></tr>';
-  });
-  h += '</table>';
-  h += '<div style="display:flex;gap:8px;margin-top:8px;align-items:center">'+
-    '<select id="mxCentre" class="coed-btn" style="font-size:12px">'+centresOf(mkt).map(function(c){
-      return '<option value="'+esc(c.id)+'">'+esc(c.building_en||c.id)+'</option>';}).join("")+'</select>'+
-    '<button class="addbar" style="margin:0" id="mxAdd">+ Add meeting room floor for this centre</button></div>';
+  }
   h += '</div>';
 
   el("#main").innerHTML = h;
   bindChips(); bindWLang(); bindCE(function(){mrMark();}); bindMr();
+  var liveTiers = mrTierList("matrix").length;
+  document.querySelectorAll('[data-m^="MT|"]').forEach(function(elm){
+    elm.addEventListener("blur", function(){
+      if (mrTierList("matrix").length !== liveTiers) renderMrPrices();
+    });
+  });
 }
 function bindMr(){
   document.querySelectorAll("[data-mrdel]").forEach(function(b){ b.addEventListener("click",function(){
@@ -624,14 +650,21 @@ function bindMr(){
     MT.push({market:mkt, kind:b.dataset.mtadd, t1:"", t2:"", t3:"", t4:"", t5:"", t6:""});
     idxAll(); mrMark(); renderMrPrices();
   });});
-  var mx=el("#mxAdd"); if(mx) mx.addEventListener("click",function(){
-    MRX.push({centre_id: el("#mxCentre").value, level:""});
+  document.querySelectorAll("[data-mxaddc]").forEach(function(b){ b.addEventListener("click",function(){
+    var nT = mrTierList("matrix").length;
+    var row = {centre_id: b.dataset.mxaddc, level:""};
+    for (var ti=1; ti<=Math.max(nT,4); ti++) row["t"+ti] = ti<=nT ? "\u2713" : "";
+    MRX.push(row);
     idxAll(); mrMark(); renderMrPrices();
-  });
+    var cell = document.querySelector('[data-m="MRX|'+row.__i+'|level"]');
+    if (cell){ cell.focus(); }
+  });});
   document.querySelectorAll("[data-mx]").forEach(function(td){ td.addEventListener("click",function(){
     var p=td.dataset.mx.split("|"); var r=MRX[Number(p[0])];
-    r[p[1]] = String(r[p[1]]||"").trim()!=="" ? "" : "\u2713";
-    mrMark(); renderMrPrices();
+    var on = String(r[p[1]]||"").trim()==="";
+    r[p[1]] = on ? "\u2713" : "";
+    td.classList.toggle("on", on);
+    mrMark();
   });});
   document.querySelectorAll("[data-mrimg]").forEach(function(sp){ sp.addEventListener("click",function(){
     var row=MRP[Number(sp.dataset.mrimg)];
@@ -680,7 +713,7 @@ var TEXT_GROUPS = [
 function renderTexts(){
   var h = chipsHtml();
   h += '<h2 class="coed-h2">Texts &amp; T&amp;C \u2014 ' + esc(mkt) + '</h2>';
-  h += '<p class="coed-sub">Everything written on the documents. Blank translations fall back to English.</p>';
+  h += '<p class="coed-sub">Everything written on the documents. Blank translations fall back to English. Type just <b>-</b> in a cell when that language deliberately has no line there (e.g. Japanese T&amp;C merging two English bullets into one) \u2014 the PDF then skips it instead of showing English.</p>';
   var shown = {};
   function textTable(rows, withMarket){
     var t2 = '<table class="coed-table"><tr><th style="width:9%">Key</th>' +
