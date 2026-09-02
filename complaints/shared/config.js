@@ -89,11 +89,15 @@ export const LOCATIONS = {
 export const FLOOR_SEP = "::";
 
 export const COMPLAINT_TYPES = [
-  "Facilities & Cleanliness",
-  "Staff & Service",
-  "Billing & Invoicing",
-  "IT & Connectivity",
-  "Noise / Neighbours",
-  "Meeting Room / Booking",
-  "Other",
+  "Temperature",
+  "Noise / Other Community Member(s)",
+  "Cleaning & Pest Control",
+  "Centre Maintenance / Repairs",
+  "Health & Safety",
+  "Services & Amenities",
+  "Finance & Billing",
+  "Access & Security",
+  "Events",
+  "Internet Access / Speed / IT",
+  "Others",
 ];
