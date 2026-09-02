@@ -99,6 +99,8 @@
         <div class="co-detail-value" id="modalDescription" style="font-weight:400;"></div>
       </div>
 
+      <div class="co-detail-item co-span2" id="modalItUpdate" style="display:none; margin-bottom:18px;"></div>
+
       <div class="co-section-title" style="margin-bottom:10px;">Activity Log</div>
       <div class="co-log" id="modalLog"></div>
 
@@ -345,19 +347,25 @@ async function loadBoard(){
 // everything, for CS; everything in their markets, for Sales.
 async function loadOverview(){
   if (!hasOverview) return;
+  const myMarkets = (staff.markets || []).slice(0, 30);
+
+  // Check before building the query, not after: Firestore rejects an `in`
+  // filter with an empty array by throwing as the query is constructed, so
+  // this guard has to come first or it never runs.
+  if (!isCS && myMarkets.length === 0) {
+    document.getElementById("countOverview").textContent = "0";
+    document.getElementById("overviewNote").textContent = "";
+    document.getElementById("overviewBody").innerHTML =
+      `<tr><td colspan="9"><div class="co-empty-state">No markets are set on your staff record, so there's nothing to show here yet. Ask your admin to add the markets you cover.</div></td></tr>`;
+    return;
+  }
+
   let data;
   try {
     const ref = collection(db, "complaints");
     // Sales must query by market — the rules only clear documents in the
     // markets on their staff record, and a list query has to match that.
-    const q = isCS
-      ? ref
-      : query(ref, where("location", "in", (staff.markets || []).slice(0, 30)));
-    if (!isCS && (staff.markets || []).length === 0) {
-      document.getElementById("overviewBody").innerHTML =
-        `<tr><td colspan="9"><div class="co-empty-state">No markets set on your staff record — ask your admin.</div></td></tr>`;
-      return;
-    }
+    const q = isCS ? ref : query(ref, where("location", "in", myMarkets));
     const snap = await getDocs(q);
     data = snapToTickets(snap);
   } catch (err) {
@@ -380,7 +388,7 @@ async function loadOverview(){
   document.getElementById("countOverview").textContent = shown.length;
   document.getElementById("overviewNote").textContent = isCS
     ? "Every complaint, including those you've routed to other teams. Read-only unless it's yours."
-    : `Every complaint in ${(staff.markets || []).join(", ")}. Read-only unless it's assigned to Sales.`;
+    : `Every complaint in ${myMarkets.join(", ")}. Read-only unless it's assigned to Sales.`;
 
   document.getElementById("overviewBody").innerHTML = shown.length ? shown.map(t => `
     <tr data-ref="${t.ticketRef}">
@@ -528,6 +536,21 @@ async function openModal(ref){
     }${t.freshSyncActive ? " · syncing" : " · closed there"}</div></div>` : ""}
   `;
   document.getElementById("modalDescription").textContent = t.description;
+
+  // Latest public reply from IT's service desk, when there is one.
+  const itUpdate = document.getElementById("modalItUpdate");
+  if (t.freshLastReply) {
+    itUpdate.style.display = "block";
+    itUpdate.innerHTML =
+      `<div class="co-detail-label">Last update from IT${
+        t.freshLastReplyAt ? " · " + fmtDate(String(t.freshLastReplyAt).slice(0,10)) : ""
+      }</div>
+       <div style="font-size:13.5px;color:var(--co-text);line-height:1.6;background:var(--co-bg);
+                   border-left:3px solid var(--co-tint, #FFD9BD);padding:11px 13px;
+                   border-radius:3px;margin-top:5px;">${escapeHTML(t.freshLastReply)}</div>`;
+  } else {
+    itUpdate.style.display = "none";
+  }
 
   const logSnap = await getDocs(query(
     collection(db, "complaints", t.ticketRef, "activity_log"),
