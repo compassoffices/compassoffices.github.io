@@ -139,6 +139,11 @@
             <input class="co-input" id="triageTarget" type="date" required>
           </div>
         </div>
+        <div class="co-field">
+          <label class="co-label" for="triageNote">Note for the owner</label>
+          <textarea class="co-textarea" id="triageNote" maxlength="1000" style="min-height:80px;"
+                    placeholder="Optional — context, what you've already checked, anything urgent."></textarea>
+        </div>
         <button class="co-btn co-btn-primary" id="triageSubmitBtn" style="width:100%; padding:11px;">Assign &amp; move to Assigned</button>
       </div>
 
@@ -589,6 +594,7 @@ async function openModal(ref){
     document.getElementById("triageOwner").innerHTML = `<option value="" disabled selected>Select team first</option>`;
     document.getElementById("triageSeverity").value = "Low";
     document.getElementById("triageTarget").value = "";
+    document.getElementById("triageNote").value = "";
   } else if (canAct) {
     document.getElementById("updateNote").value = "";
     const statusSel = document.getElementById("updateStatus");
@@ -609,6 +615,7 @@ document.getElementById("triageSubmitBtn").addEventListener("click", async () =>
   const owner = document.getElementById("triageOwner").value;
   const severity = document.getElementById("triageSeverity").value;
   const target = document.getElementById("triageTarget").value;
+  const triageNote = document.getElementById("triageNote").value.trim();
 
   if (!team || !owner || !severity || !target) {
     modalErr.textContent = "Please fill in all triage fields.";
@@ -624,8 +631,11 @@ document.getElementById("triageSubmitBtn").addEventListener("click", async () =>
   const batch = writeBatch(db);
   batch.update(doc(db, "complaints", ref), {
     ownerTeam: team, owner, severity, status: "Assigned", targetResolutionDate: target, updatedAt: now,
-    // Recorded so the assignment email can say who did the assigning.
+    // Recorded so the assignment email can say who did the assigning, and
+    // so CS's note travels with the ticket into the email and, for IT, into
+    // the Freshdesk description.
     assignedBy: staff.name,
+    assignmentNote: triageNote || null,
     // Tells the Apps Script notifier to email the newly assigned owner,
     // and to refresh this ticket's row in the Google Sheet mirror.
     assignmentNotifyPending: true,
@@ -636,7 +646,8 @@ document.getElementById("triageSubmitBtn").addEventListener("click", async () =>
   });
   batch.set(doc(collection(db, "complaints", ref, "activity_log")), {
     ts: now, actor: staff.name,
-    note: `Triaged: routed to ${team} (${owner}), severity ${severity}, target resolution ${target}.`,
+    note: `Triaged: routed to ${team} (${owner}), severity ${severity}, target resolution ${target}.`
+          + (triageNote ? `\n\n${triageNote}` : ""),
   });
 
   let updErr = null;
