@@ -1508,16 +1508,24 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
     if (EDIT) handles += '<div class="mapdrag-pin" data-mapdrag="pin|' + esc(p.ct.id) + '" style="left:' + p.x + '%;top:' + p.y + '%;"></div>';
     /* pixel coordinates (uniform scale, undistorted shapes) */
     var px = p.x / 100 * W, py = p.y / 100 * H;
-    var axp = (cardLeft + (p.x > cardLeft + 20 ? 40 : 0)) / 100 * W;   /* connector leaves the card edge nearer the pin */
-    var ayp = (slot + 9) / 100 * H;
-    /* connector: dotted, one bend, ending just above the pin head */
-    var route;
-    if (Math.abs(py - ayp) > 46)
-      route = 'M ' + axp + ' ' + ayp + ' L ' + axp + ' ' + (py - 58) + ' L ' + px + ' ' + (py - 58) + ' L ' + px + ' ' + (py - 46);
-    else
-      route = 'M ' + axp + ' ' + ayp + ' L ' + px + ' ' + ayp + ' L ' + px + ' ' + (py - 46);
-    ovl += '<path d="' + route + '" fill="none" stroke="#FF6600" stroke-width="1.4" stroke-dasharray="3 5" stroke-linecap="round" stroke-linejoin="round"/>';
-    ovl += '<circle cx="' + axp + '" cy="' + ayp + '" r="2.6" fill="#FF6600"/>';
+    var oC = connOpt(cpos ? cpos.opt : "");
+    if (oC.conn !== "none"){
+      var axp = (cardLeft + (p.x > cardLeft + 20 ? 40 : 0)) / 100 * W;   /* connector leaves the card edge nearer the pin */
+      var ayp = (slot + 9) / 100 * H;
+      if (oC.sx !== undefined && oC.sy !== undefined){ axp = Number(oC.sx) / 100 * W; ayp = Number(oC.sy) / 100 * H; }
+      var exp2 = px, eyp = py - 46;
+      if (oC.ex !== undefined && oC.ey !== undefined){ exp2 = Number(oC.ex) / 100 * W; eyp = Number(oC.ey) / 100 * H; }
+      /* connector: dotted; elbow by default, straight when chosen */
+      var route;
+      if (oC.conn === "straight")
+        route = 'M ' + axp + ' ' + ayp + ' L ' + exp2 + ' ' + eyp;
+      else if (Math.abs(eyp - ayp) > 46)
+        route = 'M ' + axp + ' ' + ayp + ' L ' + axp + ' ' + (eyp - 12) + ' L ' + exp2 + ' ' + (eyp - 12) + ' L ' + exp2 + ' ' + eyp;
+      else
+        route = 'M ' + axp + ' ' + ayp + ' L ' + exp2 + ' ' + ayp + ' L ' + exp2 + ' ' + eyp;
+      ovl += '<path d="' + route + '" fill="none" stroke="#FF6600" stroke-width="1.4" stroke-dasharray="3 5" stroke-linecap="round" stroke-linejoin="round"/>';
+      ovl += '<circle cx="' + axp + '" cy="' + ayp + '" r="2.6" fill="#FF6600"/>';
+    }
     /* teardrop pin, tip exactly on the location */
     ovl += '<g transform="translate(' + px + ',' + py + ')">' +
       '<path d="M0 0 C-6.5 -11 -14.5 -15.5 -14.5 -25.5 A14.5 14.5 0 1 1 14.5 -25.5 C14.5 -15.5 6.5 -11 0 0 Z" fill="#FF6600"/>' +
@@ -1526,7 +1534,6 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
   if (pins.length)
     h += '<svg class="ovl" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">' + ovl + '</svg>';
   h += cards + handles + '</div>';
-  if (isAuto) h += '<div class="sk-mapcredit">Map data \u00A9Google</div>';
   /* centres without a pin: cards grid below the map */
   var pinned = {};
   pins.forEach(function(p){ pinned[p.ct.id] = 1; });
@@ -1809,12 +1816,14 @@ stageEl.addEventListener("pointerdown", function(ev){
   function mv(e){
     var dx = e.clientX - sx, dy = e.clientY - sy;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
-    el.style.transform = "translate(" + dx + "px," + dy + "px)";
+    el.style.marginLeft = dx + "px";
+    el.style.marginTop = dy + "px";
   }
   function up(e){
     document.removeEventListener("pointermove", mv);
     document.removeEventListener("pointerup", up);
-    el.style.transform = "";
+    el.style.marginLeft = "";
+    el.style.marginTop = "";
     if (!moved) return;
     var dx = e.clientX - sx, dy = e.clientY - sy;
     var parts = el.dataset.mapdrag.split("|");
