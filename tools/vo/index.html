@@ -1039,7 +1039,7 @@ function renderIT(stage){
 /* =====================================================================
    SALES KIT (ported from Sales-Kit.html — one page for everything)
    ===================================================================== */
-var IMG = {}, GEO = {};   // image / map caches: null=pending, ""/false=failed
+var IMG = {}, GEO = {}, IMGM = {};   // image / map / mono-image caches: null=pending, ""/false=failed
 var LK = LANG_KEYS;
 var COUNTRY = { "Hong Kong":"Hong Kong", "Japan":"Japan", "Australia":"Australia",
   "Singapore":"Singapore", "Manila":"Philippines", "Kuala Lumpur":"Malaysia", "Ho Chi Minh City":"Vietnam" };
@@ -1199,6 +1199,13 @@ function connOpt(optStr){
   });
   return o;
 }
+function connVia(o){
+  if (o.via === undefined || o.via === "") return [];
+  return String(o.via).split("|").map(function(p){
+    var a = p.split(",");
+    return [Number(a[0]), Number(a[1])];
+  }).filter(function(a){ return isFinite(a[0]) && isFinite(a[1]); });
+}
 function blockAnchor(b, attach){
   if (attach === "top")   return [b.x + b.w/2, b.y - 4];
   if (attach === "left")  return [b.x - 4, b.y + 26];
@@ -1243,7 +1250,14 @@ function renderTransit(stage, style){
     var start = blockAnchor(b, o.attach) || defStart;
     if (o.sx !== undefined && o.sy !== undefined) start = [Number(o.sx) / 100 * W, Number(o.sy) / 100 * H];
     if (o.ex !== undefined && o.ey !== undefined){ ex = Number(o.ex) / 100 * W; ey = Number(o.ey) / 100 * H; my2 = null; }
-    if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
+    var via = connVia(o);
+    if (via.length){
+      var d = 'M ' + start[0] + ' ' + start[1];
+      via.forEach(function(v){ d += ' L ' + (v[0] / 100 * W) + ' ' + (v[1] / 100 * H); });
+      d += ' L ' + ex + ' ' + ey;
+      conn += '<path d="' + d + '" fill="none" stroke="#D9D9D9" stroke-width="1.3" stroke-dasharray="2 5" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    else if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
     else elbow(start[0], start[1], ex, ey, my2 === null ? (start[1] + ey) / 2 : my2);
   }
   function marker(x, y, vertical, name){
@@ -1424,7 +1438,7 @@ function geoAuto(city){
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (!j.ok){ GEO[key] = false; render(); return; }
-        monoize(j.dataUri, function(m){ j.dataUri = m; GEO[key] = j; render(); });
+        monoize(j.dataUri, function(m){ j.raw = j.dataUri; j.dataUri = m; GEO[key] = j; render(); });
       })
       .catch(function(){ GEO[key] = false; render(); });
   }
@@ -1473,12 +1487,25 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
   /* auto maps: box shows the top 436 of the 472px-tall source (640-wide), so the
      bottom strip with Google's attribution falls outside; 698*436/640 = 476 */
   var W = 698, H = isAuto ? 476 : 428;
+  /* map style set in the Map Designer: grey or colour (defaults keep the old look) */
+  var mrow = mapPos("map", city || curMarket);
+  var mstyle = connOpt(mrow ? mrow.opt : "").style || (isAuto ? "grey" : "colour");
   var h = '<div class="sk-cityhead">' + esc(/^[A-Z\s]+$/.test(displayCity) ? titleCase(displayCity) : displayCity) + '</div>';
   h += '<div class="sk-geobox' + (isAuto ? " auto" : "") + '">';
-  if (!isAuto) h += imgTag(assetId(bgKey1) ? bgKey1 : bgKey2, "bg");
+  if (!isAuto){
+    var bgk = assetId(bgKey1) ? bgKey1 : bgKey2;
+    if (mstyle === "grey"){
+      /* grey wash baked into the pixels (PDF-safe), from the uploaded image */
+      var idg = assetId(bgk);
+      if (IMG[idg]){
+        if (IMGM[idg] === undefined){ IMGM[idg] = null; monoize(IMG[idg], function(m){ IMGM[idg] = m; render(); }); }
+        h += IMGM[idg] ? '<img class="bg" src="' + IMGM[idg] + '">' : '<div class="bg ph">loading\u2026</div>';
+      } else h += imgTag(bgk, "bg");
+    } else h += imgTag(bgk, "bg");
+  }
   else {
     var auto = geoAuto(city);
-    if (auto && auto.dataUri) h += '<img class="bg auto" src="' + auto.dataUri + '">';
+    if (auto && auto.dataUri) h += '<img class="bg auto" src="' + (mstyle === "colour" && auto.raw ? auto.raw : auto.dataUri) + '">';
     else if (auto === null) h += '<div class="bg ph">building map from Google\u2026</div>';
     else h += '<div class="bg ph">map unavailable \u2014 add an image in SK-Assets</div>';
   }
@@ -1515,9 +1542,15 @@ function geoCityHtml(displayCity, cityCentres, rawKey){
       if (oC.sx !== undefined && oC.sy !== undefined){ axp = Number(oC.sx) / 100 * W; ayp = Number(oC.sy) / 100 * H; }
       var exp2 = px, eyp = py - 46;
       if (oC.ex !== undefined && oC.ey !== undefined){ exp2 = Number(oC.ex) / 100 * W; eyp = Number(oC.ey) / 100 * H; }
-      /* connector: dotted; elbow by default, straight when chosen */
+      /* connector: dotted; polyline through bend points, else elbow/straight */
+      var viaG = connVia(oC);
       var route;
-      if (oC.conn === "straight")
+      if (viaG.length){
+        route = 'M ' + axp + ' ' + ayp;
+        viaG.forEach(function(v){ route += ' L ' + (v[0] / 100 * W) + ' ' + (v[1] / 100 * H); });
+        route += ' L ' + exp2 + ' ' + eyp;
+      }
+      else if (oC.conn === "straight")
         route = 'M ' + axp + ' ' + ayp + ' L ' + exp2 + ' ' + eyp;
       else if (Math.abs(eyp - ayp) > 46)
         route = 'M ' + axp + ' ' + ayp + ' L ' + axp + ' ' + (eyp - 12) + ' L ' + exp2 + ' ' + (eyp - 12) + ' L ' + exp2 + ' ' + eyp;

@@ -76,7 +76,10 @@
 .mdselbar .dim{color:var(--co-muted);font-weight:600;}
 .mdselbar b{color:var(--co-orange);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;}
 .mdselbar kbd{font:inherit;font-size:10px;font-weight:800;border:1px solid var(--co-line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:#FAFAFA;}
-.mdconn.s{background:#2E7D32;} .mdconn.e{background:#FF6600;}
+.mdconn.s{background:#2E7D32;} .mdconn.e{background:#FF6600;} .mdconn.v{background:#1B5FA6;}
+.mdstyle{display:inline-flex;border:1px solid var(--co-line);border-radius:8px;overflow:hidden;background:rgba(255,255,255,.92);}
+.mdstyle button{font:inherit;font-size:10.5px;font-weight:800;padding:5px 10px;border:0;background:transparent;color:var(--co-muted);cursor:pointer;}
+.mdstyle button.on{background:var(--co-orange);color:#fff;}
 .mdgeo-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#BBB;font-size:12px;text-align:center;padding:30px;background:#F6F6F6;}
 .coed-drop{border:2px dashed #FFD9B8;background:#FFFBF7;border-radius:12px;padding:16px;text-align:center;font-size:12.5px;color:#7A4A1F;margin:0 0 14px;cursor:pointer;transition:background .15s,border-color .15s;}
 .coed-drop b{color:var(--co-orange);}
@@ -467,7 +470,7 @@ function chipsHtml(){
   }).join("") + '</div>';
 }
 function bindChips(){
-  document.querySelectorAll(".coed-chip").forEach(function(b){
+  document.querySelectorAll(".coed-chip[data-mkt]").forEach(function(b){
     b.addEventListener("click", function(){ mkt = b.dataset.mkt; renderView(); });
   });
 }
@@ -1239,6 +1242,14 @@ function connOpt(optStr){
   });
   return o;
 }
+function connVia(o){
+  if (o.via === undefined || o.via === "") return [];
+  return String(o.via).split("|").map(function(p){
+    var a = p.split(",");
+    return [Number(a[0]), Number(a[1])];
+  }).filter(function(a){ return isFinite(a[0]) && isFinite(a[1]); });
+}
+function viaStr(arr){ return arr.map(function(v){ return v[0] + "," + v[1]; }).join("|"); }
 function blockAnchor(b, attach){
   if (attach === "top")   return [b.x + b.w/2, b.y - 4];
   if (attach === "left")  return [b.x - 4, b.y + 26];
@@ -1299,8 +1310,15 @@ function mdDrawTransit(box){
     var start = blockAnchor(b, o.attach) || defStart;
     if (o.sx !== undefined && o.sy !== undefined) start = [Number(o.sx)/100*W, Number(o.sy)/100*H];
     if (o.ex !== undefined && o.ey !== undefined){ ex = Number(o.ex)/100*W; ey = Number(o.ey)/100*H; my2 = null; }
-    MDCONN[ref] = { sx:start[0], sy:start[1], ex:ex, ey:ey };
-    if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
+    var via = connVia(o).map(function(v){ return [v[0]/100*W, v[1]/100*H]; });
+    MDCONN[ref] = { sx:start[0], sy:start[1], ex:ex, ey:ey, via:via, W:W, H:H };
+    if (via.length){
+      var d2 = 'M ' + start[0] + ' ' + start[1];
+      via.forEach(function(v){ d2 += ' L ' + v[0] + ' ' + v[1]; });
+      d2 += ' L ' + ex + ' ' + ey;
+      conn += '<path d="' + d2 + '" fill="none" stroke="#D9D9D9" stroke-width="1.3" stroke-dasharray="2 5" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    else if (o.conn === "straight" || !useElbow) dot(start[0], start[1], ex, ey);
     else elbow(start[0], start[1], ex, ey, my2 === null ? (start[1] + ey) / 2 : my2);
   }
   function block(n, centres, ref, defX, defY, wpx){
@@ -1431,6 +1449,9 @@ function mdDrawTransit(box){
   if (mdSel && mdSel.kind === "block" && MDCONN[mdSel.ref]){
     var cp = MDCONN[mdSel.ref];
     handles += '<div class="mdconn s" data-md="connstart|'+esc(mdSel.ref)+'" title="Connector start (card side)" style="left:'+cp.sx+'px;top:'+cp.sy+'px"></div>';
+    (cp.via||[]).forEach(function(v,i){
+      handles += '<div class="mdconn v" data-md="connvia|'+esc(mdSel.ref)+'" data-vidx="'+i+'" title="Bend point '+(i+1)+' \u2014 drag" style="left:'+v[0]+'px;top:'+v[1]+'px"></div>';
+    });
     handles += '<div class="mdconn e" data-md="connend|'+esc(mdSel.ref)+'" title="Connector end (line side)" style="left:'+cp.ex+'px;top:'+cp.ey+'px"></div>';
   }
   box.innerHTML = '<svg class="base" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">'+conn+svg+'</svg>' + html + handles;
@@ -1477,15 +1498,18 @@ function mdDrawGeo(box){
   });
   var H = aid ? 428 : 476;                    /* matches the printed page exactly */
   box.style.height = H + "px";
+  var mrow = mdPosXY("map", city || mkt);
+  var mstyle = connOpt(mrow ? mrow.opt : "").style || (aid ? "colour" : "grey");
+  var gflt = mstyle === "grey" ? "filter:grayscale(1) brightness(1.06) contrast(.92)" : "";
   var auto = aid ? undefined : mdGeoFetch(city);
   var autoPins = {};
   if (auto && auto.pins) auto.pins.forEach(function(p2){ autoPins[p2.centre_id] = p2; });
   var h;
   if (aid){
-    /* uploaded image: full colour — exactly what the page prints */
-    h = '<img src="https://drive.google.com/thumbnail?id='+encodeURIComponent(aid)+'&sz=w1200" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">';
+    /* uploaded image — shown exactly as the page prints it (grey or colour per the toggle) */
+    h = '<img src="https://drive.google.com/thumbnail?id='+encodeURIComponent(aid)+'&sz=w1200" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'+gflt+'">';
   } else if (auto && auto.dataUri){
-    h = '<img src="'+auto.dataUri+'" style="position:absolute;top:0;left:0;width:100%;height:auto;filter:grayscale(1) brightness(1.06) contrast(.92)">';
+    h = '<img src="'+auto.dataUri+'" style="position:absolute;top:0;left:0;width:100%;height:auto;'+gflt+'">';
   } else if (auto === null){
     h = '<div class="mdgeo-ph">Loading the automatic Google map\u2026<br><br><b>Or drop your own map screenshot anywhere on this canvas</b> \u2014 it uploads and becomes the page background.</div>';
   } else {
@@ -1537,8 +1561,14 @@ function mdDrawGeo(box){
       if (oC.sx !== undefined && oC.sy !== undefined){ axp = Number(oC.sx)/100*W; ayp = Number(oC.sy)/100*H; }
       var exp2 = px, eyp = py - 46;
       if (oC.ex !== undefined && oC.ey !== undefined){ exp2 = Number(oC.ex)/100*W; eyp = Number(oC.ey)/100*H; }
+      var viaG = connVia(oC).map(function(v){ return [v[0]/100*W, v[1]/100*H]; });
       var route;
-      if (oC.conn === "straight")
+      if (viaG.length){
+        route = 'M '+axp+' '+ayp;
+        viaG.forEach(function(v){ route += ' L '+v[0]+' '+v[1]; });
+        route += ' L '+exp2+' '+eyp;
+      }
+      else if (oC.conn === "straight")
         route = 'M '+axp+' '+ayp+' L '+exp2+' '+eyp;
       else if (Math.abs(eyp - ayp) > 46)
         route = 'M '+axp+' '+ayp+' L '+axp+' '+(eyp-12)+' L '+exp2+' '+(eyp-12)+' L '+exp2+' '+eyp;
@@ -1546,7 +1576,7 @@ function mdDrawGeo(box){
         route = 'M '+axp+' '+ayp+' L '+exp2+' '+ayp+' L '+exp2+' '+eyp;
       ovl += '<path d="'+route+'" fill="none" stroke="#FF6600" stroke-width="1.4" stroke-dasharray="3 5" stroke-linecap="round" stroke-linejoin="round"/>';
       ovl += '<circle cx="'+axp+'" cy="'+ayp+'" r="2.6" fill="#FF6600"/>';
-      MDCONN[ct.id] = { sx:axp, sy:ayp, ex:exp2, ey:eyp };
+      MDCONN[ct.id] = { sx:axp, sy:ayp, ex:exp2, ey:eyp, via:viaG, W:W, H:H };
     }
     h += '<div class="mdpin'+mdSelCls("pin",ct.id)+'"'+mdAttr("pin",ct.id)+' style="left:'+p.x+'%;top:'+p.y+'%" title="'+esc(ct.building_en)+'">'+
       '<svg viewBox="0 0 34 48"><path d="M17 48 C11 37 3 32 3 22 A14 14 0 1 1 31 22 C31 32 23 37 17 48 Z" fill="#FF6600"/><circle cx="17" cy="21" r="5.5" fill="#fff"/></svg></div>';
@@ -1555,13 +1585,27 @@ function mdDrawGeo(box){
   if (mdSel && mdSel.kind === "card" && MDCONN[mdSel.ref]){
     var gc = MDCONN[mdSel.ref];
     h += '<div class="mdconn s" data-md="connstart|'+esc(mdSel.ref)+'" data-ckind="card" title="Connector start (card side) \u2014 drag" style="left:'+gc.sx+'px;top:'+gc.sy+'px"></div>';
+    (gc.via||[]).forEach(function(v,i){
+      h += '<div class="mdconn v" data-md="connvia|'+esc(mdSel.ref)+'" data-ckind="card" data-vidx="'+i+'" title="Bend point '+(i+1)+' \u2014 drag" style="left:'+v[0]+'px;top:'+v[1]+'px"></div>';
+    });
     h += '<div class="mdconn e" data-md="connend|'+esc(mdSel.ref)+'" data-ckind="card" title="Connector end (pin side) \u2014 drag" style="left:'+gc.ex+'px;top:'+gc.ey+'px"></div>';
   }
-  h += '<div style="position:absolute;left:8px;bottom:8px;display:flex;gap:6px;z-index:8">'+
+  h += '<div style="position:absolute;left:8px;bottom:8px;display:flex;gap:6px;z-index:8;align-items:center">'+
     '<button class="addbar" style="margin:0;background:rgba(255,255,255,.92)" id="mdMapUp">\u2912 '+(aid?"replace":"upload")+' map image</button>'+
-    (aid?'<button class="addbar" style="margin:0;background:rgba(255,255,255,.92);color:#C33;border-color:#EBB" id="mdMapRm">\u00D7 remove image</button>':"")+'</div>';
+    (aid?'<button class="addbar" style="margin:0;background:rgba(255,255,255,.92);color:#C33;border-color:#EBB" id="mdMapRm">\u00D7 remove image</button>':"")+
+    '<span class="mdstyle"><button data-mstyle="grey" class="'+(mstyle==="grey"?"on":"")+'">Grey</button><button data-mstyle="colour" class="'+(mstyle==="colour"?"on":"")+'">Colour</button></span>'+
+    '</div>';
   box.innerHTML = h;
   box.dataset.city = city;
+  box.querySelectorAll("[data-mstyle]").forEach(function(b){
+    b.addEventListener("pointerdown", function(ev){ ev.stopPropagation(); });
+    b.addEventListener("click", function(ev){
+      ev.stopPropagation();
+      mdSetOpt("map", city || mkt, "style", b.dataset.mstyle);
+      mdRedraw();
+      setStatus("Map style: "+b.dataset.mstyle+" \u2014 the page prints it the same way","ok");
+    });
+  });
   var rt = box.querySelector("#mdGeoRetry");
   if (rt) rt.addEventListener("click", function(){ delete MDGEO[mkt+"|"+city]; mdRedraw(); });
   var up = box.querySelector("#mdMapUp");
@@ -1629,6 +1673,10 @@ function renderMapd(){
   h += wLangTabs();
   h += '<div class="wzsave"><button class="coed-btn primary" id="mdSave"'+(mdDirty?"":" disabled")+'>Save Map</button>'+
        '<button class="coed-btn" id="mdDiscard"'+(mdDirty?"":" disabled")+'>Discard</button>';
+  if (isTransit){
+    h += '<span style="flex:0 0 10px"></span>'+
+      '<button class="lp coed-chip" id="mdAddLineBar" style="padding:5px 12px;font-size:11.5px">+ add line</button>';
+  }
   if (!isTransit){
     h += '<span style="flex:0 0 10px"></span>' + mdGeoCities().map(function(c){
       return '<button class="lp coed-chip'+(String(mdCity||mdGeoCities()[0])===String(c)?" on":"")+'" data-mdcity="'+esc(c)+'" style="padding:5px 12px;font-size:11.5px">'+esc(c||"(all)")+'</button>';
@@ -1662,6 +1710,17 @@ function renderMapd(){
   });
   document.querySelectorAll("[data-mdcity]").forEach(function(b){
     b.addEventListener("click", function(){ mdCity=b.dataset.mdcity; mdSel=null; renderMapd(); });
+  });
+  var alb = el("#mdAddLineBar");
+  if (alb) alb.addEventListener("click", function(){
+    var nv = prompt("Name of the new line (internal key, e.g. osaka):", "");
+    if (!nv || !nv.trim()) return;
+    nv = nv.trim();
+    if (mdLines().indexOf(nv) > -1){ setStatus("A line called \u201C"+nv+"\u201D already exists","err"); return; }
+    MN.push({ market:mkt, line:nv, sort:1, label_en:"Station 1", label_tc:"", label_sc:"", label_jp:"", station_code:"", active:"\u2713", district_en:"", centre_ids:"" });
+    mdSel = { kind:"line", ref:nv };
+    idxAll(); mdMark(); renderMapd();
+    setStatus("Line \u201C"+nv+"\u201D added with one station \u2014 select its stations to name them","ok");
   });
 }
 function mdNodeByRef(ref){
@@ -1749,8 +1808,11 @@ function mdPanel(){
       '<label>Connector end (line side) \u2014 X / Y %</label><div style="display:flex;gap:6px">'+
         '<input type="number" step="0.1" data-mdcon="ex" value="'+(oB.ex!==undefined?oB.ex:"")+'" placeholder="auto">'+
         '<input type="number" step="0.1" data-mdcon="ey" value="'+(oB.ey!==undefined?oB.ey:"")+'" placeholder="auto"></div>'+
-      '<div class="hint2">Or drag the green (start) and orange (end) dots on the canvas while this card is selected.</div>'+
-      '<button class="addbar" style="margin-top:8px" id="mdConnReset">reset connector endpoints</button>'+
+      '<div class="hint2">Drag the green (start), blue (bend) and orange (end) dots on the canvas while this card is selected.</div>'+
+      '<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button class="addbar" style="margin:0" id="mdViaAdd">+ add bend point</button>'+
+        '<button class="addbar" style="margin:0" id="mdViaDel">\u2212 remove bend</button></div>'+
+      '<button class="addbar" style="margin-top:6px" id="mdConnReset">reset connector (endpoints &amp; bends)</button>'+
       '<button class="addbar" style="margin-top:6px" id="mdBlkReset">reset position &amp; width</button>';
   } else if (mdSel.kind === "pin"){
     var pinStored = mdPosXY("pin", mdSel.ref);
@@ -1788,8 +1850,11 @@ function mdPanel(){
           '<label>Connector end (pin side) \u2014 X / Y %</label><div style="display:flex;gap:6px">'+
             '<input type="number" step="0.1" data-mdcon="ex" value="'+(oG.ex!==undefined?oG.ex:"")+'" placeholder="auto">'+
             '<input type="number" step="0.1" data-mdcon="ey" value="'+(oG.ey!==undefined?oG.ey:"")+'" placeholder="auto"></div>'+
-          '<div class="hint2">Or drag the green (start) and orange (end) dots on the canvas while this card is selected.</div>'+
-          '<button class="addbar" style="margin-top:8px" id="mdConnReset">reset connector endpoints</button>';
+          '<div class="hint2">Drag the green (start), blue (bend) and orange (end) dots on the canvas while this card is selected.</div>'+
+      '<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button class="addbar" style="margin:0" id="mdViaAdd">+ add bend point</button>'+
+        '<button class="addbar" style="margin:0" id="mdViaDel">\u2212 remove bend</button></div>'+
+      '<button class="addbar" style="margin-top:6px" id="mdConnReset">reset connector (endpoints &amp; bends)</button>';
       })()+
       '<button class="addbar" style="margin-top:6px" id="mdCardDel">reset card (auto position &amp; text)</button>';
   }
@@ -1933,7 +1998,28 @@ function mdPanelBind(){
   });
   var cr = el("#mdConnReset");
   if (cr) cr.addEventListener("click", function(){
-    ["sx","sy","ex","ey"].forEach(function(k){ mdSetOpt(mdSel.kind, mdSel.ref, k, ""); });
+    ["sx","sy","ex","ey","via"].forEach(function(k){ mdSetOpt(mdSel.kind, mdSel.ref, k, ""); });
+    mdRedraw();
+  });
+  var va = el("#mdViaAdd");
+  if (va) va.addEventListener("click", function(){
+    var c2 = MDCONN[mdSel.ref];
+    if (!c2){ setStatus("Turn the connector on first (it is hidden)","err"); return; }
+    var o2 = connOpt((mdPosXY(mdSel.kind, mdSel.ref)||{}).opt);
+    var arr = connVia(o2);
+    var lastP = arr.length ? arr[arr.length-1] : [c2.sx/c2.W*100, c2.sy/c2.H*100];
+    arr.push([ Math.round((lastP[0] + c2.ex/c2.W*100)/2*10)/10,
+               Math.round((lastP[1] + c2.ey/c2.H*100)/2*10)/10 ]);
+    mdSetOpt(mdSel.kind, mdSel.ref, "via", viaStr(arr));
+    mdRedraw();
+  });
+  var vd = el("#mdViaDel");
+  if (vd) vd.addEventListener("click", function(){
+    var o3 = connOpt((mdPosXY(mdSel.kind, mdSel.ref)||{}).opt);
+    var arr3 = connVia(o3);
+    if (!arr3.length) return;
+    arr3.pop();
+    mdSetOpt(mdSel.kind, mdSel.ref, "via", viaStr(arr3));
     mdRedraw();
   });
   var at = el("#mdAttach");
@@ -2015,6 +2101,14 @@ function bindMapd(box, isTransit){
       else if (kind==="connend"){
         mdSetOpt(ckind, ref, "ex", String(Math.round(nx*10)/10));
         mdSetOpt(ckind, ref, "ey", String(Math.round(ny*10)/10));
+        mdSel = { kind:ckind, ref:ref };
+      }
+      else if (kind==="connvia"){
+        var oV = connOpt((mdPosXY(ckind, ref)||{}).opt);
+        var arrV = connVia(oV);
+        var vi = Number(elm.dataset.vidx)||0;
+        if (arrV[vi]) arrV[vi] = [Math.round(nx*10)/10, Math.round(ny*10)/10];
+        mdSetOpt(ckind, ref, "via", viaStr(arrV));
         mdSel = { kind:ckind, ref:ref };
       }
       else mdSet(kind, ref, nx, ny);
