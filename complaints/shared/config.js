@@ -99,5 +99,6 @@ export const COMPLAINT_TYPES = [
   "Access & Security",
   "Events",
   "Internet Access / Speed / IT",
+  "Renewal",
   "Others",
 ];
