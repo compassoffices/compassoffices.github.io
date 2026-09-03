@@ -884,7 +884,10 @@ function _dpSetToggles(vo,mr,it){
 const COVER_CDN='https://res.cloudinary.com/dutvfdhdp/image/upload/_CompassOffices/cover/';
 let COVER_ON=false;
 function coverKey(){
-  const city=(document.getElementById('city')?.value||'').trim();
+  let city=(document.getElementById('city')?.value||'').trim();
+  if(!city && typeof PDF_QUEUE!=='undefined' && PDF_QUEUE.length){
+    city=(PDF_QUEUE[0].state?.city||'').trim();   // form cleared after +Queue — use the queued centre's region
+  }
   // CamelCase to match Cloudinary filenames: "Hong Kong" → HongKong, "Ho Chi Minh City" → HoChiMinhCity
   return city.split(/[^A-Za-z0-9]+/).filter(Boolean)
     .map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join('');

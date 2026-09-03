@@ -516,6 +516,10 @@ function buildCoverPageHtml(){
   let city=(document.getElementById('city')?.value||'').trim();
   // Queue-aware: with multiple queued locations the cover represents the WHOLE
   // proposal — list the queued centres instead of just the currently loaded one.
+  if(typeof PDF_QUEUE!=='undefined' && PDF_QUEUE.length===1 && !centre){
+    centre=(PDF_QUEUE[0].name||'').trim(); fl='';
+    city=city||(PDF_QUEUE[0].state?.city||'').trim();
+  }
   if(typeof PDF_QUEUE!=='undefined' && PDF_QUEUE.length>1){
     const names=PDF_QUEUE.map(it=>(it.name||it.state?.['n-main']||'').trim()).filter(Boolean);
     const cities=[...new Set(PDF_QUEUE.map(it=>(it.state?.city||'').trim()).filter(Boolean))];

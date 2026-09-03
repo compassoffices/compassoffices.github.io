@@ -419,6 +419,7 @@ function _queueItemMeta(st){
   return parts.join(dot);
 }
 function renderQueueList(){
+  if(typeof renderCoverPreview==='function') setTimeout(renderCoverPreview,50);
   const list=document.getElementById('queue-list');
   const empty=document.getElementById('queue-empty');
   if(!list) return;
