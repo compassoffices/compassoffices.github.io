@@ -511,9 +511,20 @@ function buildCoverPageHtml(){
   const d=new Date();
   const dateStr=d.toLocaleDateString(LANG==='ja'?'ja-JP':(LANG&&LANG.startsWith('zh')?'zh-HK':'en-GB'),{year:'numeric',month:'long',day:'numeric'});
   const who=[comp,cli].filter(Boolean).join(' · ');
-  const centre=(document.getElementById('n-main')?.value||'').trim();
-  const fl=(typeof combineFloorLabel==='function')?combineFloorLabel(document.getElementById('floor')?.value.trim()||''):'';
-  const city=(document.getElementById('city')?.value||'').trim();
+  let centre=(document.getElementById('n-main')?.value||'').trim();
+  let fl=(typeof combineFloorLabel==='function')?combineFloorLabel(document.getElementById('floor')?.value.trim()||''):'';
+  let city=(document.getElementById('city')?.value||'').trim();
+  // Queue-aware: with multiple queued locations the cover represents the WHOLE
+  // proposal — list the queued centres instead of just the currently loaded one.
+  if(typeof PDF_QUEUE!=='undefined' && PDF_QUEUE.length>1){
+    const names=PDF_QUEUE.map(it=>(it.name||it.state?.['n-main']||'').trim()).filter(Boolean);
+    const cities=[...new Set(PDF_QUEUE.map(it=>(it.state?.city||'').trim()).filter(Boolean))];
+    if(names.length){
+      centre=names.slice(0,3).join(' · ')+(names.length>3?` · +${names.length-3} more`:'');
+      fl='';
+      city=cities.length===1?cities[0]:(cities.length>1?cities.join(' / '):city);
+    }
+  }
   const by=[(document.getElementById('pf-firstname')?.value||'').trim(),(document.getElementById('pf-lastname')?.value||'').trim()].filter(Boolean).join(' ');
   return `<div style="${_DPF}width:1122px;height:794px;position:relative;overflow:hidden;background:#fff;">
     <img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;"
