@@ -128,11 +128,27 @@ const addOption = (sel, value, label) => {
   sel.appendChild(o);
 };
 
-locationSel.appendChild(placeholder("Select a location"));
-Object.keys(LOCATIONS).forEach(loc => addOption(locationSel, loc));
+// Puts all four pickers back to their opening state. Called once at load
+// and again after a submit: form.reset() only restores which option is
+// selected, it never rebuilds options this script added, so without this the
+// centre and floor lists keep the previous submission's entries.
+function buildPickers() {
+  locationSel.innerHTML = "";
+  locationSel.appendChild(placeholder("Select a location"));
+  Object.keys(LOCATIONS).forEach(loc => addOption(locationSel, loc));
 
-centreSel.appendChild(placeholder("Select a location first"));
-floorSel.appendChild(placeholder("Select a centre first"));
+  centreSel.innerHTML = "";
+  centreSel.disabled = true;
+  centreSel.appendChild(placeholder("Select a location first"));
+
+  floorSel.innerHTML = "";
+  floorSel.disabled = true;
+  floorSel.appendChild(placeholder("Select a centre first"));
+
+  typeSel.innerHTML = "";
+  typeSel.appendChild(placeholder("Select a type"));
+  COMPLAINT_TYPES.forEach(t => addOption(typeSel, t));
+}
 
 locationSel.addEventListener("change", () => {
   const centres = Object.keys(LOCATIONS[locationSel.value] || {});
@@ -155,8 +171,7 @@ centreSel.addEventListener("change", () => {
   floors.forEach(f => addOption(floorSel, f, f + "/F"));
 });
 
-typeSel.appendChild(placeholder("Select a type"));
-COMPLAINT_TYPES.forEach(t => { const o=document.createElement("option"); o.value=t; o.textContent=t; typeSel.appendChild(o); });
+buildPickers();
 
 const form = document.getElementById("intakeForm");
 const errBox = document.getElementById("errBox");
@@ -201,6 +216,15 @@ form.addEventListener("submit", async (e) => {
     showError("Please fill in all required fields.");
     return;
   }
+  // A floor only exists at one centre. Catches a stale picker, and a form
+  // edited by hand, before either can file a ticket against a floor the
+  // chosen centre does not have.
+  const floorsHere = (LOCATIONS[complaint.location] || {})[complaint.centre] || [];
+  if (!floorsHere.includes(complaint.floor)) {
+    showError("Please re-select your centre and floor — that combination isn't valid.");
+    return;
+  }
+
   if (complaint.description.length > 4000) {
     showError("Please keep the description under 4000 characters.");
     return;
@@ -293,6 +317,7 @@ document.getElementById("copyBtn").addEventListener("click", () => {
 
 document.getElementById("anotherBtn").addEventListener("click", () => {
   form.reset();
+  buildPickers();
   form.style.display = "block";
   resultBox.style.display = "none";
 });
