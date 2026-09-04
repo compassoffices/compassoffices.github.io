@@ -40,7 +40,8 @@
 @keyframes coed-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
 /* ── Map Designer ── */
 .mdwrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
-.mdcanvas{position:relative;width:698px;background:#fff;border:1px solid var(--co-line);box-shadow:0 4px 18px rgba(0,0,0,.08);flex:0 0 698px;overflow:hidden;}
+.mdfit{flex:0 0 auto;max-width:100%;overflow:visible;}
+.mdcanvas{position:relative;width:698px;background:#fff;border:1px solid var(--co-line);box-shadow:0 4px 18px rgba(0,0,0,.08);overflow:hidden;touch-action:none;}
 .mdcanvas svg.base{position:absolute;inset:0;width:100%;height:100%;}
 .mdcanvas .sk-block{position:absolute;cursor:grab;z-index:2;}
 .mdcanvas .sk-block:active{cursor:grabbing;}
@@ -159,7 +160,7 @@
 .wzlang{display:flex;gap:6px;margin:0 0 12px;}
 .wzlang button{border:1.5px solid #E4E4E4;background:#fff;border-radius:999px;padding:4px 15px;font-size:12px;font-weight:700;cursor:pointer;color:#666;}
 .wzlang button.on{background:#1A1A1A;border-color:#1A1A1A;color:#fff;}
-.wzsave{position:sticky;top:0;z-index:5;background:#fff;padding:8px 0;display:flex;gap:8px;align-items:center;border-bottom:1px solid #EEE;margin-bottom:12px;}
+.wzsave{position:sticky;top:0;z-index:5;background:#fff;padding:8px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid #EEE;margin-bottom:12px;}
 /* MR */
 .wz .mrtable{width:100%;border-collapse:collapse;}
 .wz .mrtable th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#999;text-align:left;padding:6px 8px;border-bottom:2px solid #EEE;}
@@ -272,7 +273,28 @@
 .coed-savebar.show{bottom:24px;}
 .coed-savebar .coed-btn{padding:8px 18px;}
 .coed-empty{padding:50px;text-align:center;color:var(--co-muted);font-size:14px;}
-@media (max-width:760px){.coed-nav{width:60px;flex-basis:60px;} .coed-nav button span{display:none;} .coed-main{padding:16px 12px 90px;}}
+@media (max-width:760px){
+  .coed-nav{width:54px;flex-basis:54px;}
+  .coed-nav button span{display:none;}
+  .coed-main{padding:14px 10px 110px;}
+  /* header: compact, status truncates instead of stacking the title */
+  .coed-top{padding:8px 10px;gap:8px;}
+  .coed-top h1{font-size:13px;white-space:nowrap;}
+  .coed-status{font-size:11px;max-width:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .coed-top .coed-btn{padding:7px 10px;font-size:12px;white-space:nowrap;}
+  /* wide tables scroll inside their card instead of stretching the page */
+  .wz,.coed-card{overflow-x:auto;}
+  .wz .mrtable,.coed-table{min-width:560px;}
+  /* 16px inputs stop iOS zooming in on focus */
+  input[type=text],input[type=number],select,textarea,[contenteditable="true"]{font-size:16px !important;}
+  .coed-chips{gap:6px;}
+  .coed-chip{padding:7px 12px;font-size:12px;}
+  .mdpanel{position:static;max-height:none;min-width:0;width:100%;}
+  .mdselbar{width:100%;flex-wrap:wrap;}
+  .mdselbar .dim{margin-left:0 !important;width:100%;}
+  .coed-savebar{max-width:calc(100vw - 12px);flex-wrap:wrap;justify-content:center;font-size:12px;padding:8px 10px;bottom:-200px;}
+  .coed-savebar.show{bottom:10px;}
+}
 </style>
 </head>
 <body class="coed">
@@ -1684,12 +1706,13 @@ function renderMapd(){
   }
   h += '</div>';
   h += '<div class="mdselbar" id="mdSelBar"></div>';
-  h += '<div class="mdwrap"><div class="mdcanvas" id="mdCanvas"></div><div class="mdpanel" id="mdPanel"></div></div>';
+  h += '<div class="mdwrap"><div class="mdfit" id="mdFit"><div class="mdcanvas" id="mdCanvas"></div></div><div class="mdpanel" id="mdPanel"></div></div>';
   el("#main").innerHTML = h;
   bindChips(); bindWLang();
   var box = el("#mdCanvas");
   if (isTransit) mdDrawTransit(box); else mdDrawGeo(box);
   mdPanel();
+  mdFit();
   bindMapd(box, isTransit);
   var sv = el("#mdSave");
   if (sv) sv.addEventListener("click", function(){
@@ -1905,11 +1928,23 @@ document.addEventListener("keydown", function(ev){
   var map2 = { ArrowLeft:[-st,0], ArrowRight:[st,0], ArrowUp:[0,-st], ArrowDown:[0,st] };
   if (map2[ev.key]){ ev.preventDefault(); mdNudge(map2[ev.key][0], map2[ev.key][1]); }
 });
+function mdFit(){
+  var box = el("#mdCanvas"), wrap = el("#mdFit");
+  if (!box || !wrap || !wrap.parentNode) return;
+  var avail = wrap.parentNode.getBoundingClientRect().width;
+  var s = Math.min(1, (avail >= 730 ? 698 : Math.max(avail, 260)) / 698);
+  box.style.transform = s < 1 ? "scale(" + s + ")" : "";
+  box.style.transformOrigin = "top left";
+  wrap.style.width = Math.round(698 * s) + "px";
+  wrap.style.height = Math.round((parseFloat(box.style.height) || box.offsetHeight) * s) + "px";
+}
+window.addEventListener("resize", function(){ if (view === "mapd") mdFit(); });
 function mdRedraw(){
   var box = el("#mdCanvas");
   if (!box) return;
   if (mdLines().length) mdDrawTransit(box); else mdDrawGeo(box);
   mdPanel();
+  mdFit();
 }
 function mdPanelBind(){
   var n = mdSel && mdSel.kind==="station" ? mdNodeByRef(mdSel.ref) : null;
@@ -2039,6 +2074,7 @@ function mdPanelBind(){
     mdSet(kind, mdSel.ref, null, null, Number(w.value));
     var box = el("#mdCanvas");
     if (mdLines().length) mdDrawTransit(box); else mdDrawGeo(box);
+    mdFit();
   });
   var br = el("#mdBlkReset"); if (br) br.addEventListener("click", function(){ mdReset("block", mdSel.ref); mdRedraw(); });
   var pc = el("#mdPinCard"); if (pc) pc.addEventListener("click", function(){
