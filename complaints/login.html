@@ -205,6 +205,22 @@ marketsBox.innerHTML = Object.keys(LOCATIONS).map(loc =>
   `<label><input type="checkbox" value="${escapeHtml(loc)}">${escapeHtml(loc)}</label>`
 ).join("");
 
+// CS reads are scoped by market, but CS picks centres — so work the markets
+// out from the centres rather than asking twice, which would let the two
+// drift apart. A tick can be "everywhere", a whole market, or one centre.
+function marketsForCentres(centres) {
+  if (centres.includes("*")) return Object.keys(LOCATIONS);
+  const markets = new Set();
+  centres.forEach(entry => {
+    const centre = entry.split(FLOOR_SEP)[0];
+    if (LOCATIONS[centre]) { markets.add(centre); return; }  // a whole market
+    Object.keys(LOCATIONS).forEach(market => {
+      if (LOCATIONS[market][centre]) markets.add(market);
+    });
+  });
+  return Array.from(markets);
+}
+
 // CS is routed by centre, Sales is scoped by market, everyone else is
 // notified by assignment and needs neither.
 regTeam.addEventListener("change", () => {
@@ -298,9 +314,11 @@ registerForm.addEventListener("submit", async (e) => {
   const centres = Array.from(
     centresBox.querySelectorAll("input[type=checkbox]:checked")
   ).map(cb => cb.value);
-  const markets = Array.from(
-    marketsBox.querySelectorAll("input[type=checkbox]:checked")
-  ).map(cb => cb.value);
+  const markets = team === "CS"
+    ? marketsForCentres(centres)
+    : Array.from(
+        marketsBox.querySelectorAll("input[type=checkbox]:checked")
+      ).map(cb => cb.value);
 
   if (!name) {
     showError("Please enter your full name.");
@@ -315,7 +333,7 @@ registerForm.addEventListener("submit", async (e) => {
     return;
   }
   if (team === "CS" && centres.length === 0) {
-    showError("Please choose at least one centre you cover, so we know which complaints to email you about.");
+    showError("Please choose at least one centre you cover — this sets both which complaints you're emailed about and which markets you can see.");
     return;
   }
   if (team === "Sales" && markets.length === 0) {
