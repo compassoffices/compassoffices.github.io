@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Centre Content Studio — Compass Offices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --o:#FF6600; --o-dk:#E55A00; --o-wash:#FFF3EB; --o-tint:#FFD9BD;
+  --ink:#1A1A1A; --tx:#333333; --tx2:#555555; --mut:#888888; --fnt:#BBBBBB;
+  --ln:#E5E5E5; --bg:#F5F5F5; --fill:#EFEFEF; --pp:#FFFFFF;
+  --r:10px; --rp:999px;
+  --good:#1E7B4D; --warn:#B26A00;
+}
+*,*::before,*::after{box-sizing:border-box;}
+html,body{height:100%;}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5;
+  font-family:'Hanken Grotesk','Noto Sans TC','Noto Sans JP',system-ui,sans-serif;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;}
+h1,h2,h3,h4,p,ul,ol,figure{margin:0;padding:0;}
+ul,ol{list-style:none;}
+button{font:inherit;border:0;background:none;cursor:pointer;color:inherit;}
+input,select,textarea{font:inherit;color:inherit;}
+:focus-visible{outline:3px solid var(--o);outline-offset:2px;border-radius:3px;}
+svg{fill:none;stroke:currentColor;vertical-align:middle;}
+.mark path{fill:var(--o);stroke:none;}
+
+/* ------------------------------- chrome ------------------------------- */
+.top{position:sticky;top:0;z-index:30;background:var(--ink);color:#fff;}
+.top-in{display:flex;align-items:center;gap:18px;padding:0 clamp(14px,2.4vw,28px);height:62px;}
+.top .sel{margin-left:auto;}
+.saved{display:none;align-items:center;gap:8px;font-size:.74rem;font-weight:700;letter-spacing:.06em;
+  color:rgba(255,255,255,.5);}
+.saved.on{display:inline-flex;}
+.saved svg{width:14px;height:14px;color:#7BC59B;}
+.dirty{display:none;align-items:center;gap:8px;font-size:.76rem;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--o-tint);}
+.dirty.on{display:inline-flex;}
+.dirty i{width:8px;height:8px;border-radius:50%;background:var(--o);display:block;}
+
+select,input[type=text],input[type=url],textarea{width:100%;background:#fff;border:1px solid var(--ln);
+  border-radius:6px;padding:9px 11px;font-size:.88rem;min-height:40px;}
+textarea{resize:vertical;min-height:64px;line-height:1.5;}
+select:hover,input:hover{border-color:var(--fnt);}
+.top select{background:#2A2A2A;border-color:#3A3A3A;color:#fff;min-width:min(46vw,340px);font-weight:700;}
+
+.tabs{display:flex;gap:0;background:#fff;border-bottom:1px solid var(--ln);
+  padding:0 clamp(14px,2.4vw,28px);overflow-x:auto;position:sticky;top:62px;z-index:29;}
+.tab{position:relative;padding:0 18px;height:52px;display:flex;align-items:center;gap:9px;
+  font-size:.88rem;font-weight:700;color:var(--tx2);white-space:nowrap;}
+.tab i{font-style:normal;font-size:.68rem;font-weight:800;color:var(--fnt);}
+.tab::after{content:"";position:absolute;left:18px;right:18px;bottom:0;height:2px;background:var(--o);
+  transform:scaleX(0);transform-origin:left;transition:transform .2s;}
+.tab.on{color:var(--ink);}
+.tab.on i{color:var(--o);}
+.tab.on::after{transform:scaleX(1);}
+.tab:hover{color:var(--ink);}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#fff;border-bottom:1px solid var(--ln);
+  padding:12px clamp(14px,2.4vw,28px);}
+.bar .grow{flex:1 1 auto;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;
+  border-radius:var(--rp);font-size:.85rem;font-weight:800;transition:.16s;white-space:nowrap;}
+.btn svg{width:16px;height:16px;}
+.btn--o{background:var(--o);color:#fff;}
+.btn--o:hover{background:var(--o-dk);}
+.btn--ink{background:var(--ink);color:#fff;}
+.btn--ink:hover{background:#000;}
+.btn--line{border:1.5px solid var(--ln);background:#fff;}
+.btn--line:hover{border-color:var(--ink);}
+.btn--ghost{color:var(--tx2);}
+.btn--ghost:hover{background:var(--fill);color:var(--ink);}
+.btn--sm{min-height:34px;padding:0 12px;font-size:.79rem;}
+.btn[disabled]{opacity:.4;pointer-events:none;}
+
+.wrap{padding:clamp(16px,2.6vw,32px);max-width:1480px;margin:0 auto;}
+.pane{display:none;}
+.pane.on{display:block;}
+.card{background:#fff;border:1px solid var(--ln);border-radius:var(--r);padding:clamp(18px,2.2vw,26px);}
+.card + .card{margin-top:16px;}
+.card h3{font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;font-weight:800;color:var(--o);
+  margin-bottom:16px;}
+.hint{font-size:.82rem;color:var(--mut);line-height:1.6;}
+.hint code{background:var(--fill);padding:2px 6px;border-radius:4px;font-size:.94em;}
+
+/* ------------------------------- report ------------------------------- */
+.rep-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 28px;margin-bottom:22px;}
+.rep-head h2{font-size:clamp(1.4rem,2.6vw,2rem);font-weight:900;letter-spacing:-.03em;line-height:1.1;}
+.rep-head p{font-size:.8rem;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--o);
+  margin-bottom:6px;}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--ln);
+  border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;margin-bottom:18px;}
+.tile{background:#fff;padding:16px 18px 18px;}
+.tile b{display:block;font-size:1.6rem;font-weight:900;letter-spacing:-.035em;line-height:1;}
+.tile b small{font-size:.5em;font-weight:800;color:var(--o);margin-left:2px;}
+.tile span{display:block;font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;font-weight:800;
+  color:var(--mut);margin-top:9px;}
+.mix li{padding:11px 0;border-bottom:1px solid var(--ln);}
+.mix li:last-child{border-bottom:0;}
+.mix-top{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:baseline;}
+.mix-top b{font-size:.9rem;font-weight:700;}
+.mix-top em{font-style:normal;font-weight:900;font-size:.95rem;}
+.mix-bar{height:5px;border-radius:3px;background:var(--fill);margin-top:8px;overflow:hidden;}
+.mix-bar span{display:block;height:100%;border-radius:3px;background:var(--o);}
+.persona dt{font-size:.66rem;letter-spacing:.15em;text-transform:uppercase;font-weight:800;color:var(--o);
+  margin-bottom:6px;}
+.persona dd{margin:0 0 16px;font-size:.9rem;color:var(--tx);line-height:1.65;}
+.persona dd:last-child{margin-bottom:0;}
+.net{width:100%;border-collapse:collapse;font-size:.85rem;}
+.net th{text-align:left;font-size:.64rem;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);
+  font-weight:800;padding:0 10px 10px;border-bottom:1px solid var(--ln);}
+.net td{padding:9px 10px;border-bottom:1px solid var(--ln);}
+.net tr{cursor:pointer;}
+.net tr:hover td{background:var(--o-wash);}
+.net tr.on td{background:var(--o-wash);box-shadow:inset 3px 0 0 var(--o);}
+.net .r{text-align:right;font-weight:800;}
+.pill{display:inline-block;padding:2px 9px;border-radius:var(--rp);background:var(--fill);
+  font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--tx2);}
+.pill.done{background:var(--o-wash);color:var(--o-dk);}
+
+/* ------------------------------- editors ------------------------------ */
+.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.86rem;}
+.tbl th{text-align:left;font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);
+  font-weight:800;padding:0 8px 9px;white-space:nowrap;}
+.tbl td{padding:4px 4px;vertical-align:top;}
+.tbl tr + tr td{border-top:1px solid var(--ln);padding-top:9px;}
+.tbl .num{width:56px;text-align:center;color:var(--fnt);font-weight:800;padding-top:14px;}
+.tbl .act{width:78px;white-space:nowrap;padding-top:9px;}
+.icb{width:32px;height:32px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--mut);}
+.icb:hover{background:var(--fill);color:var(--ink);}
+.icb.del:hover{background:#FDEDED;color:#B3261E;}
+.icb svg{width:15px;height:15px;}
+.scroll{overflow-x:auto;}
+.scroll .tbl{min-width:1080px;}
+
+.route{border:1px solid var(--ln);border-radius:var(--r);padding:18px;background:#fff;}
+.route + .route{margin-top:14px;}
+.route.best{border-color:var(--o);box-shadow:0 0 0 1px var(--o) inset;}
+.route-top{display:grid;grid-template-columns:150px 1fr 1fr 190px auto;gap:10px;align-items:center;}
+@media(max-width:900px){.route-top{grid-template-columns:1fr 1fr;}}
+.route-steps{margin-top:14px;padding-top:14px;border-top:1px dashed var(--ln);}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;font-weight:700;white-space:nowrap;
+  cursor:pointer;}
+.chk input{width:17px;height:17px;min-height:0;accent-color:var(--o);}
+.lbl{display:block;font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);
+  font-weight:800;margin-bottom:5px;}
+
+.empty{text-align:center;padding:52px 20px;color:var(--mut);}
+.empty svg{width:34px;height:34px;color:var(--fnt);margin-bottom:14px;}
+.empty p{font-size:.92rem;max-width:44ch;margin:0 auto 18px;line-height:1.65;}
+
+pre.json{background:var(--ink);color:#E8E8E8;border-radius:var(--r);padding:18px;overflow:auto;
+  max-height:460px;font-size:.78rem;line-height:1.6;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+pre.json .k{color:#FFB885;}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);z-index:60;
+  background:var(--ink);color:#fff;padding:13px 22px;border-radius:var(--rp);font-size:.86rem;
+  font-weight:700;box-shadow:0 16px 40px rgba(0,0,0,.3);transition:transform .3s cubic-bezier(.22,1,.36,1);}
+.toast.on{transform:translateX(-50%) translateY(0);}
+.toast.bad{background:#B3261E;}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5m-6.5 6.5L12 5l6.5 6.5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14m6.5-6.5L12 19l-6.5-6.5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 20.5h16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-ul" viewBox="0 0 24 24"><path d="M12 20V8m-5 5 5-5 5 5M4 3.5h16" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2.4" stroke-width="1.7"/><path d="M15.5 5.5h-9a2.5 2.5 0 0 0-2.5 2.5v9" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3.5H7A1.8 1.8 0 0 0 5.2 5.3v13.4A1.8 1.8 0 0 0 7 20.5h10a1.8 1.8 0 0 0 1.8-1.8V8.3Z" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3.5v5h4.8M8.6 13h6.8M8.6 16.4h4.6" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" stroke-width="1.7"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" stroke-width="1.7"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" stroke-width="1.7"/></symbol>
+</defs></svg>
+
+<header class="top">
+  <div class="top-in">
+    <span class="dirty" id="dirty"><i></i>Unsaved changes</span>
+    <span class="saved" id="saved"></span>
+    <span class="sel"><select id="centre" aria-label="Choose a centre"></select></span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab on" data-p="report"><i>01</i>Report</button>
+  <button class="tab" data-p="hood"><i>02</i>The neighbourhood</button>
+  <button class="tab" data-p="route"><i>03</i>Getting here</button>
+  <button class="tab" data-p="data"><i>04</i>Publish</button>
+</nav>
+
+<div class="bar">
+  <button class="btn btn--line btn--sm" id="imp-json"><svg><use href="#i-ul"></use></svg>Import JSON</button>
+  <button class="btn btn--line btn--sm" id="imp-xls"><svg><use href="#i-ul"></use></svg>Import Excel</button>
+  <button class="btn btn--ghost btn--sm" id="clear-local" title="Discard the browser copy and reload the built-in report">Reset</button>
+  <span class="grow"></span>
+  <button class="btn btn--line btn--sm" id="exp-xls"><svg><use href="#i-dl"></use></svg>Excel</button>
+  <button class="btn btn--ink btn--sm" id="exp-json"><svg><use href="#i-dl"></use></svg>Download JSON</button>
+</div>
+<input type="file" id="file-json" accept=".json,application/json" hidden>
+<input type="file" id="file-xls" accept=".xlsx,.xls,.csv" hidden>
+
+<main class="wrap">
+  <section class="pane on" id="p-report"></section>
+  <section class="pane" id="p-hood"></section>
+  <section class="pane" id="p-route"></section>
+  <section class="pane" id="p-data"></section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>/* Generated from Compass_Offices_APAC_Master_Report.docx — 31 centres. */
+var REPORT = {"source":"Compass Offices APAC Client Profiling & Center Targeting Report","generated":"2026-09-08","centres":[{"code":"SGP-SHC","region":"Singapore","city":"Singapore","name":"Samsung Hub","mnc":55.3,"local":44.7,"origin":null,"persona":{"profile":"C-level enterprise software executives, institutional fund managers, private equity directors, and compliance/risk officers.","priorities":"Regulatory adherence (MAS frameworks), enterprise AI integration, high-level institutional networking, and robust data privacy.","hooks":"High-spec contiguous regional headquarters, enterprise-grade data security, and prestigious Raffles Place business image."},"industries":[{"name":"Financial Services, Wealth & Investment","pct":36.7},{"name":"Professional Services, Legal & Executive Recruitment","pct":28.3},{"name":"Technology, Software, AI & Media","pct":25.0},{"name":"Energy, Commodities, Logistics & Industrial","pct":6.7},{"name":"Real Estate, Retail & Lifestyle","pct":3.3}],"label":"Singapore — Samsung Hub"},{"code":"SGP-SLT","region":"Singapore","city":"Singapore","name":"Singapore Land Tower","mnc":53.9,"local":46.1,"origin":null,"persona":{"profile":"Managing partners of boutique law corporations, executive search/HR advisory leads, wealth advisory directors, and cross-border trade heads.","priorities":"Talent acquisition/retention trends, commercial dispute resolution, fast APAC market expansion, and operational cost efficiency.","hooks":"Turnkey agility for 2–5 person teams, premium client meeting suites, and flexible CBD terms with zero upfront capex."},"industries":[{"name":"Professional Services, Legal & Executive Recruitment","pct":32.6},{"name":"Financial Services, Wealth & Investment","pct":31.5},{"name":"Technology, Software, AI & Media","pct":22.8},{"name":"Energy, Commodities, Logistics & Industrial","pct":9.8},{"name":"Other / Unclassified","pct":2.2},{"name":"Real Estate, Retail & Lifestyle","pct":1.1}],"label":"Singapore — Singapore Land Tower"},{"code":"JPN-YSD","region":"Japan","city":"Tokyo","name":"Yaesu Daibiru","mnc":58.5,"local":41.5,"origin":null,"persona":{"profile":"Country managers and APAC managing directors of US/European enterprise tech, cybersecurity, and biotech firms, plus senior audit & tax partners.","priorities":"Establishing a credible presence in Marunouchi/Chiyoda, SecOps compliance, hiring bilingual local talent, and navigating Japanese corporate governance.","hooks":"Enterprise-scale multi-desk private offices (8–20+ pax), bank-grade IT infrastructure, and prestige walking distance to Tokyo Station."},"industries":[{"name":"Technology, Software, AI & Media","pct":28.6},{"name":"Professional Services, Legal, Tax & HR","pct":23.8},{"name":"Real Estate, Retail, Media & Consumer","pct":19.0},{"name":"Energy, Logistics, Industrial & Trade","pct":14.3},{"name":"Financial Services & Investment","pct":9.5},{"name":"Healthcare & Life Sciences","pct":4.8}],"label":"Tokyo — Yaesu Daibiru"},{"code":"JPN-EBS","region":"Japan","city":"Tokyo","name":"Ebisu Green Glass","mnc":14.7,"local":85.3,"origin":null,"persona":{"profile":"Creative directors, digital agency founders, AdTech growth marketers, boutique fashion/lifestyle brand leads, and aesthetic clinic/biotech founders.","priorities":"Agile operations, design-forward aesthetics, brand prestige in Tokyo’s creative district, and rapid multidisciplinary collaboration.","hooks":"Design-driven private suites (1–3 pax), flexible terms for fast-growing creative studios, and proximity to Shibuya’s tech ecosystem."},"industries":[{"name":"Technology, Software, AI & Media","pct":33.3},{"name":"Professional Services, Legal, Tax & HR","pct":25.0},{"name":"Real Estate, Retail, Media & Consumer","pct":23.3},{"name":"Healthcare & Life Sciences","pct":10.0},{"name":"Financial Services & Investment","pct":5.0},{"name":"Energy, Logistics, Industrial & Trade","pct":3.3}],"label":"Tokyo — Ebisu Green Glass"},{"code":"JPN-WTCA","region":"Japan","city":"Tokyo","name":"World Trade Center Annex","mnc":28.8,"local":71.2,"origin":null,"persona":{"profile":"Regional trade delegates, supply chain/logistics directors, industrial engineering managers, and patent attorneys/administrative scriveners (Gyoseishoshi).","priorities":"Cross-border Asia-Japan trade, maritime and aviation supply chains, statutory filing compliance, and international travel convenience.","hooks":"Turnkey satellite branch desks (1–2 pax) with high-efficiency transit links to Haneda Airport Monorail and Shinagawa Shinkansen."},"industries":[{"name":"Energy, Logistics, Industrial & Trade","pct":31.2},{"name":"Technology, Software, AI & Media","pct":25.0},{"name":"Professional Services, Legal, Tax & HR","pct":20.8},{"name":"Real Estate, Retail, Media & Consumer","pct":18.8},{"name":"Financial Services & Investment","pct":2.1},{"name":"Healthcare & Life Sciences","pct":2.1}],"label":"Tokyo — World Trade Center Annex"},{"code":"JPN-40MT","region":"Japan","city":"Tokyo","name":"Toranomon 40MT Building","mnc":30.6,"local":69.4,"origin":null,"persona":{"profile":"Overseas expansion directors using Employer of Record (EOR) models, boutique VC/fund principals, independent management consultants, and solo legal/tax practitioners.","priorities":"Low-risk Japan market entry, prestigious Toranomon/Kamiyacho corporate address, seamless mail handling, and on-demand meeting rooms.","hooks":"Premium corporate registration and virtual office packages with full front-desk concierge support and on-demand boardroom facilities."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":34.5},{"name":"Technology, Software, AI & Media","pct":24.1},{"name":"Energy, Logistics, Industrial & Trade","pct":12.6},{"name":"Real Estate, Retail, Media & Consumer","pct":11.5},{"name":"Financial Services & Investment","pct":10.3},{"name":"Healthcare & Life Sciences","pct":6.9}],"label":"Tokyo — Toranomon 40MT Building"},{"code":"JPN-ING","region":"Japan","city":"Osaka","name":"Inogate Osaka","mnc":16.2,"local":83.8,"origin":null,"persona":{"profile":"Kansai branch directors of Tokyo-headquartered DX and software firms, regional corporate M&A advisors, digital marketing/e-commerce founders, and industrial trade managers.","priorities":"Seamless transit integration with JR Osaka Station and Shin-Osaka Shinkansen lines, scaling sales operations across Western Japan, recruiting local Kansai tech talent, and projecting a modern Grade-A commercial presence.","hooks":"Turnkey Kansai regional expansion suites, direct station connectivity within Inogate Osaka, and flexible commercial office terms that eliminate traditional Umeda lease lock-ins and capex."},"industries":[{"name":"Technology, Software, AI & Media","pct":31.7},{"name":"Professional Services, Legal, Tax & HR","pct":22.1},{"name":"Real Estate, Retail, Media & Consumer","pct":17.3},{"name":"Energy, Logistics, Industrial & Trade","pct":12.5},{"name":"Financial Services & Investment","pct":11.5},{"name":"Healthcare & Life Sciences","pct":4.8}],"label":"Osaka — Inogate Osaka"},{"code":"MYS-MSC","region":"Malaysia","city":"Kuala Lumpur","name":"Maxis Tower, KLCC","mnc":64.4,"local":35.6,"origin":null,"persona":{"profile":"Regional APAC project directors of global EPC engineering firms, country managers of cross-border enterprise tech/cloud providers, luxury retail executive search heads, and MM2H/corporate relocation consultants.","priorities":"Prime Golden Triangle commercial prestige right beside the Petronas Twin Towers, high-spec digital infrastructure for multinational project teams, seamless regional connectivity to KL Sentral and airport links, and zero capex setups for regional delivery pods.","hooks":"Prime KLCC corporate address with Grade-A security, turnkey expansion suites for cross-border engineering and IT delivery hubs, and flexible project-based office terms tailored for foreign multinationals entering the Malaysian market."},"industries":[{"name":"Technology, Software, AI & Media","pct":28.6},{"name":"Energy, Logistics, Industrial & Trade","pct":23.8},{"name":"Professional Services, Legal, Tax & HR","pct":23.8},{"name":"Real Estate, Retail, Media & Consumer","pct":11.9},{"name":"Financial Services, Wealth & FinTech","pct":11.9}],"label":"Kuala Lumpur — Maxis Tower, KLCC"},{"code":"AUS-9CAS","region":"Australia","city":"Sydney","name":"9 Castlereagh Street","mnc":17.7,"local":82.3,"origin":null,"persona":{"profile":"Partners of commercial litigation and migration law firms, boutique hedge fund/asset managers, chartered accountants, and specialized executive search directors.","priorities":"Proximity to the Supreme Court of NSW, Martin Place financial institutions, and Barangaroo; high-spec confidential client meeting spaces; prestigious architectural corporate branding.","hooks":"Prestigious Harry Seidler-designed commercial tower in the heart of Sydney’s legal and financial core; turnkey executive suites with dedicated boardroom facilities and zero capital expenditure."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":40.7},{"name":"Financial Services, Wealth & Investment","pct":27.1},{"name":"Technology, Software, AI & Media","pct":15.3},{"name":"Real Estate, Retail, Media & Consumer","pct":8.5},{"name":"Energy, Logistics, Industrial & Trade","pct":5.1},{"name":"Healthcare & Life Sciences","pct":3.4}],"label":"Sydney — 9 Castlereagh Street"},{"code":"AUS-207K","region":"Australia","city":"Sydney","name":"207 Kent Street","mnc":26.1,"local":73.9,"origin":null,"persona":{"profile":"Heads of FinTech and anti-fraud SaaS scale-ups, patent/trademark attorneys, talent acquisition directors, underground infrastructure engineers, and influencer marketing leads.","priorities":"Walking proximity to Barangaroo’s tech and banking corridor and Wynyard transport hub; contemporary collaborative office suites with harbour/western corridor views; flexible desk scaling.","hooks":"Next-generation agile workspace connecting Barangaroo and the Sydney CBD; enterprise-grade digital infrastructure; turnkey scaling options for expanding tech pods and advisory practices."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":34.3},{"name":"Technology, Software, AI & Media","pct":25.7},{"name":"Financial Services, Wealth & Investment","pct":20.0},{"name":"Energy, Logistics, Industrial & Trade","pct":11.4},{"name":"Healthcare & Life Sciences","pct":5.7},{"name":"Real Estate, Retail, Media & Consumer","pct":2.9}],"label":"Sydney — 207 Kent Street"},{"code":"AUS-141W","region":"Australia","city":"North Sydney","name":"141 Walker Street","mnc":26.7,"local":73.3,"origin":null,"persona":{"profile":"Commercial mortgage brokers, private equity principals, renewable energy developers, consulting structural engineers, and enterprise IT staffing directors.","priorities":"Premium North Sydney commercial foothold with direct connectivity to the Victoria Cross Metro station; reduced overhead relative to the Sydney CBD core; turnkey meeting spaces.","hooks":"Prime North Sydney CBD address offering Victoria Cross Metro convenience; cost-efficient Grade-A office alternative with full business lounge and concierge support."},"industries":[{"name":"Financial Services, Wealth & Investment","pct":36.7},{"name":"Professional Services, Legal, Tax & HR","pct":16.7},{"name":"Technology, Software, AI & Media","pct":16.7},{"name":"Real Estate, Retail, Media & Consumer","pct":13.3},{"name":"Energy, Logistics, Industrial & Trade","pct":13.3},{"name":"Healthcare & Life Sciences","pct":3.3}],"label":"North Sydney — 141 Walker Street"},{"code":"AUS-360C","region":"Australia","city":"Melbourne","name":"360 Collins Street","mnc":30.3,"local":69.7,"origin":null,"persona":{"profile":"Managing directors of institutional private credit funds, high-net-worth wealth planners, enterprise SaaS/DevOps regional heads, and corporate commercial litigation partners.","priorities":"Prime Collins Street financial spine address; walking proximity to major investment banks, fund managers, and legal chambers; high-spec confidential boardroom and client entertainment facilities.","hooks":"Premium financial core positioning on Collins Street; bank-grade secure office suites and meeting facilities tailored for private wealth, credit funds, and enterprise software firms with zero upfront fitout capex."},"industries":[{"name":"Financial Services, Wealth & Investment","pct":27.3},{"name":"Professional Services, Legal, Tax & HR","pct":24.2},{"name":"Technology, Software, AI & Media","pct":21.2},{"name":"Real Estate, Retail, Media & Consumer","pct":15.2},{"name":"Energy, Logistics, Industrial & Trade","pct":9.1},{"name":"Healthcare & Life Sciences","pct":3.0}],"label":"Melbourne — 360 Collins Street"},{"code":"AUS-459C","region":"Australia","city":"Melbourne","name":"459 Collins Street","mnc":23.7,"local":76.3,"origin":null,"persona":{"profile":"Country heads of international general trading houses, infrastructure and geotechnical consulting engineers, institutional FX/commodities trading desks, and environmental project managers.","priorities":"Strategic Midtown Collins Street access linking the financial district to Southern Cross Station; flexible project office configurations accommodating expanding engineering and inspection teams.","hooks":"Midtown Collins commercial efficiency with immediate Southern Cross transit links; project-ready team suites designed for engineering consultancies, trading houses, and digital conveyancers."},"industries":[{"name":"Energy, Logistics, Industrial & Trade","pct":33.3},{"name":"Professional Services, Legal, Tax & HR","pct":27.8},{"name":"Financial Services, Wealth & Investment","pct":16.7},{"name":"Technology, Software, AI & Media","pct":11.1},{"name":"Real Estate, Retail, Media & Consumer","pct":5.6},{"name":"Healthcare & Life Sciences","pct":5.6}],"label":"Melbourne — 459 Collins Street"},{"code":"AUS-570B","region":"Australia","city":"Melbourne","name":"570 Bourke Street","mnc":15.5,"local":84.5,"origin":null,"persona":{"profile":"Barristers, commercial litigation practitioners, immigration and migration law attorneys, global risk consultants, and specialized pharmaceutical/biotech directors.","priorities":"Direct walking access to the Melbourne Legal Precinct (Supreme, County, and Magistrates' Courts); high confidentiality and secure client consultation suites; flexible multi-disciplinary offices.","hooks":"Unbeatable proximity to the Melbourne Courts and Legal Precinct on Bourke Street; turnkey chambers and consultation suites with premium front-desk concierge and business lounge amenities."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":48.3},{"name":"Technology, Software, AI & Media","pct":15.5},{"name":"Real Estate, Retail, Media & Consumer","pct":10.3},{"name":"Energy, Logistics, Industrial & Trade","pct":8.6},{"name":"Financial Services, Wealth & Investment","pct":8.6},{"name":"Healthcare & Life Sciences","pct":8.6}],"label":"Melbourne — 570 Bourke Street"},{"code":"PHL-AYA","region":"Philippines","city":"Makati","name":"Tower 6789, Ayala Avenue","mnc":46.7,"local":53.3,"origin":null,"persona":{"profile":"Regional directors of multinational engineering, energy, and supply chain conglomerates; cross-border freight forwarding heads; enterprise IT and digital transformation leads; and managing partners of corporate advisory, accounting, and legal practices.","priorities":"Prominent Ayala Avenue corporate address in Makati’s financial district; PEZA accreditation benefits and LEED-certified building efficiency; enterprise-grade high-bandwidth connectivity for APAC operations; seamless walking access to Philippine corporate headquarters and banking institutions.","hooks":"High-prestige Ayala Avenue corporate identity within a LEED- and PEZA-certified landmark; turnkey executive suites eliminating capital expenditure; enterprise-grade digital infrastructure built for multinational logistics, energy, and tech hubs."},"industries":[{"name":"Energy, Logistics, Industrial & Trade","pct":31.6},{"name":"Professional Services, Legal, Tax & HR","pct":28.1},{"name":"Technology, Software, AI & Media","pct":21.1},{"name":"Real Estate, Retail, Media & Consumer","pct":8.8},{"name":"Financial Services, Wealth & Investment","pct":7.0},{"name":"Healthcare & Life Sciences","pct":3.5}],"label":"Makati — Tower 6789, Ayala Avenue"},{"code":"PHL-BGC","region":"Philippines","city":"BGC, Taguig","name":"BGC Corporate Center","mnc":50.9,"local":49.1,"origin":null,"persona":{"profile":"Country managers and founders of interactive digital media, video streaming, and cloud platforms; BPO/KPO back-office delivery leads; FMCG regional representatives; and creative digital agency directors.","priorities":"Dynamic commercial and lifestyle positioning in Bonifacio Global City; 24/7 technical capability for offshore pods; flexible desk scaling to accommodate rapid headcount growth; direct access to BGC transport terminals for talent retention.","hooks":"Grade-A PEZA-certified workspace on Level 24 with sweeping BGC cityscape views; agile team suites optimized for tech scale-ups and creative studios; flexible terms designed for fast expansion without long-term commercial lease lock-ins."},"industries":[{"name":"Technology, Software, AI & Media","pct":36.2},{"name":"Real Estate, Retail, Media & Consumer","pct":19.1},{"name":"Professional Services, Legal, Tax & HR","pct":19.1},{"name":"Energy, Logistics, Industrial & Trade","pct":14.9},{"name":"Financial Services, Wealth & Investment","pct":6.4},{"name":"Healthcare & Life Sciences","pct":4.3}],"label":"BGC, Taguig — BGC Corporate Center"},{"code":"PHL-ART","region":"Philippines","city":"BGC, Taguig","name":"Arthaland Century Pacific Tower","mnc":47.2,"local":52.8,"origin":null,"persona":{"profile":"APAC managing directors of European and US enterprise tech providers; industrial laser and machine tool manufacturers; specialized offshore/subsea engineering consultancies; and multinational consumer healthcare leads.","priorities":"World-class ESG compliance (EDGE Zero Carbon, LEED Platinum, BERDE 5-Star); prestigious 5th Avenue BGC positioning; bank-grade data security; confidential executive meeting suites for high-level partner negotiations.","hooks":"Flagship sustainable workspace in the world’s premier EDGE Zero Carbon and LEED Platinum office tower; institutional prestige on 5th Avenue; zero-capex executive suites reflecting global carbon-neutral corporate mandates."},"industries":[{"name":"Technology, Software, AI & Media","pct":37.0},{"name":"Energy, Logistics, Industrial & Trade","pct":21.7},{"name":"Professional Services, Legal, Tax & HR","pct":19.6},{"name":"Real Estate, Retail, Media & Consumer","pct":10.9},{"name":"Healthcare & Life Sciences","pct":6.5},{"name":"Financial Services, Wealth & Investment","pct":4.3}],"label":"BGC, Taguig — Arthaland Century Pacific Tower"},{"code":"VNM-LM81","region":"Vietnam","city":"Ho Chi Minh City","name":"Landmark 81","mnc":61.0,"local":39.0,"origin":null,"persona":{"profile":"Country managers and regional representatives of foreign manufacturing, precision engineering, and commodity trading conglomerates; cross-border freight forwarding directors; luxury hospitality leads; and design tech/SaaS founders.","priorities":"Establishing a prestigious corporate presence in Vietnam’s tallest architectural landmark; modern Grade-A building management with high environmental and energy efficiency; convenient road connectivity between District 1 and the eastern industrial corridors (Binh Duong, Dong Nai, Thu Duc City); integrated luxury hospitality and lifestyle amenities for client entertainment.","hooks":"Unrivaled corporate branding within Vietnam’s most iconic skyscraper; turnkey executive suites and meeting facilities overlooking the Saigon River; seamless strategic transit bridging downtown corporate offices and key manufacturing zones with zero upfront capex."},"industries":[{"name":"Energy, Logistics, Industrial & Trade","pct":31.0},{"name":"Technology, Software, AI & Media","pct":20.7},{"name":"Professional Services, Legal, Tax & HR","pct":17.2},{"name":"Real Estate, Retail, Media & Consumer","pct":17.2},{"name":"Financial Services, Wealth & Investment","pct":6.9},{"name":"Healthcare & Life Sciences","pct":6.9}],"label":"Ho Chi Minh City — Landmark 81"},{"code":"VNM-BFT","region":"Vietnam","city":"Ho Chi Minh City","name":"Bitexco Financial Tower","mnc":70.2,"local":29.8,"origin":null,"persona":{"profile":"APAC managing directors of multinational pharmaceutical and medical technology corporations; foreign government trade commissioners and bilateral chamber delegates; global consumer retail sourcing directors; executive recruitment partners; and sustainable/impact fund managers.","priorities":"Prime District 1 traditional financial core address within walking distance of the State Bank of Vietnam, international banking institutions, and foreign consulates; high-security corporate protocols and VIP visitor reception; enterprise-grade high-bandwidth connectivity for cross-border headquarters integration.","hooks":"The premier institutional CBD corporate address in District 1; turnkey regional headquarters suites housing world-leading healthcare, diplomatic, and financial institutions; full front-desk concierge support and executive meeting suites with panoramic city skyline views."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":24.5},{"name":"Energy, Logistics, Industrial & Trade","pct":19.4},{"name":"Real Estate, Retail, Media & Consumer","pct":17.3},{"name":"Technology, Software, AI & Media","pct":16.3},{"name":"Financial Services, Wealth & Investment","pct":13.3},{"name":"Healthcare & Life Sciences","pct":9.2}],"label":"Ho Chi Minh City — Bitexco Financial Tower"},{"code":"HKG-CHB","region":"Hong Kong","city":"Central","name":"China Building","mnc":25.2,"local":74.8,"origin":{"local":{"n":160,"pct":81.2},"mainland":{"n":19,"pct":9.6},"overseas":{"n":18,"pct":9.1}},"persona":{"profile":"Senior partners of corporate litigation firms, quant fund principals, consumer private equity heads, and specialist actuarial advisors.","priorities":"Core Central pedigree right above Central MTR (Exit D1/D2); walking access to Landmark, Exchange Square, and HKEX; prestigious client entertaining.","hooks":"Landmark Queen's Road Central address; turnkey executive suites and boardroom facilities tailored for private funds and law practices with zero upfront capex."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":59.9},{"name":"Financial Services, Wealth & Investment","pct":21.8},{"name":"Technology, Software, AI & Media","pct":6.6},{"name":"Healthcare & Life Sciences","pct":4.6},{"name":"Real Estate, Retail, Media & Consumer","pct":3.6},{"name":"Energy, Commodities, Logistics & Industrial","pct":3.6}],"companies":197,"label":"Central — China Building"},{"code":"HKG-QRC","region":"Hong Kong","city":"Central","name":"9 Queen's Road Central","mnc":35.6,"local":64.4,"origin":{"local":{"n":24,"pct":88.9},"mainland":{"n":2,"pct":7.4},"overseas":{"n":1,"pct":3.7}},"persona":{"profile":"Managing partners of family offices, boutique hedge fund managers, institutional trusts, and high-level cross-border GRC advisors.","priorities":"Elite 9 QRC address directly connected to the Central Elevated Walkway; 2 minutes to Central MTR Exit K; confidential boardroom facilities.","hooks":"Pinnacle of business prestige in Central's premier financial corridor; discrete high-spec private offices for wealth managers and family offices."},"industries":[{"name":"Financial Services, Wealth & Investment","pct":40.7},{"name":"Professional Services, Legal, Tax & HR","pct":25.9},{"name":"Energy, Commodities, Logistics & Industrial","pct":11.1},{"name":"Technology, Software, AI & Media","pct":11.1},{"name":"Real Estate, Retail, Media & Consumer","pct":7.4},{"name":"Healthcare & Life Sciences","pct":3.7}],"companies":27,"label":"Central — 9 Queen's Road Central"},{"code":"HKG-BODG","region":"Hong Kong","city":"Central","name":"Bank of Dongguan Tower","mnc":20.7,"local":79.3,"origin":{"local":{"n":64,"pct":86.5},"mainland":{"n":8,"pct":10.8},"overseas":{"n":2,"pct":2.7}},"persona":{"profile":"Independent accounting and audit practitioners, Mainland-Hong Kong corporate secretarial consultants, tech trading entrepreneurs, and cross-border commercial lawyers.","priorities":"Cost-effective Central CBD address along Des Voeux Road Central; 2 minutes to Sheung Wan MTR (Exit E1/E2); streamlined business registration and mail handling.","hooks":"High-efficiency Central commercial address with superior cost control; flexible private suites and meeting rooms suited for expanding accounting and legal practices."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":51.4},{"name":"Financial Services, Wealth & Investment","pct":21.6},{"name":"Energy, Commodities, Logistics & Industrial","pct":9.5},{"name":"Technology, Software, AI & Media","pct":9.5},{"name":"Healthcare & Life Sciences","pct":5.4},{"name":"Real Estate, Retail, Media & Consumer","pct":2.7}],"companies":74,"label":"Central — Bank of Dongguan Tower"},{"code":"HKG-INFP","region":"Hong Kong","city":"Sheung Wan","name":"Infinitus Plaza","mnc":20.6,"local":79.4,"origin":{"local":{"n":349,"pct":77.4},"mainland":{"n":82,"pct":18.2},"overseas":{"n":20,"pct":4.4}},"persona":{"profile":"Cross-border CPA partners, investment banking spin-offs, fintech developers, maritime satellite telecom leads, and corporate secretarial agencies.","priorities":"Direct footbridge link to Sheung Wan MTR and Macau Ferry Terminal; seamless connection to Central via elevated walkway; high-bandwidth digital infrastructure.","hooks":"Premium CBD-fringe commercial hub with direct transport integration; flexible team suites designed for fast-scaling asset management and cross-border advisory pods."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":45.0},{"name":"Financial Services, Wealth & Investment","pct":36.8},{"name":"Technology, Software, AI & Media","pct":8.6},{"name":"Energy, Commodities, Logistics & Industrial","pct":5.3},{"name":"Real Estate, Retail, Media & Consumer","pct":2.2},{"name":"Healthcare & Life Sciences","pct":2.0}],"companies":451,"label":"Sheung Wan — Infinitus Plaza"},{"code":"HKG-WOC","region":"Hong Kong","city":"Sheung Wan","name":"Wing On Centre","mnc":27.6,"local":72.4,"origin":{"local":{"n":58,"pct":90.6},"mainland":{"n":4,"pct":6.2},"overseas":{"n":2,"pct":3.1}},"persona":{"profile":"Boutique wealth planners, digital transformation consultants, gaming/mobile tech founders, and executive search leads.","priorities":"Connaught Road Central harbourfront convenience; immediate Sheung Wan MTR access; cost-effective turnkey offices.","hooks":"Harborfront Sheung Wan corporate address; turnkey private offices with dedicated business lounge amenities and flexible expansion terms."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":57.8},{"name":"Financial Services, Wealth & Investment","pct":23.4},{"name":"Technology, Software, AI & Media","pct":15.6},{"name":"Real Estate, Retail, Media & Consumer","pct":1.6},{"name":"Energy, Commodities, Logistics & Industrial","pct":1.6}],"companies":64,"label":"Sheung Wan — Wing On Centre"},{"code":"HKG-ACT1","region":"Hong Kong","city":"Admiralty","name":"Admiralty Centre Tower 1","mnc":25.2,"local":74.8,"origin":{"local":{"n":42,"pct":67.7},"mainland":{"n":16,"pct":25.8},"overseas":{"n":4,"pct":6.5}},"persona":{"profile":"Commercial arbitration lawyers, university administrative delegates, quantitative asset managers, and specialized HR consultants.","priorities":"Direct integration with Admiralty 4-line MTR interchange; walking proximity to the High Court, government headquarters, and consulates.","hooks":"Unmatched transit connectivity across Hong Kong and Shenzhen; immediate High Court proximity; fully furnished project and arbitration suites."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":54.8},{"name":"Financial Services, Wealth & Investment","pct":25.8},{"name":"Energy, Commodities, Logistics & Industrial","pct":6.5},{"name":"Technology, Software, AI & Media","pct":4.8},{"name":"Healthcare & Life Sciences","pct":4.8},{"name":"Real Estate, Retail, Media & Consumer","pct":3.2}],"companies":62,"label":"Admiralty — Admiralty Centre Tower 1"},{"code":"HKG-ACT2","region":"Hong Kong","city":"Admiralty","name":"Admiralty Centre Tower 2","mnc":28.1,"local":71.9,"origin":{"local":{"n":111,"pct":76.0},"mainland":{"n":28,"pct":19.2},"overseas":{"n":7,"pct":4.8}},"persona":{"profile":"Real estate debt fund managers, cross-border chemical trading representatives, executive recruitment leads, and psychological clinic practitioners.","priorities":"Strategic position connecting the legal quarter and financial core; sound-insulated private suites for client confidentiality; rapid access to East Rail Line to the border.","hooks":"Prime Admiralty location bridging legal, government, and financial hubs; turnkey consultation suites and executive team offices with flexible lease commitments."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":45.9},{"name":"Financial Services, Wealth & Investment","pct":29.5},{"name":"Technology, Software, AI & Media","pct":9.6},{"name":"Energy, Commodities, Logistics & Industrial","pct":8.9},{"name":"Real Estate, Retail, Media & Consumer","pct":3.4},{"name":"Healthcare & Life Sciences","pct":2.7}],"companies":146,"label":"Admiralty — Admiralty Centre Tower 2"},{"code":"HKG-LEEG1","region":"Hong Kong","city":"Causeway Bay","name":"Lee Garden One","mnc":18.9,"local":81.1,"origin":{"local":{"n":104,"pct":82.5},"mainland":{"n":8,"pct":6.3},"overseas":{"n":14,"pct":11.1}},"persona":{"profile":"C-level luxury fashion and lifestyle brand executives, international banking technology leads, financial media editors, private wealth family office heads, and cross-border trade delegates.","priorities":"High-end Causeway Bay commercial address; immediate access to luxury flagship boutiques, fine dining, and upscale hospitality; modern Grade-A building specifications.","hooks":"Prestigious Causeway Bay luxury retail core address; enterprise-ready executive suites designed for global brands and financial media; flexible private offices with zero upfront capex and full concierge services."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":52.4},{"name":"Financial Services, Wealth & Investment","pct":20.6},{"name":"Technology, Software, AI & Media","pct":9.5},{"name":"Real Estate, Retail, Media & Consumer","pct":7.9},{"name":"Energy, Commodities, Logistics & Industrial","pct":7.9},{"name":"Healthcare & Life Sciences","pct":1.6}],"companies":126,"label":"Causeway Bay — Lee Garden One"},{"code":"HKG-LEEG2","region":"Hong Kong","city":"Causeway Bay","name":"Lee Garden Two","mnc":24.2,"local":75.8,"origin":{"local":{"n":193,"pct":81.1},"mainland":{"n":22,"pct":9.2},"overseas":{"n":23,"pct":9.7}},"persona":{"profile":"Managing directors of physical commodity trading houses, luxury children's apparel regional leads, enterprise AI & telecom SaaS providers, semiconductor testing engineers, and creative advertising agency leads.","priorities":"Prime Causeway Bay retail and commercial enclave positioning; efficient transit connectivity to Causeway Bay MTR Station; flexible desk scaling to match seasonal project expansions; dedicated corporate event and presentation spaces.","hooks":"Landmark commercial presence in the heart of Lee Gardens; agile private suites built for expanding tech scale-ups, commodity trading desks, and luxury creative agencies without traditional commercial lease friction."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":53.4},{"name":"Financial Services, Wealth & Investment","pct":23.1},{"name":"Technology, Software, AI & Media","pct":10.9},{"name":"Energy, Commodities, Logistics & Industrial","pct":5.5},{"name":"Real Estate, Retail, Media & Consumer","pct":5.0},{"name":"Healthcare & Life Sciences","pct":2.1}],"companies":238,"label":"Causeway Bay — Lee Garden Two"},{"code":"HKG-AIA","region":"Hong Kong","city":"North Point","name":"AIA Tower","mnc":32.0,"local":68.0,"origin":{"local":{"n":101,"pct":79.5},"mainland":{"n":18,"pct":14.2},"overseas":{"n":8,"pct":6.3}},"persona":{"profile":"Senior executives of global contract clinical research organizations (CRO), contemporary art gallerists, marine engineering and ship management directors, FMCG sourcing heads, and certified public accountants.","priorities":"Grade-A waterfront commercial address overlooking Victoria Harbour; walking proximity to Fortress Hill MTR Station; cost-efficient alternative to Central with high floor-plate efficiency; expansive natural lighting and harbour views for client impressions.","hooks":"Panoramic Victoria Harbour views from a Grade-A corporate tower; cost-effective alternative to Central and Quarry Bay; turnkey executive suites optimized for life sciences regional hubs, maritime management, and corporate consulting."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":48.8},{"name":"Technology, Software, AI & Media","pct":18.1},{"name":"Financial Services, Wealth & Investment","pct":15.7},{"name":"Energy, Commodities, Logistics & Industrial","pct":7.9},{"name":"Real Estate, Retail, Media & Consumer","pct":4.7},{"name":"Healthcare & Life Sciences","pct":4.7}],"companies":127,"label":"North Point — AIA Tower"},{"code":"HKG-SCT1","region":"Hong Kong","city":"Tsim Sha Tsui","name":"Silvercord Tower 1","mnc":3.8,"local":96.2,"origin":{"local":{"n":22,"pct":57.9},"mainland":{"n":13,"pct":34.2},"overseas":{"n":3,"pct":7.9}},"persona":{"profile":"APAC regional directors of global consumer brand multinationals (e.g., international agricultural FMCG, smart robotics, luxury apparel), game publishing and digital media leads, clean energy conglomerate executives, and Greater Bay Area (GBA) cross-border wealth managers.","priorities":"High-profile Canton Road commercial address directly opposite Harbour City; fast transit connectivity via the West Kowloon High Speed Rail Terminus to Shenzhen and Guangzhou; high-spec contiguous executive office suites capable of housing cross-border sales, marketing, and operational teams.","hooks":"Tier-1 Canton Road commercial identity in Silvercord Tower 1; immediate high-speed rail gateway connecting Hong Kong headquarters to the Greater Bay Area; turnkey enterprise team suites with enterprise-grade IT infrastructure and flexible expansion terms requiring zero upfront fitout capex."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":55.3},{"name":"Technology, Software, AI & Media","pct":21.1},{"name":"Financial Services, Wealth & Investment","pct":13.2},{"name":"Energy, Commodities, Logistics & Industrial","pct":7.9},{"name":"Real Estate, Retail, Media & Consumer","pct":2.6}],"companies":38,"label":"Tsim Sha Tsui — Silvercord Tower 1"},{"code":"HKG-SCT2","region":"Hong Kong","city":"Tsim Sha Tsui","name":"Silvercord Tower 2","mnc":16.1,"local":83.9,"origin":{"local":{"n":183,"pct":81.0},"mainland":{"n":27,"pct":11.9},"overseas":{"n":16,"pct":7.1}},"persona":{"profile":"Cross-border trading merchants, Japanese recruitment and staffing delegates, corporate governance/fiduciary specialists, and mobility SaaS providers.","priorities":"Cost-effective Canton Road commercial presence; covered connection to Tsim Sha Tsui MTR Station (Exit A1); high-volume corporate secretarial, virtual office, and branch office registration support.","hooks":"Established Tsim Sha Tsui commercial address with flexible virtual office and private team desk configurations; comprehensive mail handling, call forwarding, and boardroom facilities designed for lean trading and professional service firms."},"industries":[{"name":"Professional Services, Legal, Tax & HR","pct":55.8},{"name":"Financial Services, Wealth & Investment","pct":17.7},{"name":"Technology, Software, AI & Media","pct":9.3},{"name":"Energy, Commodities, Logistics & Industrial","pct":8.4},{"name":"Real Estate, Retail, Media & Consumer","pct":8.0},{"name":"Healthcare & Life Sciences","pct":0.9}],"companies":226,"label":"Tsim Sha Tsui — Silvercord Tower 2"}]};
+
+/* Worked example: the researched content already written for Wing On Centre. */
+var SEED = {"HKG-WOC":{"cats":[{"id":"land","label":"Landmarks","icon":"cx-bldg"},{"id":"eat","label":"Eating","icon":"cx-fork"},{"id":"shop","label":"Shopping","icon":"cx-bag"},{"id":"stay","label":"Hotels","icon":"cx-bed"},{"id":"life","label":"Banking &amp; wellbeing","icon":"cx-heart"}],"places":[{"c":"land","n":"Sheung Wan MTR Station","d":"Island Line. Exit E3 opens into the building's own podium.","w":"1 min","tag":"In building","q":"Sheung Wan MTR Station Exit E3, Hong Kong"},{"c":"land","n":"Shun Tak Centre &amp; Macau Ferry Terminal","d":"Ferries and helicopters to Macau, Zhuhai and the Greater Bay Area.","w":"2 min","tag":"","q":"Shun Tak Centre, Hong Kong"},{"c":"land","n":"Western Market","d":"The Grade I Edwardian market hall and the western tram terminus.","w":"4 min","tag":"","q":"Western Market, Sheung Wan, Hong Kong"},{"c":"land","n":"Man Wa Lane","d":"The lane of seal and chop carvers — a company chop still cut by hand.","w":"4 min","tag":"","q":"Man Wa Lane, Sheung Wan, Hong Kong"},{"c":"land","n":"Exchange Square","d":"The Hong Kong Stock Exchange and the Central bus terminus.","w":"8 min","tag":"","q":"Exchange Square, Central, Hong Kong"},{"c":"land","n":"IFC Mall &amp; Hong Kong Station","d":"Luxury retail, the Airport Express terminus and In-Town Check-in.","w":"10 min","tag":"","q":"IFC Mall, Central, Hong Kong"},{"c":"land","n":"Man Mo Temple","d":"Hollywood Road's 1847 temple, one of the city's most photographed.","w":"10 min","tag":"","q":"Man Mo Temple, Hollywood Road, Hong Kong"},{"c":"land","n":"PMQ","d":"The former Police Married Quarters, now a design and studio complex.","w":"12 min","tag":"","q":"PMQ, Aberdeen Street, Central, Hong Kong"},{"c":"land","n":"Tai Ping Shan Street","d":"Independent boutiques, galleries and coffee above Hollywood Road.","w":"12 min","tag":"","q":"Tai Ping Shan Street, Sheung Wan, Hong Kong"},{"c":"eat","n":"Pica Pica","d":"Spanish tapas on Des Voeux Road Central — quick, affordable small plates.","w":"3 min","tag":"","q":"Pica Pica, Des Voeux Road Central, Sheung Wan"},{"c":"eat","n":"MâmAmis","d":"Vietnamese on Hillier Street. Pho, vermicelli bowls and roast proteins.","w":"4 min","tag":"","q":"MamAmis, Hillier Street, Sheung Wan"},{"c":"eat","n":"Shui Kee Coffee","d":"The Sheung Wan Cooked Food Centre institution — milk tea and French toast.","w":"5 min","tag":"Local classic","q":"Shui Kee Coffee, Sheung Wan Municipal Services Building"},{"c":"eat","n":"Samsen","d":"The Jervois Street Thai kitchen people queue down the street for.","w":"5 min","tag":"Famous","q":"Samsen Sheung Wan, Jervois Street, Hong Kong"},{"c":"eat","n":"Schragels","d":"New York-style bagels and deli on Jervois Street, going since 2014.","w":"5 min","tag":"","q":"Schragels, Jervois Street, Sheung Wan"},{"c":"eat","n":"Dragon State Kitchen","d":"Bonham Strand roast meats — goose, chicken and char siu done properly.","w":"6 min","tag":"","q":"Dragon State Kitchen, Bonham Strand, Sheung Wan"},{"c":"eat","n":"Pecorino","d":"Bonham Strand Italian. Pasta, pizza and tartare — a good client dinner.","w":"6 min","tag":"","q":"Pecorino, Bonham Strand, Sheung Wan"},{"c":"eat","n":"1908 British Chinese","d":"Hong Kong's only British-Chinese kitchen, reworking UK takeaway classics.","w":"6 min","tag":"","q":"1908 British Chinese, Bonham Strand, Sheung Wan"},{"c":"eat","n":"Luk On Kui","d":"Near-century-old push-cart yum cha on Des Voeux Road West.","w":"8 min","tag":"Local classic","q":"Luk On Kui, Des Voeux Road West, Hong Kong"},{"c":"eat","n":"Embla","d":"Nordic fine dining on Upper Station Street, for the dinner that has to land.","w":"8 min","tag":"Fine dining","q":"Embla, Upper Station Street, Sheung Wan"},{"c":"eat","n":"For Kee Restaurant","d":"The Hollywood Road lunch counter office workers swear by. Pork chop rice.","w":"9 min","tag":"","q":"For Kee Restaurant, Hollywood Road, Hong Kong"},{"c":"eat","n":"Man Mo Dim Sum &amp; Wine","d":"Dim sum with a French hand, opposite Man Mo Temple.","w":"9 min","tag":"","q":"Man Mo Dim Sum, Hollywood Road, Hong Kong"},{"c":"shop","n":"Wing On Department Store","d":"Four floors of the city's oldest department-store name, in your own building.","w":"In building","tag":"In building","q":"Wing On Department Store, Wing On Centre, Sheung Wan"},{"c":"shop","n":"Shun Tak Centre shops","d":"Pharmacy, bakeries, convenience and a food court beside the ferry terminal.","w":"2 min","tag":"","q":"Shun Tak Centre Shopping Arcade, Hong Kong"},{"c":"shop","n":"Man Wa Lane chop carvers","d":"Hand-carved company chops and name seals, made while you wait.","w":"4 min","tag":"","q":"Man Wa Lane, Sheung Wan, Hong Kong"},{"c":"shop","n":"Western Market shops","d":"Fabric merchants, gift stalls and the old market hall's ground floor.","w":"4 min","tag":"","q":"Western Market, Sheung Wan, Hong Kong"},{"c":"shop","n":"Wing Lok Street","d":"The ginseng and bird's-nest trade — Sheung Wan's most photographed street.","w":"5 min","tag":"Famous","q":"Wing Lok Street, Sheung Wan, Hong Kong"},{"c":"shop","n":"Dried Seafood Street","d":"Des Voeux Road West, the historic dried-seafood and herbal-medicine trade.","w":"6 min","tag":"Famous","q":"Dried Seafood Street, Des Voeux Road West, Hong Kong"},{"c":"shop","n":"Hollywood Road","d":"Antiques, Asian art and the gallery strip that defines the Sheung Wan hill.","w":"10 min","tag":"","q":"Hollywood Road, Sheung Wan, Hong Kong"},{"c":"shop","n":"IFC Mall","d":"International luxury retail, a large supermarket and the Apple Store.","w":"10 min","tag":"","q":"IFC Mall, Central, Hong Kong"},{"c":"shop","n":"PMQ","d":"Local designers, homeware and studio shops in a heritage block.","w":"12 min","tag":"","q":"PMQ, Aberdeen Street, Central, Hong Kong"},{"c":"stay","n":"Ibis Hong Kong Central &amp; Sheung Wan","d":"The nearest practical option for visiting staff and short stays.","w":"6 min","tag":"Nearest","q":"Ibis Hong Kong Central and Sheung Wan"},{"c":"stay","n":"The Pottinger Hong Kong","d":"A boutique five-star on Stanley Street for visiting clients.","w":"9 min","tag":"","q":"The Pottinger Hong Kong, Stanley Street"},{"c":"stay","n":"Four Seasons Hong Kong","d":"At IFC, over the Airport Express terminus — the address for a visiting board.","w":"10 min","tag":"","q":"Four Seasons Hotel Hong Kong, IFC"},{"c":"life","n":"Sheung Wan bank branches","d":"HSBC, Bank of China, Hang Seng and Standard Chartered on Des Voeux Road Central.","w":"3 min","tag":"","q":"HSBC Sheung Wan Branch, Des Voeux Road Central"},{"c":"life","n":"Sheung Wan Sports Centre","d":"Public gym, courts and fitness rooms in the municipal services building.","w":"5 min","tag":"","q":"Sheung Wan Sports Centre, Hong Kong"},{"c":"life","n":"Blake Garden","d":"A quiet terraced park up Po Yan Street for a genuine lunch break.","w":"8 min","tag":"","q":"Blake Garden, Sheung Wan, Hong Kong"},{"c":"life","n":"Sun Yat Sen Memorial Park","d":"Harbourfront lawn and running track along the western waterfront.","w":"8 min","tag":"","q":"Sun Yat Sen Memorial Park, Hong Kong"},{"c":"life","n":"Central banking district","d":"HSBC Main Building, Standard Chartered Bank Building and the regulators.","w":"9 min","tag":"","q":"HSBC Main Building, Queen's Road Central, Hong Kong"},{"c":"life","n":"Pure Fitness, IFC","d":"Full-service club gym and studio classes at IFC.","w":"10 min","tag":"","q":"Pure Fitness IFC, Central, Hong Kong"}],"journeys":[{"i":"cx-train","t":"By MTR","s":"Island Line · Sheung Wan","total":"60 seconds from the platform","best":true,"steps":[{"t":"Sheung Wan Station","d":"Island Line — one stop from Central, two from Admiralty, four from Causeway Bay.","e":""},{"t":"Exit E3","d":"The exit opens straight into the Wing On Centre podium. You never step outside.","e":"About 40 seconds"},{"t":"High-zone lifts to 27","d":"Reception is on your right as the doors open.","e":"About 20 seconds","hit":true}]},{"i":"cx-plane","t":"From the airport","s":"HKIA · Airport Express","total":"About 35 minutes door to door","steps":[{"t":"Airport Express","d":"HKIA to Hong Kong Station, departing every 10 minutes.","e":"24 minutes"},{"t":"Covered walkway west","d":"Follow the elevated walkway through IFC and Exchange Square to Shun Tak — sheltered the whole way.","e":"8 minutes"},{"t":"Into Wing On Centre","d":"Cross the footbridge and take the lifts to 27. Or change at Hong Kong Station for one MTR stop instead.","e":"3 minutes","hit":true}]},{"i":"cx-ferry","t":"From Macau &amp; the GBA","s":"Shun Tak Centre","total":"Two minutes from the terminal","steps":[{"t":"Arrive at Shun Tak Centre","d":"Ferries from Macau, Zhuhai and mainland ports berth next door. Helicopters land on the roof.","e":""},{"t":"Covered footbridge","d":"Cross directly into Wing On Centre without going to street level.","e":"Under 2 minutes"},{"t":"Lifts to Level 27","d":"Straight up to reception.","e":"","hit":true}]},{"i":"cx-tram","t":"By tram or bus","s":"Des Voeux Road Central","total":"At the door","steps":[{"t":"Tram stop outside","d":"Trams run along Des Voeux Road Central with a stop at the building.","e":""},{"t":"Central (Macau Ferry) Bus Terminus","d":"One of the largest termini on Hong Kong Island, three minutes away. Cross-harbour and airport buses stop here.","e":"3 minutes"},{"t":"Into the podium","d":"Enter from Connaught Road Central and take the high-zone lifts.","e":"","hit":true}]},{"i":"cx-car","t":"By car or taxi","s":"Drop-off and parking","total":"Rank at the entrance","steps":[{"t":"Taxi rank at the door","d":"A rank sits adjacent to the building entrance on Connaught Road Central.","e":""},{"t":"On-site car park","d":"Parking in the building, with electric-vehicle charging.","e":""},{"t":"Road access","d":"Direct on to the Central–Western Corridor and the Western Harbour Crossing.","e":"","hit":true}]},{"i":"cx-walk","t":"On foot from Central","s":"Via the elevated walkway","total":"About 8 minutes","steps":[{"t":"Join the walkway","d":"Pick it up at Exchange Square or IFC.","e":""},{"t":"Walk west","d":"Sheltered the entire way to Shun Tak Centre — useful in rain and in August.","e":"About 8 minutes"},{"t":"Cross into Wing On Centre","d":"No street crossing, no weather.","e":"","hit":true}]}]}};
+</script>
+<script>/* ==========================================================================
+   CENTRE CONTENT STUDIO — application
+   Data in, forms, Excel/JSON round-trip, publish payload out.
+   ========================================================================== */
+(function(){
+"use strict";
+
+var CATS = [
+  {id:"land", label:"Landmarks"},
+  {id:"eat",  label:"Eating"},
+  {id:"shop", label:"Shopping"},
+  {id:"stay", label:"Hotels"},
+  {id:"life", label:"Banking & wellbeing"}
+];
+var MODES = [
+  {id:"cx-train", label:"MTR / metro"},
+  {id:"cx-plane", label:"Airport"},
+  {id:"cx-ferry", label:"Ferry"},
+  {id:"cx-tram",  label:"Tram / bus"},
+  {id:"cx-car",   label:"Car / taxi"},
+  {id:"cx-walk",  label:"On foot"}
+];
+var LANG = "en";
+
+var $  = function(id){ return document.getElementById(id); };
+var esc = function(v){
+  return String(v == null ? "" : v)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+};
+var catLabel = function(id){
+  for(var i=0;i<CATS.length;i++){ if(CATS[i].id === id){ return CATS[i].label; } }
+  return id;
+};
+
+/* ------------------------------ state ---------------------------------- */
+var DATA = null, current = null, dirty = false;
+
+function blankContent(){ return {places:[], journeys:[]}; }
+
+/* The seed came from a page that stored HTML entities. The Studio and the API
+   payload hold plain text — the page escapes at render time. */
+function deEnt(v){
+  if(typeof v !== "string"){ return v; }
+  return v.split("&amp;").join("&").split("&nbsp;").join(" ")
+          .split("&middot;").join("\u00b7").split("&#039;").join("'").split("&quot;").join('"');
+}
+function cleanSeed(o){
+  var out = {places:[], journeys:[]}, i, k;
+  for(i=0;i<o.places.length;i++){
+    var p = o.places[i], np = {};
+    for(k in p){ np[k] = deEnt(p[k]); }
+    if(typeof np.tag === "undefined"){ np.tag = ""; }
+    if(typeof np.photo === "undefined"){ np.photo = ""; }
+    out.places.push(np);
+  }
+  for(i=0;i<o.journeys.length;i++){
+    var j = o.journeys[i];
+    var nj = {i:j.i, t:deEnt(j.t), s:deEnt(j.s), total:deEnt(j.total), best:!!j.best, steps:[]};
+    for(var q=0;q<j.steps.length;q++){
+      nj.steps.push({t:deEnt(j.steps[q].t), d:deEnt(j.steps[q].d), e:deEnt(j.steps[q].e||"")});
+    }
+    out.journeys.push(nj);
+  }
+  return out;
+}
+
+function build(){
+  var out = {version:1, updated:new Date().toISOString().slice(0,10), defaultLang:LANG, centres:{}};
+  for(var i=0;i<REPORT.centres.length;i++){
+    var c = REPORT.centres[i];
+    var content = {};
+    content[LANG] = blankContent();
+    if(SEED[c.code]){ content[LANG] = cleanSeed(SEED[c.code]); }
+    out.centres[c.code] = {
+      code:c.code, name:c.name, label:c.label, region:c.region, city:c.city,
+      report:{
+        mnc:c.mnc, local:c.local, origin:c.origin || null,
+        companies:c.companies || null,
+        industries:c.industries.map(function(x){ return {name:deEnt(x.name), pct:x.pct}; }),
+        persona:{profile:deEnt(c.persona.profile||""), priorities:deEnt(c.persona.priorities||""),
+                 hooks:deEnt(c.persona.hooks||"")}
+      },
+      content:content
+    };
+  }
+  return out;
+}
+
+var INDEX = [];
+function rebuildIndex(){
+  INDEX = [];
+  for(var code in DATA.centres){
+    var c = DATA.centres[code];
+    INDEX.push({code:code, label:c.label || c.name, region:c.region || "—", city:c.city || "",
+                mnc:(c.report && typeof c.report.mnc === "number") ? c.report.mnc : 0,
+                local:(c.report && typeof c.report.local === "number") ? c.report.local : 0,
+                industries:(c.report && c.report.industries) ? c.report.industries : []});
+  }
+  INDEX.sort(function(a,b){
+    if(a.region === b.region){ return a.label < b.label ? -1 : 1; }
+    return a.region < b.region ? -1 : 1;
+  });
+}
+function centre(){ return DATA.centres[current]; }
+function content(){
+  var c = centre();
+  if(!c.content[LANG]){ c.content[LANG] = blankContent(); }
+  return c.content[LANG];
+}
+function filled(code){
+  var c = DATA.centres[code];
+  if(!c){ return false; }
+  var k = c.content[LANG];
+  if(!k){ return false; }
+  if(k.places.length){ return true; }
+  if(k.journeys.length){ return true; }
+  return false;
+}
+function touch(){
+  dirty = true;
+  $("dirty").classList.add("on");
+  scheduleSave();
+}
+
+/* --------------------------- local autosave ----------------------------
+   Everything you type is kept in this browser so a reload or a closed tab
+   never loses an afternoon's work. It is a working copy, not a publish:
+   the file your developer serves is the JSON you download. --------------- */
+var KEY = "compass-centre-studio-v1", saveTimer = null;
+
+function stash(){
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify({saved:Date.now(), data:DATA}));
+    var el = $("saved");
+    var t = new Date();
+    var hh = ("0"+t.getHours()).slice(-2), mm = ("0"+t.getMinutes()).slice(-2);
+    el.innerHTML = '<svg><use href="#i-ok"></use></svg>Saved in this browser · '+hh+':'+mm;
+    el.classList.add("on");
+  } catch(e){
+    var el2 = $("saved");
+    el2.textContent = "Browser storage unavailable — download your JSON";
+    el2.classList.add("on");
+  }
+}
+function scheduleSave(){
+  window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(stash, 800);
+}
+function restore(){
+  try {
+    var raw = window.localStorage.getItem(KEY);
+    if(!raw){ return false; }
+    var parsed = JSON.parse(raw);
+    if(!parsed.data){ return false; }
+    if(!parsed.data.centres){ return false; }
+    DATA = parsed.data;
+    return true;
+  } catch(e){ return false; }
+}
+function forget(){
+  try { window.localStorage.removeItem(KEY); } catch(e){}
+}
+
+/* ------------------------------ toast ---------------------------------- */
+var toastTimer = null;
+function toast(msg, bad){
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.toggle("bad", !!bad);
+  t.classList.add("on");
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(function(){ t.classList.remove("on"); }, 2600);
+}
+
+/* --------------------------- centre selector --------------------------- */
+function fillSelect(){
+  var sel = $("centre"), regions = [], i;
+  for(i=0;i<INDEX.length;i++){
+    if(regions.indexOf(INDEX[i].region) < 0){ regions.push(INDEX[i].region); }
+  }
+  var h = "";
+  for(var r=0;r<regions.length;r++){
+    h += '<optgroup label="'+esc(regions[r])+'">';
+    for(i=0;i<INDEX.length;i++){
+      var c = INDEX[i];
+      if(c.region !== regions[r]){ continue; }
+      var flag = filled(c.code) ? " ✓" : "";
+      h += '<option value="'+esc(c.code)+'">'+esc(c.label)+' ('+esc(c.code)+')'+flag+'</option>';
+    }
+    h += '</optgroup>';
+  }
+  sel.innerHTML = h;
+  sel.value = current;
+}
+
+/* ------------------------------ report --------------------------------- */
+function renderReport(){
+  var c = centre(), r = c.report, h = "";
+  h += '<div class="card">';
+  h += '<div class="rep-head"><div><p>'+esc(c.region)+' · '+esc(c.code)+'</p>'+
+       '<h2>'+esc(c.label)+'</h2></div></div>';
+
+  h += '<div class="tiles">';
+  h += '<div class="tile"><b>'+r.mnc.toFixed(1)+'<small>%</small></b><span>Multinational</span></div>';
+  h += '<div class="tile"><b>'+r.local.toFixed(1)+'<small>%</small></b><span>Local business</span></div>';
+  if(r.companies){ h += '<div class="tile"><b>'+r.companies+'</b><span>Companies on record</span></div>'; }
+  if(r.origin){
+    h += '<div class="tile"><b>'+r.origin.local.pct.toFixed(1)+'<small>%</small></b><span>Hong Kong</span></div>';
+    h += '<div class="tile"><b>'+r.origin.mainland.pct.toFixed(1)+'<small>%</small></b><span>Mainland China</span></div>';
+    h += '<div class="tile"><b>'+r.origin.overseas.pct.toFixed(1)+'<small>%</small></b><span>Overseas</span></div>';
+  }
+  h += '</div>';
+
+  h += '<div class="grid2">';
+  h += '<div><h3>Industry mix of resident companies</h3><ul class="mix">';
+  for(var i=0;i<r.industries.length;i++){
+    var it = r.industries[i];
+    h += '<li><div class="mix-top"><b>'+esc(it.name)+'</b><em>'+it.pct.toFixed(1)+'%</em></div>'+
+         '<div class="mix-bar"><span style="width:'+Math.max(it.pct,1)+'%"></span></div></li>';
+  }
+  h += '</ul></div>';
+  h += '<div><h3>Target audience persona</h3><dl class="persona">';
+  var keys = [["profile","Target profile"],["priorities","Core priorities"],["hooks","Campaign & content hooks"]];
+  for(var k=0;k<keys.length;k++){
+    if(r.persona[keys[k][0]]){
+      h += '<dt>'+keys[k][1]+'</dt><dd>'+esc(r.persona[keys[k][0]])+'</dd>';
+    }
+  }
+  h += '</dl></div></div></div>';
+
+  /* whole-network table */
+  h += '<div class="card"><h3>All '+INDEX.length+' centres — pick one to edit</h3><div class="scroll"><table class="net">'+
+       '<thead><tr><th>Code</th><th>Centre</th><th>Region</th><th class="r">MNC</th>'+
+       '<th class="r">Local</th><th>Largest industry</th><th>Content</th></tr></thead><tbody>';
+  for(var n=0;n<INDEX.length;n++){
+    var x = INDEX[n];
+    var top = x.industries.length ? x.industries[0].name : "—";
+    h += '<tr data-code="'+esc(x.code)+'"'+(x.code===current?' class="on"':'')+'>'+
+         '<td><b>'+esc(x.code)+'</b></td><td>'+esc(x.label)+'</td><td>'+esc(x.region)+'</td>'+
+         '<td class="r">'+x.mnc.toFixed(1)+'%</td><td class="r">'+x.local.toFixed(1)+'%</td>'+
+         '<td>'+esc(top)+'</td>'+
+         '<td>'+(filled(x.code) ? '<span class="pill done">Written</span>' : '<span class="pill">Empty</span>')+'</td></tr>';
+  }
+  h += '</tbody></table></div></div>';
+  $("p-report").innerHTML = h;
+
+  $("p-report").addEventListener("click", function(ev){
+    var tr = ev.target.closest("tr[data-code]");
+    if(!tr){ return; }
+    select(tr.getAttribute("data-code"));
+  });
+}
+
+/* --------------------------- neighbourhood ----------------------------- */
+function renderHood(){
+  var rows = content().places, h = "";
+  h += '<div class="card"><h3>The neighbourhood — '+esc(centre().name)+'</h3>';
+  h += '<p class="hint" style="margin-bottom:18px">One row per place. Order them by walking time — the page shows the '+
+       'closest five on a phone and hides the rest behind “Show all”. <b>Map search</b> is what the map looks up, so '+
+       'make it specific enough to land on the right building.</p>';
+  if(!rows.length){
+    h += '<div class="empty"><svg><use href="#i-grid"></use></svg>'+
+         '<p>Nothing written for this centre yet. Add places one by one, or import the Excel your team filled in.</p>'+
+         '<button class="btn btn--o" data-add="place"><svg><use href="#i-plus"></use></svg>Add the first place</button></div>';
+  } else {
+    h += '<div class="scroll"><table class="tbl"><thead><tr>'+
+         '<th class="num">#</th><th style="width:150px">Category</th><th style="width:200px">Name</th>'+
+         '<th>Description</th><th style="width:110px">Walk time</th><th style="width:210px">Map search</th>'+
+         '<th style="width:130px">Badge</th><th style="width:190px">Photo URL</th><th class="act"></th>'+
+         '</tr></thead><tbody>';
+    for(var i=0;i<rows.length;i++){
+      var p = rows[i];
+      h += '<tr data-i="'+i+'"><td class="num">'+(i+1)+'</td>';
+      h += '<td><select data-f="c">';
+      for(var k=0;k<CATS.length;k++){
+        h += '<option value="'+CATS[k].id+'"'+(p.c===CATS[k].id?' selected':'')+'>'+esc(CATS[k].label)+'</option>';
+      }
+      h += '</select></td>';
+      h += '<td><input type="text" data-f="n" value="'+esc(p.n)+'" placeholder="Western Market"></td>';
+      h += '<td><textarea data-f="d" rows="2" placeholder="One line a prospect would find useful.">'+esc(p.d)+'</textarea></td>';
+      h += '<td><input type="text" data-f="w" value="'+esc(p.w)+'" placeholder="4 min"></td>';
+      h += '<td><input type="text" data-f="q" value="'+esc(p.q)+'" placeholder="Western Market, Sheung Wan, Hong Kong"></td>';
+      h += '<td><input type="text" data-f="tag" value="'+esc(p.tag)+'" placeholder="e.g. Famous"></td>';
+      h += '<td><input type="url" data-f="photo" value="'+esc(p.photo)+'" placeholder="https://…"></td>';
+      h += '<td class="act">'+
+           '<button class="icb" data-mv="-1" title="Move up"><svg><use href="#i-up"></use></svg></button>'+
+           '<button class="icb" data-mv="1" title="Move down"><svg><use href="#i-down"></use></svg></button>'+
+           '<button class="icb del" data-del="1" title="Remove"><svg><use href="#i-x"></use></svg></button>'+
+           '</td></tr>';
+    }
+    h += '</tbody></table></div>';
+    h += '<div style="margin-top:16px"><button class="btn btn--line" data-add="place">'+
+         '<svg><use href="#i-plus"></use></svg>Add a place</button>'+
+         '<span class="hint" style="margin-left:14px">'+rows.length+' places</span></div>';
+  }
+  h += '</div>';
+  $("p-hood").innerHTML = h;
+}
+
+/* ---------------------------- getting here ----------------------------- */
+function renderRoute(){
+  var rows = content().journeys, h = "";
+  h += '<div class="card"><h3>Getting here — '+esc(centre().name)+'</h3>';
+  h += '<p class="hint" style="margin-bottom:18px">One card per starting point. Steps run top to bottom, so write them '+
+       'as the journey actually happens. Mark exactly one route as the fastest — the page highlights it.</p></div>';
+  if(!rows.length){
+    h += '<div class="card"><div class="empty"><svg><use href="#i-doc"></use></svg>'+
+         '<p>No routes yet. Most centres need four or five: local metro, from the airport, by car, and on foot.</p>'+
+         '<button class="btn btn--o" data-add="route"><svg><use href="#i-plus"></use></svg>Add the first route</button>'+
+         '</div></div>';
+  } else {
+    for(var i=0;i<rows.length;i++){
+      var j = rows[i];
+      h += '<div class="route'+(j.best?' best':'')+'" data-i="'+i+'">';
+      h += '<div class="route-top">';
+      h += '<div><span class="lbl">Mode</span><select data-f="i">';
+      for(var m=0;m<MODES.length;m++){
+        h += '<option value="'+MODES[m].id+'"'+(j.i===MODES[m].id?' selected':'')+'>'+esc(MODES[m].label)+'</option>';
+      }
+      h += '</select></div>';
+      h += '<div><span class="lbl">Route title</span><input type="text" data-f="t" value="'+esc(j.t)+'" placeholder="From the airport"></div>';
+      h += '<div><span class="lbl">Subtitle</span><input type="text" data-f="s" value="'+esc(j.s)+'" placeholder="HKIA · Airport Express"></div>';
+      h += '<div><span class="lbl">Total time</span><input type="text" data-f="total" value="'+esc(j.total)+'" placeholder="About 35 minutes door to door"></div>';
+      h += '<div style="padding-top:18px;display:flex;gap:6px;align-items:center">'+
+           '<label class="chk"><input type="checkbox" data-f="best"'+(j.best?' checked':'')+'>Fastest</label>'+
+           '<button class="icb" data-mv="-1" title="Move up"><svg><use href="#i-up"></use></svg></button>'+
+           '<button class="icb" data-mv="1" title="Move down"><svg><use href="#i-down"></use></svg></button>'+
+           '<button class="icb del" data-del="1" title="Remove route"><svg><use href="#i-x"></use></svg></button></div>';
+      h += '</div>';
+
+      h += '<div class="route-steps"><div class="scroll"><table class="tbl"><thead><tr>'+
+           '<th class="num">Step</th><th style="width:220px">Title</th><th>Detail</th>'+
+           '<th style="width:170px">Leg time</th><th class="act"></th></tr></thead><tbody>';
+      for(var s=0;s<j.steps.length;s++){
+        var st = j.steps[s];
+        h += '<tr data-s="'+s+'"><td class="num">'+(s+1)+'</td>'+
+             '<td><input type="text" data-sf="t" value="'+esc(st.t)+'" placeholder="Exit E3"></td>'+
+             '<td><textarea data-sf="d" rows="2" placeholder="What the visitor actually does.">'+esc(st.d)+'</textarea></td>'+
+             '<td><input type="text" data-sf="e" value="'+esc(st.e)+'" placeholder="24 minutes"></td>'+
+             '<td class="act">'+
+             '<button class="icb" data-smv="-1" title="Move up"><svg><use href="#i-up"></use></svg></button>'+
+             '<button class="icb" data-smv="1" title="Move down"><svg><use href="#i-down"></use></svg></button>'+
+             '<button class="icb del" data-sdel="1" title="Remove step"><svg><use href="#i-x"></use></svg></button>'+
+             '</td></tr>';
+      }
+      h += '</tbody></table></div>'+
+           '<button class="btn btn--ghost btn--sm" data-addstep="1" style="margin-top:10px">'+
+           '<svg><use href="#i-plus"></use></svg>Add a step</button></div>';
+      h += '</div>';
+    }
+    h += '<div style="margin-top:16px"><button class="btn btn--line" data-add="route">'+
+         '<svg><use href="#i-plus"></use></svg>Add a route</button></div>';
+  }
+  $("p-route").innerHTML = h;
+}
+
+/* ------------------------------ publish -------------------------------- */
+function payload(){
+  return JSON.stringify(DATA, null, 1);
+}
+function renderData(){
+  var written = 0, code;
+  for(code in DATA.centres){ if(filled(code)){ written++; } }
+  var json = payload();
+  var h = "";
+  h += '<div class="card"><h3>Publish</h3>'+
+       '<p class="hint"><b>Where your work lives.</b> As you type, everything is kept in this browser only — '+
+       'that is a working copy, so a reload is safe but a different computer or a cleared cache is not. '+
+       'The real save is <b>Download JSON</b>. Hand that file to your developer to serve from '+
+       '<code>compassoffices.com</code>. The centre page reads that one URL, so every centre updates at once — '+
+       'and it stays reachable from mainland China, which a GitHub-hosted file would not.</p>'+
+       '<div class="tiles" style="margin-top:18px">'+
+       '<div class="tile"><b>'+Object.keys(DATA.centres).length+'</b><span>Centres in file</span></div>'+
+       '<div class="tile"><b>'+written+'</b><span>With content written</span></div>'+
+       '<div class="tile"><b>'+(json.length/1024).toFixed(0)+'<small> kB</small></b><span>Payload size</span></div>'+
+       '<div class="tile"><b>'+esc(DATA.updated)+'</b><span>Last updated</span></div>'+
+       '</div>'+
+       '<div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">'+
+       '<button class="btn btn--o" id="d-json"><svg><use href="#i-dl"></use></svg>Download JSON</button>'+
+       '<button class="btn btn--line" id="d-copy"><svg><use href="#i-copy"></use></svg>Copy to clipboard</button>'+
+       '<button class="btn btn--line" id="d-xls"><svg><use href="#i-dl"></use></svg>Download Excel</button>'+
+       '</div></div>';
+
+  h += '<div class="card"><h3>The Excel your team fills in</h3>'+
+       '<p class="hint">Two sheets, one row per line of content. Import it back here when they are done — '+
+       'the <b>Centre code</b> column is what routes each row to the right centre.</p>'+
+       '<div class="grid2" style="margin-top:16px">'+
+       '<div><span class="lbl">Sheet — Report (yearly refresh)</span><p class="hint">'+
+       '<code>Centre code</code> · <code>Centre</code> · <code>Region</code> · <code>City</code> · '+
+       '<code>MNC %</code> · <code>Local %</code> · <code>Companies</code> · <code>Home market %</code> · '+
+       '<code>Mainland China %</code> · <code>Overseas %</code> · <code>Target profile</code> · '+
+       '<code>Core priorities</code> · <code>Campaign hooks</code></p></div>'+
+       '<div><span class="lbl">Sheet — Industry mix</span><p class="hint">'+
+       '<code>Centre code</code> · <code>Centre</code> · <code>Industry</code> · <code>Share %</code>'+
+       ' — one row per industry per centre.</p></div>'+
+       '<div><span class="lbl">Sheet — Neighbourhood</span><p class="hint">'+
+       '<code>Centre code</code> · <code>Centre</code> · <code>Category</code> · <code>Name</code> · '+
+       '<code>Description</code> · <code>Walk time</code> · <code>Map search</code> · <code>Badge</code> · '+
+       '<code>Photo URL</code></p></div>'+
+       '<div><span class="lbl">Sheet — Getting here</span><p class="hint">'+
+       '<code>Centre code</code> · <code>Centre</code> · <code>Route</code> · <code>Mode</code> · '+
+       '<code>Route title</code> · <code>Subtitle</code> · <code>Total time</code> · <code>Fastest</code> · '+
+       '<code>Step</code> · <code>Step title</code> · <code>Step detail</code> · <code>Leg time</code></p></div>'+
+       '</div></div>';
+
+  h += '<div class="card"><h3>Payload preview</h3><pre class="json">'+esc(json.slice(0, 24000))+
+       (json.length > 24000 ? "\n\n… truncated for preview. The download contains everything." : "")+'</pre></div>';
+  $("p-data").innerHTML = h;
+
+  $("d-json").addEventListener("click", downloadJSON);
+  $("d-xls").addEventListener("click", downloadXLSX);
+  $("d-copy").addEventListener("click", function(){
+    if(!navigator.clipboard){ toast("Clipboard unavailable — use Download instead", true); return; }
+    navigator.clipboard.writeText(payload()).then(function(){ toast("JSON copied"); },
+      function(){ toast("Could not copy — use Download instead", true); });
+  });
+}
+
+/* ------------------------------ files ---------------------------------- */
+function save(name, text, mime){
+  var blob = new Blob([text], {type:mime});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  window.setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+}
+function stamp(){ return new Date().toISOString().slice(0,10); }
+
+function downloadJSON(){
+  DATA.updated = stamp();
+  save("compass-centres-"+stamp()+".json", payload(), "application/json");
+  stash();
+  dirty = false; $("dirty").classList.remove("on");
+  toast("JSON downloaded");
+}
+
+function downloadXLSX(){
+  if(typeof XLSX === "undefined"){ toast("Excel library did not load", true); return; }
+  var hood = [], route = [], code, c, k, i, s;
+  for(code in DATA.centres){
+    c = DATA.centres[code];
+    k = c.content[LANG] || blankContent();
+    for(i=0;i<k.places.length;i++){
+      var p = k.places[i];
+      hood.push({"Centre code":code, "Centre":c.label, "Category":catLabel(p.c), "Name":p.n,
+                 "Description":p.d, "Walk time":p.w, "Map search":p.q, "Badge":p.tag||"", "Photo URL":p.photo||""});
+    }
+    for(i=0;i<k.journeys.length;i++){
+      var j = k.journeys[i];
+      var mode = j.i;
+      for(var m=0;m<MODES.length;m++){ if(MODES[m].id===j.i){ mode = MODES[m].label; } }
+      if(!j.steps.length){
+        route.push({"Centre code":code,"Centre":c.label,"Route":i+1,"Mode":mode,"Route title":j.t,
+                    "Subtitle":j.s,"Total time":j.total,"Fastest":j.best?"yes":"","Step":"",
+                    "Step title":"","Step detail":"","Leg time":""});
+      }
+      for(s=0;s<j.steps.length;s++){
+        route.push({"Centre code":code,"Centre":c.label,"Route":i+1,"Mode":mode,"Route title":j.t,
+                    "Subtitle":j.s,"Total time":j.total,"Fastest":j.best?"yes":"","Step":s+1,
+                    "Step title":j.steps[s].t,"Step detail":j.steps[s].d,"Leg time":j.steps[s].e||""});
+      }
+    }
+  }
+  if(!hood.length){ hood.push({"Centre code":current,"Centre":centre().label,"Category":"Landmarks",
+    "Name":"","Description":"","Walk time":"","Map search":"","Badge":"","Photo URL":""}); }
+  if(!route.length){ route.push({"Centre code":current,"Centre":centre().label,"Route":1,"Mode":"MTR / metro",
+    "Route title":"","Subtitle":"","Total time":"","Fastest":"","Step":1,"Step title":"","Step detail":"","Leg time":""}); }
+
+  /* the yearly report itself, so a refresh never needs a developer */
+  var rrep = [], mix = [];
+  for(code in DATA.centres){
+    c = DATA.centres[code];
+    var R = c.report || {};
+    var o = R.origin || null;
+    rrep.push({"Centre code":code, "Centre":c.label, "Region":c.region, "City":c.city,
+              "MNC %":R.mnc, "Local %":R.local, "Companies":R.companies || "",
+              "Home market %": o ? o.local.pct : "", "Mainland China %": o ? o.mainland.pct : "",
+              "Overseas %": o ? o.overseas.pct : "",
+              "Target profile":(R.persona&&R.persona.profile)||"",
+              "Core priorities":(R.persona&&R.persona.priorities)||"",
+              "Campaign hooks":(R.persona&&R.persona.hooks)||""});
+    var inds = R.industries || [];
+    for(i=0;i<inds.length;i++){
+      mix.push({"Centre code":code, "Centre":c.label, "Industry":inds[i].name, "Share %":inds[i].pct});
+    }
+  }
+
+  var wb = XLSX.utils.book_new();
+  var s0 = XLSX.utils.json_to_sheet(rrep);
+  var sM = XLSX.utils.json_to_sheet(mix);
+  s0["!cols"] = [{wch:12},{wch:32},{wch:14},{wch:16},{wch:9},{wch:9},{wch:11},{wch:15},{wch:18},{wch:12},{wch:70},{wch:70},{wch:70}];
+  sM["!cols"] = [{wch:12},{wch:32},{wch:46},{wch:9}];
+  XLSX.utils.book_append_sheet(wb, s0, "Report");
+  XLSX.utils.book_append_sheet(wb, sM, "Industry mix");
+  var s1 = XLSX.utils.json_to_sheet(hood);
+  var s2 = XLSX.utils.json_to_sheet(route);
+  s1["!cols"] = [{wch:12},{wch:30},{wch:20},{wch:30},{wch:60},{wch:12},{wch:40},{wch:14},{wch:34}];
+  s2["!cols"] = [{wch:12},{wch:30},{wch:7},{wch:14},{wch:24},{wch:26},{wch:30},{wch:9},{wch:6},{wch:26},{wch:60},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, s1, "Neighbourhood");
+  XLSX.utils.book_append_sheet(wb, s2, "Getting here");
+  XLSX.writeFile(wb, "compass-centre-content-"+stamp()+".xlsx");
+  toast("Excel downloaded");
+}
+
+function importJSON(text){
+  var incoming;
+  try { incoming = JSON.parse(text); }
+  catch(e){ toast("That file is not valid JSON", true); return; }
+  if(!incoming.centres){ toast("No “centres” key — is this a Studio export?", true); return; }
+  var n = 0, added = 0, code;
+  for(code in incoming.centres){
+    var src = incoming.centres[code];
+    if(!DATA.centres[code]){
+      /* a centre that has opened since the last report — take it wholesale */
+      DATA.centres[code] = {
+        code:code, name:src.name || code, label:src.label || (src.name || code),
+        region:src.region || "New", city:src.city || "",
+        report:src.report || {mnc:0, local:0, origin:null, companies:null, industries:[], persona:{}},
+        content:src.content || {}
+      };
+      added++; n++;
+      continue;
+    }
+    if(src.report){ DATA.centres[code].report = src.report; }   /* yearly report refresh */
+    if(src.name){ DATA.centres[code].name = src.name; }
+    if(src.label){ DATA.centres[code].label = src.label; }
+    if(src.content){ DATA.centres[code].content = src.content; }
+    n++;
+  }
+  if(incoming.updated){ DATA.updated = incoming.updated; }
+  rebuildIndex();
+  touch(); fillSelect(); renderAll();
+  toast("Imported "+n+" centre"+(n===1?"":"s")+(added ? " · "+added+" new" : ""));
+}
+
+function importXLSX(buf){
+  if(typeof XLSX === "undefined"){ toast("Excel library did not load", true); return; }
+  var wb;
+  try { wb = XLSX.read(buf, {type:"array"}); }
+  catch(e){ toast("Could not read that workbook", true); return; }
+
+  var byLabel = {};
+  for(var m=0;m<MODES.length;m++){ byLabel[MODES[m].label.toLowerCase()] = MODES[m].id; }
+  var catByLabel = {};
+  for(var q=0;q<CATS.length;q++){ catByLabel[CATS[q].label.toLowerCase()] = CATS[q].id; }
+
+  var touched = {}, warn = 0, i;
+
+  function reset(code){
+    if(touched[code]){ return; }
+    touched[code] = true;
+    DATA.centres[code].content[LANG] = blankContent();
+  }
+  function pick(row, names){
+    for(var n=0;n<names.length;n++){
+      if(typeof row[names[n]] !== "undefined"){ return String(row[names[n]]).trim(); }
+    }
+    return "";
+  }
+
+  /* --- yearly report refresh (pick() is hoisted, declared below) -------- */
+  function num(v){ var n = parseFloat(String(v).replace("%","")); return isNaN(n) ? 0 : n; }
+  var reportRows = 0;
+  if(wb.SheetNames.indexOf("Report") >= 0){
+    var rp = XLSX.utils.sheet_to_json(wb.Sheets["Report"], {defval:""});
+    for(i=0;i<rp.length;i++){
+      var x = rp[i];
+      var xc = pick(x, ["Centre code","centre code","Code"]);
+      if(!xc){ continue; }
+      if(!DATA.centres[xc]){
+        DATA.centres[xc] = {code:xc, name:pick(x,["Centre"]) || xc, label:pick(x,["Centre"]) || xc,
+          region:pick(x,["Region"]) || "New", city:pick(x,["City"]) || "",
+          report:{mnc:0,local:0,origin:null,companies:null,industries:[],persona:{}}, content:{}};
+      }
+      var C = DATA.centres[xc];
+      if(pick(x,["Centre"])){ C.label = pick(x,["Centre"]); }
+      if(pick(x,["Region"])){ C.region = pick(x,["Region"]); }
+      if(pick(x,["City"])){ C.city = pick(x,["City"]); }
+      var home = pick(x,["Home market %","Hong Kong %"]);
+      C.report.mnc = num(pick(x,["MNC %","MNC"]));
+      C.report.local = num(pick(x,["Local %","Local"]));
+      C.report.companies = pick(x,["Companies"]) ? num(pick(x,["Companies"])) : null;
+      C.report.origin = home ? {
+        local:{n:0, pct:num(home)},
+        mainland:{n:0, pct:num(pick(x,["Mainland China %"]))},
+        overseas:{n:0, pct:num(pick(x,["Overseas %"]))}
+      } : null;
+      C.report.persona = {
+        profile:pick(x,["Target profile"]),
+        priorities:pick(x,["Core priorities"]),
+        hooks:pick(x,["Campaign hooks"])
+      };
+      C.report.industries = [];
+      if(!C.content[LANG]){ C.content[LANG] = blankContent(); }
+      reportRows++;
+    }
+  }
+  if(wb.SheetNames.indexOf("Industry mix") >= 0){
+    var mx = XLSX.utils.sheet_to_json(wb.Sheets["Industry mix"], {defval:""});
+    for(i=0;i<mx.length;i++){
+      var y = mx[i];
+      var yc = pick(y, ["Centre code","centre code","Code"]);
+      var ind = pick(y, ["Industry","industry"]);
+      if(!yc){ continue; }
+      if(!ind){ continue; }
+      if(!DATA.centres[yc]){ warn++; continue; }
+      DATA.centres[yc].report.industries.push({name:ind, pct:num(pick(y,["Share %","Share","%"]))});
+    }
+    for(var zc in DATA.centres){
+      DATA.centres[zc].report.industries.sort(function(a,b){ return b.pct - a.pct; });
+    }
+  }
+
+  if(wb.SheetNames.indexOf("Neighbourhood") >= 0){
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets["Neighbourhood"], {defval:""});
+    for(i=0;i<rows.length;i++){
+      var r = rows[i];
+      var code = pick(r, ["Centre code","centre code","Code"]);
+      var name = pick(r, ["Name","name"]);
+      if(!code){ continue; }
+      if(!DATA.centres[code]){ warn++; continue; }
+      if(!name){ continue; }
+      reset(code);
+      var cl = pick(r, ["Category","category"]).toLowerCase();
+      DATA.centres[code].content[LANG].places.push({
+        c: catByLabel[cl] || "land",
+        n: name,
+        d: pick(r, ["Description","description"]),
+        w: pick(r, ["Walk time","walk time","Walk"]),
+        q: pick(r, ["Map search","map search","Map query"]),
+        tag: pick(r, ["Badge","badge"]),
+        photo: pick(r, ["Photo URL","photo url","Photo"])
+      });
+    }
+  }
+
+  if(wb.SheetNames.indexOf("Getting here") >= 0){
+    var rrows = XLSX.utils.sheet_to_json(wb.Sheets["Getting here"], {defval:""});
+    var open = {};
+    for(i=0;i<rrows.length;i++){
+      var rr = rrows[i];
+      var rcode = pick(rr, ["Centre code","centre code","Code"]);
+      var title = pick(rr, ["Route title","route title","Title"]);
+      if(!rcode){ continue; }
+      if(!DATA.centres[rcode]){ warn++; continue; }
+      if(!title){ continue; }
+      reset(rcode);
+      var key = rcode + "|" + pick(rr, ["Route","route"]) + "|" + title;
+      var jr = open[key];
+      if(!jr){
+        var ml = pick(rr, ["Mode","mode"]).toLowerCase();
+        jr = {
+          i: byLabel[ml] || "cx-train",
+          t: title,
+          s: pick(rr, ["Subtitle","subtitle"]),
+          total: pick(rr, ["Total time","total time"]),
+          best: /^(y|yes|true|1|✓)$/i.test(pick(rr, ["Fastest","fastest"])),
+          steps: []
+        };
+        open[key] = jr;
+        DATA.centres[rcode].content[LANG].journeys.push(jr);
+      }
+      var stTitle = pick(rr, ["Step title","step title"]);
+      if(stTitle){
+        jr.steps.push({t:stTitle, d:pick(rr, ["Step detail","step detail"]), e:pick(rr, ["Leg time","leg time","Step time"])});
+      }
+    }
+  }
+
+  var count = Object.keys(touched).length;
+  if(!count){ if(!reportRows){ toast("Nothing imported — check the Centre code column", true); return; } }
+  rebuildIndex();
+  if(!DATA.centres[current]){ current = INDEX.length ? INDEX[0].code : null; }
+  touch(); fillSelect(); renderAll();
+  var msg = [];
+  if(reportRows){ msg.push(reportRows+" report rows"); }
+  if(count){ msg.push(count+" centre"+(count===1?"":"s")+" of content"); }
+  toast("Imported "+msg.join(" · ")+(warn ? " · "+warn+" unknown codes" : ""));
+}
+
+/* ------------------------------ wiring --------------------------------- */
+function renderAll(){
+  renderReport(); renderHood(); renderRoute(); renderData();
+}
+function select(code){
+  if(!DATA.centres[code]){ return; }
+  current = code;
+  $("centre").value = code;
+  renderAll();
+}
+
+function bindEditors(){
+  /* neighbourhood */
+  $("p-hood").addEventListener("input", function(ev){
+    var tr = ev.target.closest("tr[data-i]");
+    if(!tr){ return; }
+    var f = ev.target.getAttribute("data-f");
+    if(!f){ return; }
+    content().places[+tr.getAttribute("data-i")][f] = ev.target.value;
+    touch();
+  });
+  $("p-hood").addEventListener("change", function(ev){
+    if(ev.target.tagName === "SELECT"){
+      var tr = ev.target.closest("tr[data-i]");
+      if(tr){ content().places[+tr.getAttribute("data-i")].c = ev.target.value; touch(); }
+    }
+  });
+  $("p-hood").addEventListener("click", function(ev){
+    var add = ev.target.closest("[data-add]");
+    if(add){
+      content().places.push({c:"land",n:"",d:"",w:"",q:"",tag:"",photo:""});
+      touch(); renderHood(); fillSelect();
+      var inputs = $("p-hood").querySelectorAll('input[data-f="n"]');
+      if(inputs.length){ inputs[inputs.length-1].focus(); }
+      return;
+    }
+    var tr = ev.target.closest("tr[data-i]");
+    if(!tr){ return; }
+    var i = +tr.getAttribute("data-i"), arr = content().places;
+    if(ev.target.closest("[data-del]")){ arr.splice(i,1); touch(); renderHood(); fillSelect(); return; }
+    var mv = ev.target.closest("[data-mv]");
+    if(mv){
+      var to = i + (+mv.getAttribute("data-mv"));
+      if(to < 0){ return; }
+      if(to >= arr.length){ return; }
+      var tmp = arr[i]; arr[i] = arr[to]; arr[to] = tmp;
+      touch(); renderHood();
+    }
+  });
+
+  /* getting here */
+  $("p-route").addEventListener("input", function(ev){
+    var card = ev.target.closest(".route[data-i]");
+    if(!card){ return; }
+    var j = content().journeys[+card.getAttribute("data-i")];
+    var f = ev.target.getAttribute("data-f");
+    if(f){ j[f] = ev.target.value; touch(); return; }
+    var sf = ev.target.getAttribute("data-sf");
+    var tr = ev.target.closest("tr[data-s]");
+    if(sf){ if(tr){ j.steps[+tr.getAttribute("data-s")][sf] = ev.target.value; touch(); } }
+  });
+  $("p-route").addEventListener("change", function(ev){
+    var card = ev.target.closest(".route[data-i]");
+    if(!card){ return; }
+    var j = content().journeys[+card.getAttribute("data-i")];
+    if(ev.target.getAttribute("data-f") === "i"){ j.i = ev.target.value; touch(); return; }
+    if(ev.target.getAttribute("data-f") === "best"){
+      var arr = content().journeys;
+      for(var n=0;n<arr.length;n++){ arr[n].best = false; }
+      j.best = ev.target.checked;
+      touch(); renderRoute();
+    }
+  });
+  $("p-route").addEventListener("click", function(ev){
+    var add = ev.target.closest('[data-add="route"]');
+    if(add){
+      content().journeys.push({i:"cx-train",t:"",s:"",total:"",best:false,
+        steps:[{t:"",d:"",e:""}]});
+      touch(); renderRoute(); fillSelect(); return;
+    }
+    var card = ev.target.closest(".route[data-i]");
+    if(!card){ return; }
+    var i = +card.getAttribute("data-i"), arr = content().journeys, j = arr[i];
+    if(ev.target.closest("[data-addstep]")){ j.steps.push({t:"",d:"",e:""}); touch(); renderRoute(); return; }
+    var tr = ev.target.closest("tr[data-s]");
+    if(tr){
+      var s = +tr.getAttribute("data-s");
+      if(ev.target.closest("[data-sdel]")){ j.steps.splice(s,1); touch(); renderRoute(); return; }
+      var smv = ev.target.closest("[data-smv]");
+      if(smv){
+        var st = s + (+smv.getAttribute("data-smv"));
+        if(st < 0){ return; }
+        if(st >= j.steps.length){ return; }
+        var t2 = j.steps[s]; j.steps[s] = j.steps[st]; j.steps[st] = t2;
+        touch(); renderRoute();
+      }
+      return;
+    }
+    if(ev.target.closest("[data-del]")){ arr.splice(i,1); touch(); renderRoute(); fillSelect(); return; }
+    var mv = ev.target.closest("[data-mv]");
+    if(mv){
+      var to = i + (+mv.getAttribute("data-mv"));
+      if(to < 0){ return; }
+      if(to >= arr.length){ return; }
+      var tmp2 = arr[i]; arr[i] = arr[to]; arr[to] = tmp2;
+      touch(); renderRoute();
+    }
+  });
+}
+
+function boot(){
+  var restored = restore();
+  if(!restored){ DATA = build(); }
+  rebuildIndex();
+  current = DATA.centres["HKG-WOC"] ? "HKG-WOC" : Object.keys(DATA.centres)[0];
+  fillSelect();
+  renderAll();
+  bindEditors();
+
+  if(restored){ toast("Picked up where you left off — restored from this browser"); stash(); }
+
+  $("centre").addEventListener("change", function(){ select(this.value); });
+
+  $("clear-local").addEventListener("click", function(){
+    if(!window.confirm("Discard the copy held in this browser and start again from the built-in report?\n\nAnything you have not downloaded will be lost.")){ return; }
+    forget();
+    DATA = build();
+    rebuildIndex();
+    current = DATA.centres["HKG-WOC"] ? "HKG-WOC" : Object.keys(DATA.centres)[0];
+    dirty = false;
+    $("dirty").classList.remove("on");
+    $("saved").classList.remove("on");
+    fillSelect(); renderAll();
+    toast("Reset to the built-in report");
+  });
+
+  $("tabs").addEventListener("click", function(ev){
+    var b = ev.target.closest(".tab");
+    if(!b){ return; }
+    var all = $("tabs").querySelectorAll(".tab"), i;
+    for(i=0;i<all.length;i++){ all[i].classList.remove("on"); }
+    b.classList.add("on");
+    var panes = document.querySelectorAll(".pane");
+    for(i=0;i<panes.length;i++){ panes[i].classList.remove("on"); }
+    $("p-"+b.getAttribute("data-p")).classList.add("on");
+    if(b.getAttribute("data-p") === "data"){ renderData(); }
+  });
+
+  $("exp-json").addEventListener("click", downloadJSON);
+  $("exp-xls").addEventListener("click", downloadXLSX);
+  $("imp-json").addEventListener("click", function(){ $("file-json").click(); });
+  $("imp-xls").addEventListener("click", function(){ $("file-xls").click(); });
+  $("file-json").addEventListener("change", function(){
+    var f = this.files[0];
+    if(!f){ return; }
+    var fr = new FileReader();
+    fr.onload = function(){ importJSON(fr.result); };
+    fr.readAsText(f);
+    this.value = "";
+  });
+  $("file-xls").addEventListener("change", function(){
+    var f = this.files[0];
+    if(!f){ return; }
+    var fr = new FileReader();
+    fr.onload = function(){ importXLSX(new Uint8Array(fr.result)); };
+    fr.readAsArrayBuffer(f);
+    this.value = "";
+  });
+
+  window.addEventListener("beforeunload", function(ev){
+    if(!dirty){ return; }
+    ev.preventDefault();
+    ev.returnValue = "";
+  });
+}
+
+boot();
+})();
+</script>
+</body>
+</html>
