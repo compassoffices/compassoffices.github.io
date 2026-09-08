@@ -159,6 +159,27 @@ pre.json{background:var(--ink);color:#E8E8E8;border-radius:var(--r);padding:18px
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
 pre.json .k{color:#FFB885;}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
+.modal{position:fixed;inset:0;z-index:70;background:rgba(20,20,20,.55);display:flex;
+  align-items:center;justify-content:center;padding:20px;
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}
+.modal[hidden]{display:none;}
+.modal-card{background:#fff;border-radius:var(--r);width:min(760px,100%);max-height:90vh;
+  display:flex;flex-direction:column;padding:clamp(20px,2.6vw,30px);gap:16px;
+  box-shadow:0 30px 80px rgba(0,0,0,.35);}
+.modal-top{display:flex;gap:20px;align-items:flex-start;}
+.modal-top h2{font-size:1.15rem;font-weight:900;letter-spacing:-.02em;margin-bottom:8px;}
+.modal-top .hint{max-width:62ch;}
+.modal textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;
+  line-height:1.6;flex:1 1 auto;min-height:220px;}
+.modal-act{display:flex;align-items:center;gap:8px;}
+.modal-act .grow{flex:1 1 auto;}
+.report{background:var(--fill);border-radius:8px;padding:14px 16px;font-size:.83rem;line-height:1.65;
+  max-height:160px;overflow:auto;}
+.report b{font-weight:800;}
+.report .bad{color:#B3261E;font-weight:700;}
+.report ul{margin-top:6px;}
+.report li{padding-left:14px;position:relative;}
+.report li::before{content:"·";position:absolute;left:3px;color:var(--mut);}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);z-index:60;
   background:var(--ink);color:#fff;padding:13px 22px;border-radius:var(--rp);font-size:.86rem;
   font-weight:700;box-shadow:0 16px 40px rgba(0,0,0,.3);transition:transform .3s cubic-bezier(.22,1,.36,1);}
@@ -197,8 +218,10 @@ pre.json .k{color:#FFB885;}
 </nav>
 
 <div class="bar">
-  <button class="btn btn--line btn--sm" id="imp-json"><svg><use href="#i-ul"></use></svg>Import JSON</button>
-  <button class="btn btn--line btn--sm" id="imp-xls"><svg><use href="#i-ul"></use></svg>Import Excel</button>
+  <button class="btn btn--o btn--sm" id="paste"><svg><use href="#i-copy"></use></svg>Paste JSON</button>
+  <a class="btn btn--line btn--sm" href="README.md" target="_blank" rel="noopener"><svg><use href="#i-doc"></use></svg>JSON format</a>
+  <button class="btn btn--line btn--sm" id="imp-json"><svg><use href="#i-ul"></use></svg>JSON file</button>
+  <button class="btn btn--line btn--sm" id="imp-xls"><svg><use href="#i-ul"></use></svg>Excel</button>
   <button class="btn btn--ghost btn--sm" id="clear-local" title="Discard the browser copy and reload the built-in report">Reset</button>
   <span class="grow"></span>
   <button class="btn btn--line btn--sm" id="exp-xls"><svg><use href="#i-dl"></use></svg>Excel</button>
@@ -213,6 +236,29 @@ pre.json .k{color:#FFB885;}
   <section class="pane" id="p-route"></section>
   <section class="pane" id="p-data"></section>
 </main>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-top">
+      <div>
+        <h2>Paste JSON</h2>
+        <p class="hint">Paste whatever your researcher's AI produced. It does not have to match a strict
+          shape — common key names are understood, and anything unrecognised is reported rather than
+          silently dropped. If the JSON does not name a centre, it lands on the one selected above.</p>
+      </div>
+      <button class="icb" id="modal-x" aria-label="Close"><svg><use href="#i-x"></use></svg></button>
+    </div>
+    <textarea id="paste-box" rows="16" spellcheck="false"
+      placeholder='{ "places": [ { "name": "Western Market", "category": "Landmarks", ... } ] }'></textarea>
+    <div id="paste-report" class="report" hidden></div>
+    <div class="modal-act">
+      <button class="btn btn--ghost btn--sm" id="paste-sample">Show me an example</button>
+      <span class="grow"></span>
+      <button class="btn btn--line" id="paste-cancel">Cancel</button>
+      <button class="btn btn--o" id="paste-go"><svg><use href="#i-ul"></use></svg>Import</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -640,6 +686,190 @@ function renderData(){
   });
 }
 
+/* ==========================================================================
+   FLEXIBLE JSON INTAKE
+   Researchers paste their notes into an AI and hand us whatever it produced.
+   Rather than demand one exact shape, understand the shapes an AI actually
+   emits, and report anything that could not be read.
+   ========================================================================== */
+function pickKey(o, names){
+  for(var i=0;i<names.length;i++){
+    var k = names[i];
+    if(typeof o[k] !== "undefined"){ if(o[k] !== null){ return o[k]; } }
+  }
+  /* case-insensitive second pass */
+  for(var key in o){
+    var low = key.toLowerCase().replace(/[\s_-]/g,"");
+    for(var j=0;j<names.length;j++){
+      if(low === names[j].toLowerCase().replace(/[\s_-]/g,"")){ return o[key]; }
+    }
+  }
+  return "";
+}
+function asText(v){
+  if(v === null){ return ""; }
+  if(typeof v === "undefined"){ return ""; }
+  if(typeof v === "object"){ return ""; }
+  return String(v).trim();
+}
+function guessCat(v){
+  var t = asText(v).toLowerCase();
+  if(!t){ return "land"; }
+  for(var i=0;i<CATS.length;i++){
+    if(t === CATS[i].id){ return CATS[i].id; }
+    if(t === CATS[i].label.toLowerCase()){ return CATS[i].id; }
+  }
+  if(/eat|food|restaur|dining|cafe|coffee|bar|drink/.test(t)){ return "eat"; }
+  if(/shop|retail|store|mall|market/.test(t)){ return "shop"; }
+  if(/hotel|stay|accommod|lodg/.test(t)){ return "stay"; }
+  if(/bank|gym|fitness|wellbeing|wellness|health|park|service/.test(t)){ return "life"; }
+  return "land";
+}
+function guessMode(v){
+  var t = asText(v).toLowerCase();
+  for(var i=0;i<MODES.length;i++){
+    if(t === MODES[i].id){ return MODES[i].id; }
+    if(t === MODES[i].label.toLowerCase()){ return MODES[i].id; }
+  }
+  if(/air|plane|flight|hkia|terminal 1/.test(t)){ return "cx-plane"; }
+  if(/ferry|boat|pier|sea/.test(t)){ return "cx-ferry"; }
+  if(/tram|bus|coach/.test(t)){ return "cx-tram"; }
+  if(/car|taxi|drive|driving|park/.test(t)){ return "cx-car"; }
+  if(/walk|foot|pedestrian/.test(t)){ return "cx-walk"; }
+  return "cx-train";
+}
+function truthy(v){
+  if(v === true){ return true; }
+  return /^(y|yes|true|1|fastest)$/i.test(asText(v));
+}
+
+function readPlace(o, notes){
+  var name = asText(pickKey(o, ["n","name","title","place","placeName"]));
+  if(!name){ notes.push("a place with no name was skipped"); return null; }
+  return {
+    c: guessCat(pickKey(o, ["c","cat","category","type","group"])),
+    n: name,
+    d: asText(pickKey(o, ["d","desc","description","detail","details","summary","note"])),
+    w: asText(pickKey(o, ["w","walk","walkTime","walkingTime","time","minutes","distance"])),
+    q: asText(pickKey(o, ["q","query","mapSearch","mapQuery","address","search","location"])) || name,
+    tag: asText(pickKey(o, ["tag","badge","label","flag"])),
+    photo: asText(pickKey(o, ["photo","photoUrl","image","imageUrl","img","picture"]))
+  };
+}
+function readJourney(o, notes){
+  var title = asText(pickKey(o, ["t","title","name","from","origin","route","routeTitle"]));
+  if(!title){ notes.push("a route with no title was skipped"); return null; }
+  var rawSteps = pickKey(o, ["steps","legs","stages","directions"]);
+  var steps = [];
+  if(Object.prototype.toString.call(rawSteps) === "[object Array]"){
+    for(var i=0;i<rawSteps.length;i++){
+      var st = rawSteps[i];
+      if(typeof st === "string"){ steps.push({t:st, d:"", e:""}); continue; }
+      var sTitle = asText(pickKey(st, ["t","title","name","step"]));
+      var sDetail = asText(pickKey(st, ["d","desc","description","detail","details","text"]));
+      if(!sTitle){ if(sDetail){ sTitle = sDetail; sDetail = ""; } }
+      if(!sTitle){ continue; }
+      steps.push({t:sTitle, d:sDetail, e:asText(pickKey(st, ["e","time","legTime","duration","minutes"]))});
+    }
+  }
+  if(!steps.length){ notes.push('"' + title + '" has no steps'); }
+  return {
+    i: guessMode(pickKey(o, ["i","mode","icon","transport","by","method"])),
+    t: title,
+    s: asText(pickKey(o, ["s","sub","subtitle","via","line","service"])),
+    total: asText(pickKey(o, ["total","totalTime","duration","journeyTime","time"])),
+    best: truthy(pickKey(o, ["best","fastest","primary","recommended"])),
+    steps: steps
+  };
+}
+
+/* Turn anything reasonable into {code -> {places, journeys}} */
+function normalise(incoming, fallbackCode){
+  var out = {}, notes = [], i;
+
+  function bucket(code){
+    if(!out[code]){ out[code] = {places:[], journeys:[]}; }
+    return out[code];
+  }
+  function readInto(code, obj){
+    var b = bucket(code);
+    var pl = pickKey(obj, ["places","neighbourhood","neighborhood","nearby","locations","spots"]);
+    var jr = pickKey(obj, ["journeys","gettingHere","getting_here","routes","travel","directions"]);
+    if(Object.prototype.toString.call(pl) === "[object Array]"){
+      for(i=0;i<pl.length;i++){ var p = readPlace(pl[i], notes); if(p){ b.places.push(p); } }
+    }
+    if(Object.prototype.toString.call(jr) === "[object Array]"){
+      for(i=0;i<jr.length;i++){ var j = readJourney(jr[i], notes); if(j){ b.journeys.push(j); } }
+    }
+  }
+
+  /* a bare array — places unless the rows look like routes */
+  if(Object.prototype.toString.call(incoming) === "[object Array]"){
+    var looksRoute = false;
+    if(incoming.length){
+      if(pickKey(incoming[0], ["steps","legs","stages"])){ looksRoute = true; }
+    }
+    var b0 = bucket(fallbackCode);
+    for(i=0;i<incoming.length;i++){
+      if(looksRoute){ var j0 = readJourney(incoming[i], notes); if(j0){ b0.journeys.push(j0); } }
+      else { var p0 = readPlace(incoming[i], notes); if(p0){ b0.places.push(p0); } }
+    }
+    return {data:out, notes:notes};
+  }
+
+  if(typeof incoming !== "object"){ return {data:{}, notes:["that is not JSON we can read"]}; }
+
+  /* the Studio's own export, or anything keyed by centre code */
+  var centres = pickKey(incoming, ["centres","centers"]);
+  if(centres){
+    for(var code in centres){
+      var src = centres[code];
+      var target = DATA.centres[code] ? code : null;
+      if(!target){
+        notes.push('centre code "' + code + '" is not in this file — those rows were skipped');
+        continue;
+      }
+      var content = pickKey(src, ["content"]);
+      if(content){
+        var langBlock = content[LANG] || content.en || content[Object.keys(content)[0]];
+        if(langBlock){ readInto(target, langBlock); }
+        if(src.report){ DATA.centres[target].report = src.report; }
+      } else {
+        readInto(target, src);
+      }
+    }
+    return {data:out, notes:notes};
+  }
+
+  /* a single centre, named or not */
+  var oneCode = asText(pickKey(incoming, ["code","centreCode","centerCode","centre","center"]));
+  if(oneCode){ if(!DATA.centres[oneCode]){ notes.push('centre code "' + oneCode + '" is unknown — used the selected centre instead'); oneCode = ""; } }
+  readInto(oneCode || fallbackCode, incoming);
+  return {data:out, notes:notes};
+}
+
+function applyImport(parsed, label){
+  var codes = Object.keys(parsed.data), i, code;
+  if(!codes.length){
+    return {ok:false, notes:parsed.notes.concat(["nothing usable was found — no places and no routes"])};
+  }
+  var summary = [];
+  for(i=0;i<codes.length;i++){
+    code = codes[i];
+    var got = parsed.data[code];
+    if(!DATA.centres[code]){ continue; }
+    if(!DATA.centres[code].content[LANG]){ DATA.centres[code].content[LANG] = blankContent(); }
+    if(got.places.length){ DATA.centres[code].content[LANG].places = got.places; }
+    if(got.journeys.length){ DATA.centres[code].content[LANG].journeys = got.journeys; }
+    summary.push({code:code, label:DATA.centres[code].label,
+                  places:got.places.length, journeys:got.journeys.length});
+  }
+  rebuildIndex();
+  if(!DATA.centres[current]){ current = INDEX.length ? INDEX[0].code : null; }
+  touch(); fillSelect(); renderAll();
+  return {ok:true, summary:summary, notes:parsed.notes};
+}
+
 /* ------------------------------ files ---------------------------------- */
 function save(name, text, mime){
   var blob = new Blob([text], {type:mime});
@@ -730,8 +960,15 @@ function downloadXLSX(){
 function importJSON(text){
   var incoming;
   try { incoming = JSON.parse(text); }
-  catch(e){ toast("That file is not valid JSON", true); return; }
-  if(!incoming.centres){ toast("No “centres” key — is this a Studio export?", true); return; }
+  catch(e){ toast("That is not valid JSON — check for a stray comma", true); return null; }
+  if(!incoming.centres){
+    var flexible = applyImport(normalise(incoming, current), "file");
+    if(!flexible.ok){ toast(flexible.notes[flexible.notes.length-1], true); return flexible; }
+    var n0 = 0;
+    for(var q=0;q<flexible.summary.length;q++){ n0 += flexible.summary[q].places + flexible.summary[q].journeys; }
+    toast("Imported " + n0 + " rows");
+    return flexible;
+  }
   var n = 0, added = 0, code;
   for(code in incoming.centres){
     var src = incoming.centres[code];
@@ -756,6 +993,7 @@ function importJSON(text){
   rebuildIndex();
   touch(); fillSelect(); renderAll();
   toast("Imported "+n+" centre"+(n===1?"":"s")+(added ? " · "+added+" new" : ""));
+  return {ok:true, summary:[], notes:[]};
 }
 
 function importXLSX(buf){
@@ -1049,6 +1287,74 @@ function boot(){
     for(i=0;i<panes.length;i++){ panes[i].classList.remove("on"); }
     $("p-"+b.getAttribute("data-p")).classList.add("on");
     if(b.getAttribute("data-p") === "data"){ renderData(); }
+  });
+
+  /* ---------------- paste-JSON modal + the prompt for their AI --------- */
+  var modal = $("modal"), box = $("paste-box"), report = $("paste-report");
+  function openModal(){
+    modal.removeAttribute("hidden");
+    report.setAttribute("hidden","");
+    box.focus();
+  }
+  function closeModal(){ modal.setAttribute("hidden",""); }
+  $("paste").addEventListener("click", openModal);
+  $("modal-x").addEventListener("click", closeModal);
+  $("paste-cancel").addEventListener("click", closeModal);
+  modal.addEventListener("click", function(ev){ if(ev.target === modal){ closeModal(); } });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape"){ if(!modal.hasAttribute("hidden")){ closeModal(); } }
+  });
+
+  $("paste-sample").addEventListener("click", function(){
+    box.value = JSON.stringify({
+      code: current,
+      places: [
+        {name:"Western Market", category:"Landmarks", description:"The Grade I Edwardian market hall and the western tram terminus.",
+         walkTime:"4 min", mapSearch:"Western Market, Sheung Wan, Hong Kong", badge:"", photo:""},
+        {name:"Samsen", category:"Eating", description:"The Jervois Street Thai kitchen people queue down the street for.",
+         walkTime:"5 min", mapSearch:"Samsen Sheung Wan, Jervois Street, Hong Kong", badge:"Famous"}
+      ],
+      journeys: [
+        {mode:"MTR / metro", title:"By MTR", subtitle:"Island Line · Sheung Wan",
+         totalTime:"60 seconds from the platform", fastest:true,
+         steps:[
+           {title:"Sheung Wan Station", detail:"One stop from Central, two from Admiralty.", time:""},
+           {title:"Exit E3", detail:"Opens straight into the building podium.", time:"About 40 seconds"}
+         ]}
+      ]
+    }, null, 2);
+    report.setAttribute("hidden","");
+  });
+
+  $("paste-go").addEventListener("click", function(){
+    var raw = box.value.trim();
+    if(!raw){ toast("Nothing pasted yet", true); return; }
+    var incoming;
+    try { incoming = JSON.parse(raw); }
+    catch(e){
+      report.removeAttribute("hidden");
+      report.innerHTML = '<span class="bad">That is not valid JSON.</span><br>' + esc(e.message) +
+        '<br><br>Most often a trailing comma, a smart quote, or explanatory text left around the JSON. ' +
+        'Ask the AI for the JSON on its own with no commentary.';
+      return;
+    }
+    var res = applyImport(normalise(incoming, current), "paste");
+    report.removeAttribute("hidden");
+    if(!res.ok){
+      report.innerHTML = '<span class="bad">Nothing could be read.</span><ul><li>' +
+        res.notes.map(esc).join("</li><li>") + '</li></ul>';
+      return;
+    }
+    var h = "";
+    for(var i=0;i<res.summary.length;i++){
+      var r = res.summary[i];
+      h += '<b>' + esc(r.label) + '</b> — ' + r.places + ' places, ' + r.journeys + ' routes<br>';
+    }
+    if(res.notes.length){
+      h += '<span class="bad">Worth checking:</span><ul><li>' + res.notes.map(esc).join("</li><li>") + '</li></ul>';
+    }
+    report.innerHTML = h;
+    toast("Imported");
   });
 
   $("exp-json").addEventListener("click", downloadJSON);
