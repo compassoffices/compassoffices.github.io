@@ -917,7 +917,7 @@ function tally(icon, n, one, many){
 }
 function emptyBlock(title, body){
   return '<div class="empty">' + ico("empty") + '<h3>' + esc(title) + '</h3><p>' + esc(body) + '</p>' +
-         '<button class="btn btn--o" data-act="xls">Download the Excel</button></div>';
+         '<button class="btn btn--o" data-act="xls1">Download this centre&rsquo;s Excel</button></div>';
 }
 
 /* ------------------------------- import ------------------------------ */
@@ -1258,18 +1258,23 @@ function askKey(err){
 }
 
 function askDownload(){
+  var one = (view === "centre" && current) ? centre(current) : null;
+  var nm = one ? shortLabel(one) : "";
   openSheet(SAVE_URL ? "Save or download" : "Download",
     '<div class="steps">' +
     (SAVE_URL ? '<div class="step"><div><h4>Save to GitHub</h4><p>Commits the content file ' +
       'straight to the repo. Nothing to download, nothing to upload.</p></div></div>' : "") +
-    '<div class="step"><div><h4>Excel — the one you edit</h4><p>Every centre, every language, ' +
-    'as it stands. Correct a walk time, rewrite a description, add rows for a centre with ' +
-    'nothing yet, translate a column. Then upload it back here.</p></div></div>' +
+    (one ? '<div class="step"><div><h4>Excel — just ' + esc(nm) + '</h4><p>One centre, one small ' +
+      'file. The one to work on, and the one to give an AI. Uploading it changes only this ' +
+      'centre.</p></div></div>' : "") +
+    '<div class="step"><div><h4>Excel — every centre</h4><p>The whole network in one workbook. ' +
+      'For a bulk correction, or a copy of everything.</p></div></div>' +
     '<div class="step"><div><h4>JSON — for the developer</h4><p>The file that goes to GitHub ' +
     'and feeds the API. Commit it as <code>compass-centres.json</code>.</p></div></div>' +
     '</div>',
-    (SAVE_URL ? '<button class="btn btn--o" data-act="push">Save to GitHub</button>' : "") +
-    '<button class="btn btn--' + (SAVE_URL ? "line" : "o") + '" data-act="xls">Excel for editing</button>' +
+    (SAVE_URL ? '<button class="btn btn--line" data-act="push">Save to GitHub</button>' : "") +
+    (one ? '<button class="btn btn--o" data-act="xls1">Excel · ' + esc(nm) + '</button>' : "") +
+    '<button class="btn btn--' + (one ? "line" : "o") + '" data-act="xls">Excel · all centres</button>' +
     '<button class="btn btn--line" data-act="json">JSON file</button>');
 }
 function save(name, text, mime){
@@ -1512,7 +1517,7 @@ function guideBody(){
   var md = brief();
   var h = "";
   h += '<div class="steps">' +
-    '<div class="step"><div><h4>Download the Excel</h4><p><b>Download › Excel for editing.</b> It already holds every centre, every place, every route and every language. Not a blank template.</p></div></div>' +
+    '<div class="step"><div><h4>Download the Excel</h4><p><b>Download › Excel</b>. With a centre open you get that centre on its own — one small file, which is the one to work on. There is a whole-network workbook too, for bulk corrections.</p></div></div>' +
     '<div class="step"><div><h4>Fill it in</h4><p>Correct a walk time, rewrite a description, add rows for a centre with nothing yet. The first sheet, <b>Read me</b>, explains every column.</p></div></div>' +
     '<div class="step"><div><h4>Or let an AI fill it</h4><p>Give the brief below to Perplexity, ChatGPT or Claude — <b>copy it, or download it as .md</b>. It carries the columns, the rules and this centre&rsquo;s existing rows, so the AI needs nothing else. Most AI tools will not read an .xlsx; they will read a .md.</p></div></div>' +
     '<div class="step"><div><h4>Upload it back</h4><p>Press <b>Upload</b>, or drag the file anywhere onto this page. You get a report of exactly what changed before anything is kept.</p></div></div>' +
@@ -1583,6 +1588,7 @@ document.addEventListener("click", function(ev){
   if(act === "download"){ closeSheet(); askDownload(); return; }
   if(act === "json"){ closeSheet(); download(); return; }
   if(act === "xls"){ closeSheet(); xlsxOut(); return; }
+  if(act === "xls1"){ closeSheet(); xlsxOut(current); return; }
   if(act === "mdfile"){ briefFile(); return; }
   if(act === "push"){ pushToGitHub(); return; }
   if(act === "keygo"){
@@ -2027,20 +2033,24 @@ function wide(sheet, widths){
   return sheet;
 }
 
-function xlsxOut(){
+/* one centre, or the whole network */
+function xlsxOut(only){
   withXLSX(function(){
     var hood = [], route = [], ptr = [], rtr = [], ref = [], rep = [];
-    var codes = Object.keys(centres()), i, j, s, L;
+    var codes = only ? [only] : Object.keys(centres()), i, j, s, L;
     codes.sort();
+    var one = only ? centre(only) : null;
+    var all = Object.keys(centres()); all.sort();
+    for(i = 0; i < all.length; i++){
+      var rc = all[i], rcc = centre(rc), rce = base(rc), rl = [], sm0 = langSummary(rc);
+      for(L = 0; L < sm0.length; L++){ if(sm0[L].done){ rl.push(sm0[L].short); } }
+      ref.push({"Centre code": rc, "Centre": rcc.label, "Region": rcc.region, "City": rcc.city,
+                "Places": rce.places.length, "Routes": rce.journeys.length,
+                "Languages written": rl.join(" ")});
+    }
     for(i = 0; i < codes.length; i++){
       var code = codes[i], c = centre(code), en = base(code);
-
-      var langs = [];
       var sm = langSummary(code);
-      for(L = 0; L < sm.length; L++){ if(sm[L].done){ langs.push(sm[L].short); } }
-      ref.push({"Centre code": code, "Centre": c.label, "Region": c.region, "City": c.city,
-                "Places": en.places.length, "Routes": en.journeys.length,
-                "Languages written": langs.join(" ")});
 
       var R = c.report || {};
       rep.push({"Centre code": code, "Centre": c.label,
@@ -2116,13 +2126,29 @@ function xlsxOut(){
     /* a plain-words first sheet, so the workbook explains itself */
     var help = [];
     function H(a, b2, c2){ help.push({" ": a, "  ": b2 || "", "   ": c2 || ""}); }
-    H("COMPASS OFFICES — CENTRE CONTENT");
-    H("Downloaded", stamp());
-    H("");
-    H("WHAT THIS IS");
-    H("", "Everything the centre pages say about the area around each centre, and how to get there.");
-    H("", "It is already filled in with what we have. Edit it here, then upload it back to the tool.");
-    H("", "Nothing you leave alone is changed. A centre with no rows is left exactly as it was.");
+    if(one){
+      H("COMPASS OFFICES — " + String(one.label || one.name).toUpperCase());
+      H("Centre code", one.code, "put this in column A of every row you add");
+      H("Downloaded", stamp());
+      H("");
+      H("WHAT THIS IS");
+      H("", "Everything the website says about the area around this one centre.");
+      H("", "Only this centre is in here. Upload it back and only this centre changes.");
+      if(!base(one.code).places.length){
+        H("");
+        H("NOTHING IS WRITTEN YET", "The sheets below have their column headings and no rows.");
+        H("", "Add rows to Neighbourhood and Getting here, with " + one.code + " in column A.");
+      }
+    } else {
+      H("COMPASS OFFICES — CENTRE CONTENT", "all " + codes.length + " centres");
+      H("Downloaded", stamp());
+      H("");
+      H("WHAT THIS IS");
+      H("", "Everything the centre pages say about the area around each centre, and how to get there.");
+      H("", "It is already filled in with what we have. Edit it here, then upload it back to the tool.");
+      H("", "Nothing you leave alone is changed. A centre with no rows is left exactly as it was.");
+      H("", "Working on one centre? Download that centre on its own instead — a much smaller file.");
+    }
     H("");
     H("THE SHEETS");
     H("Neighbourhood", "The places near each centre, in English.", "EDIT THIS");
@@ -2132,10 +2158,12 @@ function xlsxOut(){
     H("Centres", "The list of centres and their codes. Look up a code here.", "read only");
     H("Report", "Who works in each centre, from the annual report.", "read only");
     H("");
-    H("HOW TO ADD A NEW CENTRE");
-    H("", "Find its code on the Centres sheet. Add rows to Neighbourhood with that code in");
-    H("", "column A. Add rows to Getting here the same way. That is all.");
-    H("");
+    if(!one){
+      H("HOW TO ADD A NEW CENTRE");
+      H("", "Find its code on the Centres sheet. Add rows to Neighbourhood with that code in");
+      H("", "column A. Add rows to Getting here the same way. That is all.");
+      H("");
+    }
     H("THE RULES THAT MATTER");
     H("Centre code", "Column A on every sheet. It must match the Centres sheet exactly.");
     H("Category", "One of exactly five: " + CATS.map(function(c){ return c.label; }).join(" / "));
@@ -2177,8 +2205,10 @@ function xlsxOut(){
       wb.Sheets[wb.SheetNames[sn]]["!freeze"] = {xSplit: 0, ySplit: 1};
       wb.Sheets[wb.SheetNames[sn]]["!autofilter"] = null;
     }
-    XLSX.writeFile(wb, "compass-centre-content-" + stamp() + ".xlsx");
-    toast("Excel downloaded — edit it, then upload it back");
+    XLSX.writeFile(wb, one ? ("compass-" + one.code + "-" + stamp() + ".xlsx")
+                           : ("compass-all-centres-" + stamp() + ".xlsx"));
+    toast(one ? (shortLabel(one) + " downloaded — edit it, then upload it back")
+              : "Excel downloaded — edit it, then upload it back");
   });
 }
 
