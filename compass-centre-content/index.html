@@ -360,6 +360,10 @@ section.blk{margin-top:var(--s6);}
 .note{display:flex;gap:10px;padding:var(--s3) var(--s4);border-radius:var(--r-sm);
   background:var(--o-wash);border:1px solid var(--o-tint);font-size:.83rem;color:var(--ink-2);}
 .note svg{width:16px;height:16px;color:var(--o);margin-top:2px;}
+.cx-spin{width:15px;height:15px;border-radius:50%;border:2px solid var(--ln);
+  border-top-color:var(--o);animation:cxspin .7s linear infinite;flex:0 0 auto;}
+@keyframes cxspin{to{transform:rotate(360deg);}}
+@media(prefers-reduced-motion:reduce){.cx-spin{animation-duration:2s;}}
 
 /* import result */
 .res{display:grid;gap:10px;}
@@ -484,6 +488,11 @@ var KEY  = "compass-centre-content-v3";
    centre that opens on the site shows up here asking to be written. Until the
    endpoint exists it stays quiet and the committed file is the roster. */
 var ROSTER = "";                       /* e.g. "https://www.compassoffices.com/wp-json/compass/v1/locations" */
+/* Set this to the Cloudflare Worker that commits to GitHub and a Save button
+   appears. The GitHub token lives in the Worker, never here. Leave it empty
+   and the tool works exactly as before — download, then commit by hand. */
+var SAVE_URL = "";                     /* e.g. "https://compass-save.<you>.workers.dev" */
+var SAVE_KEY = "compass-save-key";     /* where the staff key is kept in this browser */
 var lang = "en";
 
 var CATS = [
@@ -1156,17 +1165,120 @@ function readFiles(list){
   };
   next();
 }
+/* ---------------------- save straight to GitHub ---------------------- */
+function savedKey(){
+  try{ return window.sessionStorage.getItem(SAVE_KEY) ||
+              window.localStorage.getItem(SAVE_KEY) || ""; }catch(e){ return ""; }
+}
+function keepKey(k, forever){
+  try{
+    if(forever){ window.localStorage.setItem(SAVE_KEY, k); }
+    else { window.sessionStorage.setItem(SAVE_KEY, k); }
+  }catch(e){}
+}
+function changedNames(){
+  var out = [], code;
+  for(code in dirty){ out.push(label(code)); }
+  return out;
+}
+function commitMessage(){
+  var names = changedNames();
+  if(!names.length){ return "Centre content — no change"; }
+  if(names.length === 1){ return names[0] + " — content update"; }
+  if(names.length < 4){ return names.join(", ") + " — content update"; }
+  return names.length + " centres — content update";
+}
+function saving(body, foot){
+  /* keep the one sheet open and swap its contents — closing and reopening it
+     from an async callback races with the click that started the save */
+  openSheet("Save to GitHub", body, foot || "");
+}
+function pushToGitHub(){
+  var key = savedKey();
+  if(!key){ askKey(); return; }
+  DATA.updated = stamp();
+  saving('<p style="color:var(--tx2);display:flex;align-items:center;gap:10px">' +
+         '<span class="cx-spin"></span>Committing ' + esc(commitMessage()) + '…</p>', "");
+  window.fetch(SAVE_URL, {
+    method: "POST",
+    credentials: "include",
+    headers: {"Content-Type": "application/json", "X-Save-Key": key},
+    body: JSON.stringify({data: DATA, message: commitMessage()})
+  })
+  .then(function(r){
+    return r.json().then(function(j){ return {ok: r.ok, j: j}; },
+                         function(){ return {ok: false, j: {error: "The save service answered with something that was not JSON"}}; });
+  })
+  .then(function(res){
+    if(!res.ok || !res.j.ok){
+      var msg = (res.j && res.j.error) ? res.j.error : "GitHub would not take it";
+      if(/save key/i.test(msg)){ forgetKey(); askKey(msg); return; }
+      saving('<div class="note" style="background:var(--bad-wash);border-color:#F5C6C2">' +
+             ico("bad") + '<span>' + esc(msg) + '</span></div>' +
+             '<p style="color:var(--tx2);margin-top:14px">Nothing was lost — your changes are ' +
+             'still here. Download the JSON and commit it by hand if this keeps happening.</p>',
+             '<button class="btn btn--line" data-close>Close</button>' +
+             '<button class="btn btn--o" data-act="push">Try again</button>');
+      return;
+    }
+    dirty = {};
+    stash(); drawTree(); setState();
+    saving('<div class="note" style="background:var(--ok-wash);border-color:#BFE3CE">' +
+           ico("ok") + '<span>Committed to GitHub' +
+           (res.j.commit ? ' as <b>' + esc(res.j.commit) + '</b>' : "") +
+           '. The website picks it up on its next refresh.</span></div>',
+           (res.j.url ? '<a class="btn btn--line" href="' + esc(res.j.url) +
+                        '" target="_blank" rel="noopener">See the commit</a>' : "") +
+           '<button class="btn btn--o" data-close>Done</button>');
+  })
+  .catch(function(){
+    saving('<div class="note" style="background:var(--bad-wash);border-color:#F5C6C2">' +
+           ico("bad") + '<span>Could not reach the save service. Check the connection, or ' +
+           'download the JSON and commit it by hand.</span></div>',
+           '<button class="btn btn--line" data-close>Close</button>' +
+           '<button class="btn btn--o" data-act="push">Try again</button>');
+  });
+}
+function forgetKey(){
+  try{ window.sessionStorage.removeItem(SAVE_KEY); window.localStorage.removeItem(SAVE_KEY); }catch(e){}
+}
+function askKey(err){
+  saving(
+    (err ? '<div class="note" style="margin-bottom:16px">' + ico("warn") + '<span>' + esc(err) + '</span></div>' : "") +
+    '<p style="color:var(--tx2);margin-bottom:16px">Paste the save key your admin gave you. ' +
+    'It is not a GitHub password — it only lets this tool commit the content file.</p>' +
+    '<input type="password" id="keyin" placeholder="Save key" autocomplete="off" ' +
+    'style="width:100%;height:44px;padding:0 14px;border:1px solid var(--ln);border-radius:7px;' +
+    'background:var(--bg);font-size:.9rem">' +
+    '<label style="display:flex;align-items:center;gap:9px;margin-top:14px;font-size:.84rem;color:var(--tx2)">' +
+    '<input type="checkbox" id="keykeep" style="width:17px;height:17px">Remember on this computer</label>',
+    '<button class="btn btn--line" data-close>Cancel</button>' +
+    '<button class="btn btn--o" data-act="keygo">Save</button>');
+  window.setTimeout(function(){ var el = $("keyin"); if(el){ el.focus(); } }, 60);
+}
+
 function askDownload(){
-  openSheet("Download",
+  openSheet(SAVE_URL ? "Save or download" : "Download",
     '<div class="steps">' +
+    (SAVE_URL ? '<div class="step"><div><h4>Save to GitHub</h4><p>Commits the content file ' +
+      'straight to the repo. Nothing to download, nothing to upload.</p></div></div>' : "") +
     '<div class="step"><div><h4>Excel — the one you edit</h4><p>Every centre, every language, ' +
     'as it stands. Correct a walk time, rewrite a description, add rows for a centre with ' +
     'nothing yet, translate a column. Then upload it back here.</p></div></div>' +
     '<div class="step"><div><h4>JSON — for the developer</h4><p>The file that goes to GitHub ' +
     'and feeds the API. Commit it as <code>compass-centres.json</code>.</p></div></div>' +
     '</div>',
-    '<button class="btn btn--o" data-act="xls">Excel for editing</button>' +
-    '<button class="btn btn--line" data-act="json">JSON for the developer</button>');
+    (SAVE_URL ? '<button class="btn btn--o" data-act="push">Save to GitHub</button>' : "") +
+    '<button class="btn btn--' + (SAVE_URL ? "line" : "o") + '" data-act="xls">Excel for editing</button>' +
+    '<button class="btn btn--line" data-act="json">JSON file</button>');
+}
+function save(name, text, mime){
+  var blob = new Blob([text], {type: mime || "text/plain"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  window.setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
 }
 function download(){
   DATA.updated = new Date().toISOString().slice(0, 10);
@@ -1337,13 +1449,72 @@ codeTable(),
   ].join("\n");
 }
 
+function csvCell(v){
+  var t = String(v == null ? "" : v);
+  if(t.indexOf(",") < 0 && t.indexOf('"') < 0 && t.indexOf("\n") < 0){ return t; }
+  return '"' + t.split('"').join('""') + '"';
+}
+function csvRows(head, rows){
+  var out = [head.join(",")], i, j, line;
+  for(i = 0; i < rows.length; i++){
+    line = [];
+    for(j = 0; j < rows[i].length; j++){ line.push(csvCell(rows[i][j])); }
+    out.push(line.join(","));
+  }
+  return out.join("\n");
+}
+/* the current content for one centre, in the same columns as the workbook */
+function currentAsCsv(code){
+  var c = centre(code), en = base(code), i, s2, out = [];
+  if(!en.places.length && !en.journeys.length){ return ""; }
+  var pr = [];
+  for(i = 0; i < en.places.length; i++){
+    var p = en.places[i];
+    pr.push([code, c.label, catLabel(p.c), p.n, p.d, p.w, p.q, p.tag || "", p.photo || "",
+             p.lat === 0 ? 0 : (p.lat || ""), p.lng === 0 ? 0 : (p.lng || "")]);
+  }
+  if(pr.length){
+    out.push("### Sheet: Neighbourhood — what is already written\n\n```\n" +
+      csvRows(["Centre code","Centre","Category","Name","Description","Walk time","Map search",
+               "Badge","Photo URL","Lat","Lng"], pr) + "\n```");
+  }
+  var jr = [];
+  for(i = 0; i < en.journeys.length; i++){
+    var j = en.journeys[i];
+    for(s2 = 0; s2 < (j.steps || []).length; s2++){
+      jr.push([code, c.label, i + 1, modeLabel(j.i), j.t, j.s, j.total, j.best ? "yes" : "",
+               s2 + 1, j.steps[s2].t, j.steps[s2].d, j.steps[s2].e || ""]);
+    }
+  }
+  if(jr.length){
+    out.push("### Sheet: Getting here — what is already written\n\n```\n" +
+      csvRows(["Centre code","Centre","Route","Mode","Route title","Subtitle","Total time",
+               "Fastest","Step","Step title","Step detail","Leg time"], jr) + "\n```");
+  }
+  return out.join("\n\n");
+}
+function briefFile(){
+  var md = brief();
+  if(view === "centre" && current){
+    var have = currentAsCsv(current);
+    if(have){
+      md += "\n\n---\n\n## What is already written for this centre\n\n" +
+            "Match this style. Do not repeat these rows — add what is missing, and translate " +
+            "these into TC, SC, JP and VI.\n\n" + have + "\n";
+    }
+  }
+  save("compass-centre-brief-" + (current && view === "centre" ? current + "-" : "") +
+       stamp() + ".md", md, "text/markdown");
+  toast("Brief downloaded — drop this into the AI");
+}
+
 function guideBody(){
   var md = brief();
   var h = "";
   h += '<div class="steps">' +
     '<div class="step"><div><h4>Download the Excel</h4><p><b>Download › Excel for editing.</b> It already holds every centre, every place, every route and every language. Not a blank template.</p></div></div>' +
     '<div class="step"><div><h4>Fill it in</h4><p>Correct a walk time, rewrite a description, add rows for a centre with nothing yet. The first sheet, <b>Read me</b>, explains every column.</p></div></div>' +
-    '<div class="step"><div><h4>Or let an AI fill it</h4><p>Give the workbook and the brief below to Perplexity, ChatGPT or Claude. It researches the area and returns rows you paste back into the sheets.</p></div></div>' +
+    '<div class="step"><div><h4>Or let an AI fill it</h4><p>Give the brief below to Perplexity, ChatGPT or Claude — <b>copy it, or download it as .md</b>. It carries the columns, the rules and this centre&rsquo;s existing rows, so the AI needs nothing else. Most AI tools will not read an .xlsx; they will read a .md.</p></div></div>' +
     '<div class="step"><div><h4>Upload it back</h4><p>Press <b>Upload</b>, or drag the file anywhere onto this page. You get a report of exactly what changed before anything is kept.</p></div></div>' +
     '<div class="step"><div><h4>Download the JSON</h4><p><b>Download › JSON for the developer.</b> One file, every centre, every language.</p></div></div>' +
     '<div class="step"><div><h4>Commit it to GitHub</h4><p><b>Add file › Upload files</b>, drop <code>compass-centres.json</code> in, commit. GitHub keeps every previous version.</p></div></div>' +
@@ -1352,6 +1523,7 @@ function guideBody(){
        '<span>The brief below is written for the workbook you just downloaded. Give the AI both — ' +
        'the file and this text — and it returns rows in the right columns, in all five languages.</span></div>';
   h += '<div class="md"><header>' + ico("copy") + '<b>The brief for the AI</b><div style="flex:1"></div>' +
+       '<button class="btn btn--line" data-act="mdfile" style="min-height:32px;padding:6px 12px;font-size:.78rem">Download .md</button>' +
        '<button class="btn btn--line" data-act="copy" style="min-height:32px;padding:6px 12px;font-size:.78rem">Copy</button>' +
        '</header><pre id="md">' + esc(md) + '</pre></div>';
   return h;
@@ -1411,6 +1583,14 @@ document.addEventListener("click", function(ev){
   if(act === "download"){ closeSheet(); askDownload(); return; }
   if(act === "json"){ closeSheet(); download(); return; }
   if(act === "xls"){ closeSheet(); xlsxOut(); return; }
+  if(act === "mdfile"){ briefFile(); return; }
+  if(act === "push"){ pushToGitHub(); return; }
+  if(act === "keygo"){
+    var k = $("keyin").value.trim();
+    if(!k){ return; }
+    keepKey(k, $("keykeep").checked);
+    pushToGitHub(); return;
+  }
   if(act === "discard"){ forget(); window.location.reload(); return; }
   if(act === "copy"){
     var md = $("md").textContent;
