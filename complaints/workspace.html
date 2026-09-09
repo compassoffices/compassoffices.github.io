@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Workspace — Compass Offices Complaints</title>
+<title>My Workspace — Compass Offices Help Requests</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23.13 23.13'%3E%3Cpath fill='%23FF6600' d='M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="shared/brand.css?v=2">
 </head>
@@ -13,9 +13,10 @@
     <div class="co-header-row">
       <a class="co-brand" href="workspace.html">
         <svg viewBox="0 0 23.13 23.13" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FF6600" d="M11.57,0C5.18,0,0,5.18,0,11.57s5.18,11.56,11.57,11.56,11.56-5.18,11.56-11.56S17.95,0,11.57,0ZM14.24,15.57l-2.48-4.45-2.57,4.45h-3.27l5.84-10.1,5.63,10.1h-3.15Z"/></svg>
-        <div class="co-brand-text"><span class="co-name">Compass Offices</span><span class="co-sub">Complaints Tracker</span></div>
+        <div class="co-brand-text"><span class="co-name">Compass Offices</span><span class="co-sub">Help Request Tracker</span></div>
       </a>
       <div class="co-header-right">
+        <a class="co-btn co-btn-sm" href="washroom.html">Washroom checks</a>
         <div class="co-whoami"><span class="co-who-name" id="whoName"></span><span class="co-who-team" id="whoTeam"></span></div>
         <button class="co-btn co-btn-sm" id="logoutBtn">Sign out</button>
       </div>
@@ -65,6 +66,12 @@
     </section>
 
     <section id="boardSection" class="co-section" style="display:none;">
+      <div class="co-filters">
+        <span class="co-section-note" style="margin-right:2px;">Closed tickets:</span>
+        <button type="button" class="co-chip co-active" id="boardRange90">Last 90 days</button>
+        <button type="button" class="co-chip" id="boardRangeAll">All time</button>
+        <span class="co-section-note" id="boardRangeNote"></span>
+      </div>
       <div class="co-kanban">
         <div class="co-kanban-col" data-status="Assigned">
           <div class="co-kanban-col-head"><span class="co-kanban-col-title">Assigned</span><span class="co-tab-count" id="colCountAssigned">0</span></div>
@@ -79,7 +86,7 @@
           <div class="co-kanban-cards" id="colResolved"></div>
         </div>
         <div class="co-kanban-col" data-status="Impossible to Resolve">
-          <div class="co-kanban-col-head"><span class="co-kanban-col-title">Impossible</span><span class="co-tab-count" id="colCountImpossible">0</span></div>
+          <div class="co-kanban-col-head"><span class="co-kanban-col-title">Can't Resolve</span><span class="co-tab-count" id="colCountImpossible">0</span></div>
           <div class="co-kanban-cards" id="colImpossible"></div>
         </div>
       </div>
@@ -172,9 +179,16 @@
             <option value="Assigned">Assigned</option>
             <option value="In Progress">In Progress</option>
             <option value="Resolved">Resolved</option>
-            <option value="Impossible to Resolve">Impossible to Resolve</option>
+            <option value="Impossible to Resolve">Can't Resolve</option>
           </select>
           <p class="co-hint" id="impossibleHint" style="display:none;">Closes the ticket without notifying the client — please contact them yourself to explain.</p>
+        </div>
+        <div class="co-field" id="contactedField" style="display:none;">
+          <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; color:var(--co-text); cursor:pointer; line-height:1.4;">
+            <input type="checkbox" id="updateContacted" style="margin:2px 0 0; flex:none; accent-color:var(--co-orange);">
+            <span>Already communicated with client</span>
+          </label>
+          <p class="co-hint" id="contactedHint" style="margin-top:5px;"></p>
         </div>
         <button class="co-btn co-btn-primary" id="updateSubmitBtn" style="width:100%; padding:11px;">Post update</button>
       </div>
@@ -209,9 +223,9 @@ const myMarkets = (staff.markets || []).slice(0, 30);
 
 document.getElementById("pageTitle").textContent = isCS ? "CS Workspace" : `${staff.team} Workspace`;
 document.getElementById("pageSub").textContent = isCS
-  ? "Triage incoming complaints and track your own team's tickets."
+  ? "Triage incoming help requests and track your own team's tickets."
   : isSales
-    ? `Tickets assigned to Sales, plus every complaint in your markets.`
+    ? `Tickets assigned to Sales, plus every help request in your markets.`
     : `Tickets currently assigned to ${staff.team}.`;
 
 let allStaff = [];
@@ -229,6 +243,12 @@ const statusBadge = {
   "Resolved": "co-badge-status-resolved",
   "Impossible to Resolve": "co-badge-status-impossible",
 };
+
+// "Impossible to Resolve" is the value stored on every ticket closed that
+// way, in the rules, in the Sheet mirror and in past activity-log entries.
+// Renaming the stored value would strand all of them, so only the label
+// shown on screen changes.
+const statusLabel = s => s === "Impossible to Resolve" ? "Can't Resolve" : s;
 
 // Free-text search across both the queue and the board. Matches the fields
 // someone would actually have to hand when chasing a ticket.
@@ -262,7 +282,7 @@ function ticketCardHTML(t){
       <div class="co-card-meta">${escapeHTML(t.centre)} · ${escapeHTML(t.complaintType)} · raised ${fmtDate(t.dateRaised.slice(0,10))}</div>
       <div class="co-card-tags">
         <span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span>
-        <span class="co-badge ${statusBadge[t.status]}">${t.status}</span>
+        <span class="co-badge ${statusBadge[t.status]}">${statusLabel(t.status)}</span>
       </div>
     </div>`;
 }
@@ -333,6 +353,36 @@ async function loadUnassigned(){
     : `<div class="co-empty-state"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg><div>${emptyMsg}</div></div>`;
 }
 
+// The two closed columns grow without limit as tickets pile up over the
+// years; Assigned and In Progress don't, because work leaves them. So the
+// range trims only those two — an open ticket is never hidden, whatever the
+// range is set to.
+const CLOSED_ON_BOARD = ["Resolved", "Impossible to Resolve"];
+let boardRangeDays = 90;   // null = all time
+
+// Resolved tickets carry resolvedDate. "Impossible to Resolve" ones don't —
+// that status closes a ticket without stamping a resolution — so fall back
+// to when it was last touched, then to when it was raised.
+const closedOn = t =>
+  t.resolvedDate || String(t.updatedAt || "").slice(0, 10) || t.dateRaised.slice(0, 10);
+
+const withinBoardRange = t => {
+  if (boardRangeDays === null) return true;
+  const cutoff = new Date(Date.now() - boardRangeDays * 86400000).toISOString().slice(0, 10);
+  return closedOn(t) >= cutoff;
+};
+
+const onBoard = t => !CLOSED_ON_BOARD.includes(t.status) || withinBoardRange(t);
+
+function setBoardRange(days){
+  boardRangeDays = days;
+  document.getElementById("boardRange90").classList.toggle("co-active", days === 90);
+  document.getElementById("boardRangeAll").classList.toggle("co-active", days === null);
+  loadBoard();
+}
+document.getElementById("boardRange90").addEventListener("click", () => setBoardRange(90));
+document.getElementById("boardRangeAll").addEventListener("click", () => setBoardRange(null));
+
 async function loadBoard(){
   if (isCS && myMarkets.length === 0) return;
   let data;
@@ -351,8 +401,13 @@ async function loadBoard(){
   data.sort((a, b) => a.dateRaised > b.dateRaised ? -1 : a.dateRaised < b.dateRaised ? 1 : 0);
   data.forEach(t => ticketsByRef[t.ticketRef] = t);
 
-  const shown = data.filter(matchesSearch);
+  const shown = data.filter(matchesSearch).filter(onBoard);
   document.getElementById("countBoard").textContent = shown.length;
+
+  const hiddenClosed = data.filter(t => !onBoard(t)).length;
+  document.getElementById("boardRangeNote").textContent = hiddenClosed
+    ? `${hiddenClosed} older closed ticket${hiddenClosed === 1 ? "" : "s"} hidden.`
+    : "";
 
   const cols = { "Assigned": [], "In Progress": [], "Resolved": [], "Impossible to Resolve": [] };
   shown.forEach(t => { if (cols[t.status]) cols[t.status].push(t); });
@@ -366,9 +421,14 @@ async function loadBoard(){
   for (const status of Object.keys(map)){
     const [listId, countId] = map[status];
     document.getElementById(countId).textContent = cols[status].length;
+    const emptyText = searchTerm
+      ? "No matches"
+      : (CLOSED_ON_BOARD.includes(status) && boardRangeDays !== null)
+        ? `None in the last ${boardRangeDays} days`
+        : "No tickets";
     document.getElementById(listId).innerHTML = cols[status].length
       ? cols[status].map(ticketCardHTML).join("")
-      : `<div class="co-kanban-empty">${searchTerm ? "No matches" : "No tickets"}</div>`;
+      : `<div class="co-kanban-empty">${emptyText}</div>`;
   }
 }
 
@@ -415,8 +475,8 @@ async function loadOverview(){
   const shown = data.filter(matchesSearch);
   document.getElementById("countOverview").textContent = shown.length;
   document.getElementById("overviewNote").textContent = isCS
-    ? `Every complaint in ${myMarkets.join(", ")}, including those you've routed to other teams. Read-only unless it's yours.`
-    : `Every complaint in ${myMarkets.join(", ")}. Read-only unless it's assigned to Sales.`;
+    ? `Every help request in ${myMarkets.join(", ")}, including those you've routed to other teams. Read-only unless it's yours.`
+    : `Every help request in ${myMarkets.join(", ")}. Read-only unless it's assigned to Sales.`;
 
   document.getElementById("overviewBody").innerHTML = shown.length ? shown.map(t => `
     <tr data-ref="${t.ticketRef}">
@@ -424,7 +484,7 @@ async function loadOverview(){
       <td>${escapeHTML(t.company || "—")}</td>
       <td>${escapeHTML(t.centre)}</td>
       <td>${escapeHTML(t.complaintType)}</td>
-      <td><span class="co-badge ${statusBadge[t.status]}">${t.status}</span></td>
+      <td><span class="co-badge ${statusBadge[t.status]}">${statusLabel(t.status)}</span></td>
       <td>${t.ownerTeam ? `<span class="co-badge co-badge-team">${t.ownerTeam}</span>` : "—"}</td>
       <td>${escapeHTML(t.owner || "—")}</td>
       <td>${fmtDate(t.dateRaised.slice(0,10))}</td>
@@ -535,10 +595,34 @@ function populateOwnerOptions(team){
 
 document.getElementById("triageTeam").addEventListener("change", (e) => populateOwnerOptions(e.target.value));
 
+// IT close their tickets in the service desk, which does its own
+// correspondence with the client — so the box would be asking them about a
+// conversation that happens outside this system entirely.
+const isIT = staff.team === "IT";
+
+// True when this status closes the ticket and this person has to confirm the
+// client was told first. IT are exempt: their tickets close from the service
+// desk, which does its own correspondence.
+const needsContactConfirmation = status =>
+  !isIT && (status === "Resolved" || status === "Impossible to Resolve");
+
 function syncImpossibleHint(){
   const chosen = document.getElementById("updateStatus").value;
+  const closing = chosen === "Resolved" || chosen === "Impossible to Resolve";
+
   document.getElementById("impossibleHint").style.display =
     chosen === "Impossible to Resolve" ? "block" : "none";
+
+  const show = closing && !isIT;
+  document.getElementById("contactedField").style.display = show ? "block" : "none";
+  if (!show) document.getElementById("updateContacted").checked = false;
+
+  // Required either way, but what it records differs: one status still sends
+  // an email of its own, the other never does.
+  document.getElementById("contactedHint").textContent =
+    chosen === "Resolved"
+      ? "Required before closing. The automatic email still goes out — this records that you spoke to them as well."
+      : "Required before closing. No email is sent for this status, so your conversation is the only notice they get.";
 }
 document.getElementById("updateStatus").addEventListener("change", syncImpossibleHint);
 
@@ -574,7 +658,7 @@ async function openModal(ref){
     <div class="co-detail-item"><div class="co-detail-label">Room / VO</div><div class="co-detail-value">${escapeHTML(t.roomNumber || "—")}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Type</div><div class="co-detail-value">${escapeHTML(t.complaintType)}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Severity</div><div class="co-detail-value"><span class="co-badge ${severityBadge[t.severity]}">${t.severity}</span></div></div>
-    <div class="co-detail-item"><div class="co-detail-label">Status</div><div class="co-detail-value"><span class="co-badge ${statusBadge[t.status]}">${t.status}</span> ${overdue ? '<span class="co-badge co-badge-overdue">Overdue</span>' : ""}</div></div>
+    <div class="co-detail-item"><div class="co-detail-label">Status</div><div class="co-detail-value"><span class="co-badge ${statusBadge[t.status]}">${statusLabel(t.status)}</span> ${overdue ? '<span class="co-badge co-badge-overdue">Overdue</span>' : ""}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Date Raised</div><div class="co-detail-value">${fmtDate(t.dateRaised.slice(0,10))}</div></div>
     <div class="co-detail-item"><div class="co-detail-label">Target Resolution</div><div class="co-detail-value">${fmtDate(t.targetResolutionDate)}</div></div>
     ${t.freshTicketId ? `<div class="co-detail-item co-span2"><div class="co-detail-label">IT service desk</div><div class="co-detail-value">${
@@ -651,6 +735,7 @@ async function openModal(ref){
     document.getElementById("triageNote").value = "";
   } else if (canAct) {
     document.getElementById("updateNote").value = "";
+    document.getElementById("updateContacted").checked = false;
     const statusSel = document.getElementById("updateStatus");
     statusSel.value = t.status === "New - Unassigned" ? "Assigned" : t.status;
     syncImpossibleHint();
@@ -774,6 +859,12 @@ document.getElementById("updateSubmitBtn").addEventListener("click", async () =>
     return;
   }
 
+  if (needsContactConfirmation(status) && !document.getElementById("updateContacted").checked) {
+    modalErr.textContent = "Please confirm you've already spoken to the client before closing this ticket.";
+    modalErr.classList.add("co-show");
+    return;
+  }
+
   const btn = document.getElementById("updateSubmitBtn");
   btn.disabled = true; btn.textContent = "Posting…";
 
@@ -784,13 +875,21 @@ document.getElementById("updateSubmitBtn").addEventListener("click", async () =>
   const batch = writeBatch(db);
   const complaintUpdate = { status, updatedAt: now, sheetSyncPending: true };
   if (status === "Resolved") complaintUpdate.resolvedDate = resolvedDate;
+  // Reaching here means the box was ticked — closing is blocked otherwise.
+  if (needsContactConfirmation(status)) complaintUpdate.clientContacted = true;
   // Only on the transition INTO Resolved — so re-saving an already-resolved
   // ticket doesn't email the client the same "all done" message twice.
   if (status === "Resolved" && activeTicket.status !== "Resolved") {
     complaintUpdate.resolvedNotifyPending = true;
   }
   batch.update(doc(db, "complaints", ref), complaintUpdate);
-  batch.set(doc(collection(db, "complaints", ref, "activity_log")), { ts: now, actor: staff.name, note });
+
+  // Put it in the log too. The field records the fact; the log is what
+  // someone actually reads when they ask "was the client ever told?".
+  const logNote = needsContactConfirmation(status)
+    ? note + "\n\n— Confirmed the client had already been contacted directly."
+    : note;
+  batch.set(doc(collection(db, "complaints", ref, "activity_log")), { ts: now, actor: staff.name, note: logNote });
 
   let updErr = null;
   try { await batch.commit(); } catch (err) { updErr = err; }
