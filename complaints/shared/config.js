@@ -100,5 +100,57 @@ export const COMPLAINT_TYPES = [
   "Events",
   "Internet Access / Speed / IT",
   "Renewal",
+  "Perks",
   "Others",
+];
+
+// -------------------------------------------------------------- washroom
+// Twice-daily washroom cleanliness checks — washroom.html (CS, submits the
+// checks) and washroom-dashboard.html (Management, sees whether they were
+// done and what they found).
+//
+// The inspection SCHEDULE is derived, not stored: every floor listed in
+// LOCATIONS above is expected to be checked once per slot, per working day.
+// That means adding a floor there automatically adds it to the schedule and
+// to the compliance denominator — there's no second list to keep in sync.
+
+export const WASHROOM_SLOTS = [
+  { key: "AM", label: "Morning", window: "Start of day — before 13:00" },
+  { key: "PM", label: "Afternoon", window: "13:00 onwards" },
+];
+
+// Which slot the check page pre-selects. Local time on the phone doing the
+// check, which is the local time of the centre — the person is standing in it.
+export const WASHROOM_PM_FROM_HOUR = 13;
+
+// Days a check is expected, as JS getDay() values (0 = Sunday). Weekends are
+// out by default: centres are quiet, and counting them would drag every
+// compliance figure down by ~28% for no reason. Add 6 / 0 here if a market
+// starts covering weekends.
+export const WASHROOM_INSPECTION_DAYS = [1, 2, 3, 4, 5];
+
+// The checklist itself. `key` is what gets stored on the inspection record,
+// so renaming one strands the history recorded under the old key — add and
+// retire rather than rename. Order here is the order on screen.
+export const WASHROOM_CHECKS = [
+  { key: "floor",    label: "Floor dry, clean, free of litter" },
+  { key: "bowls",    label: "Toilets / urinals clean and flushing" },
+  { key: "basins",   label: "Basins, mirrors and counters clean" },
+  { key: "soap",     label: "Soap dispensers filled and working" },
+  { key: "paper",    label: "Toilet paper stocked" },
+  { key: "drying",   label: "Hand towels stocked / dryer working" },
+  { key: "bins",     label: "Bins emptied, not overflowing" },
+  { key: "odour",    label: "No unpleasant odour" },
+  { key: "fixtures", label: "Lighting, ventilation and fixtures working" },
+];
+
+// How CS told the building's cleaning team about a failed check. Recorded so
+// a chase can be evidenced later — "we called at 09:40, it was still dirty at
+// 14:00" is the conversation that actually moves a building manager.
+export const WASHROOM_ESCALATION_CHANNELS = [
+  "Phone call",
+  "Email",
+  "WhatsApp / chat group",
+  "In person",
+  "Building portal / work order",
 ];
