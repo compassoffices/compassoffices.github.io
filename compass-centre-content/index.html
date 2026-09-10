@@ -290,6 +290,30 @@ section.blk{margin-top:var(--s6);}
   border:1px solid var(--ln);cursor:default;transition:transform .12s;}
 .wfc i.has{background:var(--o);border-color:var(--o);}
 .wfc i:hover{transform:scale(1.22);}
+/* one square per centre — a real button, so it can be clicked and tabbed to */
+.wfc .sq{width:20px;height:20px;border-radius:4px;background:var(--fill);
+  border:1px solid var(--ln);padding:0;cursor:pointer;position:relative;
+  transition:transform .12s ease, box-shadow .12s ease;}
+.wfc .sq.has{background:var(--o);border-color:var(--o);}
+.wfc .sq:hover{transform:scale(1.28);z-index:3;}
+.wfc .sq:focus-visible{outline:2px solid var(--o);outline-offset:2px;z-index:3;}
+/* the label appears above the square on hover and on keyboard focus */
+.wfc .sq::after{content:attr(data-t);position:absolute;left:50%;bottom:calc(100% + 8px);
+  transform:translateX(-50%) translateY(3px);background:var(--ink);color:#fff;
+  font-size:.72rem;font-weight:600;line-height:1.25;white-space:nowrap;
+  padding:6px 9px;border-radius:7px;pointer-events:none;opacity:0;
+  transition:opacity .12s ease, transform .12s ease;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);}
+.wfc .sq::before{content:"";position:absolute;left:50%;bottom:calc(100% + 3px);
+  transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--ink);
+  pointer-events:none;opacity:0;transition:opacity .12s ease;}
+.wfc .sq:hover::after,.wfc .sq:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0);}
+.wfc .sq:hover::before,.wfc .sq:focus-visible::before{opacity:1;}
+/* the first two squares in a row would clip their label off the left edge */
+.wfc .sq:nth-child(1)::after,.wfc .sq:nth-child(2)::after{left:0;transform:translateX(0) translateY(3px);}
+.wfc .sq:nth-child(1):hover::after,.wfc .sq:nth-child(2):hover::after,
+.wfc .sq:nth-child(1):focus-visible::after,.wfc .sq:nth-child(2):focus-visible::after{
+  transform:translateX(0) translateY(0);}
 .wfkey{display:flex;gap:var(--s4);flex-wrap:wrap;margin-top:var(--s4);font-size:.78rem;color:var(--tx2);}
 .wfkey span{display:inline-flex;align-items:center;gap:7px;}
 .wfkey i{width:12px;height:12px;border-radius:3px;background:var(--fill);border:1px solid var(--ln);}
@@ -830,9 +854,15 @@ function drawCentre(){
     h += '<div class="grid2">';
     h += '<div class="card"><div class="per">';
     if(R.persona){
-      if(R.persona.profile){   h += '<div><h5>Who is here</h5><p>' + esc(R.persona.profile) + '</p></div>'; }
-      if(R.persona.priorities){h += '<div><h5>What they care about</h5><p>' + esc(R.persona.priorities) + '</p></div>'; }
-      if(R.persona.hooks){     h += '<div><h5>What sells this floor</h5><p>' + esc(R.persona.hooks) + '</p></div>'; }
+      if(R.persona.profile){   h += '<div><h5>Who is here</h5><p>' + esc(persona(current, "profile")) + '</p></div>'; }
+      if(R.persona.priorities){h += '<div><h5>What they care about</h5><p>' + esc(persona(current, "priorities")) + '</p></div>'; }
+      if(R.persona.hooks){     h += '<div><h5>What sells this floor</h5><p>' + esc(persona(current, "hooks")) + '</p></div>'; }
+      var pd = personaDone(current);
+      if(lang !== "en" && pd.want && pd.got < pd.want){
+        h += '<p class="xnote" style="margin-top:2px">' + ico("warn") +
+             '<span>' + pd.got + ' of ' + pd.want + ' report lines translated. ' +
+             'The rest show the English.</span></p>';
+      }
     }
     h += '</div></div>';
     h += '<div class="card">';
@@ -847,7 +877,7 @@ function drawCentre(){
       h += '<h5 style="font-size:.68rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);margin:20px 0 4px">Industry mix</h5><div class="mix">';
       for(i = 0; i < R.industries.length; i++){
         var ind = R.industries[i];
-        h += '<div class="row"><span class="nm">' + esc(ind.name) + '</span>' +
+        h += '<div class="row"><span class="nm">' + esc(indLabel(ind.name)) + '</span>' +
              '<span class="v">' + fmt(ind.pct) + '%</span>' +
              '<span class="bar"><i style="width:' + Math.max(2, ind.pct) + '%"></i></span></div>';
       }
@@ -1733,6 +1763,31 @@ function words(code, lang){               /* a translation layer */
   return w;
 }
 /* what to show: English facts + this language's words */
+/* The industry-mix labels are shared across the whole network, so they live
+   at the top of the file rather than on each centre. English is the key. */
+function indLabel(name){
+  if(lang === "en"){ return name; }
+  var m = DATA && DATA.industryLabels && DATA.industryLabels[lang];
+  return (m && m[name]) || name;
+}
+/* The persona lines are per centre. Other languages carry only the words. */
+function persona(code, field){
+  var c = centre(code) || {}, en = ((c.report || {}).persona || {})[field] || "";
+  if(lang === "en"){ return en; }
+  var t = ((c.content || {})[lang] || {}).report || {};
+  return t[field] || en;
+}
+function personaDone(code){
+  var c = centre(code) || {}, p = (c.report || {}).persona || {};
+  var fields = ["profile", "priorities", "hooks"], i, want = 0, got = 0;
+  var t = ((c.content || {})[lang] || {}).report || {};
+  for(i = 0; i < fields.length; i++){
+    if(!p[fields[i]]){ continue; }
+    want++; if(t[fields[i]]){ got++; }
+  }
+  return {want: want, got: got};
+}
+
 function resolve(code, lang){
   var en = base(code);
   if(lang === "en"){ return {places: en.places, journeys: en.journeys}; }
@@ -1951,8 +2006,12 @@ function drawOverview(){
     list.sort(function(a, b){ return String(a.c.label).localeCompare(String(b.c.label)); });
     h += '<div class="wfr"><span>' + esc(regions[i]) + '</span><div class="wfc">';
     for(j = 0; j < list.length; j++){
-      h += '<i' + (list[j].has ? ' class="has"' : "") + ' title="' + esc(list[j].c.label) +
-           (list[j].n ? " — " + list[j].n + " places" : " — nothing written") + '"></i>';
+      var sq = list[j];
+      var note = sq.n ? sq.n + (sq.n === 1 ? " place" : " places") : "nothing written";
+      h += '<button type="button" class="sq' + (sq.has ? " has" : "") + '"' +
+           ' data-code="' + esc(sq.code) + '"' +
+           ' data-t="' + esc(sq.c.label + " · " + note) + '"' +
+           ' aria-label="' + esc(sq.c.label + ", " + note) + '"></button>';
     }
     h += "</div></div>";
   }
@@ -1988,7 +2047,7 @@ function drawOverview(){
     var R = centre(codes[i]).report;
     if(!R || !R.industries){ continue; }
     for(j = 0; j < R.industries.length; j++){
-      var nm = R.industries[j].name;
+      var nm = indLabel(R.industries[j].name);
       if(!mix[nm]){ mix[nm] = 0; names.push(nm); }
       mix[nm] += R.industries[j].pct;
     }
