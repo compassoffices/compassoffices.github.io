@@ -20,7 +20,7 @@ export const FRESH_TICKET_URL = "https://encoreit.freshdesk.com/a/tickets/";
 
 // Teams a complaint can be routed to during triage. Management is a staff
 // team but never owns tickets — it's read-only across everything.
-export const OWNER_TEAMS = ["CS", "Project", "IT", "Finance", "Sales"];
+export const OWNER_TEAMS = ["CS", "Project", "IT", "Finance", "Sales", "Marketing"];
 export const STAFF_TEAMS = [...OWNER_TEAMS, "Management"];
 
 // Market → centre → floors. Drives the intake form's three-step picker
