@@ -16,7 +16,7 @@
         <div class="co-brand-text"><span class="co-name">Compass Offices</span><span class="co-sub">Help Request Tracker</span></div>
       </a>
       <div class="co-header-right">
-        <a class="co-btn co-btn-sm" href="washroom.html">Washroom checks</a>
+        <a class="co-btn co-btn-sm" id="washroomLink" href="washroom.html" style="display:none;">Washroom checks</a>
         <div class="co-whoami"><span class="co-who-name" id="whoName"></span><span class="co-who-team" id="whoTeam"></span></div>
         <button class="co-btn co-btn-sm" id="logoutBtn">Sign out</button>
       </div>
@@ -123,6 +123,7 @@
               <option value="Project">Project</option>
               <option value="IT">IT</option>
               <option value="Finance">Finance</option>
+              <option value="Marketing">Marketing</option>
               <option value="Sales">Sales</option>
             </select>
           </div>
@@ -133,6 +134,7 @@
             </select>
           </div>
         </div>
+        <p class="co-hint" id="renewalHint" style="display:none; margin:-4px 0 12px;"></p>
         <div class="co-row2" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
           <div class="co-field">
             <label class="co-label">Severity <span class="co-req">*</span></label>
@@ -220,6 +222,11 @@ const isLead = staff.isLead === true;
 const hasOverview = isCS || isSales;
 const marketScoped = isCS || isSales;
 const myMarkets = (staff.markets || []).slice(0, 30);
+
+// Washroom checks are CS's routine, so only they get the link. Hidden in the
+// markup and revealed here rather than the other way round: if this script
+// fails, the safe outcome is nobody seeing it, not everybody.
+if (isCS) document.getElementById("washroomLink").style.display = "";
 
 document.getElementById("pageTitle").textContent = isCS ? "CS Workspace" : `${staff.team} Workspace`;
 document.getElementById("pageSub").textContent = isCS
@@ -569,7 +576,7 @@ modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop)
 
 // CS and Sales only reach complaints in the markets on their staff record,
 // so offering someone who doesn't cover this one would hand them a ticket
-// they cannot open. Project, IT and Finance read by team, whatever the
+// they cannot open. Project, IT, Finance and Marketing read by team, whatever the
 // market, so no filter applies to them.
 function eligibleOwners(team){
   const marketBound = team === "CS" || team === "Sales";
@@ -578,6 +585,41 @@ function eligibleOwners(team){
     s.team === team &&
     (!marketBound || (s.markets || []).includes(market))
   );
+}
+
+// The Sales lead covering a market — designated by isLead on their staff
+// record, not by name here, so replacing the Head of Sales is a Firestore
+// edit rather than a code change.
+function salesLeadFor(market){
+  return allStaff.find(s =>
+    s.team === "Sales" && s.isLead === true && (s.markets || []).includes(market)
+  ) || null;
+}
+
+// Renewals go to the Head of Sales first, who then hands them to the right
+// person on their team. Locked rather than merely pre-selected, because the
+// point is that it always happens. Markets with no Sales lead are untouched,
+// so this applies where a lead exists and nowhere else.
+function applyRenewalRule(t){
+  const teamSel = document.getElementById("triageTeam");
+  const ownerSel = document.getElementById("triageOwner");
+  const hint = document.getElementById("renewalHint");
+  const lead = t.complaintType === "Renewal" ? salesLeadFor(t.location) : null;
+
+  if (!lead) {
+    teamSel.disabled = false;
+    ownerSel.disabled = false;
+    hint.style.display = "none";
+    return;
+  }
+
+  teamSel.value = "Sales";
+  populateOwnerOptions("Sales");
+  ownerSel.value = lead.name;
+  teamSel.disabled = true;
+  ownerSel.disabled = true;
+  hint.textContent = `Renewals go to ${lead.name}, Head of Sales, who will pass it to the right person on their team.`;
+  hint.style.display = "block";
 }
 
 function populateOwnerOptions(team){
@@ -733,6 +775,7 @@ async function openModal(ref){
     document.getElementById("triageSeverity").value = "Low";
     document.getElementById("triageTarget").value = "";
     document.getElementById("triageNote").value = "";
+    applyRenewalRule(t);
   } else if (canAct) {
     document.getElementById("updateNote").value = "";
     document.getElementById("updateContacted").checked = false;
