@@ -18,7 +18,8 @@
       </a>
       <div class="co-header-right">
         <a class="co-btn co-btn-sm" href="washroom-dashboard.html">Washroom cleanliness</a>
-        <div class="co-whoami"><span class="co-who-name" id="whoName"></span><span class="co-who-team">Management · read-only</span></div>
+        <a class="co-btn co-btn-sm" id="workspaceLink" href="workspace.html" style="display:none;"></a>
+        <div class="co-whoami"><span class="co-who-name" id="whoName"></span><span class="co-who-team" id="whoTeamLabel">Management · read-only</span></div>
         <button class="co-btn co-btn-sm" id="logoutBtn">Sign out</button>
       </div>
     </div>
@@ -175,12 +176,27 @@ import {
 
 const staff = await requireStaffSession();
 if (!staff) throw new Error("no session");
-if (staff.team !== "Management") {
+// Same test the rules use: the Management team, or anyone an admin has given
+// oversight on top of their own team.
+const canOversee = staff.team === "Management" || staff.canViewManagement === true;
+if (!canOversee) {
   window.location.href = "workspace.html";
   throw new Error("not management");
 }
 
+// Someone on an owning team is here as well as their own board, so give them
+// the way back. A pure Management account has no board to return to.
+const hasOwnBoard = staff.team !== "Management";
+if (hasOwnBoard) {
+  const link = document.getElementById("workspaceLink");
+  link.textContent = `${staff.team} workspace`;
+  link.style.display = "";
+}
+
 document.getElementById("whoName").textContent = staff.name;
+document.getElementById("whoTeamLabel").textContent = hasOwnBoard
+  ? `${staff.team} · oversight`
+  : "Management · read-only";
 document.getElementById("logoutBtn").addEventListener("click", signOutAndRedirect);
 
 function escapeHTML(s){
